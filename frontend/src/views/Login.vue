@@ -1,7 +1,7 @@
 <template>
   <div class="login-page">
     <div class="login-box">
-      <h1>📈 量化交易系统</h1>
+      <h1>📈 量化交易系统 · 离线版</h1>
       <el-form ref="formRef" :model="form" :rules="rules" class="login-form">
         <el-form-item prop="username">
           <el-input v-model="form.username" placeholder="用户名" size="large" />
@@ -15,16 +15,16 @@
           </el-button>
         </el-form-item>
       </el-form>
-      <p class="tip">默认账号: admin / 123456</p>
+      <p class="tip">离线模式 · 任意账号密码即可登录</p>
     </div>
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { useUserStore } from '@/store/user'
+import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -40,14 +40,12 @@ const rules = {
 }
 
 const handleLogin = async () => {
-  await formRef.value.validate()
+  await formRef.value?.validate()
   loading.value = true
   try {
-    await userStore.login(form)
+    userStore.login(form)
     ElMessage.success('登录成功')
-    router.push('/dashboard')
-  } catch (e) {
-    // error handled by interceptor
+    router.push('/data/overview')
   } finally {
     loading.value = false
   }
@@ -73,10 +71,7 @@ const handleLogin = async () => {
   color: #fff;
   text-align: center;
   margin-bottom: 32px;
-  font-size: 24px;
-}
-.login-form {
-  margin-top: 24px;
+  font-size: 22px;
 }
 .tip {
   color: #888;

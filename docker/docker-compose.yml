@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: quant-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: quant_db
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ../scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - quant-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: quant-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - quant-network
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: quant-influxdb
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: 123456
+      DOCKER_INFLUXDB_INIT_BUCKET: market_data
+      DOCKER_INFLUXDB_INIT_ORG: quant
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: quant-admin-token
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+    networks:
+      - quant-network
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: ../docker/Dockerfile.backend
+    container_name: quant-backend
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_HOST: mysql
+      REDIS_HOST: redis
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - quant-network
+
+  quant-engine:
+    build:
+      context: ../quant-engine
+      dockerfile: ../docker/Dockerfile.quant
+    container_name: quant-engine
+    environment:
+      DB_HOST: mysql
+      REDIS_HOST: redis
+      INFLUXDB_HOST: influxdb
+    depends_on:
+      - mysql
+      - redis
+      - influxdb
+    networks:
+      - quant-network
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: ../docker/Dockerfile.frontend
+    container_name: quant-frontend
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+    networks:
+      - quant-network
+
+volumes:
+  mysql-data:
+  influxdb-data:
+
+networks:
+  quant-network:
+    driver: bridge

@@ -1,0 +1,68 @@
+# 项目目录结构
+
+```
+quant-trading-system/
+├── frontend/                    # 前端 (Vue3)
+│   ├── src/
+│   │   ├── views/              # 页面
+│   │   │   ├── dashboard/      # 行情看板
+│   │   │   ├── strategy/       # 策略管理
+│   │   │   ├── backtest/       # 回测分析
+│   │   │   ├── trading/        # 实盘监控
+│   │   │   └── account/        # 账户资产
+│   │   ├── components/
+│   │   ├── api/
+│   │   ├── store/
+│   │   └── router/
+│   ├── package.json
+│   └── vite.config.js
+│
+├── backend/                     # 后端 (Spring Boot)
+│   ├── src/main/java/com/quant/
+│   │   ├── controller/
+│   │   ├── service/
+│   │   ├── repository/
+│   │   ├── entity/
+│   │   ├── dto/
+│   │   ├── config/
+│   │   ├── security/
+│   │   └── exception/
+│   ├── src/main/resources/
+│   │   └── application.yml
+│   └── pom.xml
+│
+├── quant-engine/                # 量化引擎 (Python)
+│   ├── strategies/
+│   │   ├── base_strategy.py
+│   │   ├── ma_cross_strategy.py
+│   │   ├── boll_strategy.py
+│   │   └── macd_strategy.py
+│   ├── engines/
+│   │   ├── backtest_engine.py
+│   │   ├── data_engine.py
+│   │   ├── signal_engine.py
+│   │   └── risk_engine.py
+│   ├── utils/
+│   ├── requirements.txt
+│   └── main.py
+│
+├── docker/
+│   ├── docker-compose.yml
+│   ├── Dockerfile.backend
+│   ├── Dockerfile.frontend
+│   ├── Dockerfile.quant
+│   └── nginx.conf
+│
+├── docs/
+│   ├── 安装指南.md
+│   ├── 策略开发指南.md
+│   ├── API文档.md
+│   └── 开发规范.md
+│
+├── scripts/
+│   ├── init_db.sql
+│   ├── deploy.sh
+│   └── deploy.ps1
+│
+└── README.md
+```

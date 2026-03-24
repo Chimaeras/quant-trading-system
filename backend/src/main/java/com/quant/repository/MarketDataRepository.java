@@ -23,8 +23,14 @@ public interface MarketDataRepository extends JpaRepository<MarketData, Long> {
     @Query("SELECT MAX(m.tradeDate) FROM MarketData m")
     Optional<LocalDate> findMaxTradeDate();
 
+    @Query("SELECT MAX(m.tradeDate) FROM MarketData m WHERE m.tradeDate <= :tradeDate")
+    Optional<LocalDate> findLatestTradeDateOnOrBefore(@Param("tradeDate") LocalDate tradeDate);
+
     @Query(value = "SELECT COUNT(*) FROM (SELECT DISTINCT stock_code, exchange_type FROM market_data) t", nativeQuery = true)
     long countDistinctStocks();
+
+    @Query(value = "SELECT DISTINCT stock_code, exchange_type FROM market_data WHERE trade_date BETWEEN :startDate AND :endDate", nativeQuery = true)
+    List<Object[]> findDistinctStockPairsInRange(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
 
     /** 查询某股票在日期范围内已存在的交易日列表（用于去重） */
     @Query("SELECT m.tradeDate FROM MarketData m WHERE m.stockCode = :stockCode AND m.exchangeType = :exchangeType AND m.tradeDate BETWEEN :startDate AND :endDate")

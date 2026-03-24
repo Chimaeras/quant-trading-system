@@ -38,6 +38,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/backtest/**").permitAll()
+                .requestMatchers("/api/selector/**").permitAll()
                 .requestMatchers("/api/data/**").permitAll()
                 .requestMatchers("/api/market/**").permitAll()
                 .requestMatchers("/actuator/health").permitAll()

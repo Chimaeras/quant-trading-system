@@ -7,7 +7,8 @@
           <el-option label="金融" value="金融" />
           <el-option label="科技" value="科技" />
           <el-option label="消费" value="消费" />
-        </el-form-item>
+        </el-select>
+      </el-form-item>
       <el-form-item label="市值">
         <el-select v-model="marketCap" placeholder="市值" clearable style="width: 120px">
           <el-option label="大市值" value="large" />
@@ -20,9 +21,9 @@
       </el-form-item>
     </el-form>
     <el-table v-loading="loading" :data="results" stripe>
-      <el-table-column prop="stock_code" label="代码" width="100" />
-      <el-table-column prop="stock_name" label="名称" />
-      <el-table-column prop="industry" label="行业" width="100" />
+      <el-table-column prop="stock_code" label="代码" min-width="95" />
+      <el-table-column prop="stock_name" label="名称" min-width="120" />
+      <el-table-column prop="industry" label="行业" min-width="95" />
     </el-table>
     <p class="tip">离线模式：基于本地股票列表筛选</p>
   </el-card>

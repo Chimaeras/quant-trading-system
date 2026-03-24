@@ -37,6 +37,9 @@ public class SecurityConfig {
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/backtest/**").permitAll()
+                .requestMatchers("/api/data/**").permitAll()
+                .requestMatchers("/api/market/**").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers(HttpMethod.GET, "/", "/index.html", "/assets/**", "/login", "/dashboard", "/strategy", "/backtest", "/trading", "/account", "/favicon.ico", "/vite.svg").permitAll()
                 .requestMatchers("/api/**").authenticated()

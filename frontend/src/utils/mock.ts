@@ -76,8 +76,8 @@ export function generateMockTrades(count = 50) {
 
 export function generateMockStrategies() {
   return [
-    { id: 1, name: '双均线策略', strategy_name: '双均线策略', strategy_type: 1, language: 'python', status: 0, total_return: 25.6, sharpe_ratio: 1.85, max_drawdown: -12.5, last_backtest: '2026-03-19', created_at: '2026-03-01', content: 'def initialize(context): pass\ndef handle_bar(context, bar_dict): pass' },
-    { id: 2, name: 'MACD策略', strategy_name: 'MACD策略', strategy_type: 1, language: 'python', status: 1, total_return: 18.2, sharpe_ratio: 1.42, max_drawdown: -15.2, last_backtest: '2026-03-20', created_at: '2026-03-05', content: 'def initialize(context): pass\ndef handle_bar(context, bar_dict): pass' },
-    { id: 3, name: 'RSI超卖策略', strategy_name: 'RSI超卖策略', strategy_type: 2, language: 'python', status: 0, total_return: -5.3, sharpe_ratio: 0.65, max_drawdown: -22.1, last_backtest: '2026-03-18', created_at: '2026-03-10', content: 'def initialize(context): pass\ndef handle_bar(context, bar_dict): pass' }
+    { id: 1, name: 'MA_Cross', strategy_name: 'MA_Cross', strategy_type: 1, language: 'python', params: { short_period: 5, long_period: 20 }, status: 0, total_return: 0, sharpe_ratio: 0, max_drawdown: 0, last_backtest: '', created_at: '2026-03-01', content: '均线金叉死叉策略：短均线(5)上穿长均线(20)买入，下穿卖出' },
+    { id: 2, name: 'BOLL_Strategy', strategy_name: 'BOLL_Strategy', strategy_type: 1, language: 'python', params: { period: 20, std_dev: 2 }, status: 0, total_return: 0, sharpe_ratio: 0, max_drawdown: 0, last_backtest: '', created_at: '2026-03-05', content: '布林带策略：价格触及下轨买入，触及上轨卖出' },
+    { id: 3, name: 'MACD_Strategy', strategy_name: 'MACD_Strategy', strategy_type: 1, language: 'python', params: { fast: 12, slow: 26, signal: 9 }, status: 0, total_return: 0, sharpe_ratio: 0, max_drawdown: 0, last_backtest: '', created_at: '2026-03-10', content: 'MACD策略：金叉买入，死叉卖出' }
   ]
 }

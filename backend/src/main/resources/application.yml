@@ -44,3 +44,11 @@ logging:
     org.hibernate.SQL: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+backtest:
+  cost:
+    commission-rate: 0.0003
+    min-commission: 5.0
+    stamp-duty-rate: 0.001
+    transfer-fee-rate: 0.00002
+    slippage-bps: 2.0

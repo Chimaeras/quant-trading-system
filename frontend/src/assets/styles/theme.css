@@ -1,0 +1,19 @@
+/**
+ * 蓝色系主题 - 替代原黑色背景
+ */
+:root {
+  --theme-bg-main: #eef2f7;
+  --theme-bg-sidebar: #1e3a5f;
+  --theme-bg-header: #26496b;
+  --theme-bg-card: #ffffff;
+  --theme-bg-card-alt: #f8fafc;
+  --theme-border: #e2e8f0;
+  --theme-text: #334155;
+  --theme-text-muted: #64748b;
+  --theme-accent: #2563eb;
+}
+
+/* 全局背景 */
+body, #app {
+  background: var(--theme-bg-main) !important;
+}

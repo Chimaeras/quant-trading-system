@@ -12,10 +12,10 @@
     <el-card shadow="hover" style="margin-top: 20px">
       <template #header>资金流水</template>
       <el-table :data="transactions" stripe>
-        <el-table-column prop="time" label="时间" />
-        <el-table-column prop="type" label="类型" />
-        <el-table-column prop="amount" label="金额" />
-        <el-table-column prop="balance" label="余额" />
+        <el-table-column prop="time" label="时间" min-width="160" />
+        <el-table-column prop="type" label="类型" min-width="100" />
+        <el-table-column prop="amount" label="金额" min-width="110" />
+        <el-table-column prop="balance" label="余额" min-width="110" />
       </el-table>
       <el-empty v-if="!transactions.length" description="暂无流水记录" />
     </el-card>

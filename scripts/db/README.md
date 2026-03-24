@@ -32,6 +32,74 @@ source E:/Project/quant-trading-system/scripts/db/01_init_schema.sql;
 - **market_name** 已改为 **exchange_type_name**
 - **market_list** 已改为 **exchange_list**
 
+## 数据导入
+
+### A股代码映射表导入 (stock_info)
+
+将 `A股代码名称映射表_*.csv`（字段：code, name, market）导入到 `stock_info` 表。
+
+**方式一：Python 脚本（推荐）**
+
+```bash
+# 需先安装: pip install pymysql
+python scripts/db/import_stock_mapping.py "e:\Download\A股代码名称映射表_20260227.csv"
+```
+
+**方式二：生成 SQL 后执行**
+
+```bash
+# 生成 SQL 文件
+python scripts/db/generate_stock_insert_sql.py "e:\Download\A股代码名称映射表_20260227.csv"
+
+# 执行导入
+mysql -u root -p quant_db < scripts/db/stock_info_import.sql
+```
+
+**市场映射关系：**
+
+| CSV market | exchange_type | exchange_type_name |
+|------------|---------------|---------------------|
+| 深市主板   | SZSE          | 深交所              |
+| 创业板     | SZSE          | 深交所              |
+| 沪市主板   | SSE           | 上交所              |
+| 科创板     | SSE           | 上交所              |
+| 北交所     | BSE           | 北交所              |
+
+### query.stock_daily 迁移到 quant_db
+
+将 `query.stock_daily` 表迁移到 quant_db 的 stock_info、market_data、technical_indicators。
+
+**字段映射：**
+
+| query.stock_daily | quant_db.market_data | quant_db.technical_indicators |
+|-------------------|----------------------|------------------------------|
+| init_date (20240102) | trade_date (DATE) | trade_date |
+| stock_code | stock_code | stock_code |
+| - | exchange_type (由代码推断) | exchange_type |
+| open_price, high_price, low_price, close_price | 同名 | - |
+| change | → pre_close (close-change) | - |
+| change_percent | change_pct | - |
+| volume | volume | - |
+| volume_balance | amount | - |
+| turnover_rate | turnover_rate | - |
+| ma5, ma10, ma20, ma30 | - | 同名 |
+| rsi14 | - | rsi14 |
+
+**执行：**
+
+```bash
+# 依赖: pip install pymysql
+python scripts/db/migrate_stock_daily.py
+
+# 测试(仅迁移2000条)
+python scripts/db/migrate_stock_daily.py --limit 2000
+
+# 预检查(不写入)
+python scripts/db/migrate_stock_daily.py --dry-run
+```
+
+环境变量可覆盖数据库连接：`SRC_DB_HOST`, `SRC_DB_PASSWORD` 等。
+
 ## 后续扩展
 
 可在此目录新增脚本，建议命名：04_xxx.sql, 05_xxx.sql ...

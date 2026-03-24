@@ -123,7 +123,7 @@
                     </execution>
                 </executions>
             </plugin>
-            <!-- 复制前端构建产物到 static -->
+            <!-- 复制前端构建产物到 resources/static，由 process-resources 一并打包 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
@@ -135,7 +135,7 @@
                             <goal>copy-resources</goal>
                         </goals>
                         <configuration>
-                            <outputDirectory>${project.build.directory}/classes/static</outputDirectory>
+                            <outputDirectory>${project.basedir}/src/main/resources/static</outputDirectory>
                             <resources>
                                 <resource>
                                     <directory>${project.basedir}/../frontend/dist</directory>

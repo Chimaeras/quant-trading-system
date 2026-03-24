@@ -9,13 +9,13 @@
       </el-form-item>
     </el-form>
     <el-table :data="monthlyData" stripe>
-      <el-table-column prop="month" label="月份" width="80" />
-      <el-table-column prop="return" label="收益率(%)" width="120">
+      <el-table-column prop="month" label="月份" min-width="85" />
+      <el-table-column prop="return" label="收益率(%)" min-width="115">
         <template #default="{ row }">
           <span :class="row.return >= 0 ? 'profit' : 'loss'">{{ row.return?.toFixed(2) ?? '-' }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="trades" label="交易笔数" />
+      <el-table-column prop="trades" label="交易笔数" min-width="110" />
     </el-table>
   </el-card>
 </template>

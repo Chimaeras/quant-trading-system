@@ -59,22 +59,40 @@ docker-compose ps
 
 | 服务 | 地址 |
 |------|------|
-| 前端界面 | http://localhost |
-| 后端API | http://localhost:8080/api |
+| **前端+API（统一入口）** | **http://localhost:8080** |
+| 账户/数据/行情等所有页面 | http://localhost:8080/account |
 | InfluxDB | http://localhost:8086 |
 
-### 本地开发
+### 本地开发（推荐：单端口 8080）
 
 ```bash
-# 后端
+# 启动后端（会自动构建前端并托管，前后端同端口）
 cd backend && mvn spring-boot:run
 
-# 量化引擎
-cd quant-engine && pip install -r requirements.txt && python main.py
-
-# 前端
-cd frontend && npm install && npm run dev
+# 访问 http://localhost:8080 即可使用全部功能
+# 账户页: http://localhost:8080/account
 ```
+
+> 无需单独运行 `npm run dev`。Spring Boot 启动时会构建前端并服务静态资源，所有页面统一在 8080 端口。
+
+### 前端修改后未生效？强制刷新方法
+
+修改前端代码后若未看到效果，常见原因与解决：
+
+1. **仅执行了 npm run build**：后端从 `target/classes/static` 提供静态文件，该目录由 Maven 从 `frontend/dist` 复制。需重新构建后端：
+   ```bash
+   cd backend && mvn clean compile   # 或 mvn spring-boot:run
+   ```
+
+2. **Vite / 浏览器缓存**：可先清缓存再构建：
+   ```bash
+   cd frontend && npm run build:clean   # 清空 dist 与 Vite 缓存后构建
+   cd ../backend && mvn compile
+   ```
+
+3. **浏览器强制刷新**：`Ctrl + Shift + R`（Windows）或 `Cmd + Shift + R`（Mac），或 DevTools 里勾选 “Disable cache” 后刷新。
+
+4. **本地开发时**：建议用 `cd frontend && npm run dev` 启动前端（热更新），后端代理到 8080。
 
 ## 项目结构
 

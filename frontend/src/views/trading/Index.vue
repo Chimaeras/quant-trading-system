@@ -5,18 +5,18 @@
         <el-card shadow="hover">
           <template #header>订单列表</template>
           <el-table :data="orders" stripe>
-            <el-table-column prop="orderId" label="订单号" />
-            <el-table-column prop="symbol" label="标的" />
-            <el-table-column prop="action" label="方向">
+            <el-table-column prop="orderId" label="订单号" min-width="120" />
+            <el-table-column prop="symbol" label="标的" min-width="100" />
+            <el-table-column prop="action" label="方向" min-width="80">
               <template #default="{ row }">
                 <el-tag :type="row.action === 'buy' ? 'success' : 'danger'">
                   {{ row.action === 'buy' ? '买入' : '卖出' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="volume" label="数量" />
-            <el-table-column prop="price" label="价格" />
-            <el-table-column prop="status" label="状态" />
+            <el-table-column prop="volume" label="数量" min-width="90" />
+            <el-table-column prop="price" label="价格" min-width="90" />
+            <el-table-column prop="status" label="状态" min-width="95" />
           </el-table>
         </el-card>
       </el-col>

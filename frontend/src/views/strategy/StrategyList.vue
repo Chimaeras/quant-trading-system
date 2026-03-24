@@ -5,12 +5,12 @@
       <el-button type="primary" size="small" @click="$router.push('/strategy/editor')">新建策略</el-button>
     </template>
     <el-table v-loading="loading" :data="list" stripe>
-      <el-table-column prop="name" label="策略名称">
+      <el-table-column prop="name" label="策略名称" min-width="180">
         <template #default="{ row }">{{ row.name ?? row.strategy_name }}</template>
       </el-table-column>
-      <el-table-column prop="language" label="语言" width="80" />
-      <el-table-column prop="created_at" label="创建时间" width="160" />
-      <el-table-column label="操作" width="160">
+      <el-table-column prop="language" label="语言" min-width="80" />
+      <el-table-column prop="created_at" label="创建时间" min-width="150" />
+      <el-table-column label="操作" min-width="140">
         <template #default="{ row }">
           <el-button link type="primary" @click="edit(row)">编辑</el-button>
           <el-button link type="primary" @click="$router.push(`/strategy/backtest?id=${row.id}`)">回测</el-button>

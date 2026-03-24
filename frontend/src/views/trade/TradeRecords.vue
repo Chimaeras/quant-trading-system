@@ -10,16 +10,16 @@
       </el-form-item>
     </el-form>
     <el-table v-loading="loading" :data="list" stripe>
-      <el-table-column prop="trade_time" label="时间" width="180" />
-      <el-table-column prop="stock_code" label="代码" width="100" />
-      <el-table-column prop="stock_name" label="名称" width="100" />
-      <el-table-column prop="trade_type" label="方向" width="80">
+      <el-table-column prop="trade_time" label="时间" min-width="165" />
+      <el-table-column prop="stock_code" label="代码" min-width="95" />
+      <el-table-column prop="stock_name" label="名称" min-width="95" />
+      <el-table-column prop="trade_type" label="方向" min-width="75">
         <template #default="{ row }">{{ row.trade_type === 1 ? '买入' : '卖出' }}</template>
       </el-table-column>
-      <el-table-column prop="trade_price" label="价格" width="80" />
-      <el-table-column prop="trade_volume" label="数量" width="100" />
-      <el-table-column prop="trade_amount" label="金额" width="100" />
-      <el-table-column prop="profit_loss" label="盈亏" width="100">
+      <el-table-column prop="trade_price" label="价格" min-width="75" />
+      <el-table-column prop="trade_volume" label="数量" min-width="90" />
+      <el-table-column prop="trade_amount" label="金额" min-width="95" />
+      <el-table-column prop="profit_loss" label="盈亏" min-width="95">
         <template #default="{ row }">
           <span :class="(row.profit_loss || 0) >= 0 ? 'profit' : 'loss'">{{ row.profit_loss ?? '-' }}</span>
         </template>

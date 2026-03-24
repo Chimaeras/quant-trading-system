@@ -43,6 +43,17 @@ export interface DataOverview {
   storage_size: string
 }
 
+/** 策略指标参数 */
+export interface StrategyParams {
+  short_period?: number
+  long_period?: number
+  period?: number
+  std_dev?: number
+  fast?: number
+  slow?: number
+  signal?: number
+}
+
 /** 策略信息 */
 export interface StrategyInfo {
   id?: number
@@ -52,6 +63,7 @@ export interface StrategyInfo {
   strategy_type?: number
   language?: string
   content?: string
+  params?: StrategyParams
   status?: number
   total_return?: number
   sharpe_ratio?: number
@@ -68,7 +80,30 @@ export interface BacktestResult {
   max_drawdown: number
   total_trades: number
   win_rate: number
+  total_cost?: number
+  result_id?: string | null
   equity_curve: Array<{ date: string; equity: number }>
+}
+
+/** 回测历史记录 */
+export interface BacktestHistoryItem {
+  result_id: string
+  strategy_id?: number
+  strategy_name?: string
+  start_date?: string
+  end_date?: string
+  initial_capital?: number
+  final_capital?: number
+  total_return?: number
+  annual_return?: number
+  sharpe_ratio?: number
+  max_drawdown?: number
+  total_trades?: number
+  win_rate?: number
+  status?: number
+  run_time?: number
+  created_at?: string
+  params?: Record<string, unknown>
 }
 
 /** 交易记录 */

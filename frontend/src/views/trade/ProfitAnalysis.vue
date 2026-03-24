@@ -48,7 +48,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.stat-card { padding: 20px; background: #1a1b1e; border-radius: 8px; }
+.stat-card { padding: 20px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
 .stat-card .label { color: #888; font-size: 12px; }
 .stat-card .value { font-size: 24px; font-weight: bold; margin-top: 8px; }
 .profit { color: #67c23a; }

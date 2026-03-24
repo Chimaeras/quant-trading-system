@@ -28,6 +28,9 @@ target/
 /nbdist/
 /.nb-gradle/
 build/
+
+# 前端构建产物由 Maven 复制到此目录，不纳入版本控制
+backend/src/main/resources/static/
 !**/src/main/**/build/
 !**/src/test/**/build/
 

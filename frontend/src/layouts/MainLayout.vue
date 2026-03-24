@@ -5,10 +5,34 @@
       <el-menu
         :default-active="$route.path"
         router
-        background-color="#1d1e1f"
-        text-color="#aaa"
-        active-text-color="#409eff"
+        background-color="#1e3a5f"
+        text-color="#93c5fd"
+        active-text-color="#ffffff"
       >
+        <el-menu-item index="/dashboard">
+          <el-icon><DataLine /></el-icon>
+          <span>行情看板</span>
+        </el-menu-item>
+        <el-menu-item index="/strategy">
+          <el-icon><Setting /></el-icon>
+          <span>策略管理</span>
+        </el-menu-item>
+        <el-menu-item index="/strategy/backtest">
+          <el-icon><TrendCharts /></el-icon>
+          <span>回测分析</span>
+        </el-menu-item>
+        <el-menu-item index="/trading">
+          <el-icon><Monitor /></el-icon>
+          <span>实盘监控</span>
+        </el-menu-item>
+        <el-menu-item index="/market/stock">
+          <el-icon><TrendCharts /></el-icon>
+          <span>股票历史</span>
+        </el-menu-item>
+        <el-menu-item index="/account">
+          <el-icon><Wallet /></el-icon>
+          <span>账户资产</span>
+        </el-menu-item>
         <el-sub-menu index="data">
           <template #title>
             <el-icon><DataAnalysis /></el-icon>
@@ -23,8 +47,10 @@
             <el-icon><TrendCharts /></el-icon>
             <span>行情分析</span>
           </template>
+          <el-menu-item index="/market/stock">股票历史</el-menu-item>
           <el-menu-item index="/market/kline">K线图</el-menu-item>
           <el-menu-item index="/market/stock-picker">选股器</el-menu-item>
+          <el-menu-item index="/market/realtime">实时盯盘</el-menu-item>
         </el-sub-menu>
         <el-sub-menu index="strategy">
           <template #title>
@@ -90,7 +116,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { DataAnalysis, TrendCharts, Setting, Wallet, FolderOpened, Document, Tools, ArrowDown } from '@element-plus/icons-vue'
+import { DataAnalysis, DataLine, TrendCharts, Monitor, Setting, Wallet, FolderOpened, Document, Tools, ArrowDown } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -104,10 +130,10 @@ const handleLogout = () => {
 <style scoped>
 .main-layout {
   height: 100vh;
-  background: #0d0d0e;
+  background: #eef2f7;
 }
 .aside {
-  background: #1d1e1f;
+  background: #1e3a5f;
 }
 .logo {
   height: 60px;
@@ -115,12 +141,12 @@ const handleLogout = () => {
   text-align: center;
   font-size: 14px;
   font-weight: bold;
-  color: #409eff;
-  border-bottom: 1px solid #333;
+  color: #93c5fd;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
 }
 .header {
-  background: #161718;
-  border-bottom: 1px solid #2a2b2c;
+  background: #26496b;
+  border-bottom: 1px solid #e2e8f0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -128,7 +154,8 @@ const handleLogout = () => {
 }
 .title {
   font-size: 18px;
-  color: #e4e7ed;
+  color: #1e293b;
+  font-weight: 600;
 }
 .user-area {
   display: flex;
@@ -136,14 +163,14 @@ const handleLogout = () => {
   gap: 12px;
 }
 .user-name {
-  color: #aaa;
+  color: #475569;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 4px;
 }
 .main {
-  background: #0d0d0e;
+  background: #eef2f7;
   padding: 20px;
   overflow-y: auto;
 }

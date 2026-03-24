@@ -1,34 +1,126 @@
 /**
- * 数据中心 API - 离线模式使用 IndexedDB + Mock
+ * 数据中心 API - 优先调用后端，离线时使用 IndexedDB 真实统计
  */
 import dayjs from 'dayjs'
 import { getDB } from '@/utils/db'
 import { generateMockStocks, generateMockKLine } from '@/utils/mock'
+import request from './request'
 import type { DataOverview } from '@/types'
 
+/** 计算两个日期之间的交易日数量（去除周末） */
+function tradingDaysBetween(start: string, end: string): number {
+  let d = dayjs(start)
+  const endD = dayjs(end)
+  let count = 0
+  while (!d.isAfter(endD)) {
+    const day = d.day()
+    if (day !== 0 && day !== 6) count++
+    d = d.add(1, 'day')
+  }
+  return Math.max(1, count)
+}
+
+/** 格式化存储大小 */
+function formatStorage(bytes: number): string {
+  if (bytes <= 0) return '-'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
+
 export const dataApi = {
-  /** 获取数据概览 */
+  /** 获取数据概览 - 优先后端，失败则用 IndexedDB 真实统计。每次调用强制重新计算 */
   async getOverview(): Promise<DataOverview> {
     try {
+      const res = await request.get<{ data: DataOverview }>('/data/overview', {
+        params: { _t: Date.now() },
+        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' }
+      })
+      const d = (res as { data?: DataOverview })?.data ?? res
+      if (d && typeof d.stock_count === 'number') {
+        return {
+          stock_count: d.stock_count,
+          earliest_date: d.earliest_date ?? '-',
+          latest_date: d.latest_date ?? '-',
+          completeness: d.completeness ?? 0,
+          storage_size: d.storage_size ?? '-'
+        }
+      }
+    } catch {
+      /* 后端不可用，使用 IndexedDB */
+    }
+    return this.getOverviewFromIndexedDB()
+  },
+
+  /** 从 IndexedDB 计算真实数据概览 */
+  async getOverviewFromIndexedDB(): Promise<DataOverview> {
+    try {
       const db = await getDB()
+      const allData = (await db.getAll('market_data')) as Array<{ stock_code?: string; exchange_type?: string; trade_date?: string }>
       const stocks = await db.getAll('stocks')
-      const allData = await db.getAll('market_data')
-      const dates = [...new Set(allData.map((d: { trade_date: string }) => d.trade_date))].sort()
+
+      const stockCount = (() => {
+        if (allData.length > 0) {
+          const keys = new Set(allData.map(d => (d.exchange_type ? `${d.stock_code}-${d.exchange_type}` : d.stock_code) ?? '').filter(Boolean))
+          return keys.size
+        }
+        return stocks.length
+      })()
+
+      const dates = [...new Set(allData.map(d => d.trade_date).filter(Boolean))].sort() as string[]
+      const earliestDate = dates[0] ?? null
+      const latestDate = dates.length ? dates[dates.length - 1] : null
+
+      let completeness = 0
+      if (stockCount > 0 && earliestDate && latestDate && allData.length > 0) {
+        const tradingDays = tradingDaysBetween(earliestDate, latestDate)
+        const expected = stockCount * tradingDays
+        completeness = expected > 0 ? Math.min(100, (allData.length / expected) * 100) : 0
+      }
+
+      let storageSize = '-'
+      if (typeof navigator !== 'undefined' && navigator.storage?.estimate) {
+        const est = await navigator.storage.estimate()
+        if (est.usage != null) storageSize = formatStorage(est.usage)
+      }
+
       return {
-        stock_count: stocks.length || 5000,
-        earliest_date: dates[0] || '2010-01-01',
-        latest_date: (dates[dates.length - 1] as string) || dayjs().format('YYYY-MM-DD'),
-        completeness: 98.5,
-        storage_size: '2.5GB'
+        stock_count: stockCount,
+        earliest_date: earliestDate ?? '-',
+        latest_date: latestDate ?? dayjs().format('YYYY-MM-DD'),
+        completeness: Math.round(completeness * 10) / 10,
+        storage_size: storageSize
       }
     } catch {
       return {
-        stock_count: 5000,
-        earliest_date: '2010-01-01',
+        stock_count: 0,
+        earliest_date: '-',
         latest_date: dayjs().format('YYYY-MM-DD'),
-        completeness: 98.5,
-        storage_size: '2.5GB'
+        completeness: 0,
+        storage_size: '-'
       }
+    }
+  },
+
+  /** 历史行情立即更新：按股票+日期范围拉取，仅补充缺失的交易日 */
+  async updateHistoryData(params: {
+    stockCode: string
+    exchange?: string
+    startDate: string
+    endDate: string
+  }): Promise<{ inserted: number; skipped: number; total: number; message?: string }> {
+    const res = await request.post<{ data: { inserted: number; skipped: number; total: number; message?: string } }>(
+      '/data/history/update',
+      null,
+      { params }
+    )
+    const d = (res as { data?: { inserted: number; skipped: number; total: number; message?: string } })?.data ?? res
+    return {
+      inserted: d?.inserted ?? 0,
+      skipped: d?.skipped ?? 0,
+      total: d?.total ?? 0,
+      message: d?.message
     }
   },
 

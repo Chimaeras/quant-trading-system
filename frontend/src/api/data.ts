@@ -124,6 +124,35 @@ export const dataApi = {
     }
   },
 
+  /** 任务化历史更新（single/all/list） */
+  async runUpdateTask(params: {
+    mode: 'SINGLE' | 'ALL' | 'LIST'
+    stockCode?: string
+    exchange?: string
+    startDate?: string
+    endDate?: string
+    stockList?: string[]
+    stockListText?: string
+  }) {
+    const res = await request.post<{ data: Record<string, unknown> }>('/data/update/run', params)
+    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>)
+  },
+
+  async getUpdateTask(taskId: string) {
+    const res = await request.get<{ data: Record<string, unknown> }>(`/data/update/tasks/${taskId}`)
+    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>)
+  },
+
+  async listUpdateTasks(page = 1, size = 20) {
+    const res = await request.get<{ data: Record<string, unknown> }>('/data/update/tasks', { params: { page, size } })
+    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>)
+  },
+
+  async retryUpdateTask(taskId: string) {
+    const res = await request.post<{ data: Record<string, unknown> }>(`/data/update/tasks/${taskId}/retry`)
+    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>)
+  },
+
   /** 更新股票列表 */
   async updateStockList(): Promise<{ success: boolean; count: number }> {
     const db = await getDB()

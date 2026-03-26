@@ -10,7 +10,7 @@ const routes = [
   {
     path: '/',
     component: () => import('@/layouts/MainLayout.vue'),
-    redirect: '/account',
+    redirect: '/dashboard',
     children: [
       { path: 'account', name: 'Account', component: () => import('@/views/account/Index.vue'), meta: { title: '账户资产' } },
       { path: 'data/overview', name: 'DataOverview', component: () => import('@/views/data/DataManagement.vue'), meta: { title: '数据管理' } },

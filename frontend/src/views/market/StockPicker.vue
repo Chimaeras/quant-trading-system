@@ -17,15 +17,23 @@
       <el-form-item label="最小趋势分">
         <el-input-number v-model="form.minTrendScore" :min="0" :max="100" />
       </el-form-item>
+      <el-form-item label="模板">
+        <el-select v-model="form.templateId" clearable placeholder="可选模板" style="width: 180px">
+          <el-option v-for="t in templates" :key="String(t.template_id)" :label="String(t.name)" :value="String(t.template_id)" />
+        </el-select>
+      </el-form-item>
       <el-form-item>
         <el-button type="primary" :loading="loading" @click="runSelection">运行选股</el-button>
         <el-button @click="loadLatest">加载最新</el-button>
+        <el-button @click="saveTemplate">保存模板</el-button>
+        <el-button @click="exportCsv" :disabled="!results.length">导出清单</el-button>
       </el-form-item>
     </el-form>
     <div class="meta" v-if="resultMeta.result_id">
       <span>结果ID: {{ resultMeta.result_id }}</span>
       <span>交易日: {{ resultMeta.trade_date }}</span>
       <span>参数: {{ resultMeta.lookback_days }}天 / Top{{ resultMeta.top_n }}</span>
+      <span>因子版本: {{ resultMeta.factor_version || 'v1' }}</span>
     </div>
     <el-table v-loading="loading" :data="results" stripe>
       <el-table-column prop="rank_no" label="排名" width="70" />
@@ -80,15 +88,18 @@ const resultMeta = reactive({
   result_id: '',
   trade_date: '',
   lookback_days: 60,
-  top_n: 10
+  top_n: 10,
+  factor_version: 'v1'
 })
+const templates = ref<Array<Record<string, unknown>>>([])
 
 const form = reactive({
   tradeDate: dayjs().format('YYYY-MM-DD'),
   lookbackDays: 60,
   topN: 10,
   minAvgAmount: 30000000,
-  minTrendScore: 40
+  minTrendScore: 40,
+  templateId: ''
 })
 
 const applyResult = (data: Record<string, any>) => {
@@ -96,6 +107,7 @@ const applyResult = (data: Record<string, any>) => {
   resultMeta.trade_date = String(data.trade_date ?? '')
   resultMeta.lookback_days = Number(data.lookback_days ?? form.lookbackDays)
   resultMeta.top_n = Number(data.top_n ?? form.topN)
+  resultMeta.factor_version = String(data.factor_version ?? 'v1')
   results.value = Array.isArray(data.items) ? data.items : []
 }
 
@@ -110,6 +122,41 @@ const runSelection = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const loadTemplates = async () => {
+  templates.value = await selectorApi.listTemplates()
+}
+
+const saveTemplate = async () => {
+  const name = `模板-${dayjs().format('MMDD-HHmm')}`
+  await selectorApi.saveTemplate({
+    templateId: form.templateId || undefined,
+    name,
+    params: {
+      lookbackDays: form.lookbackDays,
+      topN: form.topN,
+      minAvgAmount: form.minAvgAmount,
+      minTrendScore: form.minTrendScore
+    }
+  })
+  ElMessage.success('模板已保存')
+  await loadTemplates()
+}
+
+const exportCsv = () => {
+  const headers = ['rank_no', 'stock_code', 'stock_name', 'final_score', 'trend_score', 'momentum_score', 'ret20', 'ret60', 'max_drawdown60']
+  const lines = [headers.join(',')]
+  for (const r of results.value) {
+    lines.push(headers.map(h => String((r as any)[h] ?? '')).join(','))
+  }
+  const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `stock-picker-${resultMeta.trade_date || dayjs().format('YYYY-MM-DD')}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 const loadLatest = async () => {
@@ -130,7 +177,10 @@ const showDetail = (row: any) => {
   detailVisible.value = true
 }
 
-onMounted(loadLatest)
+onMounted(async () => {
+  await loadTemplates()
+  await loadLatest()
+})
 </script>
 
 <style scoped>

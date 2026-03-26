@@ -2,9 +2,12 @@ package com.quant.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Data
 @Entity
@@ -31,6 +34,16 @@ public class SelectorResult {
 
     @Column(nullable = false)
     private Double minTrendScore = 40.0;
+
+    @Column(length = 64)
+    private String templateId;
+
+    @Column(length = 32)
+    private String factorVersion = "v1";
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
+    private Map<String, Object> factorSnapshot;
 
     @Column(updatable = false)
     private LocalDateTime createdAt;

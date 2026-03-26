@@ -41,6 +41,23 @@ export interface StockListItem {
   list_date?: string
 }
 
+export interface StockAnalysisResult {
+  stock_code: string
+  exchange: string
+  as_of_date: string
+  action: 'ADD' | 'REDUCE' | 'HOLD'
+  target_position: string
+  confidence: number
+  risk_lines: {
+    support: number
+    resistance: number
+    stop_loss: number
+    take_profit: number
+  }
+  indicator_snapshot: Record<string, number>
+  reasons: string[]
+}
+
 export const marketApi = {
   /** 获取股票列表 */
   getStockList(params?: { keyword?: string; exchange?: string; page?: number; size?: number }) {
@@ -74,5 +91,17 @@ export const marketApi = {
     return request.get<{ data: KLineItem[] }>('/market/kline', {
       params: { symbol, ...params }
     })
+  },
+
+  /** 单股技术分析（持仓视角） */
+  analyzeStock(params: {
+    stockCode: string
+    exchange?: string
+    asOfDate?: string
+    holdingQty?: number
+    avgCost?: number
+    riskProfile?: 'conservative' | 'balanced' | 'aggressive'
+  }) {
+    return request.post<{ data: StockAnalysisResult }>('/analysis/stock', params)
   }
 }

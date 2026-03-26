@@ -32,4 +32,21 @@ public class SelectorController {
         if (data == null) return ApiResponse.error(404, "选股结果不存在");
         return ApiResponse.success(data);
     }
+
+    @GetMapping("/templates")
+    public ApiResponse<Object> templates() {
+        return ApiResponse.success(stockSelectorService.listTemplates());
+    }
+
+    @PostMapping("/templates")
+    public ApiResponse<Map<String, Object>> saveTemplate(@RequestBody(required = false) Map<String, Object> request) {
+        return ApiResponse.success(stockSelectorService.saveTemplate(request != null ? request : Map.of()));
+    }
+
+    @DeleteMapping("/templates/{templateId}")
+    public ApiResponse<Object> deleteTemplate(@PathVariable String templateId) {
+        boolean ok = stockSelectorService.deleteTemplate(templateId);
+        if (!ok) return ApiResponse.error(404, "模板不存在");
+        return ApiResponse.success(Map.of("deleted", true));
+    }
 }

@@ -9,79 +9,87 @@
         text-color="#93c5fd"
         active-text-color="#ffffff"
       >
-        <el-menu-item index="/dashboard">
-          <el-icon><DataLine /></el-icon>
-          <span>行情看板</span>
-        </el-menu-item>
-        <el-menu-item index="/strategy">
-          <el-icon><Setting /></el-icon>
-          <span>策略管理</span>
-        </el-menu-item>
-        <el-menu-item index="/strategy/backtest">
-          <el-icon><TrendCharts /></el-icon>
-          <span>回测分析</span>
-        </el-menu-item>
-        <el-menu-item index="/trading">
-          <el-icon><Monitor /></el-icon>
-          <span>实盘监控</span>
-        </el-menu-item>
-        <el-menu-item index="/market/stock">
-          <el-icon><TrendCharts /></el-icon>
-          <span>股票历史</span>
-        </el-menu-item>
-        <el-menu-item index="/account">
-          <el-icon><Wallet /></el-icon>
-          <span>账户资产</span>
-        </el-menu-item>
-        <el-sub-menu index="data">
+        <el-sub-menu index="more">
           <template #title>
-            <el-icon><DataAnalysis /></el-icon>
-            <span>数据中心</span>
+            <el-icon><Menu /></el-icon>
+            <span>不常用/更多</span>
           </template>
-          <el-menu-item index="/data/overview">数据管理</el-menu-item>
-          <el-menu-item index="/data/import">导入导出</el-menu-item>
-          <el-menu-item index="/data/stocks">股票浏览器</el-menu-item>
-        </el-sub-menu>
-        <el-sub-menu index="market">
-          <template #title>
-            <el-icon><TrendCharts /></el-icon>
-            <span>行情分析</span>
-          </template>
-          <el-menu-item index="/market/stock">股票历史</el-menu-item>
-          <el-menu-item index="/market/kline">K线图</el-menu-item>
-          <el-menu-item index="/market/stock-picker">选股器</el-menu-item>
-          <el-menu-item index="/market/realtime">实时盯盘</el-menu-item>
-        </el-sub-menu>
-        <el-sub-menu index="strategy">
-          <template #title>
-            <el-icon><Setting /></el-icon>
-            <span>策略中心</span>
-          </template>
-          <el-menu-item index="/strategy/list">策略列表</el-menu-item>
-          <el-menu-item index="/strategy/editor">策略编辑</el-menu-item>
-          <el-menu-item index="/strategy/backtest">回测分析</el-menu-item>
-        </el-sub-menu>
-        <el-sub-menu index="trade">
-          <template #title>
+
+          <el-menu-item index="/dashboard">
+            <el-icon><DataLine /></el-icon>
+            <span>行情看板</span>
+          </el-menu-item>
+          <el-menu-item index="/account">
             <el-icon><Wallet /></el-icon>
-            <span>交易管理</span>
-          </template>
-          <el-menu-item index="/trade/records">交易记录</el-menu-item>
-          <el-menu-item index="/trade/positions">持仓分析</el-menu-item>
-          <el-menu-item index="/trade/profit">盈亏分析</el-menu-item>
+            <span>账户资产</span>
+          </el-menu-item>
+          <el-menu-item index="/market/stock-picker">
+            <el-icon><TrendCharts /></el-icon>
+            <span>选股器</span>
+          </el-menu-item>
+          <el-menu-item index="/strategy/backtest">
+            <el-icon><Histogram /></el-icon>
+            <span>回测分析</span>
+          </el-menu-item>
+          <el-menu-item index="/trading">
+            <el-icon><Monitor /></el-icon>
+            <span>实盘监控</span>
+          </el-menu-item>
+
+          <el-sub-menu index="more-market">
+            <template #title>
+              <el-icon><TrendCharts /></el-icon>
+              <span>行情分析</span>
+            </template>
+            <el-menu-item index="/market/stock">股票详情</el-menu-item>
+            <el-menu-item index="/market/kline">K线图</el-menu-item>
+            <el-menu-item index="/market/realtime">实时盯盘</el-menu-item>
+          </el-sub-menu>
+
+          <el-sub-menu index="more-strategy">
+            <template #title>
+              <el-icon><Setting /></el-icon>
+              <span>策略中心</span>
+            </template>
+            <el-menu-item index="/strategy">策略管理</el-menu-item>
+            <el-menu-item index="/strategy/list">策略列表</el-menu-item>
+            <el-menu-item index="/strategy/editor">策略编辑</el-menu-item>
+            <el-menu-item index="/strategy/backtest">回测分析</el-menu-item>
+          </el-sub-menu>
+
+          <el-sub-menu index="more-data">
+            <template #title>
+              <el-icon><DataAnalysis /></el-icon>
+              <span>数据中心</span>
+            </template>
+            <el-menu-item index="/data/overview">数据管理</el-menu-item>
+            <el-menu-item index="/data/import">导入导出</el-menu-item>
+            <el-menu-item index="/data/stocks">股票浏览器</el-menu-item>
+          </el-sub-menu>
+
+          <el-sub-menu index="more-trade">
+            <template #title>
+              <el-icon><Wallet /></el-icon>
+              <span>交易分析</span>
+            </template>
+            <el-menu-item index="/trade/records">交易记录</el-menu-item>
+            <el-menu-item index="/trade/positions">持仓分析</el-menu-item>
+            <el-menu-item index="/trade/profit">盈亏分析</el-menu-item>
+          </el-sub-menu>
+
+          <el-menu-item index="/portfolio">
+            <el-icon><FolderOpened /></el-icon>
+            <span>投资组合</span>
+          </el-menu-item>
+          <el-menu-item index="/report">
+            <el-icon><Document /></el-icon>
+            <span>报表中心</span>
+          </el-menu-item>
+          <el-menu-item index="/settings">
+            <el-icon><Tools /></el-icon>
+            <span>系统设置</span>
+          </el-menu-item>
         </el-sub-menu>
-        <el-menu-item index="/portfolio">
-          <el-icon><FolderOpened /></el-icon>
-          <span>投资组合</span>
-        </el-menu-item>
-        <el-menu-item index="/report">
-          <el-icon><Document /></el-icon>
-          <span>报表中心</span>
-        </el-menu-item>
-        <el-menu-item index="/settings">
-          <el-icon><Tools /></el-icon>
-          <span>系统设置</span>
-        </el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>
@@ -116,7 +124,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { DataAnalysis, DataLine, TrendCharts, Monitor, Setting, Wallet, FolderOpened, Document, Tools, ArrowDown } from '@element-plus/icons-vue'
+import { DataAnalysis, DataLine, TrendCharts, Monitor, Setting, Wallet, FolderOpened, Document, Tools, ArrowDown, Menu, Histogram } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const userStore = useUserStore()

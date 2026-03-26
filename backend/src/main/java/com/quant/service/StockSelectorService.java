@@ -3,10 +3,12 @@ package com.quant.service;
 import com.quant.entity.MarketData;
 import com.quant.entity.SelectorResult;
 import com.quant.entity.SelectorResultItem;
+import com.quant.entity.SelectorTemplate;
 import com.quant.entity.StockInfo;
 import com.quant.repository.MarketDataRepository;
 import com.quant.repository.SelectorResultItemRepository;
 import com.quant.repository.SelectorResultRepository;
+import com.quant.repository.SelectorTemplateRepository;
 import com.quant.repository.StockInfoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +27,7 @@ public class StockSelectorService {
     private final SelectorResultRepository selectorResultRepository;
     private final SelectorResultItemRepository selectorResultItemRepository;
     private final StockInfoRepository stockInfoRepository;
+    private final SelectorTemplateRepository selectorTemplateRepository;
 
     @Transactional
     public Map<String, Object> runSelection(Map<String, Object> request) {
@@ -34,6 +37,8 @@ public class StockSelectorService {
         int topN = parseInt(request.get("topN"), 10, 1, 50);
         double minAvgAmount = parseDouble(request.get("minAvgAmount"), 30000000d, 1000000d, 500000000d);
         double minTrendScore = parseDouble(request.get("minTrendScore"), 40d, 0d, 100d);
+        String templateId = String.valueOf(request.getOrDefault("templateId", "")).trim();
+        String factorVersion = String.valueOf(request.getOrDefault("factorVersion", "v1")).trim();
 
         LocalDate rangeStart = tradeDate.minusDays(Math.max(lookbackDays + 30L, 90L));
         List<Object[]> pairs = marketDataRepository.findDistinctStockPairsInRange(rangeStart, tradeDate);
@@ -64,6 +69,9 @@ public class StockSelectorService {
         result.setTopN(topN);
         result.setMinAvgAmount(minAvgAmount);
         result.setMinTrendScore(minTrendScore);
+        result.setTemplateId(templateId.isBlank() ? null : templateId);
+        result.setFactorVersion(factorVersion.isBlank() ? "v1" : factorVersion);
+        result.setFactorSnapshot(buildFactorSnapshot(minAvgAmount, minTrendScore));
         selectorResultRepository.save(result);
 
         selectorResultItemRepository.deleteByResultId(result.getResultId());
@@ -109,23 +117,24 @@ public class StockSelectorService {
         List<SelectorResultItem> items = selectorResultItemRepository.findByResultIdOrderByRankNoAsc(r.getResultId());
         List<Map<String, Object>> outItems = new ArrayList<>();
         for (SelectorResultItem i : items) {
-            outItems.add(Map.of(
-                    "rank_no", i.getRankNo(),
-                    "stock_code", i.getStockCode(),
-                    "exchange_type", i.getExchangeType(),
-                    "stock_name", i.getStockName() != null ? i.getStockName() : "",
-                    "final_score", i.getFinalScore(),
-                    "trend_score", i.getTrendScore(),
-                    "momentum_score", i.getMomentumScore(),
-                    "volume_score", i.getVolumeScore(),
-                    "risk_penalty", i.getRiskPenalty(),
-                    "ret20", i.getRet20(),
-                    "ret60", i.getRet60(),
-                    "volatility20", i.getVolatility20(),
-                    "max_drawdown60", i.getMaxDrawdown60(),
-                    "avg_amount20", i.getAvgAmount20(),
-                    "reasons", i.getReasons() != null ? i.getReasons() : Map.of()
-            ));
+            // 注意：Map.of 最多只能接收 10 对 key/value，这里字段较多改用可变 Map。
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("rank_no", i.getRankNo());
+            item.put("stock_code", i.getStockCode());
+            item.put("exchange_type", i.getExchangeType());
+            item.put("stock_name", i.getStockName() != null ? i.getStockName() : "");
+            item.put("final_score", i.getFinalScore());
+            item.put("trend_score", i.getTrendScore());
+            item.put("momentum_score", i.getMomentumScore());
+            item.put("volume_score", i.getVolumeScore());
+            item.put("risk_penalty", i.getRiskPenalty());
+            item.put("ret20", i.getRet20());
+            item.put("ret60", i.getRet60());
+            item.put("volatility20", i.getVolatility20());
+            item.put("max_drawdown60", i.getMaxDrawdown60());
+            item.put("avg_amount20", i.getAvgAmount20());
+            item.put("reasons", i.getReasons() != null ? i.getReasons() : Map.of());
+            outItems.add(item);
         }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("result_id", r.getResultId());
@@ -134,9 +143,63 @@ public class StockSelectorService {
         out.put("top_n", r.getTopN());
         out.put("min_avg_amount", r.getMinAvgAmount());
         out.put("min_trend_score", r.getMinTrendScore());
+        out.put("template_id", r.getTemplateId());
+        out.put("factor_version", r.getFactorVersion());
+        out.put("factor_snapshot", r.getFactorSnapshot() != null ? r.getFactorSnapshot() : Map.of());
         out.put("created_at", r.getCreatedAt() != null ? r.getCreatedAt().toString() : null);
         out.put("items", outItems);
         return out;
+    }
+
+    public List<Map<String, Object>> listTemplates() {
+        return selectorTemplateRepository.findAll().stream().map(t -> Map.of(
+                "template_id", t.getTemplateId(),
+                "name", t.getName(),
+                "params", t.getParams() != null ? t.getParams() : Map.of(),
+                "description", t.getDescription() != null ? t.getDescription() : "",
+                "updated_at", t.getUpdatedAt() != null ? t.getUpdatedAt().toString() : ""
+        )).toList();
+    }
+
+    @Transactional
+    public Map<String, Object> saveTemplate(Map<String, Object> request) {
+        String templateId = String.valueOf(request.getOrDefault("templateId", "")).trim();
+        if (templateId.isBlank()) templateId = "TPL" + System.currentTimeMillis();
+        String name = String.valueOf(request.getOrDefault("name", "默认模板")).trim();
+        String description = String.valueOf(request.getOrDefault("description", "")).trim();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> params = (Map<String, Object>) request.getOrDefault("params", Map.of());
+
+        SelectorTemplate t = selectorTemplateRepository.findByTemplateId(templateId).orElse(new SelectorTemplate());
+        t.setTemplateId(templateId);
+        t.setName(name.isBlank() ? templateId : name);
+        t.setDescription(description);
+        t.setParams(params);
+        selectorTemplateRepository.save(t);
+        return Map.of("template_id", t.getTemplateId(), "name", t.getName());
+    }
+
+    @Transactional
+    public boolean deleteTemplate(String templateId) {
+        var t = selectorTemplateRepository.findByTemplateId(templateId).orElse(null);
+        if (t == null) return false;
+        selectorTemplateRepository.delete(t);
+        return true;
+    }
+
+    private Map<String, Object> buildFactorSnapshot(double minAvgAmount, double minTrendScore) {
+        Map<String, Object> weights = Map.of(
+                "trend", 0.4,
+                "momentum", 0.25,
+                "volume", 0.2,
+                "risk", -0.15
+        );
+        Map<String, Object> thresholds = Map.of(
+                "min_avg_amount", minAvgAmount,
+                "min_trend_score", minTrendScore,
+                "must_ma20_gt_ma60", true
+        );
+        return Map.of("weights", weights, "thresholds", thresholds);
     }
 
     private Candidate buildCandidate(String stockCode, String exchangeType, List<MarketData> bars, double minAvgAmount,

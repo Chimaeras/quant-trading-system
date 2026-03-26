@@ -108,6 +108,43 @@
         </el-table-column>
       </el-table>
     </div>
+
+    <div class="analysis-section">
+      <div class="section-title">持仓技术分析（次日建议）</div>
+      <el-form inline>
+        <el-form-item label="持仓股数">
+          <el-input-number v-model="analysisForm.holdingQty" :min="0" :step="100" />
+        </el-form-item>
+        <el-form-item label="持仓成本">
+          <el-input-number v-model="analysisForm.avgCost" :min="0" :step="0.1" :precision="2" />
+        </el-form-item>
+        <el-form-item label="风险偏好">
+          <el-select v-model="analysisForm.riskProfile" style="width: 120px">
+            <el-option label="保守" value="conservative" />
+            <el-option label="均衡" value="balanced" />
+            <el-option label="激进" value="aggressive" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="analysisLoading" @click="analyzeStock">分析</el-button>
+        </el-form-item>
+      </el-form>
+      <el-descriptions :column="3" border v-if="analysisResult">
+        <el-descriptions-item label="建议动作">{{ analysisResult.action }}</el-descriptions-item>
+        <el-descriptions-item label="目标仓位">{{ analysisResult.target_position }}</el-descriptions-item>
+        <el-descriptions-item label="置信度">{{ analysisResult.confidence }}</el-descriptions-item>
+        <el-descriptions-item label="止损位">{{ analysisResult.risk_lines?.stop_loss ?? '--' }}</el-descriptions-item>
+        <el-descriptions-item label="止盈位">{{ analysisResult.risk_lines?.take_profit ?? '--' }}</el-descriptions-item>
+        <el-descriptions-item label="关键支撑/阻力">
+          {{ analysisResult.risk_lines?.support ?? '--' }} / {{ analysisResult.risk_lines?.resistance ?? '--' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="分析理由" :span="3">
+          <ul class="reasons">
+            <li v-for="(r, idx) in analysisResult.reasons || []" :key="idx">{{ r }}</li>
+          </ul>
+        </el-descriptions-item>
+      </el-descriptions>
+    </div>
     </template>
   </div>
 </template>
@@ -116,7 +153,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import * as echarts from 'echarts'
-import { marketApi, type StockDetail, type KLineItem } from '@/api/market'
+import { marketApi, type StockDetail, type KLineItem, type StockAnalysisResult } from '@/api/market'
 import dayjs from 'dayjs'
 
 const route = useRoute()
@@ -128,6 +165,13 @@ const klineData = ref<KLineItem[]>([])
 const dateRange = ref<[string, string] | null>(null)
 const period = ref('day')
 const quickCode = ref('')
+const analysisLoading = ref(false)
+const analysisResult = ref<StockAnalysisResult | null>(null)
+const analysisForm = ref({
+  holdingQty: 0,
+  avgCost: 0,
+  riskProfile: 'balanced' as 'conservative' | 'balanced' | 'aggressive'
+})
 const chartRef = ref<HTMLElement>()
 let chart: echarts.ECharts | null = null
 
@@ -246,6 +290,24 @@ async function loadData() {
   }
 }
 
+async function analyzeStock() {
+  const code = route.query.code as string
+  if (!code) return
+  analysisLoading.value = true
+  try {
+    const res = await marketApi.analyzeStock({
+      stockCode: code,
+      exchange: route.query.exchange as string,
+      holdingQty: analysisForm.value.holdingQty,
+      avgCost: analysisForm.value.avgCost,
+      riskProfile: analysisForm.value.riskProfile
+    })
+    analysisResult.value = (res as { data?: StockAnalysisResult }).data ?? null
+  } finally {
+    analysisLoading.value = false
+  }
+}
+
 function renderChart() {
   const data = klineData.value
   if (!chartRef.value || data.length === 0) return
@@ -348,7 +410,10 @@ function goStock() {
 
 watch(() => route.query.code, (code) => {
   quickCode.value = (code as string) || ''
-  if (code) loadData()
+  if (code) {
+    analysisResult.value = null
+    loadData()
+  }
 })
 watch(() => window.innerWidth, () => chart?.resize())
 </script>
@@ -406,8 +471,10 @@ watch(() => window.innerWidth, () => chart?.resize())
 .info-row .val.down { color: #26a69a; }
 
 .history-section { margin-top: 24px; }
+.analysis-section { margin-top: 24px; }
 .section-title { font-size: 14px; font-weight: 600; color: #1e293b; margin-bottom: 12px; }
 .history-table { background: #ffffff; border-radius: 8px; overflow: hidden; }
 .text-up { color: #ef5350; }
 .text-down { color: #26a69a; }
+.reasons { margin: 0; padding-left: 18px; color: #334155; }
 </style>

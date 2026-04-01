@@ -11,7 +11,7 @@ services:
       - "3306:3306"
     volumes:
       - mysql-data:/var/lib/mysql
-      - ../scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql
+      - ../modules/database/init_db.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - quant-network
     healthcheck:
@@ -47,7 +47,7 @@ services:
 
   backend:
     build:
-      context: ../backend
+      context: ../modules/backend-java
       dockerfile: ../docker/Dockerfile.backend
     container_name: quant-backend
     ports:
@@ -66,7 +66,7 @@ services:
 
   quant-engine:
     build:
-      context: ../quant-engine
+      context: ../modules/compute-python
       dockerfile: ../docker/Dockerfile.quant
     container_name: quant-engine
     environment:
@@ -82,7 +82,7 @@ services:
 
   frontend:
     build:
-      context: ../frontend
+      context: ../modules/web
       dockerfile: ../docker/Dockerfile.frontend
     container_name: quant-frontend
     ports:

@@ -2,7 +2,8 @@
 
 ```
 quant-trading-system/
-├── frontend/                    # 前端 (Vue3)
+├── modules/
+│   ├── web/                     # 前端 (Vue3)
 │   ├── src/
 │   │   ├── views/              # 页面
 │   │   │   ├── dashboard/      # 行情看板
@@ -17,7 +18,8 @@ quant-trading-system/
 │   ├── package.json
 │   └── vite.config.js
 │
-├── backend/                     # 后端 (Spring Boot)
+│
+│   ├── backend-java/            # 后端 (Spring Boot)
 │   ├── src/main/java/com/quant/
 │   │   ├── controller/
 │   │   ├── service/
@@ -31,7 +33,8 @@ quant-trading-system/
 │   │   └── application.yml
 │   └── pom.xml
 │
-├── quant-engine/                # 量化引擎 (Python)
+│
+│   ├── compute-python/          # 量化引擎 (Python)
 │   ├── strategies/
 │   │   ├── base_strategy.py
 │   │   ├── ma_cross_strategy.py
@@ -46,6 +49,18 @@ quant-trading-system/
 │   ├── requirements.txt
 │   └── main.py
 │
+│   └── database/                # 数据库基础脚本
+│       ├── 01_init_schema.sql
+│       ├── 02_additional_indexes.sql
+│       ├── 03_legacy_tables.sql
+│       ├── init_db.sql
+│       ├── create_db.sql
+│       ├── stock_info_import.sql
+│       ├── migrate_stock_daily.py
+│       ├── import_stock_mapping.py
+│       ├── generate_stock_insert_sql.py
+│       └── run_all.ps1
+│
 ├── docker/
 │   ├── docker-compose.yml
 │   ├── Dockerfile.backend
@@ -58,11 +73,6 @@ quant-trading-system/
 │   ├── 策略开发指南.md
 │   ├── API文档.md
 │   └── 开发规范.md
-│
-├── scripts/
-│   ├── init_db.sql
-│   ├── deploy.sh
-│   └── deploy.ps1
 │
 └── README.md
 ```

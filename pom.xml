@@ -12,7 +12,7 @@
     <description>个人量化交易系统</description>
 
     <modules>
-        <module>backend</module>
+        <module>modules/backend-java</module>
     </modules>
 
     <properties>

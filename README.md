@@ -67,7 +67,7 @@ docker-compose ps
 
 ```bash
 # 启动后端（会自动构建前端并托管，前后端同端口）
-cd backend && mvn spring-boot:run
+cd modules/backend-java && mvn spring-boot:run
 
 # 访问 http://localhost:8080 即可使用全部功能
 # 账户页: http://localhost:8080/account
@@ -81,13 +81,13 @@ cd backend && mvn spring-boot:run
 
 1. **仅执行了 npm run build**：后端从 `target/classes/static` 提供静态文件，该目录由 Maven 从 `frontend/dist` 复制。需重新构建后端：
    ```bash
-   cd backend && mvn clean compile   # 或 mvn spring-boot:run
+   cd modules/backend-java && mvn clean compile   # 或 mvn spring-boot:run
    ```
 
 2. **Vite / 浏览器缓存**：可先清缓存再构建：
    ```bash
-   cd frontend && npm run build:clean   # 清空 dist 与 Vite 缓存后构建
-   cd ../backend && mvn compile
+   cd modules/web && npm run build:clean   # 清空 dist 与 Vite 缓存后构建
+   cd ../backend-java && mvn compile
    ```
 
 3. **浏览器强制刷新**：`Ctrl + Shift + R`（Windows）或 `Cmd + Shift + R`（Mac），或 DevTools 里勾选 “Disable cache” 后刷新。
@@ -98,12 +98,13 @@ cd backend && mvn spring-boot:run
 
 ```
 quant-trading-system/
-├── frontend/          # Vue3 前端
-├── backend/           # Spring Boot 后端
-├── quant-engine/      # Python 量化引擎
+├── modules/
+│   ├── web/            # 前端 Web（Vue3）
+│   ├── backend-java/   # Java 后端（Spring Boot）
+│   ├── compute-python/ # Python 计算/量化模块
+│   └── database/       # 数据库基础脚本（SQL/导入脚本）
 ├── docker/            # Docker 配置
 ├── docs/              # 文档
-├── scripts/           # 脚本
 └── README.md
 ```
 

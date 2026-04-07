@@ -1,7 +1,7 @@
 <template>
   <el-card shadow="hover">
     <template #header>
-      <el-input v-model="keyword" placeholder="搜索股票代码/名称" style="width: 200px" clearable @change="search" />
+      <el-input v-model="keyword" placeholder="搜索股票代码/名称（模糊）" style="width: 220px" clearable @keyup.enter="search" @change="search" />
       <el-select v-model="exchangeType" placeholder="市场" style="width: 120px; margin-left: 12px" clearable @change="search">
         <el-option label="深交所" value="SZSE" />
         <el-option label="上交所" value="SSE" />

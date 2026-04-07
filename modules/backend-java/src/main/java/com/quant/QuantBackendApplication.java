@@ -7,6 +7,8 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 
 @SpringBootApplication
@@ -77,16 +79,24 @@ public class QuantBackendApplication {
             ProcessBuilder pb = new ProcessBuilder();
             pb.directory(frontendDir.toFile());
             pb.inheritIO();
-            // npm install
-            pb.command("npm", "install", "--prefer-offline", "--no-audit", "--no-fund");
-            if (pb.start().waitFor() != 0) {
-                System.err.println("[Quant] npm install 失败，将使用已有前端资源");
-                return;
+
+            List<List<String>> npmCandidates = npmCommands();
+            boolean npmOk = false;
+            for (List<String> npm : npmCandidates) {
+                // npm install
+                pb.command(join(npm, List.of("install", "--prefer-offline", "--no-audit", "--no-fund")));
+                int installCode = pb.start().waitFor();
+                if (installCode != 0) continue;
+                // npm run build
+                pb.command(join(npm, List.of("run", "build")));
+                int buildCode = pb.start().waitFor();
+                if (buildCode == 0) {
+                    npmOk = true;
+                    break;
+                }
             }
-            // npm run build
-            pb.command("npm", "run", "build");
-            if (pb.start().waitFor() != 0) {
-                System.err.println("[Quant] npm run build 失败，将使用已有前端资源");
+            if (!npmOk) {
+                System.err.println("[Quant] npm 不可用或构建失败（将使用已有前端资源）。若你在 Windows+IDEA 运行，请确保已安装 Node.js，并让 IDEA 进程可访问 npm。");
                 return;
             }
             // 复制 dist 到 target/classes/static
@@ -120,5 +130,27 @@ public class QuantBackendApplication {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    private static List<List<String>> npmCommands() {
+        List<List<String>> out = new ArrayList<>();
+        boolean isWindows = System.getProperty("os.name", "").toLowerCase().contains("win");
+        if (isWindows) {
+            // 常见：npm 在 nodejs 目录下，或需通过 cmd 调用
+            out.add(List.of("npm.cmd"));
+            out.add(List.of("cmd", "/c", "npm"));
+            out.add(List.of("cmd", "/c", "npm.cmd"));
+            out.add(List.of("C:\\\\Program Files\\\\nodejs\\\\npm.cmd"));
+            out.add(List.of("C:\\\\Program Files (x86)\\\\nodejs\\\\npm.cmd"));
+        }
+        out.add(List.of("npm"));
+        return out;
+    }
+
+    private static List<String> join(List<String> prefix, List<String> suffix) {
+        List<String> out = new ArrayList<>(prefix.size() + suffix.size());
+        out.addAll(prefix);
+        out.addAll(suffix);
+        return out;
     }
 }

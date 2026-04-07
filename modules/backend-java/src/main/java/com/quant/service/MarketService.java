@@ -5,6 +5,9 @@ import com.quant.entity.StockInfo;
 import com.quant.repository.MarketDataRepository;
 import com.quant.repository.StockInfoRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -107,20 +110,18 @@ public class MarketService {
 
     /** 获取股票列表(分页、搜索) */
     public Map<String, Object> getStockList(String keyword, String exchangeType, int page, int size) {
-        List<StockInfo> all = stockInfoRepo.findAll();
-        if (keyword != null && !keyword.isBlank()) {
-            String k = keyword.trim().toLowerCase();
-            all = all.stream()
-                    .filter(s -> (s.getStockCode() != null && s.getStockCode().toLowerCase().contains(k))
-                            || (s.getStockName() != null && s.getStockName().toLowerCase().contains(k)))
-                    .toList();
-        }
-        if (exchangeType != null && !exchangeType.isBlank()) {
-            all = all.stream().filter(s -> exchangeType.equals(s.getExchangeType())).toList();
-        }
-        int total = all.size();
-        int start = Math.max(0, (page - 1) * size);
-        List<StockInfo> pageList = all.stream().skip(start).limit(size).toList();
+        int p = Math.max(0, page - 1);
+        int pageSize = Math.max(1, size);
+        String k = keyword != null ? keyword.trim() : null;
+        String ex = exchangeType != null ? exchangeType.trim() : null;
+
+        Page<StockInfo> pageData = stockInfoRepo.search(
+                k,
+                ex,
+                PageRequest.of(p, pageSize, Sort.by(Sort.Direction.ASC, "stockCode"))
+        );
+        long total = pageData.getTotalElements();
+        List<StockInfo> pageList = pageData.getContent();
         List<Map<String, Object>> list = new ArrayList<>();
         for (StockInfo s : pageList) {
             Map<String, Object> m = new HashMap<>();

@@ -45,6 +45,11 @@ logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
 
+# 趋势选股打分（与《选股打分算法说明》一致）
+scoring:
+  trend:
+    bias-threshold: 5.0
+
 backtest:
   cost:
     commission-rate: 0.0003

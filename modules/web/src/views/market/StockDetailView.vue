@@ -150,7 +150,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import { marketApi, type StockDetail, type KLineItem, type StockAnalysisResult } from '@/api/market'
@@ -416,6 +416,11 @@ watch(() => route.query.code, (code) => {
   }
 })
 watch(() => window.innerWidth, () => chart?.resize())
+
+onBeforeUnmount(() => {
+  chart?.dispose()
+  chart = null
+})
 </script>
 
 <style scoped>

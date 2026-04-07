@@ -95,7 +95,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
@@ -107,6 +107,8 @@ const WATCH_LIST_KEY = 'realtime_watch_list'
 const HIDDEN_POSITIONS_KEY = 'dashboard_hidden_positions'
 
 const router = useRouter()
+let lineChartInst = null
+let pieChartInst = null
 const inputCode = ref('')
 const inputExchange = ref('')
 const accountInfo = ref({
@@ -311,8 +313,10 @@ onMounted(async () => {
   loadWatchList()
   await fetchAllQuotes()
 
-  const lineChart = echarts.init(chartRef.value)
-  lineChart.setOption({
+  await nextTick()
+  if (!chartRef.value || !pieRef.value) return
+  lineChartInst = echarts.init(chartRef.value)
+  lineChartInst.setOption({
     tooltip: { trigger: 'axis' },
     xAxis: { type: 'category', data: ['1月', '2月', '3月', '4月', '5月', '6月'] },
     yAxis: { type: 'value' },
@@ -320,8 +324,8 @@ onMounted(async () => {
     grid: { left: 50, right: 20, top: 20, bottom: 30 }
   })
 
-  const pieChart = echarts.init(pieRef.value)
-  pieChart.setOption({
+  pieChartInst = echarts.init(pieRef.value)
+  pieChartInst.setOption({
     tooltip: { trigger: 'item' },
     series: [{
       type: 'pie',
@@ -333,6 +337,13 @@ onMounted(async () => {
       ]
     }]
   })
+})
+
+onBeforeUnmount(() => {
+  lineChartInst?.dispose()
+  pieChartInst?.dispose()
+  lineChartInst = null
+  pieChartInst = null
 })
 </script>
 

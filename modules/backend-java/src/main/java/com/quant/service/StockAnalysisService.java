@@ -28,14 +28,7 @@ public class StockAnalysisService {
         List<MarketData> bars = marketDataRepository.findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
                 stockCode, exchange, start, latest);
         if (bars.size() < 70) {
-            return Map.of(
-                    "stock_code", stockCode,
-                    "exchange", exchange,
-                    "as_of_date", latest.toString(),
-                    "action", "HOLD",
-                    "confidence", 0,
-                    "message", "历史数据不足，无法分析"
-            );
+            return insufficientDataResponse(stockCode, exchange, latest);
         }
 
         List<Double> close = new ArrayList<>();
@@ -90,6 +83,13 @@ public class StockAnalysisService {
         reasons.add("20日波动=" + round2(volatility20) + "%，量比=" + round2(volumeRatio));
         if (holdingQty > 0) reasons.add("当前持仓 " + holdingQty + " 股，成本 " + round2(avgCost) + "，浮动收益 " + round2(pnlPct) + "%");
 
+        Map<String, String> signals = buildSignals(lastClose, ma20, ma60, macdHist, rsi14, volumeRatio);
+        List<String> tags = buildTags(lastClose, ma20, ma60, macdHist, rsi14, volumeRatio);
+        Map<String, Object> plan = buildPlan(action, targetPosition, lastClose, support20, resistance20, stopLoss, takeProfit);
+        String summary = buildSummary(stockCode, action, confidence, lastClose, ma20, ma60, rsi14, macdHist, volatility20, volumeRatio);
+        List<String> riskPoints = buildRiskPoints(lastClose, ma20, rsi14, volatility20, macdHist, avgCost, pnlPct);
+        List<String> opportunityPoints = buildOpportunityPoints(lastClose, ma20, ma60, macdHist, rsi14, support20, resistance20);
+
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("stock_code", stockCode);
         out.put("exchange", exchange);
@@ -97,6 +97,19 @@ public class StockAnalysisService {
         out.put("action", action);
         out.put("target_position", targetPosition);
         out.put("confidence", confidence);
+        out.put("data_insufficient", false);
+        out.put("score_breakdown", Map.of(
+                "trend", (int) Math.round(trendScore),
+                "momentum", (int) Math.round(momentumScore),
+                "riskPenalty", (int) Math.round(riskPenalty),
+                "total", confidence
+        ));
+        out.put("signals", signals);
+        out.put("tags", tags);
+        out.put("plan", plan);
+        out.put("summary", summary);
+        out.put("risk_points", riskPoints);
+        out.put("opportunity_points", opportunityPoints);
         out.put("risk_lines", Map.of(
                 "support", round2(support20),
                 "resistance", round2(resistance20),
@@ -115,6 +128,135 @@ public class StockAnalysisService {
         ));
         out.put("reasons", reasons);
         return out;
+    }
+
+    private Map<String, Object> insufficientDataResponse(String stockCode, String exchange, LocalDate latest) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("stock_code", stockCode);
+        out.put("exchange", exchange);
+        out.put("as_of_date", latest.toString());
+        out.put("action", "HOLD");
+        out.put("target_position", "--");
+        out.put("confidence", 0);
+        out.put("message", "历史数据不足，无法分析");
+        out.put("data_insufficient", true);
+        out.put("summary", "当前可用K线数据不足70个交易日，无法完成技术面综合评分与结构化建议。请先补充或同步历史行情后再试。");
+        out.put("risk_points", List.of("数据样本不足，无法可靠评估波动率、止损位与回撤风险"));
+        out.put("opportunity_points", List.of("历史数据补齐后，可重新生成趋势、动能与量价信号"));
+        out.put("tags", List.of("数据不足"));
+        out.put("signals", Map.of("ma", "neutral", "macd", "neutral", "rsi", "neutral", "volume", "normal"));
+        out.put("score_breakdown", Map.of("trend", 0, "momentum", 0, "riskPenalty", 0, "total", 0));
+        out.put("plan", Map.of(
+                "entry", "--",
+                "add", "--",
+                "reduce", "--",
+                "stopLoss", 0.0,
+                "takeProfit", 0.0,
+                "support", 0.0,
+                "resistance", 0.0,
+                "targetPosition", "--"
+        ));
+        out.put("risk_lines", Map.of(
+                "support", 0.0,
+                "resistance", 0.0,
+                "stop_loss", 0.0,
+                "take_profit", 0.0
+        ));
+        out.put("indicator_snapshot", Map.of());
+        out.put("reasons", List.of("历史数据不足70条"));
+        return out;
+    }
+
+    private Map<String, String> buildSignals(double lastClose, double ma20, double ma60, double macdHist, double rsi14, double volumeRatio) {
+        Map<String, String> m = new LinkedHashMap<>();
+        if (lastClose > ma20 && ma20 > ma60) m.put("ma", "bullish");
+        else if (lastClose < ma20 && ma20 < ma60) m.put("ma", "bearish");
+        else m.put("ma", "neutral");
+
+        if (macdHist > 0.0001) m.put("macd", "bullish");
+        else if (macdHist < -0.0001) m.put("macd", "bearish");
+        else m.put("macd", "neutral");
+
+        if (rsi14 >= 70) m.put("rsi", "overbought");
+        else if (rsi14 <= 30) m.put("rsi", "oversold");
+        else m.put("rsi", "neutral");
+
+        if (volumeRatio >= 1.2) m.put("volume", "strong");
+        else if (volumeRatio <= 0.8) m.put("volume", "weak");
+        else m.put("volume", "normal");
+        return m;
+    }
+
+    private List<String> buildTags(double lastClose, double ma20, double ma60, double macdHist, double rsi14, double volumeRatio) {
+        List<String> t = new ArrayList<>();
+        if (lastClose > ma20 && ma20 > ma60) t.add("MA20>MA60");
+        else if (ma20 < ma60) t.add("MA20<MA60");
+        if (macdHist > 0) t.add("MACD多头");
+        else if (macdHist < 0) t.add("MACD空头");
+        if (rsi14 >= 70) t.add("RSI偏热");
+        else if (rsi14 <= 30) t.add("RSI偏冷");
+        else t.add("RSI中性");
+        if (volumeRatio >= 1.2) t.add("放量");
+        else if (volumeRatio <= 0.8) t.add("缩量");
+        else t.add("量能正常");
+        return t;
+    }
+
+    private Map<String, Object> buildPlan(String action, String targetPosition, double lastClose,
+                                          double support20, double resistance20, double stopLoss, double takeProfit) {
+        Map<String, Object> p = new LinkedHashMap<>();
+        p.put("entry", "在 " + round2(support20) + "～" + round2(lastClose) + " 区间关注承接与回踩，结合量能确认");
+        p.put("add", "ADD".equals(action)
+                ? "放量突破 " + round2(resistance20) + " 且MACD柱走强时可考虑分批加仓"
+                : "暂不加仓，等待趋势与动能转强");
+        p.put("reduce", "REDUCE".equals(action)
+                ? "跌破 " + round2(stopLoss) + " 或MA20持续走弱时减仓/止损"
+                : "持仓者可设好止损，避免单点重仓");
+        p.put("stopLoss", round2(stopLoss));
+        p.put("takeProfit", round2(takeProfit));
+        p.put("support", round2(support20));
+        p.put("resistance", round2(resistance20));
+        p.put("targetPosition", targetPosition);
+        return p;
+    }
+
+    private String buildSummary(String code, String action, int confidence, double lastClose,
+                                double ma20, double ma60, double rsi14, double macdHist,
+                                double volatility20, double volumeRatio) {
+        String actZh = switch (action) {
+            case "ADD" -> "偏多/加仓倾向";
+            case "REDUCE" -> "偏空/减仓倾向";
+            default -> "观望/震荡整理";
+        };
+        String trend = lastClose > ma20 ? "短期位于MA20上方" : "短期位于MA20下方";
+        String mid = ma20 > ma60 ? "中期均线呈多头排列" : "中期均线呈空头或纠缠";
+        return String.format(
+                "【%s】综合评分约 %d：%s。%s，%s；RSI14=%s，MACD柱=%s；20日波动约 %s%%，量比约 %s。以上为规则模板生成的技术面摘要，不构成投资建议。",
+                code, confidence, actZh, trend, mid, round2(rsi14), round4(macdHist), round2(volatility20), round2(volumeRatio)
+        );
+    }
+
+    private List<String> buildRiskPoints(double lastClose, double ma20, double rsi14, double volatility20, double macdHist,
+                                         double avgCost, double pnlPct) {
+        List<String> r = new ArrayList<>();
+        if (volatility20 > 4) r.add("近期波动偏高（20日波动约 " + round2(volatility20) + "%），注意回撤与止损纪律");
+        if (rsi14 >= 70) r.add("RSI处于偏热区，短线存在冲高回落风险");
+        if (lastClose < ma20 * 0.98) r.add("价格明显弱于MA20，短期趋势转弱风险");
+        if (macdHist < 0) r.add("MACD柱为负，动能偏弱");
+        if (avgCost > 0 && pnlPct < -8) r.add("相对成本浮亏较大，注意仓位与止损");
+        if (r.isEmpty()) r.add("未触发显著风险标签：仍建议关注大盘与个股消息面变化");
+        return r;
+    }
+
+    private List<String> buildOpportunityPoints(double lastClose, double ma20, double ma60, double macdHist,
+                                                double rsi14, double support20, double resistance20) {
+        List<String> o = new ArrayList<>();
+        if (lastClose > ma20 && ma20 > ma60) o.add("均线结构偏多，若量能配合可关注趋势延续机会");
+        if (macdHist > 0) o.add("MACD柱为正，短线动能相对有利");
+        if (rsi14 <= 45 && rsi14 >= 30) o.add("RSI未过热，存在回踩后再上攻的空间（需结合量能）");
+        o.add("关键支撑参考 " + round2(support20) + "，压力参考 " + round2(resistance20));
+        if (o.size() < 2) o.add("若突破压力并放量，可再评估加仓条件");
+        return o;
     }
 
     private String normalizeExchange(String exchange, String code) {

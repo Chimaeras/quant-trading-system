@@ -1,7 +1,7 @@
 <template>
   <div class="login-page">
     <div class="login-box">
-      <h1>📈 量化交易系统 · 离线版</h1>
+      <h1>📈 量化交易系统</h1>
       <el-form ref="formRef" :model="form" :rules="rules" class="login-form">
         <el-form-item prop="username">
           <el-input v-model="form.username" placeholder="用户名" size="large" />
@@ -15,7 +15,7 @@
           </el-button>
         </el-form-item>
       </el-form>
-      <p class="tip">离线模式 · 任意账号密码即可登录</p>
+      <p class="tip">请输入账号密码登录</p>
     </div>
   </div>
 </template>

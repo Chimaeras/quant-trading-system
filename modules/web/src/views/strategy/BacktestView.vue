@@ -93,11 +93,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { strategyApi } from '@/api/strategy'
 import StrategyConfigPanel from '@/components/strategy/StrategyConfigPanel.vue'
 import type { StrategyParams, BacktestResult, BacktestHistoryItem } from '@/types'
+import { strategyApi } from '@/api/strategy'
 
 const route = useRoute()
 const strategyId = ref<string>('MA_Cross')
@@ -116,14 +116,17 @@ const detailVisible = ref(false)
 const detailData = ref<BacktestHistoryItem | null>(null)
 
 const loadStrategies = async () => {
-  strategies.value = await strategyApi.getStrategyList()
-  const first = strategies.value[0]
-  const q = route.query.id as string
+  // 策略中心页面已精简移除，这里仅保留内置策略供回测选择
+  strategies.value = [
+    { id: 1, name: 'MA_Cross', params: {} },
+    { id: 2, name: 'BOLL_Strategy', params: {} },
+    { id: 3, name: 'MACD_Strategy', params: {} }
+  ]
+  const q = String(route.query.id ?? '').trim()
   const byId = q ? strategies.value.find(s => String(s.id) === q) : null
-  const byName = strategies.value.find(s => (s.name || s.strategy_name) === q)
-  const cur = byId ?? byName ?? first
-  strategyId.value = (cur?.name ?? cur?.strategy_name) || 'MA_Cross'
-  if (cur?.params) backtestParams.value = { ...cur.params }
+  const byName = q ? strategies.value.find(s => String(s.name) === q) : null
+  const cur = byId ?? byName ?? strategies.value[0]
+  strategyId.value = String(cur?.name ?? 'MA_Cross')
 }
 
 const runBacktest = async () => {
@@ -165,11 +168,6 @@ const reuseBacktest = (item: BacktestHistoryItem) => {
   if (item.start_date && item.end_date) dateRange.value = [item.start_date, item.end_date]
   if (item.params && typeof item.params === 'object') backtestParams.value = { ...(item.params as StrategyParams) }
 }
-
-watch(strategyId, (name) => {
-  const cur = strategies.value.find(s => (s.name || s.strategy_name) === name)
-  if (cur?.params) backtestParams.value = { ...cur.params }
-})
 
 onMounted(async () => {
   await loadStrategies()

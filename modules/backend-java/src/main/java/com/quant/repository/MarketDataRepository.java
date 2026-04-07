@@ -32,6 +32,12 @@ public interface MarketDataRepository extends JpaRepository<MarketData, Long> {
     @Query(value = "SELECT DISTINCT stock_code, exchange_type FROM market_data WHERE trade_date BETWEEN :startDate AND :endDate", nativeQuery = true)
     List<Object[]> findDistinctStockPairsInRange(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
 
+    /**
+     * 二阶段优化：一次性批量拉取区间内所有行情（用于在应用层按股票分组计算，减少 N+1 查询）。
+     * 注意：数据量可能较大，应结合 lookbackDays 控制窗口大小。
+     */
+    List<MarketData> findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(LocalDate startDate, LocalDate endDate);
+
     /** 查询某股票在日期范围内已存在的交易日列表（用于去重） */
     @Query("SELECT m.tradeDate FROM MarketData m WHERE m.stockCode = :stockCode AND m.exchangeType = :exchangeType AND m.tradeDate BETWEEN :startDate AND :endDate")
     List<LocalDate> findExistingTradeDates(@Param("stockCode") String stockCode, @Param("exchangeType") String exchangeType,

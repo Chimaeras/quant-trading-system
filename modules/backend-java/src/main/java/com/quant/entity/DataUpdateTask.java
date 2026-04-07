@@ -30,6 +30,7 @@ public class DataUpdateTask {
     private LocalDate endDate;
 
     @Lob
+    @Column(columnDefinition = "LONGTEXT")
     private String stockList;
 
     private Integer totalStocks = 0;

@@ -50,7 +50,7 @@ public class HistoricalDataUpdateService {
         task.setStatus("PENDING");
         task.setStartDate(startDate);
         task.setEndDate(endDate);
-        task.setStockList(targetsToText(targets));
+        task.setStockList(buildStockListText(mode, targets));
         task.setTotalStocks(targets.size());
         dataUpdateTaskRepository.save(task);
 
@@ -209,6 +209,22 @@ public class HistoricalDataUpdateService {
             sb.append(t.stockCode()).append(".").append(exchangeToSuffix(t.exchangeType()));
         }
         return sb.toString();
+    }
+
+    /**
+     * 避免 mode=ALL / 大 LIST 时 stock_list 超长导致 MySQL 截断异常。
+     * - ALL：仅保存摘要（不保存全量代码列表）
+     * - LIST：保存前若干条 + 总数提示（便于排查、仍可读）
+     */
+    private String buildStockListText(String mode, List<StockTarget> targets) {
+        if ("ALL".equalsIgnoreCase(mode)) {
+            return "ALL(" + targets.size() + ")";
+        }
+        String full = targetsToText(targets);
+        // 保守限制：兼容旧库里 stock_list 仍是 VARCHAR 的情况（先止血）
+        int maxLen = 2000;
+        if (full.length() <= maxLen) return full;
+        return full.substring(0, maxLen) + "...(total=" + targets.size() + ")";
     }
 
     private StockTarget parseStock(String codeOrSymbol) {

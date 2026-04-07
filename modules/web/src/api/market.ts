@@ -58,6 +58,42 @@ export interface StockAnalysisResult {
   reasons: string[]
 }
 
+/** 后端扩展字段（规则模板）：与 StockAnalysisResult 兼容 */
+export interface StockAnalysisSignals {
+  ma: 'bullish' | 'bearish' | 'neutral'
+  macd: 'bullish' | 'bearish' | 'neutral'
+  rsi: 'overbought' | 'oversold' | 'neutral'
+  volume: 'strong' | 'weak' | 'normal'
+}
+
+export interface StockAnalysisPlan {
+  entry?: string
+  add?: string
+  reduce?: string
+  stopLoss: number
+  takeProfit: number
+  support: number
+  resistance: number
+  targetPosition: string
+}
+
+export interface StockAnalysisReport extends StockAnalysisResult {
+  data_insufficient?: boolean
+  message?: string
+  summary?: string
+  risk_points?: string[]
+  opportunity_points?: string[]
+  tags?: string[]
+  signals?: StockAnalysisSignals
+  score_breakdown?: {
+    trend: number
+    momentum: number
+    riskPenalty: number
+    total: number
+  }
+  plan?: StockAnalysisPlan
+}
+
 export const marketApi = {
   /** 获取股票列表 */
   getStockList(params?: { keyword?: string; exchange?: string; page?: number; size?: number }) {
@@ -102,6 +138,6 @@ export const marketApi = {
     avgCost?: number
     riskProfile?: 'conservative' | 'balanced' | 'aggressive'
   }) {
-    return request.post<{ data: StockAnalysisResult }>('/analysis/stock', params)
+    return request.post<{ data: StockAnalysisReport }>('/analysis/stock', params)
   }
 }

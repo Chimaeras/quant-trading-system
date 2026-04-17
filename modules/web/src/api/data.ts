@@ -126,20 +126,26 @@ export const dataApi = {
 
   /** 任务化历史更新（single/all/list） */
   async runUpdateTask(params: {
-    mode: 'SINGLE' | 'ALL' | 'LIST'
+    mode: 'SINGLE' | 'ALL' | 'LIST' | 'MAIN_BOARD'
     stockCode?: string
     exchange?: string
     startDate?: string
     endDate?: string
     stockList?: string[]
     stockListText?: string
+    /** 股票之间请求间隔（毫秒），主板枚举默认由后端 150，其它模式默认 0 */
+    delayMs?: number
+    /** 仅截取前 N 只（用于试跑），0 或不传表示不限制 */
+    maxStocks?: number
   }) {
     const res = await request.post<{ data: Record<string, unknown> }>('/data/update/run', params)
     return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>)
   },
 
-  async getUpdateTask(taskId: string) {
-    const res = await request.get<{ data: Record<string, unknown> }>(`/data/update/tasks/${taskId}`)
+  async getUpdateTask(taskId: string, page = 1, size = 100) {
+    const res = await request.get<{ data: Record<string, unknown> }>(`/data/update/tasks/${taskId}`, {
+      params: { page, size }
+    })
     return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>)
   },
 

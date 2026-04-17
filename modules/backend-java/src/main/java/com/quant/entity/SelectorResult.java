@@ -41,6 +41,10 @@ public class SelectorResult {
     @Column(length = 32)
     private String factorVersion = "v1";
 
+    /** 统一入口策略类型（TREND/COMPREHENSIVE/MULTI_DIM/CLASSIC_SELECTOR/OVERSOLD_REBOUND/GEOPOLICY_NEWS） */
+    @Column(length = 32)
+    private String strategyType;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json")
     private Map<String, Object> factorSnapshot;

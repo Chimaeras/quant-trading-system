@@ -38,6 +38,9 @@ public interface MarketDataRepository extends JpaRepository<MarketData, Long> {
      */
     List<MarketData> findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(LocalDate startDate, LocalDate endDate);
 
+    /** 某日全市场快照（用于行业 PE 聚合等） */
+    List<MarketData> findByTradeDate(LocalDate tradeDate);
+
     /** 查询某股票在日期范围内已存在的交易日列表（用于去重） */
     @Query("SELECT m.tradeDate FROM MarketData m WHERE m.stockCode = :stockCode AND m.exchangeType = :exchangeType AND m.tradeDate BETWEEN :startDate AND :endDate")
     List<LocalDate> findExistingTradeDates(@Param("stockCode") String stockCode, @Param("exchangeType") String exchangeType,

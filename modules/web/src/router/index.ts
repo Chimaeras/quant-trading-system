@@ -23,13 +23,7 @@ const routes = [
         meta: { title: '股票分析看板' }
       },
       { path: 'market/kline', name: 'KLine', component: () => import('@/views/market/KLineView.vue'), meta: { title: 'K线图' } },
-      { path: 'market/stock-picker', name: 'StockPicker', component: () => import('@/views/market/StockPicker.vue'), meta: { title: '选股器' } },
-      {
-        path: 'market/trend-scores',
-        name: 'TrendScoreBoard',
-        component: () => import('@/views/market/TrendScoreBoard.vue'),
-        meta: { title: '趋势打分榜' }
-      },
+      { path: 'market/stock-picker', name: 'StockPicker', component: () => import('@/views/market/StockPicker.vue'), meta: { title: '打分选股' } },
       { path: 'market/realtime', name: 'RealtimeWatch', component: () => import('@/views/market/RealtimeWatch.vue'), meta: { title: '实时盯盘' } },
       { path: 'dashboard', name: 'Dashboard', component: () => import('@/views/dashboard/Index.vue'), meta: { title: '行情看板' } },
       { path: 'backtest', name: 'Backtest', component: () => import('@/views/strategy/BacktestView.vue'), meta: { title: '回测分析' } },

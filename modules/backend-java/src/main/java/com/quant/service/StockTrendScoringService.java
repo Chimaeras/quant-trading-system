@@ -19,6 +19,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 趋势交易打分（与《选股打分算法说明》一致）：trend(30)+bias(20)+volume(15)+support(10)+macd(15)+rsi(10)。
@@ -92,6 +93,8 @@ public class StockTrendScoringService {
         // 预留：如果你想用更短的窗口提升速度，可通过 lookbackDays 下调；默认保持原逻辑 520 天以保证结果一致性
         int lookbackDays = (int) parseDouble(req.get("lookbackDays"), 520, 60, 2000);
         boolean bulkFetch = parseBool(req.get("bulkFetch"), true);
+        /** 默认 false：全市场打分时 items 极大，序列化慢且易导致客户端超时；列表请用 GET /scores */
+        boolean includeItems = parseBool(req.get("includeItems"), false);
 
         LocalDate rangeStart = tradeDate.minusDays(lookbackDays);
         // 二阶段优化：默认 bulkFetch=true，优先用单次区间拉取 + 本地分组，显著减少 DB 往返
@@ -109,6 +112,7 @@ public class StockTrendScoringService {
         long tScore0 = System.nanoTime();
         long barsFetched = 0;
         String dbMode;
+        AtomicInteger skippedNoBarOnTradeDate = new AtomicInteger(0);
 
         if (bulkFetch) {
             dbMode = "bulk_range_fetch";
@@ -146,7 +150,8 @@ public class StockTrendScoringService {
                     String stockCode = p > 0 ? key.substring(0, p) : key;
                     String exchangeType = p > 0 ? key.substring(p + 1) : "";
                     List<MarketData> bars = grouped.getOrDefault(key, List.of());
-                    Optional<StockTrendScore> row = scoreOne(stockCode, exchangeType, tradeDate, bars, nameCache, biasThreshold);
+                    Optional<StockTrendScore> row = scoreOne(
+                            stockCode, exchangeType, tradeDate, bars, nameCache, biasThreshold, skippedNoBarOnTradeDate);
                     if (row.isPresent()) rows.add(row.get());
                     else k++;
                 }
@@ -166,7 +171,8 @@ public class StockTrendScoringService {
                         String stockCode = p > 0 ? key.substring(0, p) : key;
                         String exchangeType = p > 0 ? key.substring(p + 1) : "";
                         List<MarketData> bars = grouped.getOrDefault(key, List.of());
-                        return scoreOne(stockCode, exchangeType, tradeDate, bars, nameCache, biasThreshold);
+                        return scoreOne(
+                                stockCode, exchangeType, tradeDate, bars, nameCache, biasThreshold, skippedNoBarOnTradeDate);
                     });
                 }
 
@@ -201,7 +207,7 @@ public class StockTrendScoringService {
                                 stockCode, exchangeType, rangeStart, tradeDate);
                 barsFetched += bars.size();
                 Optional<StockTrendScore> row = scoreOne(
-                        stockCode, exchangeType, tradeDate, bars, nameCache, biasThreshold);
+                        stockCode, exchangeType, tradeDate, bars, nameCache, biasThreshold, skippedNoBarOnTradeDate);
                 if (row.isEmpty()) {
                     k++;
                     continue;
@@ -231,7 +237,8 @@ public class StockTrendScoringService {
                             .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
                                     stockCode, exchangeType, rangeStart, tradeDate);
                     // barsFetched 统计仅用于粗略观测；这里不做原子累加避免争用
-                    return scoreOne(stockCode, exchangeType, tradeDate, bars, nameCache, biasThreshold);
+                    return scoreOne(
+                            stockCode, exchangeType, tradeDate, bars, nameCache, biasThreshold, skippedNoBarOnTradeDate);
                 });
             }
 
@@ -259,13 +266,17 @@ public class StockTrendScoringService {
         long tScore1 = System.nanoTime();
 
         rows.sort((a, b) -> Double.compare(b.getTotalScore(), a.getTotalScore()));
+        // 同一批次内若出现重复股票（并发/数据源重复），只保留总分最高的一条，避免 uk(stock_code,exchange_type,trade_date) 冲突
+        final List<StockTrendScore> rowsToPersist = dedupeByStock(rows);
 
         long tPersist0 = System.nanoTime();
         if (persist) {
             new TransactionTemplate(transactionManager).execute(status -> {
                 stockTrendScoreRepository.deleteByTradeDate(tradeDate);
-                if (!rows.isEmpty()) {
-                    stockTrendScoreRepository.saveAll(rows);
+                // 确保先落库删除再插入，避免同事务内 INSERT 与旧行冲突（重复跑任务、或批处理顺序问题）
+                stockTrendScoreRepository.flush();
+                if (!rowsToPersist.isEmpty()) {
+                    stockTrendScoreRepository.saveAll(rowsToPersist);
                 }
                 return null;
             });
@@ -273,36 +284,56 @@ public class StockTrendScoringService {
         long tPersist1 = System.nanoTime();
 
         List<Map<String, Object>> items = new ArrayList<>();
-        int rank = 1;
-        for (StockTrendScore s : rows) {
-            items.add(toMap(s, rank++));
+        if (includeItems) {
+            int rank = 1;
+            for (StockTrendScore s : rowsToPersist) {
+                items.add(toMap(s, rank++));
+            }
         }
 
         long t1 = System.nanoTime();
         long elapsedMs = TimeUnit.NANOSECONDS.toMillis(t1 - t0);
         long scoreMs = TimeUnit.NANOSECONDS.toMillis(tScore1 - tScore0);
         long persistMs = TimeUnit.NANOSECONDS.toMillis(tPersist1 - tPersist0);
-        double scoredPerSec = scoreMs > 0 ? (rows.size() * 1000.0 / scoreMs) : 0;
+        double scoredPerSec = scoreMs > 0 ? (rowsToPersist.size() * 1000.0 / scoreMs) : 0;
 
         Map<String, Object> res = new LinkedHashMap<>();
         res.put("trade_date", tradeDate.toString());
         res.put("factor_version", FACTOR_VERSION);
         res.put("bias_threshold", biasThreshold);
-        res.put("persisted", persist && !rows.isEmpty());
+        res.put("persisted", persist && !rowsToPersist.isEmpty());
         res.put("threads_used", threads);
         res.put("lookback_days", lookbackDays);
         res.put("bulk_fetch", bulkFetch);
         res.put("db_mode", dbMode);
         res.put("bars_fetched", barsFetched);
         res.put("scanned", scanned);
-        res.put("scored", rows.size());
+        res.put("scored", rowsToPersist.size());
         res.put("skipped_insufficient", skipped);
+        res.put("skipped_no_bar_on_trade_date", skippedNoBarOnTradeDate.get());
         res.put("elapsed_ms", elapsedMs);
         res.put("score_ms", scoreMs);
         res.put("persist_ms", persistMs);
         res.put("scored_per_sec", Math.round(scoredPerSec * 100.0) / 100.0);
+        res.put("include_items", includeItems);
         res.put("items", items);
         return res;
+    }
+
+    /** 已按总分降序时，每种股票只保留第一条（分数最高） */
+    private static List<StockTrendScore> dedupeByStock(List<StockTrendScore> rows) {
+        if (rows == null || rows.size() <= 1) {
+            return rows;
+        }
+        List<StockTrendScore> out = new ArrayList<>(rows.size());
+        Set<String> seen = new HashSet<>();
+        for (StockTrendScore s : rows) {
+            String key = s.getStockCode() + "|" + s.getExchangeType();
+            if (seen.add(key)) {
+                out.add(s);
+            }
+        }
+        return out;
     }
 
     private Map<String, Object> emptyResult(LocalDate tradeDate, String message) {
@@ -320,9 +351,19 @@ public class StockTrendScoringService {
             LocalDate tradeDate,
             List<MarketData> bars,
             Map<String, String> nameCache,
-            double biasThreshold) {
+            double biasThreshold,
+            AtomicInteger skippedNoBarOnTradeDate) {
 
         if (bars == null || bars.size() < MIN_BARS) {
+            return Optional.empty();
+        }
+
+        // 仅当「最后一根 K 线」的交易日等于本次打分日时才参与评分，避免用更早交易日冒充当日
+        LocalDate lastBarDate = bars.get(bars.size() - 1).getTradeDate();
+        if (lastBarDate == null || !tradeDate.equals(lastBarDate)) {
+            if (skippedNoBarOnTradeDate != null) {
+                skippedNoBarOnTradeDate.incrementAndGet();
+            }
             return Optional.empty();
         }
 

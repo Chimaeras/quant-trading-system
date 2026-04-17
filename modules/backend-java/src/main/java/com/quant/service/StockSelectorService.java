@@ -39,6 +39,8 @@ public class StockSelectorService {
         double minTrendScore = parseDouble(request.get("minTrendScore"), 40d, 0d, 100d);
         String templateId = String.valueOf(request.getOrDefault("templateId", "")).trim();
         String factorVersion = String.valueOf(request.getOrDefault("factorVersion", "v1")).trim();
+        boolean progressivePersist = parseBool(request.get("progressivePersist"), false);
+        String fixedResultId = String.valueOf(request.getOrDefault("resultId", "")).trim();
 
         LocalDate rangeStart = tradeDate.minusDays(Math.max(lookbackDays + 30L, 90L));
         List<Object[]> pairs = marketDataRepository.findDistinctStockPairsInRange(rangeStart, tradeDate);
@@ -48,56 +50,59 @@ public class StockSelectorService {
 
         Map<String, String> nameCache = new HashMap<>();
         List<Candidate> candidates = new ArrayList<>();
+        String progressiveResultId = null;
+        int progressiveRank = 1;
+        if (progressivePersist) {
+            progressiveResultId = ensureResultSkeleton(
+                    fixedResultId,
+                    tradeDate,
+                    lookbackDays,
+                    topN,
+                    minAvgAmount,
+                    minTrendScore,
+                    templateId,
+                    factorVersion
+            );
+        }
 
         for (Object[] pair : pairs) {
+            ensureNotInterrupted();
             if (pair == null || pair.length < 2) continue;
             String stockCode = String.valueOf(pair[0]);
             String exchangeType = String.valueOf(pair[1]);
             List<MarketData> bars = marketDataRepository
                     .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(stockCode, exchangeType, rangeStart, tradeDate);
             Candidate c = buildCandidate(stockCode, exchangeType, bars, minAvgAmount, minTrendScore, nameCache);
-            if (c != null) candidates.add(c);
+            if (c != null) {
+                candidates.add(c);
+                if (progressiveResultId != null) {
+                    selectorResultItemRepository.save(toItem(progressiveResultId, progressiveRank++, c));
+                }
+            }
         }
 
         candidates.sort((a, b) -> Double.compare(b.finalScore, a.finalScore));
         List<Candidate> selected = candidates.stream().limit(topN).toList();
 
-        SelectorResult result = new SelectorResult();
-        result.setResultId(genResultId());
-        result.setTradeDate(tradeDate);
-        result.setLookbackDays(lookbackDays);
-        result.setTopN(topN);
-        result.setMinAvgAmount(minAvgAmount);
-        result.setMinTrendScore(minTrendScore);
-        result.setTemplateId(templateId.isBlank() ? null : templateId);
-        result.setFactorVersion(factorVersion.isBlank() ? "v1" : factorVersion);
-        result.setFactorSnapshot(buildFactorSnapshot(minAvgAmount, minTrendScore));
-        selectorResultRepository.save(result);
-
-        selectorResultItemRepository.deleteByResultId(result.getResultId());
+        String finalResultId = progressiveResultId != null
+                ? progressiveResultId
+                : ensureResultSkeleton(
+                null,
+                tradeDate,
+                lookbackDays,
+                topN,
+                minAvgAmount,
+                minTrendScore,
+                templateId,
+                factorVersion
+        );
+        selectorResultItemRepository.deleteByResultId(finalResultId);
         int rank = 1;
         for (Candidate c : selected) {
-            SelectorResultItem item = new SelectorResultItem();
-            item.setResultId(result.getResultId());
-            item.setRankNo(rank++);
-            item.setStockCode(c.stockCode);
-            item.setExchangeType(c.exchangeType);
-            item.setStockName(c.stockName);
-            item.setFinalScore(round2(c.finalScore));
-            item.setTrendScore(round2(c.trendScore));
-            item.setMomentumScore(round2(c.momentumScore));
-            item.setVolumeScore(round2(c.volumeScore));
-            item.setRiskPenalty(round2(c.riskPenalty));
-            item.setRet20(round2(c.ret20));
-            item.setRet60(round2(c.ret60));
-            item.setVolatility20(round2(c.volatility20));
-            item.setMaxDrawdown60(round2(c.maxDrawdown60));
-            item.setAvgAmount20(round2(c.avgAmount20));
-            item.setReasons(c.reasons);
+            SelectorResultItem item = toItem(finalResultId, rank++, c);
             selectorResultItemRepository.save(item);
         }
-
-        return getResultById(result.getResultId());
+        return getResultById(finalResultId);
     }
 
     public Map<String, Object> getLatestResult(LocalDate tradeDate, String factorVersion) {
@@ -219,6 +224,57 @@ public class StockSelectorService {
         return Map.of("weights", weights, "thresholds", thresholds);
     }
 
+    private String ensureResultSkeleton(
+            String resultId,
+            LocalDate tradeDate,
+            int lookbackDays,
+            int topN,
+            double minAvgAmount,
+            double minTrendScore,
+            String templateId,
+            String factorVersion
+    ) {
+        String rid = (resultId != null && !resultId.isBlank()) ? resultId : genResultId();
+        SelectorResult result = selectorResultRepository.findByResultId(rid).orElse(new SelectorResult());
+        result.setResultId(rid);
+        result.setTradeDate(tradeDate);
+        result.setLookbackDays(lookbackDays);
+        result.setTopN(topN);
+        result.setMinAvgAmount(minAvgAmount);
+        result.setMinTrendScore(minTrendScore);
+        result.setTemplateId(templateId.isBlank() ? null : templateId);
+        result.setFactorVersion(factorVersion.isBlank() ? "v1" : factorVersion);
+        result.setStrategyType("CLASSIC_SELECTOR");
+        result.setFactorSnapshot(buildFactorSnapshot(minAvgAmount, minTrendScore));
+        selectorResultRepository.save(result);
+        if (result.getId() != null && resultId != null && !resultId.isBlank()) {
+            selectorResultItemRepository.deleteByResultId(rid);
+        }
+        return rid;
+    }
+
+    private SelectorResultItem toItem(String resultId, int rankNo, Candidate c) {
+        SelectorResultItem item = new SelectorResultItem();
+        item.setResultId(resultId);
+        item.setRankNo(rankNo);
+        item.setStrategyType("CLASSIC_SELECTOR");
+        item.setStockCode(c.stockCode);
+        item.setExchangeType(c.exchangeType);
+        item.setStockName(c.stockName);
+        item.setFinalScore(round2(c.finalScore));
+        item.setTrendScore(round2(c.trendScore));
+        item.setMomentumScore(round2(c.momentumScore));
+        item.setVolumeScore(round2(c.volumeScore));
+        item.setRiskPenalty(round2(c.riskPenalty));
+        item.setRet20(round2(c.ret20));
+        item.setRet60(round2(c.ret60));
+        item.setVolatility20(round2(c.volatility20));
+        item.setMaxDrawdown60(round2(c.maxDrawdown60));
+        item.setAvgAmount20(round2(c.avgAmount20));
+        item.setReasons(c.reasons);
+        return item;
+    }
+
     private Candidate buildCandidate(String stockCode, String exchangeType, List<MarketData> bars, double minAvgAmount,
                                      double minTrendScore, Map<String, String> nameCache) {
         if (bars == null || bars.size() < 70) return null;
@@ -320,6 +376,14 @@ public class StockSelectorService {
         }
     }
 
+    private boolean parseBool(Object v, boolean def) {
+        if (v == null) return def;
+        if (v instanceof Boolean b) return b;
+        String s = String.valueOf(v).trim().toLowerCase();
+        if (s.isBlank()) return def;
+        return "1".equals(s) || "true".equals(s) || "yes".equals(s) || "y".equals(s);
+    }
+
     private String genResultId() {
         return "SC" + System.currentTimeMillis() + ThreadLocalRandom.current().nextInt(1000, 9999);
     }
@@ -413,6 +477,12 @@ public class StockSelectorService {
 
     private double round2(double v) {
         return Math.round(v * 100.0) / 100.0;
+    }
+
+    private void ensureNotInterrupted() {
+        if (Thread.currentThread().isInterrupted()) {
+            throw new RuntimeException("任务被取消（线程中断）");
+        }
     }
 
     private static class Candidate {

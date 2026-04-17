@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.apache.catalina.connector.ClientAbortException;
 
 import java.util.stream.Collectors;
 
@@ -46,6 +47,16 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ResponseEntity<ApiResponse<Void>> handleNoResource(NoResourceFoundException e) {
         return ResponseEntity.status(404).body(ApiResponse.error(404, "资源不存在"));
+    }
+
+    /**
+     * 客户端在响应写完前关闭连接（浏览器取消、axios 超时、代理断开等），不是业务错误。
+     * 若按 ERROR 打全栈会刷屏；此处降级为 warn。
+     */
+    @ExceptionHandler(ClientAbortException.class)
+    public ResponseEntity<Void> handleClientAbort(ClientAbortException e) {
+        log.warn("客户端中止连接(响应可能未完整送达): {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
     @ExceptionHandler(Exception.class)

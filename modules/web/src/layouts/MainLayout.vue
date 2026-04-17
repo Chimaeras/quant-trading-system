@@ -43,11 +43,7 @@
         </el-menu-item>
         <el-menu-item index="/market/stock-picker">
           <el-icon><Search /></el-icon>
-          <span>选股器</span>
-        </el-menu-item>
-        <el-menu-item index="/market/trend-scores">
-          <el-icon><Medal /></el-icon>
-          <span>趋势打分榜</span>
+          <span>打分选股</span>
         </el-menu-item>
         <el-menu-item index="/backtest">
           <el-icon><Cpu /></el-icon>
@@ -95,7 +91,6 @@ import {
   FolderOpened,
   Histogram,
   List,
-  Medal,
   Odometer,
   Search,
   TrendCharts,

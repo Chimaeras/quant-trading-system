@@ -46,10 +46,52 @@ def load_csv(csv_path: str) -> list[dict]:
     return rows
 
 
+def suffix_from_exchange(exchange_type: str) -> str:
+    if exchange_type == "SSE":
+        return "SH"
+    if exchange_type == "BSE":
+        return "BJ"
+    return "SZ"
+
+
+def write_universe_file(rows: list[dict], output_path: str) -> int:
+    """
+    生成项目内固定全量清单（code.suffix，每行一只）
+    返回写入条数
+    """
+    lines = set()
+    for row in rows:
+        market = row["market"]
+        if market not in MARKET_MAP:
+            continue
+        exchange_type, _ = map_market(market)
+        suffix = suffix_from_exchange(exchange_type)
+        lines.add(f'{row["code"]}.{suffix}')
+
+    out = Path(output_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", encoding="utf-8") as f:
+        f.write("# A-share fixed universe list (generated)\n")
+        f.write("# format: stock_code.exchange_suffix\n")
+        for line in sorted(lines):
+            f.write(f"{line}\n")
+    return len(lines)
+
+
 def main():
     # 默认 CSV 路径
     default_csv = Path(__file__).parent.parent.parent / "Download" / "A股代码名称映射表_20260227.csv"
+    default_universe = (
+        Path(__file__).parent.parent
+        / "backend-java"
+        / "src"
+        / "main"
+        / "resources"
+        / "universe"
+        / "a_share_codes.txt"
+    )
     csv_path = sys.argv[1] if len(sys.argv) > 1 else str(default_csv)
+    universe_output = sys.argv[2] if len(sys.argv) > 2 else str(default_universe)
 
     if not os.path.isfile(csv_path):
         print(f"错误: CSV 文件不存在: {csv_path}")
@@ -109,6 +151,10 @@ def main():
         print(f"导入完成: 新增 {inserted} 条, 更新 {updated} 条, 跳过 {skipped} 条")
     finally:
         conn.close()
+
+    # 额外输出项目内固定全量清单（供 ALL 模式读取）
+    written = write_universe_file(rows, universe_output)
+    print(f"已生成全量清单: {universe_output} ({written} 条)")
 
 
 if __name__ == "__main__":

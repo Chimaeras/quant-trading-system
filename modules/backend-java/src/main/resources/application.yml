@@ -23,6 +23,10 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.MySQLDialect
+        jdbc:
+          batch_size: 500
+        order_inserts: true
+        order_updates: true
     open-in-view: false
   data:
     redis:
@@ -45,10 +49,17 @@ logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
 
+# 历史行情：搜狐为主时一般无需再拉东财；为 true 时在搜狐有数据时仍拉东财并合并（搜狐优先，东财补缺）
+historical:
+  supplement-eastmoney: false
+
 # 趋势选股打分（与《选股打分算法说明》一致）
 scoring:
   trend:
     bias-threshold: 5.0
+  # 多维度第一版：仅用库内 K 线+PE+行业聚合计算，不拉取外部 API（因子版本 multi_dim_compute_v1）
+  multi-dim:
+    compute-only-v1: true
 
 backtest:
   cost:

@@ -6,32 +6,61 @@ import com.quant.entity.MarketData;
 import com.quant.repository.MarketDataRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.math.BigDecimal;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
- * 历史行情服务 - 从东方财富接口获取指定日期范围内的日K数据，
- * 检查数据库是否已有，仅插入缺失的交易日数据
+ * 历史行情服务 - 主数据源：搜狐 hisHq（quant-core 同源 URL，通常更快）；
+ * 备用：东方财富日 K（搜狐无数据或配置开启补全时拉取）。
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class HistoricalDataService {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    /**
+     * 与 StockInfo {@code UpdateUtil.insertOrUpdateStockInfoCurrDate} 同风格日志（与 {@link #log} 混合策略区分）。
+     */
+    private static final Logger STOCKINFO_MAINBOARD = LoggerFactory.getLogger("com.quant.stockinfo.MainBoard");
+
+    /** 连接/读超时 + 分片请求，减轻「Unexpected end of file from server」类 EOF */
+    private final RestTemplate restTemplate = createRestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final MarketDataRepository marketDataRepo;
 
+    /** 为 true 时：搜狐已有数据仍拉东财并合并（搜狐优先，东财仅补缺交易日） */
+    @Value("${historical.supplement-eastmoney:false}")
+    private boolean supplementEastMoney;
+
     private static final String EASTMONEY_KLINE_URL = "https://push2his.eastmoney.com/api/qt/stock/kline/get";
+    /** 与 quant-core UpdateUtil 一致：搜狐历史行情 */
+    private static final String SOHU_HIS_HQ_URL = "https://q.stock.sohu.com/hisHq";
+    /** 东财单次跨度上限（按月分片，防 EOF） */
+    private static final int EASTMONEY_CHUNK_MAX_DAYS = 120;
+    /** 搜狐单次可拉更长区间，减少 HTTP 往返（quant-core 常一次拉整段） */
+    private static final int SOHU_CHUNK_MAX_DAYS = 500;
+    private static final int MAX_ATTEMPTS = 4;
+    private static final int INSERT_BATCH_SIZE = 500;
     /** fields2: f51日期 f52开 f53收 f54高 f55低 f56成交量 f57成交额 f58振幅 f59涨跌幅 f60涨跌额 f61换手率 */
     private static final String FIELDS2 = "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61";
 
@@ -44,6 +73,7 @@ public class HistoricalDataService {
      * @param endDate     结束日期
      * @return inserted 新插入条数, skipped 已存在跳过条数, total 接口返回总条数
      */
+    @Transactional
     public Map<String, Object> updateHistoryInRange(String stockCode, String exchangeType,
                                                      LocalDate startDate, LocalDate endDate) {
         String code = (stockCode != null ? stockCode : "").split("\\.")[0].trim();
@@ -59,9 +89,41 @@ public class HistoricalDataService {
             endDate = t;
         }
 
-        List<MarketData> fetched = fetchFromEastmoney(code, ex, startDate, endDate);
+        List<MarketData> sohu = fetchFromSohuChunked(code, ex, startDate, endDate);
+        List<MarketData> em = List.of();
+
+        List<MarketData> fetched;
+        String dataSource;
+        int eastmoneySupplementDays = 0;
+
+        if (!sohu.isEmpty() && supplementEastMoney) {
+            em = fetchFromEastmoneyChunked(code, ex, startDate, endDate);
+            Set<LocalDate> sohuDates = sohu.stream().map(MarketData::getTradeDate).collect(Collectors.toSet());
+            eastmoneySupplementDays = (int) em.stream().map(MarketData::getTradeDate).filter(d -> !sohuDates.contains(d)).count();
+            fetched = mergePreferSohu(sohu, em);
+            dataSource = eastmoneySupplementDays > 0 ? "sohu+eastmoney" : "sohu";
+            if (eastmoneySupplementDays > 0) {
+                log.debug("[hybrid] 搜狐为主，东方财富补全 {} 个交易日: {} {}", eastmoneySupplementDays, code, ex);
+            }
+        } else if (!sohu.isEmpty()) {
+            fetched = sohu;
+            dataSource = "sohu";
+        } else {
+            String beg = startDate.format(DateTimeFormatter.BASIC_ISO_DATE);
+            String end = endDate.format(DateTimeFormatter.BASIC_ISO_DATE);
+            log.info("[hybrid] 搜狐无数据，尝试东方财富备用: {} {} [{}..{}] primarySOHU={} backupEM={}",
+                    code, ex, startDate, endDate,
+                    SOHU_HIS_HQ_URL + "?code=cn_" + code + "&start=" + beg + "&end=" + end,
+                    EASTMONEY_KLINE_URL + "?secid=" + toEastmoneySecId(code, ex)
+                            + "&fields1=f1,f2,f3,f4,f5,f6&fields2=" + FIELDS2 + "&klt=101&fqt=1&beg=" + beg + "&end=" + end);
+            em = fetchFromEastmoneyChunked(code, ex, startDate, endDate);
+            fetched = em;
+            dataSource = em.isEmpty() ? "none" : "eastmoney";
+        }
+
         if (fetched.isEmpty()) {
-            return Map.of("inserted", 0, "skipped", 0, "total", 0, "message", "未获取到数据，请检查股票代码或网络");
+            return Map.of("inserted", 0, "skipped", 0, "total", 0, "message", "未获取到数据，请检查股票代码或网络",
+                    "data_source", "none");
         }
 
         Set<LocalDate> existingDates = new HashSet<>(
@@ -69,18 +131,369 @@ public class HistoricalDataService {
         List<MarketData> toInsert = fetched.stream()
                 .filter(m -> !existingDates.contains(m.getTradeDate()))
                 .toList();
-        marketDataRepo.saveAll(toInsert);
+        saveInBatches(toInsert);
 
-        return Map.of(
-                "inserted", toInsert.size(),
-                "skipped", fetched.size() - toInsert.size(),
-                "total", fetched.size(),
-                "message", String.format("新增 %d 条，跳过已存在 %d 条", toInsert.size(), fetched.size() - toInsert.size())
-        );
+        String msg = String.format("新增 %d 条，跳过已存在 %d 条", toInsert.size(), fetched.size() - toInsert.size());
+        if ("eastmoney".equals(dataSource)) {
+            msg = msg + "（数据源：东方财富备用）";
+        } else if ("sohu+eastmoney".equals(dataSource)) {
+            msg = msg + String.format("（搜狐为主，东方财富补全 %d 个交易日）", eastmoneySupplementDays);
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("inserted", toInsert.size());
+        out.put("skipped", fetched.size() - toInsert.size());
+        out.put("total", fetched.size());
+        out.put("message", msg);
+        out.put("data_source", dataSource);
+        if (eastmoneySupplementDays > 0) {
+            out.put("eastmoney_supplement_days", eastmoneySupplementDays);
+        }
+        return out;
     }
 
-    private List<MarketData> fetchFromEastmoney(String code, String exchangeType,
-                                                 LocalDate startDate, LocalDate endDate) {
+    /**
+     * 主板枚举任务专用：与 StockInfo {@code UpdateUtil.insertOrUpdateStockInfoCurrDate} 同源逻辑——
+     * 仅单次 GET {@code https://q.stock.sohu.com/hisHq?code=cn_xxx&start=yyyyMMdd&end=yyyyMMdd}（不分片、不重试、无东方财富），
+     * 日志使用 {@link #STOCKINFO_MAINBOARD}，文案与 StockInfo 控制台输出一致。
+     */
+    @Transactional
+    public Map<String, Object> updateHistoryInRangeStockInfoStyle(String stockCode, String exchangeType,
+                                                                  LocalDate startDate, LocalDate endDate) {
+        String code = (stockCode != null ? stockCode : "").split("\\.")[0].trim();
+        if (code.isEmpty()) {
+            return Map.of("inserted", 0, "skipped", 0, "total", 0, "message", "股票代码不能为空",
+                    "data_source", "stockinfo_sohu");
+        }
+        String ex = (exchangeType != null && !exchangeType.isBlank()) ? exchangeType : inferExchangeType(code);
+        if (startDate == null) startDate = LocalDate.now().minusYears(1);
+        if (endDate == null) endDate = LocalDate.now();
+        if (startDate.isAfter(endDate)) {
+            LocalDate t = startDate;
+            startDate = endDate;
+            endDate = t;
+        }
+
+        STOCKINFO_MAINBOARD.info(code);
+
+        String start = startDate.format(DateTimeFormatter.BASIC_ISO_DATE);
+        String end = endDate.format(DateTimeFormatter.BASIC_ISO_DATE);
+        String url = SOHU_HIS_HQ_URL + "?code=cn_" + code + "&start=" + start + "&end=" + end;
+
+        String jsonResponse = sendGetRequestStockInfoStyle(url);
+        if (jsonResponse == null) {
+            STOCKINFO_MAINBOARD.info("Failed to get data for stock code: " + code);
+            return Map.of("inserted", 0, "skipped", 0, "total", 0,
+                    "message", "Failed to get data for stock code: " + code,
+                    "data_source", "stockinfo_sohu");
+        }
+
+        List<MarketData> fetched;
+        try {
+            fetched = parseSohuHqJson(code, ex, jsonResponse, startDate, endDate);
+        } catch (Exception e) {
+            STOCKINFO_MAINBOARD.error("Error parsing JSON: " + e.getMessage());
+            return Map.of("inserted", 0, "skipped", 0, "total", 0,
+                    "message", "解析 JSON 失败: " + e.getMessage(),
+                    "data_source", "stockinfo_sohu");
+        }
+
+        STOCKINFO_MAINBOARD.info("records:");
+        STOCKINFO_MAINBOARD.info(String.valueOf(fetched));
+
+        for (MarketData m : fetched) {
+            STOCKINFO_MAINBOARD.info("INSERT INTO market_data VALUES (?,?,?,?,?,?,?,?,?,?,?) "
+                    + "date=" + m.getTradeDate() + " code=" + code + " open=" + m.getOpenPrice()
+                    + " close=" + m.getClosePrice());
+        }
+
+        if (fetched.isEmpty()) {
+            return Map.of("inserted", 0, "skipped", 0, "total", 0, "message", "未获取到数据",
+                    "data_source", "stockinfo_sohu");
+        }
+
+        Set<LocalDate> existingDates = new HashSet<>(
+                marketDataRepo.findExistingTradeDates(code, ex, startDate, endDate));
+        List<MarketData> toInsert = fetched.stream()
+                .filter(m -> !existingDates.contains(m.getTradeDate()))
+                .toList();
+        saveInBatches(toInsert);
+
+        String msg = String.format("新增 %d 条，跳过已存在 %d 条（StockInfo 同源搜狐 hisHq）", toInsert.size(), fetched.size() - toInsert.size());
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("inserted", toInsert.size());
+        out.put("skipped", fetched.size() - toInsert.size());
+        out.put("total", fetched.size());
+        out.put("message", msg);
+        out.put("data_source", "stockinfo_sohu");
+        return out;
+    }
+
+    /**
+     * 与 StockInfo {@code UpdateUtil.sendGetRequest} 一致：HttpURLConnection GET，无自定义 UA，非 200 时打印 response code。
+     */
+    private static String sendGetRequestStockInfoStyle(String urlString) {
+        try {
+            URL obj = new URL(urlString);
+            HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+            con.setRequestMethod("GET");
+
+            int responseCode = con.getResponseCode();
+            if (responseCode == 200) {
+                try (BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()))) {
+                    String inputLine;
+                    StringBuilder response = new StringBuilder();
+                    while ((inputLine = in.readLine()) != null) {
+                        response.append(inputLine);
+                    }
+                    return response.toString();
+                }
+            } else {
+                STOCKINFO_MAINBOARD.info("GET request failed with response code: " + responseCode);
+                return null;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /** 搜狐优先；同一交易日东财仅在没有搜狐该日时写入 */
+    private static List<MarketData> mergePreferSohu(List<MarketData> sohu, List<MarketData> em) {
+        TreeMap<LocalDate, MarketData> merged = new TreeMap<>();
+        for (MarketData s : sohu) {
+            merged.put(s.getTradeDate(), s);
+        }
+        for (MarketData e : em) {
+            merged.putIfAbsent(e.getTradeDate(), e);
+        }
+        return new ArrayList<>(merged.values());
+    }
+
+    private void saveInBatches(List<MarketData> toInsert) {
+        if (toInsert.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < toInsert.size(); i += INSERT_BATCH_SIZE) {
+            int end = Math.min(i + INSERT_BATCH_SIZE, toInsert.size());
+            marketDataRepo.saveAll(toInsert.subList(i, end));
+        }
+    }
+
+    private static RestTemplate createRestTemplate() {
+        SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
+        f.setConnectTimeout(Duration.ofSeconds(20));
+        f.setReadTimeout(Duration.ofSeconds(120));
+        return new RestTemplate(f);
+    }
+
+    /** 东财：长区间按月分片，避免单次响应过大导致服务端提前断开（Unexpected EOF） */
+    private List<MarketData> fetchFromEastmoneyChunked(String code, String exchangeType,
+                                                       LocalDate startDate, LocalDate endDate) {
+        long days = java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate) + 1;
+        if (days <= EASTMONEY_CHUNK_MAX_DAYS) {
+            return fetchFromEastmoneyOnce(code, exchangeType, startDate, endDate);
+        }
+        Map<LocalDate, MarketData> byDate = new TreeMap<>();
+        LocalDate cur = startDate;
+        while (!cur.isAfter(endDate)) {
+            LocalDate chunkEnd = cur.plusMonths(1).minusDays(1);
+            if (chunkEnd.isAfter(endDate)) {
+                chunkEnd = endDate;
+            }
+            List<MarketData> part = fetchFromEastmoneyOnce(code, exchangeType, cur, chunkEnd);
+            for (MarketData m : part) {
+                byDate.put(m.getTradeDate(), m);
+            }
+            cur = chunkEnd.plusDays(1);
+        }
+        return new ArrayList<>(byDate.values());
+    }
+
+    /**
+     * 搜狐 hisHq：单次可拉更长区间，减少请求次数；超长区间仍按月分片。
+     */
+    private List<MarketData> fetchFromSohuChunked(String code, String exchangeType,
+                                                  LocalDate startDate, LocalDate endDate) {
+        long days = java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate) + 1;
+        if (days <= SOHU_CHUNK_MAX_DAYS) {
+            return fetchFromSohuOnce(code, exchangeType, startDate, endDate);
+        }
+        Map<LocalDate, MarketData> byDate = new TreeMap<>();
+        LocalDate cur = startDate;
+        while (!cur.isAfter(endDate)) {
+            LocalDate chunkEnd = cur.plusMonths(1).minusDays(1);
+            if (chunkEnd.isAfter(endDate)) {
+                chunkEnd = endDate;
+            }
+            List<MarketData> part = fetchFromSohuOnce(code, exchangeType, cur, chunkEnd);
+            for (MarketData m : part) {
+                byDate.put(m.getTradeDate(), m);
+            }
+            cur = chunkEnd.plusDays(1);
+        }
+        return new ArrayList<>(byDate.values());
+    }
+
+    private List<MarketData> fetchFromSohuOnce(String code, String exchangeType,
+                                               LocalDate startDate, LocalDate endDate) {
+        String cn = toSohuCnParam(code);
+        String start = startDate.format(DateTimeFormatter.BASIC_ISO_DATE);
+        String end = endDate.format(DateTimeFormatter.BASIC_ISO_DATE);
+        String url = SOHU_HIS_HQ_URL + "?code=" + cn
+                + "&start=" + start + "&end=" + end;
+
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                HttpHeaders headers = sohuHeaders();
+                ResponseEntity<String> resp = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
+                String json = resp.getBody();
+                if (json == null || json.isBlank()) {
+                    return List.of();
+                }
+                return parseSohuHqJson(code, exchangeType, json, startDate, endDate);
+            } catch (Exception e) {
+                boolean last = attempt >= MAX_ATTEMPTS;
+                if (last) {
+                    log.warn("[hybrid] 搜狐历史行情失败: {} {} [{}..{}] - {}", code, exchangeType, start, end, e.getMessage());
+                    return List.of();
+                }
+                long backoffMs = 300L * (1L << (attempt - 1));
+                log.debug("[hybrid] 搜狐 K 线重试 {}/{} {} 等待 {}ms: {}", attempt, MAX_ATTEMPTS, code, backoffMs, e.getMessage());
+                try {
+                    Thread.sleep(backoffMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return List.of();
+                }
+            }
+        }
+        return List.of();
+    }
+
+    /** 与 quant-core 一致：cn_ + 六位代码 */
+    private static String toSohuCnParam(String code) {
+        String c = (code != null ? code : "").trim();
+        if (c.length() > 6) {
+            c = c.substring(0, 6);
+        }
+        return "cn_" + c;
+    }
+
+    private static HttpHeaders sohuHeaders() {
+        HttpHeaders h = new HttpHeaders();
+        h.set(HttpHeaders.USER_AGENT,
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
+        h.set(HttpHeaders.ACCEPT, "application/json, text/plain, */*");
+        h.set(HttpHeaders.REFERER, "https://q.stock.sohu.com/");
+        return h;
+    }
+
+    /**
+     * 解析搜狐返回：根为数组，首元素含 hq 数组；每行 [日期,开,收,涨跌额,涨跌幅%,低,高,量,额,换手率%]
+     * 与 quant-core {@link StringUtil#parseJson} 字段顺序一致。
+     */
+    private List<MarketData> parseSohuHqJson(String code, String exchangeType, String json,
+                                             LocalDate rangeStart, LocalDate rangeEnd) throws Exception {
+        List<MarketData> result = new ArrayList<>();
+        JsonNode root = objectMapper.readTree(json);
+        if (!root.isArray() || root.isEmpty()) {
+            return result;
+        }
+        JsonNode hq = root.get(0).path("hq");
+        if (!hq.isArray()) {
+            return result;
+        }
+        for (JsonNode row : hq) {
+            if (!row.isArray() || row.size() < 10) {
+                continue;
+            }
+            MarketData m = parseSohuHqRow(code, exchangeType, row);
+            if (m == null) {
+                continue;
+            }
+            if (m.getTradeDate().isBefore(rangeStart) || m.getTradeDate().isAfter(rangeEnd)) {
+                continue;
+            }
+            result.add(m);
+        }
+        result.sort(Comparator.comparing(MarketData::getTradeDate));
+        return result;
+    }
+
+    private MarketData parseSohuHqRow(String code, String exchangeType, JsonNode data) {
+        try {
+            String dateStr = data.get(0).asText();
+            if (dateStr.isBlank() || "-".equals(dateStr.trim())) {
+                return null;
+            }
+            LocalDate tradeDate = parseDate(dateStr.trim());
+            if (tradeDate == null) {
+                return null;
+            }
+            double open = data.get(1).asDouble();
+            double close = data.get(2).asDouble();
+            double changeAmt = data.get(3).asDouble();
+            String changePctStr = data.get(4).asText("");
+            double low = data.get(5).asDouble();
+            double high = data.get(6).asDouble();
+            long volume = jsonLong(data.get(7));
+            double turnover = data.get(8).asDouble();
+            String turnoverRateStr = data.get(9).asText("");
+
+            MarketData m = new MarketData();
+            m.setStockCode(code);
+            m.setExchangeType(exchangeType);
+            m.setTradeDate(tradeDate);
+            m.setOpenPrice(BigDecimal.valueOf(open));
+            m.setClosePrice(BigDecimal.valueOf(close));
+            m.setHighPrice(BigDecimal.valueOf(high));
+            m.setLowPrice(BigDecimal.valueOf(low));
+            m.setVolume(volume);
+            m.setAmount(BigDecimal.valueOf(turnover));
+            m.setChangePct(BigDecimal.valueOf(removePercentageSuffix(changePctStr)));
+            m.setTurnoverRate(BigDecimal.valueOf(removePercentageSuffix(turnoverRateStr)));
+            if (m.getClosePrice() != null) {
+                BigDecimal pre = m.getClosePrice().subtract(BigDecimal.valueOf(changeAmt));
+                m.setPreClose(pre);
+            }
+            return m;
+        } catch (Exception e) {
+            log.debug("[hybrid] 解析搜狐单行失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private static double removePercentageSuffix(String s) {
+        if (s == null || s.isBlank() || "-".equals(s.trim())) {
+            return 0.0;
+        }
+        try {
+            return Double.parseDouble(s.trim().replace("%", ""));
+        } catch (NumberFormatException e) {
+            return 0.0;
+        }
+    }
+
+    private static long jsonLong(JsonNode n) {
+        if (n == null || n.isNull()) {
+            return 0L;
+        }
+        if (n.isNumber()) {
+            return n.asLong();
+        }
+        String t = n.asText("").replace(",", "").trim();
+        if (t.isEmpty() || "-".equals(t)) {
+            return 0L;
+        }
+        try {
+            return Long.parseLong(t);
+        } catch (NumberFormatException e) {
+            return (long) Double.parseDouble(t);
+        }
+    }
+
+    private List<MarketData> fetchFromEastmoneyOnce(String code, String exchangeType,
+                                                    LocalDate startDate, LocalDate endDate) {
         String secid = toEastmoneySecId(code, exchangeType);
         String beg = startDate.format(DateTimeFormatter.BASIC_ISO_DATE);
         String end = endDate.format(DateTimeFormatter.BASIC_ISO_DATE);
@@ -90,28 +503,65 @@ public class HistoricalDataService {
                 + "&klt=101&fqt=1"
                 + "&beg=" + beg + "&end=" + end;
 
-        List<MarketData> result = new ArrayList<>();
-        try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-            ResponseEntity<String> resp = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
-            String json = resp.getBody();
-            if (json == null || json.isBlank()) return result;
-
-            JsonNode root = objectMapper.readTree(json);
-            JsonNode data = root.path("data");
-            if (data.isNull() || !data.isObject()) return result;
-            JsonNode klines = data.path("klines");
-            if (!klines.isArray()) return result;
-
-            for (JsonNode k : klines) {
-                String line = k.asText("");
-                if (line.isBlank()) continue;
-                MarketData m = parseKlineLine(code, exchangeType, line);
-                if (m != null) result.add(m);
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                HttpHeaders headers = eastmoneyHeaders();
+                ResponseEntity<String> resp = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
+                String json = resp.getBody();
+                if (json == null || json.isBlank()) {
+                    return List.of();
+                }
+                return parseKlinesJson(code, exchangeType, json);
+            } catch (Exception e) {
+                boolean last = attempt >= MAX_ATTEMPTS;
+                if (last) {
+                    log.warn("[hybrid] 东方财富历史行情失败: {} {} [{}..{}] - {}", code, exchangeType, beg, end, e.getMessage());
+                    return List.of();
+                }
+                long backoffMs = 300L * (1L << (attempt - 1));
+                log.debug("[hybrid] 东方财富 K 线请求重试 {}/{} {} {} 等待 {}ms: {}", attempt, MAX_ATTEMPTS, code, exchangeType, backoffMs, e.getMessage());
+                try {
+                    Thread.sleep(backoffMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return List.of();
+                }
             }
-        } catch (Exception e) {
-            log.warn("获取历史行情失败: {} {} - {}", code, exchangeType, e.getMessage());
+        }
+        return List.of();
+    }
+
+    private static HttpHeaders eastmoneyHeaders() {
+        HttpHeaders h = new HttpHeaders();
+        h.set(HttpHeaders.USER_AGENT,
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
+        h.set(HttpHeaders.ACCEPT, "application/json, text/plain, */*");
+        h.set(HttpHeaders.ACCEPT_LANGUAGE, "zh-CN,zh;q=0.9,en;q=0.8");
+        h.set(HttpHeaders.REFERER, "https://quote.eastmoney.com/");
+        h.set("Origin", "https://quote.eastmoney.com");
+        return h;
+    }
+
+    private List<MarketData> parseKlinesJson(String code, String exchangeType, String json) throws Exception {
+        List<MarketData> result = new ArrayList<>();
+        JsonNode root = objectMapper.readTree(json);
+        JsonNode data = root.path("data");
+        if (data.isNull() || !data.isObject()) {
+            return result;
+        }
+        JsonNode klines = data.path("klines");
+        if (!klines.isArray()) {
+            return result;
+        }
+        for (JsonNode k : klines) {
+            String line = k.asText("");
+            if (line.isBlank()) {
+                continue;
+            }
+            MarketData m = parseKlineLine(code, exchangeType, line);
+            if (m != null) {
+                result.add(m);
+            }
         }
         return result;
     }

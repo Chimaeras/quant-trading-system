@@ -21,6 +21,10 @@ public class SelectorResultItem {
     @Column(nullable = false)
     private Integer rankNo;
 
+    /** 与父结果一致的策略类型，便于按策略过滤。 */
+    @Column(length = 32)
+    private String strategyType;
+
     @Column(nullable = false, length = 20)
     private String stockCode;
 
@@ -63,4 +67,9 @@ public class SelectorResultItem {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json")
     private Map<String, Object> reasons;
+
+    /** 统一入口下的策略特有字段（例如 score_support、macd_status 等）。 */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
+    private Map<String, Object> extraMetrics;
 }

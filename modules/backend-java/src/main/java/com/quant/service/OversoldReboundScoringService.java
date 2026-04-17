@@ -46,6 +46,8 @@ public class OversoldReboundScoringService {
         double minTotalScore = parseDouble(req.get("minTotalScore"), 60, 0, 100);
         boolean excludeST = parseBool(req.get("excludeST"), true);
         boolean persist = parseBool(req.get("persist"), true);
+        boolean progressivePersist = parseBool(req.get("progressivePersist"), false);
+        String fixedResultId = String.valueOf(req.getOrDefault("resultId", "")).trim();
 
         LocalDate rangeStart = tradeDate.minusDays(520);
         List<Object[]> pairs = marketDataRepository.findDistinctStockPairsInRange(rangeStart, tradeDate);
@@ -61,8 +63,14 @@ public class OversoldReboundScoringService {
         Map<String, String> nameCache = new HashMap<>();
         List<ScoreResult> passed = new ArrayList<>();
         int scanned = 0;
+        String progressiveResultId = null;
+        int progressiveRank = 1;
+        if (persist && progressivePersist) {
+            progressiveResultId = ensureResultSkeleton(fixedResultId, tradeDate, req, topN);
+        }
 
         for (Object[] pair : pairs) {
+            ensureNotInterrupted();
             if (pair == null || pair.length < 2) continue;
             String stockCode = String.valueOf(pair[0]);
             String exchangeType = String.valueOf(pair[1]);
@@ -78,6 +86,9 @@ public class OversoldReboundScoringService {
                     && r.volumeScore30 > 15
                     && r.oversoldScore30 > 15) {
                 passed.add(r);
+                if (progressiveResultId != null) {
+                    selectorResultItemRepository.save(toItem(progressiveResultId, progressiveRank++, r));
+                }
             }
         }
 
@@ -86,7 +97,7 @@ public class OversoldReboundScoringService {
 
         String resultId = null;
         if (persist) {
-            resultId = persistResult(tradeDate, req, top);
+            resultId = persistResult(tradeDate, req, top, progressiveResultId);
         }
 
         List<Map<String, Object>> out = new ArrayList<>();
@@ -126,8 +137,8 @@ public class OversoldReboundScoringService {
         return merged;
     }
 
-    private String persistResult(LocalDate tradeDate, Map<String, Object> req, List<ScoreResult> top) {
-        String resultId = genResultId();
+    private String persistResult(LocalDate tradeDate, Map<String, Object> req, List<ScoreResult> top, String fixedResultId) {
+        String resultId = ensureResultSkeleton(fixedResultId, tradeDate, req, parseInt(req.get("topN"), 50, 1, 300));
         double minTotalScore = parseDouble(req.get("minTotalScore"), 60, 0, 100);
         boolean excludeST = parseBool(req.get("excludeST"), true);
         int topN = parseInt(req.get("topN"), 50, 1, 300);
@@ -141,7 +152,7 @@ public class OversoldReboundScoringService {
         snapshot.put("excludeST", excludeST);
         snapshot.put("weights", Map.of("trend", 0.4, "volume", 0.3, "oversold", 0.3));
 
-        SelectorResult result = new SelectorResult();
+        SelectorResult result = selectorResultRepository.findByResultId(resultId).orElse(new SelectorResult());
         result.setResultId(resultId);
         result.setTradeDate(tradeDate);
         result.setLookbackDays(260);
@@ -151,40 +162,68 @@ public class OversoldReboundScoringService {
         result.setTemplateId(String.valueOf(req.getOrDefault("templateId", "")).trim().isBlank()
                 ? null : String.valueOf(req.get("templateId")).trim());
         result.setFactorVersion(FACTOR_VERSION);
+        result.setStrategyType("OVERSOLD_REBOUND");
         result.setFactorSnapshot(snapshot);
         selectorResultRepository.save(result);
 
         selectorResultItemRepository.deleteByResultId(resultId);
         int rank = 1;
         for (ScoreResult r : top) {
-            SelectorResultItem item = new SelectorResultItem();
-            item.setResultId(resultId);
-            item.setRankNo(rank++);
-            item.setStockCode(r.stockCode);
-            item.setExchangeType(r.exchangeType);
-            item.setStockName(r.stockName);
-            item.setFinalScore(r.totalScore);
-            item.setTrendScore((double) r.trendScore40);
-            item.setMomentumScore((double) r.oversoldScore30);
-            item.setVolumeScore((double) r.volumeScore30);
-            item.setRiskPenalty(0.0);
-            item.setRet20(r.ret20);
-            item.setRet60(r.ret60);
-            item.setVolatility20(r.weightedScore);
-            item.setMaxDrawdown60(0.0);
-            item.setAvgAmount20(r.avgAmount20);
-
-            Map<String, Object> reasons = new LinkedHashMap<>();
-            reasons.put("factor", FACTOR_VERSION);
-            reasons.put("trend_score_40", r.trendScore40);
-            reasons.put("volume_score_30", r.volumeScore30);
-            reasons.put("oversold_score_30", r.oversoldScore30);
-            reasons.put("weighted_score", r.weightedScore);
-            reasons.put("detail", r.detail != null ? r.detail : Map.of());
-            item.setReasons(reasons);
+            SelectorResultItem item = toItem(resultId, rank++, r);
             selectorResultItemRepository.save(item);
         }
         return resultId;
+    }
+
+    private String ensureResultSkeleton(String fixedResultId, LocalDate tradeDate, Map<String, Object> req, int topN) {
+        String resultId = (fixedResultId != null && !fixedResultId.isBlank()) ? fixedResultId : genResultId();
+        SelectorResult result = selectorResultRepository.findByResultId(resultId).orElse(new SelectorResult());
+        result.setResultId(resultId);
+        result.setTradeDate(tradeDate);
+        result.setLookbackDays(260);
+        result.setTopN(topN);
+        result.setMinAvgAmount(0.0);
+        result.setMinTrendScore(25.0);
+        result.setTemplateId(String.valueOf(req.getOrDefault("templateId", "")).trim().isBlank()
+                ? null : String.valueOf(req.get("templateId")).trim());
+        result.setFactorVersion(FACTOR_VERSION);
+        result.setStrategyType("OVERSOLD_REBOUND");
+        result.setFactorSnapshot(Map.of("factor", FACTOR_VERSION, "progressive", true));
+        selectorResultRepository.save(result);
+        if (fixedResultId != null && !fixedResultId.isBlank()) {
+            selectorResultItemRepository.deleteByResultId(resultId);
+        }
+        return resultId;
+    }
+
+    private SelectorResultItem toItem(String resultId, int rankNo, ScoreResult r) {
+        SelectorResultItem item = new SelectorResultItem();
+        item.setResultId(resultId);
+        item.setRankNo(rankNo);
+        item.setStrategyType("OVERSOLD_REBOUND");
+        item.setStockCode(r.stockCode);
+        item.setExchangeType(r.exchangeType);
+        item.setStockName(r.stockName);
+        item.setFinalScore(r.totalScore);
+        item.setTrendScore((double) r.trendScore40);
+        item.setMomentumScore((double) r.oversoldScore30);
+        item.setVolumeScore((double) r.volumeScore30);
+        item.setRiskPenalty(0.0);
+        item.setRet20(r.ret20);
+        item.setRet60(r.ret60);
+        item.setVolatility20(r.weightedScore);
+        item.setMaxDrawdown60(0.0);
+        item.setAvgAmount20(r.avgAmount20);
+
+        Map<String, Object> reasons = new LinkedHashMap<>();
+        reasons.put("factor", FACTOR_VERSION);
+        reasons.put("trend_score_40", r.trendScore40);
+        reasons.put("volume_score_30", r.volumeScore30);
+        reasons.put("oversold_score_30", r.oversoldScore30);
+        reasons.put("weighted_score", r.weightedScore);
+        reasons.put("detail", r.detail != null ? r.detail : Map.of());
+        item.setReasons(reasons);
+        return item;
     }
 
     private String genResultId() {
@@ -466,16 +505,6 @@ public class OversoldReboundScoringService {
         }
     }
 
-    private double toDouble(Object v, double def) {
-        if (v == null) return def;
-        if (v instanceof Number n) return n.doubleValue();
-        try {
-            return Double.parseDouble(String.valueOf(v));
-        } catch (Exception ignore) {
-            return def;
-        }
-    }
-
     private double pct(double now, double prev) {
         if (prev == 0) return 0;
         return (now / prev - 1) * 100;
@@ -546,6 +575,12 @@ public class OversoldReboundScoringService {
 
     private double round4(double v) {
         return Math.round(v * 10000.0) / 10000.0;
+    }
+
+    private void ensureNotInterrupted() {
+        if (Thread.currentThread().isInterrupted()) {
+            throw new RuntimeException("任务被取消（线程中断）");
+        }
     }
 
     private static class ScoreResult {

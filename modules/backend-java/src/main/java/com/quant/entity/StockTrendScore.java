@@ -68,12 +68,16 @@ public class StockTrendScore {
     @Column(nullable = false, length = 32)
     private String buySignal;
 
-    /** 计算时使用的乖离阈值快照 */
-    @Column(nullable = false)
+    /** 计算时使用的乖离阈值快照（趋势打分专用） */
+    @Column
     private Double biasThreshold;
 
     @Column(nullable = false, length = 32)
     private String factorVersion;
+
+    /** 详细评分原因JSON */
+    @Column(columnDefinition = "TEXT")
+    private String reasonsJson;
 
     @Column(updatable = false)
     private LocalDateTime createdAt;

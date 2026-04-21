@@ -6,6 +6,10 @@ import com.quant.entity.StockTrendScore;
 import com.quant.repository.MarketDataRepository;
 import com.quant.repository.StockInfoRepository;
 import com.quant.repository.StockTrendScoreRepository;
+import com.quant.service.scoring.ScoringConstants;
+import com.quant.service.scoring.ScoringRules;
+import com.quant.service.scoring.ScoringUtils;
+import com.quant.service.scoring.TechnicalIndicators;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -22,19 +26,14 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 趋势交易打分（与《选股打分算法说明》一致）：trend(30)+bias(20)+volume(15)+support(10)+macd(15)+rsi(10)。
+ * 趋势交易打分
+ * 重构版本：使用统一的工具类 TechnicalIndicators、ScoringRules、ScoringUtils
  */
 @Service
 @RequiredArgsConstructor
 public class StockTrendScoringService {
 
-    public static final String FACTOR_VERSION = "trend_signal_v1";
-
-    private static final double VOLUME_SHRINK_RATIO = 0.7;
-    private static final double VOLUME_HEAVY_RATIO = 1.5;
-    private static final double MA_SUPPORT_TOLERANCE = 0.02;
-    /** 与文档一致：趋势/MACD/RSI 等同时满足所需最小 K 线数 */
-    private static final int MIN_BARS = 26;
+    public static final String FACTOR_VERSION = ScoringConstants.VERSION_TREND;
 
     private final MarketDataRepository marketDataRepository;
     private final StockInfoRepository stockInfoRepository;
@@ -50,7 +49,6 @@ public class StockTrendScoringService {
         if (tradeDate == null) {
             d = stockTrendScoreRepository.findMaxTradeDate().orElse(null);
         } else {
-            // 关键修复：允许传入“非交易日/无打分日”，自动对齐到 <=tradeDate 的最近一个已落库打分日
             d = stockTrendScoreRepository.findMaxTradeDateOnOrBefore(tradeDate).orElse(null);
         }
         if (d == null) {
@@ -81,29 +79,26 @@ public class StockTrendScoringService {
 
     public Map<String, Object> run(Map<String, Object> request) {
         long t0 = System.nanoTime();
-        Map<String, Object> req = request != null ? request : Map.of();
-        LocalDate reqDate = parseDate(req.get("tradeDate"));
+        Map<String, Object> req = ScoringUtils.nvl(request, Map.of());
+        LocalDate reqDate = ScoringUtils.parseDate(req.get("tradeDate"));
         LocalDate tradeDate = reqDate != null
                 ? marketDataRepository.findLatestTradeDateOnOrBefore(reqDate).orElse(reqDate)
                 : marketDataRepository.findMaxTradeDate().orElse(LocalDate.now());
 
-        double biasThreshold = parseDouble(req.get("biasThreshold"), defaultBiasThreshold, 1.0, 50.0);
-        boolean persist = parseBool(req.get("persist"), true);
-        int threads = (int) parseDouble(req.get("threads"), Math.max(1, Runtime.getRuntime().availableProcessors()), 1, 64);
-        // 预留：如果你想用更短的窗口提升速度，可通过 lookbackDays 下调；默认保持原逻辑 520 天以保证结果一致性
-        int lookbackDays = (int) parseDouble(req.get("lookbackDays"), 520, 60, 2000);
-        boolean bulkFetch = parseBool(req.get("bulkFetch"), true);
-        /** 默认 false：全市场打分时 items 极大，序列化慢且易导致客户端超时；列表请用 GET /scores */
-        boolean includeItems = parseBool(req.get("includeItems"), false);
+        double biasThreshold = ScoringUtils.parseDouble(req.get("biasThreshold"), defaultBiasThreshold, 1.0, 50.0);
+        boolean persist = ScoringUtils.parseBool(req.get("persist"), true);
+        int threads = ScoringUtils.parseInt(req.get("threads"),
+                Math.max(1, Runtime.getRuntime().availableProcessors()), 1, 64);
+        int lookbackDays = ScoringUtils.parseInt(req.get("lookbackDays"), ScoringConstants.DEFAULT_LOOKBACK_DAYS, 60, 2000);
+        boolean bulkFetch = ScoringUtils.parseBool(req.get("bulkFetch"), true);
+        boolean includeItems = ScoringUtils.parseBool(req.get("includeItems"), false);
 
         LocalDate rangeStart = tradeDate.minusDays(lookbackDays);
-        // 二阶段优化：默认 bulkFetch=true，优先用单次区间拉取 + 本地分组，显著减少 DB 往返
         List<Object[]> pairs = marketDataRepository.findDistinctStockPairsInRange(rangeStart, tradeDate);
         if (pairs.isEmpty()) {
             return emptyResult(tradeDate, "无可用行情数据");
         }
 
-        // 并发打分：仓库对象本身线程安全；每个线程独立执行查询+计算（不共享 EntityManager/事务）
         ConcurrentMap<String, String> nameCache = new ConcurrentHashMap<>();
         List<StockTrendScore> rows = Collections.synchronizedList(new ArrayList<>());
         int scanned;
@@ -116,27 +111,23 @@ public class StockTrendScoringService {
 
         if (bulkFetch) {
             dbMode = "bulk_range_fetch";
-            // 一次性拉取区间内所有行情：1 次 DB 查询替代 N 次
             List<MarketData> allBars = marketDataRepository
                     .findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(rangeStart, tradeDate);
             barsFetched = allBars.size();
 
-            // 预加载股票名称：避免每只股票单独查 stock_info
             Map<String, String> nameMap = new HashMap<>();
             for (var s : stockInfoRepository.findAll()) {
                 nameMap.put(s.getStockCode() + "|" + s.getExchangeType(), s.getStockName());
             }
             nameCache.putAll(nameMap);
 
-            // 分组：按 stockCode|exchangeType 聚合 K 线
             Map<String, List<MarketData>> grouped = new LinkedHashMap<>();
             for (MarketData m : allBars) {
                 String key = m.getStockCode() + "|" + m.getExchangeType();
                 grouped.computeIfAbsent(key, k -> new ArrayList<>(Math.min(lookbackDays, 600))).add(m);
             }
 
-            // 使用 pairs 作为“需要评分的股票集合”（避免对 range 内出现但不在 pairs 的异常情况）
-            List<String> keys = new ArrayList<>(pairs.size());
+            List<String> keys = new ArrayList<>();
             for (Object[] pair : pairs) {
                 if (pair == null || pair.length < 2) continue;
                 keys.add(String.valueOf(pair[0]) + "|" + String.valueOf(pair[1]));
@@ -171,8 +162,7 @@ public class StockTrendScoringService {
                         String stockCode = p > 0 ? key.substring(0, p) : key;
                         String exchangeType = p > 0 ? key.substring(p + 1) : "";
                         List<MarketData> bars = grouped.getOrDefault(key, List.of());
-                        return scoreOne(
-                                stockCode, exchangeType, tradeDate, bars, nameCache, biasThreshold, skippedNoBarOnTradeDate);
+                        return scoreOne(stockCode, exchangeType, tradeDate, bars, nameCache, biasThreshold, skippedNoBarOnTradeDate);
                     });
                 }
 
@@ -236,9 +226,7 @@ public class StockTrendScoringService {
                     List<MarketData> bars = marketDataRepository
                             .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
                                     stockCode, exchangeType, rangeStart, tradeDate);
-                    // barsFetched 统计仅用于粗略观测；这里不做原子累加避免争用
-                    return scoreOne(
-                            stockCode, exchangeType, tradeDate, bars, nameCache, biasThreshold, skippedNoBarOnTradeDate);
+                    return scoreOne(stockCode, exchangeType, tradeDate, bars, nameCache, biasThreshold, skippedNoBarOnTradeDate);
                 });
             }
 
@@ -266,14 +254,12 @@ public class StockTrendScoringService {
         long tScore1 = System.nanoTime();
 
         rows.sort((a, b) -> Double.compare(b.getTotalScore(), a.getTotalScore()));
-        // 同一批次内若出现重复股票（并发/数据源重复），只保留总分最高的一条，避免 uk(stock_code,exchange_type,trade_date) 冲突
         final List<StockTrendScore> rowsToPersist = dedupeByStock(rows);
 
         long tPersist0 = System.nanoTime();
         if (persist) {
             new TransactionTemplate(transactionManager).execute(status -> {
                 stockTrendScoreRepository.deleteByTradeDate(tradeDate);
-                // 确保先落库删除再插入，避免同事务内 INSERT 与旧行冲突（重复跑任务、或批处理顺序问题）
                 stockTrendScoreRepository.flush();
                 if (!rowsToPersist.isEmpty()) {
                     stockTrendScoreRepository.saveAll(rowsToPersist);
@@ -314,13 +300,12 @@ public class StockTrendScoringService {
         res.put("elapsed_ms", elapsedMs);
         res.put("score_ms", scoreMs);
         res.put("persist_ms", persistMs);
-        res.put("scored_per_sec", Math.round(scoredPerSec * 100.0) / 100.0);
+        res.put("scored_per_sec", ScoringUtils.round2(scoredPerSec));
         res.put("include_items", includeItems);
         res.put("items", items);
         return res;
     }
 
-    /** 已按总分降序时，每种股票只保留第一条（分数最高） */
     private static List<StockTrendScore> dedupeByStock(List<StockTrendScore> rows) {
         if (rows == null || rows.size() <= 1) {
             return rows;
@@ -345,20 +330,13 @@ public class StockTrendScoringService {
         return res;
     }
 
-    private Optional<StockTrendScore> scoreOne(
-            String stockCode,
-            String exchangeType,
-            LocalDate tradeDate,
-            List<MarketData> bars,
-            Map<String, String> nameCache,
-            double biasThreshold,
-            AtomicInteger skippedNoBarOnTradeDate) {
-
-        if (bars == null || bars.size() < MIN_BARS) {
+    private Optional<StockTrendScore> scoreOne(String stockCode, String exchangeType, LocalDate tradeDate,
+                                                List<MarketData> bars, Map<String, String> nameCache,
+                                                double biasThreshold, AtomicInteger skippedNoBarOnTradeDate) {
+        if (bars == null || bars.size() < ScoringConstants.MIN_BARS_TECHNICAL) {
             return Optional.empty();
         }
 
-        // 仅当「最后一根 K 线」的交易日等于本次打分日时才参与评分，避免用更早交易日冒充当日
         LocalDate lastBarDate = bars.get(bars.size() - 1).getTradeDate();
         if (lastBarDate == null || !tradeDate.equals(lastBarDate)) {
             if (skippedNoBarOnTradeDate != null) {
@@ -381,9 +359,11 @@ public class StockTrendScoringService {
         }
 
         int L = n - 1;
-        double ma5 = smaAt(close, L, 5);
-        double ma10 = smaAt(close, L, 10);
-        double ma20 = smaAt(close, L, 20);
+
+        // 使用统一工具类计算均线
+        double ma5 = TechnicalIndicators.smaAt(close, L, 5);
+        double ma10 = TechnicalIndicators.smaAt(close, L, 10);
+        double ma20 = TechnicalIndicators.smaAt(close, L, 20);
         if (Double.isNaN(ma5) || Double.isNaN(ma10) || Double.isNaN(ma20)) {
             return Optional.empty();
         }
@@ -393,34 +373,35 @@ public class StockTrendScoringService {
         double prevSpread = spreadAt(close, prevIdx);
 
         String trendStatus = classifyTrend(close, L, currSpread, prevSpread);
-        int trendStrength = trendStrengthValue(trendStatus);
-        double scoreTrend = scoreTrend(trendStatus);
+        int trendStrength = ScoringRules.trendStrength(trendStatus);
+        double scoreTrend = ScoringRules.scoreTrend(trendStatus);
 
         double biasMa5 = (close[L] - ma5) / ma5 * 100.0;
-        double scoreBias = scoreBias(biasMa5, trendStatus, trendStrength, biasThreshold);
+        double scoreBias = ScoringRules.scoreBias(biasMa5, trendStatus, biasThreshold);
 
         String volumeStatus = classifyVolume(close, vol, L);
-        double scoreVolume = scoreVolume(volumeStatus);
+        double scoreVolume = ScoringRules.scoreVolume(volumeStatus);
 
         boolean sup5 = maSupport(close[L], ma5);
         boolean sup10 = maSupport(close[L], ma10);
         double scoreSupport = (sup5 ? 5 : 0) + (sup10 ? 5 : 0);
 
-        MacdPack macd = macdLines(close);
-        String macdStatus = classifyMacd(macd, L);
-        double scoreMacd = scoreMacd(macdStatus);
+        // 使用统一工具类计算MACD
+        TechnicalIndicators.MacdResult macd = TechnicalIndicators.macd(close);
+        String macdStatus = TechnicalIndicators.classifyMacd(macd, L);
+        double scoreMacd = ScoringRules.scoreMacd(macdStatus);
 
-        double rsi12 = rsiRolling(close, L, 12);
-        String rsiStatus = classifyRsi(rsi12);
-        double scoreRsi = scoreRsi(rsiStatus);
+        // 使用统一工具类计算RSI
+        double rsi12 = TechnicalIndicators.rsiAt(close, L, 12);
+        String rsiStatus = classifyRsiDetailed(rsi12);
+        double scoreRsi = ScoringRules.scoreRsiByStatus(rsiStatus);
 
         double total = scoreTrend + scoreBias + scoreVolume + scoreSupport + scoreMacd + scoreRsi;
-        total = Math.max(0, Math.min(100, total));
+        total = ScoringUtils.clampScore(total);
 
-        String buySignal = buySignal(total, trendStatus);
+        String buySignal = ScoringRules.getBuySignal(total, trendStatus);
 
         String name = nameCache.computeIfAbsent(stockCode + "|" + exchangeType, k -> {
-            // 优先精确匹配 code+exchange；若 stock_info 未维护 exchangeType，则退化为仅按 code 取第一条名称
             String nameValue = stockInfoRepository.findByStockCodeAndExchangeType(stockCode, exchangeType)
                     .map(StockInfo::getStockName)
                     .orElse("");
@@ -437,13 +418,13 @@ public class StockTrendScoringService {
         e.setExchangeType(exchangeType);
         e.setStockName(name);
         e.setTradeDate(tradeDate);
-        e.setTotalScore(round2(total));
-        e.setScoreTrend(round2(scoreTrend));
-        e.setScoreBias(round2(scoreBias));
-        e.setScoreVolume(round2(scoreVolume));
-        e.setScoreSupport(round2(scoreSupport));
-        e.setScoreMacd(round2(scoreMacd));
-        e.setScoreRsi(round2(scoreRsi));
+        e.setTotalScore(ScoringUtils.round2(total));
+        e.setScoreTrend(ScoringUtils.round2(scoreTrend));
+        e.setScoreBias(ScoringUtils.round2(scoreBias));
+        e.setScoreVolume(ScoringUtils.round2(scoreVolume));
+        e.setScoreSupport(ScoringUtils.round2(scoreSupport));
+        e.setScoreMacd(ScoringUtils.round2(scoreMacd));
+        e.setScoreRsi(ScoringUtils.round2(scoreRsi));
         e.setTrendStatus(trendStatus);
         e.setVolumeStatus(volumeStatus);
         e.setMacdStatus(macdStatus);
@@ -452,10 +433,6 @@ public class StockTrendScoringService {
         e.setBiasThreshold(biasThreshold);
         e.setFactorVersion(FACTOR_VERSION);
         return Optional.of(e);
-    }
-
-    private static double round2(double v) {
-        return Math.round(v * 100.0) / 100.0;
     }
 
     private Map<String, Object> toMap(StockTrendScore s, int rank) {
@@ -481,20 +458,10 @@ public class StockTrendScoringService {
         return m;
     }
 
-    private static double smaAt(double[] close, int i, int period) {
-        if (i < period - 1) return Double.NaN;
-        double s = 0;
-        for (int j = i - period + 1; j <= i; j++) {
-            s += close[j];
-        }
-        return s / period;
-    }
-
-    /** 文档 4.1：多头/空头时的发散幅度；其余形态返回 0 */
     private static double spreadAt(double[] close, int idx) {
-        double ma5 = smaAt(close, idx, 5);
-        double ma10 = smaAt(close, idx, 10);
-        double ma20 = smaAt(close, idx, 20);
+        double ma5 = TechnicalIndicators.smaAt(close, idx, 5);
+        double ma10 = TechnicalIndicators.smaAt(close, idx, 10);
+        double ma20 = TechnicalIndicators.smaAt(close, idx, 20);
         if (Double.isNaN(ma5) || Double.isNaN(ma10) || Double.isNaN(ma20)) {
             return 0;
         }
@@ -508,9 +475,9 @@ public class StockTrendScoringService {
     }
 
     private static String classifyTrend(double[] close, int L, double currSpread, double prevSpread) {
-        double ma5 = smaAt(close, L, 5);
-        double ma10 = smaAt(close, L, 10);
-        double ma20 = smaAt(close, L, 20);
+        double ma5 = TechnicalIndicators.smaAt(close, L, 5);
+        double ma10 = TechnicalIndicators.smaAt(close, L, 10);
+        double ma20 = TechnicalIndicators.smaAt(close, L, 20);
 
         if (ma5 > ma10 && ma10 > ma20) {
             if (currSpread > prevSpread && currSpread > 5) {
@@ -533,51 +500,6 @@ public class StockTrendScoringService {
         return "盘整";
     }
 
-    private static int trendStrengthValue(String trendStatus) {
-        return switch (trendStatus) {
-            case "强势多头" -> 90;
-            case "多头排列" -> 75;
-            case "弱势多头" -> 60;
-            case "盘整" -> 50;
-            case "弱势空头" -> 40;
-            case "空头排列" -> 30;
-            case "强势空头" -> 20;
-            default -> 50;
-        };
-    }
-
-    private static double scoreTrend(String trendStatus) {
-        return switch (trendStatus) {
-            case "强势多头" -> 30;
-            case "多头排列" -> 26;
-            case "弱势多头" -> 18;
-            case "盘整" -> 12;
-            case "弱势空头" -> 8;
-            case "空头排列" -> 4;
-            case "强势空头" -> 0;
-            default -> 12;
-        };
-    }
-
-    private static double scoreBias(double bias, String trendStatus, int trendStrength, double base) {
-        boolean strongBull = "强势多头".equals(trendStatus) && trendStrength >= 70;
-        double effective = strongBull ? base * 1.5 : base;
-
-        if (Double.isNaN(bias)) {
-            bias = 0;
-        }
-        if (bias < 0) {
-            if (bias > -3) return 20;
-            if (bias > -5) return 16;
-            return 8;
-        }
-        if (bias < 2) return 18;
-        if (bias < base) return 14;
-        if (bias > effective) return 4;
-        if (bias > base && strongBull) return 10;
-        return 4;
-    }
-
     private static String classifyVolume(double[] close, double[] vol, int L) {
         if (L < 6) return "量能正常";
         double volToday = vol[L];
@@ -597,198 +519,26 @@ public class StockTrendScoringService {
                 ? (close[L] - prevClose) / prevClose * 100.0
                 : 0;
 
-        if (ratio >= VOLUME_HEAVY_RATIO) {
+        if (ratio >= ScoringConstants.VOLUME_HEAVY_RATIO) {
             return priceChangePct > 0 ? "放量上涨" : "放量下跌";
         }
-        if (ratio <= VOLUME_SHRINK_RATIO) {
+        if (ratio <= ScoringConstants.VOLUME_SHRINK_RATIO) {
             return priceChangePct > 0 ? "缩量上涨" : "缩量回调";
         }
         return "量能正常";
     }
 
-    private static double scoreVolume(String volumeStatus) {
-        return switch (volumeStatus) {
-            case "缩量回调" -> 15;
-            case "放量上涨" -> 12;
-            case "量能正常" -> 10;
-            case "缩量上涨" -> 6;
-            case "放量下跌" -> 0;
-            default -> 10;
-        };
-    }
-
     private static boolean maSupport(double price, double ma) {
         if (ma <= 1e-9) return false;
         double d = Math.abs(price - ma) / ma;
-        return d <= MA_SUPPORT_TOLERANCE && price >= ma;
+        return d <= ScoringConstants.MA_SUPPORT_TOLERANCE && price >= ma;
     }
 
-    private static double[] ema(double[] values, int span) {
-        double alpha = 2.0 / (span + 1);
-        double[] out = new double[values.length];
-        out[0] = values[0];
-        for (int i = 1; i < values.length; i++) {
-            out[i] = alpha * values[i] + (1 - alpha) * out[i - 1];
-        }
-        return out;
-    }
-
-    private record MacdPack(double[] dif, double[] dea) {}
-
-    private static MacdPack macdLines(double[] close) {
-        double[] ema12 = ema(close, 12);
-        double[] ema26 = ema(close, 26);
-        double[] dif = new double[close.length];
-        for (int i = 0; i < close.length; i++) {
-            dif[i] = ema12[i] - ema26[i];
-        }
-        double[] dea = ema(dif, 9);
-        return new MacdPack(dif, dea);
-    }
-
-    private static String classifyMacd(MacdPack m, int L) {
-        if (L < 1) return "多头";
-        double difPrev = m.dif()[L - 1];
-        double difCurr = m.dif()[L];
-        double deaPrev = m.dea()[L - 1];
-        double deaCurr = m.dea()[L];
-        double prevDd = difPrev - deaPrev;
-        double currDd = difCurr - deaCurr;
-
-        boolean golden = prevDd <= 0 && currDd > 0;
-        boolean death = prevDd >= 0 && currDd < 0;
-        boolean crossUpZero = difPrev <= 0 && difCurr > 0;
-        boolean crossDownZero = difPrev >= 0 && difCurr < 0;
-
-        if (golden && difCurr > 0) {
-            return "零轴上金叉";
-        }
-        if (crossUpZero) {
-            return "上穿零轴";
-        }
-        if (golden) {
-            return "金叉";
-        }
-        if (death) {
-            return "死叉";
-        }
-        if (crossDownZero) {
-            return "下穿零轴";
-        }
-        if (difCurr > 0 && deaCurr > 0) {
-            return "多头";
-        }
-        if (difCurr < 0 && deaCurr < 0) {
-            return "空头";
-        }
-        return "多头";
-    }
-
-    private static double scoreMacd(String macdStatus) {
-        return switch (macdStatus) {
-            case "零轴上金叉" -> 15;
-            case "金叉" -> 12;
-            case "上穿零轴" -> 10;
-            case "多头" -> 8;
-            case "空头" -> 2;
-            case "下穿零轴" -> 0;
-            case "死叉" -> 0;
-            default -> 8;
-        };
-    }
-
-    /** 文档 3.4：rolling SMA RSI，不足周期时按 50 */
-    private static double rsiRolling(double[] close, int i, int period) {
-        if (i < period) {
-            return 50.0;
-        }
-        double gainSum = 0;
-        double lossSum = 0;
-        for (int k = i - period + 1; k <= i; k++) {
-            double delta = close[k] - close[k - 1];
-            gainSum += Math.max(delta, 0);
-            lossSum += Math.max(-delta, 0);
-        }
-        double avgGain = gainSum / period;
-        double avgLoss = lossSum / period;
-        if (avgLoss < 1e-12) {
-            return 100.0;
-        }
-        if (avgGain < 1e-12) {
-            return 0.0;
-        }
-        double rs = avgGain / avgLoss;
-        return 100.0 - 100.0 / (1.0 + rs);
-    }
-
-    private static String classifyRsi(double rsi12) {
-        if (rsi12 > 70) return "超买";
-        if (rsi12 > 60) return "强势买入";
-        if (rsi12 >= 40) return "中性";
-        if (rsi12 >= 30) return "弱势";
+    private static String classifyRsiDetailed(double rsi) {
+        if (rsi > 70) return "超买";
+        if (rsi > 60) return "强势买入";
+        if (rsi >= 40) return "中性";
+        if (rsi >= 30) return "弱势";
         return "超卖";
-    }
-
-    private static double scoreRsi(String rsiStatus) {
-        return switch (rsiStatus) {
-            case "超卖" -> 10;
-            case "强势买入" -> 8;
-            case "中性" -> 5;
-            case "弱势" -> 3;
-            case "超买" -> 0;
-            default -> 5;
-        };
-    }
-
-    private static String buySignal(double score, String trendStatus) {
-        Set<String> strongBuyTrend = Set.of("强势多头", "多头排列");
-        Set<String> buyTrend = Set.of("强势多头", "多头排列", "弱势多头");
-        Set<String> strongSellTrend = Set.of("空头排列", "强势空头");
-
-        if (score >= 75 && strongBuyTrend.contains(trendStatus)) {
-            return "强烈买入";
-        }
-        if (score >= 60 && buyTrend.contains(trendStatus)) {
-            return "买入";
-        }
-        if (score >= 45) {
-            return "持有";
-        }
-        if (score >= 30) {
-            return "观望";
-        }
-        if (strongSellTrend.contains(trendStatus)) {
-            return "强烈卖出";
-        }
-        return "卖出";
-    }
-
-    private static LocalDate parseDate(Object o) {
-        if (o == null) return null;
-        if (o instanceof LocalDate d) return d;
-        String s = String.valueOf(o).trim();
-        if (s.isEmpty()) return null;
-        return LocalDate.parse(s);
-    }
-
-    private static double parseDouble(Object o, double def, double min, double max) {
-        if (o == null) return def;
-        if (o instanceof Number n) {
-            double v = n.doubleValue();
-            return Math.max(min, Math.min(max, v));
-        }
-        try {
-            double v = Double.parseDouble(String.valueOf(o).trim());
-            return Math.max(min, Math.min(max, v));
-        } catch (NumberFormatException e) {
-            return def;
-        }
-    }
-
-    private static boolean parseBool(Object o, boolean def) {
-        if (o == null) return def;
-        if (o instanceof Boolean b) return b;
-        String s = String.valueOf(o).trim().toLowerCase();
-        return "true".equals(s) || "1".equals(s) || "yes".equals(s);
     }
 }

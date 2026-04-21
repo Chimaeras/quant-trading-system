@@ -155,9 +155,11 @@ import { useRoute, useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import { marketApi, type StockDetail, type KLineItem, type StockAnalysisResult } from '@/api/market'
 import dayjs from 'dayjs'
+import { useToast } from '@/composables/useToast'
 
 const route = useRoute()
 const router = useRouter()
+const toast = useToast()
 const loading = ref(false)
 const realtimeLoading = ref(false)
 const detail = ref<Partial<StockDetail>>({})
@@ -237,6 +239,7 @@ async function loadDetail() {
     detail.value = (res as { data?: StockDetail }).data ?? {}
   } catch (e) {
     console.error('loadDetail', e)
+    toast.error('加载股票详情失败')
   }
 }
 
@@ -252,6 +255,7 @@ async function loadRealtime() {
     }
   } catch (e) {
     console.error('loadRealtime', e)
+    toast.warning('实时行情获取失败')
   } finally {
     realtimeLoading.value = false
   }
@@ -277,6 +281,7 @@ async function loadKline() {
   } catch (e) {
     console.error('loadKline', e)
     klineData.value = []
+    toast.error('K线数据加载失败')
   }
 }
 
@@ -415,21 +420,26 @@ watch(() => route.query.code, (code) => {
     loadData()
   }
 })
-watch(() => window.innerWidth, () => chart?.resize())
+const onResize = () => chart?.resize()
 
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', onResize)
   chart?.dispose()
   chart = null
+})
+
+onMounted(() => {
+  window.addEventListener('resize', onResize)
 })
 </script>
 
 <style scoped>
 .stock-detail {
-  background: #ffffff;
+  background: rgba(9, 18, 34, 0.72);
   border-radius: 8px;
   padding: 20px;
   min-height: 600px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid rgba(145, 196, 255, 0.2);
 }
 .stock-header {
   display: flex;
@@ -437,11 +447,11 @@ onBeforeUnmount(() => {
   align-items: flex-start;
   margin-bottom: 20px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid rgba(145, 196, 255, 0.2);
 }
 .stock-title { display: flex; align-items: center; gap: 12px; }
-.stock-title .name { font-size: 22px; font-weight: 600; color: #1e293b; }
-.stock-title .code { font-size: 14px; color: #64748b; }
+.stock-title .name { font-size: 22px; font-weight: 600; color: var(--text-primary); }
+.stock-title .code { font-size: 14px; color: var(--text-secondary); }
 .exchange-tag { margin-left: 4px; }
 .stock-price { font-size: 28px; font-weight: 600; }
 .stock-price.up { color: #ef5350; }
@@ -461,25 +471,25 @@ onBeforeUnmount(() => {
 .info-panel {
   width: 200px;
   flex-shrink: 0;
-  background: #f8fafc;
+  background: rgba(9, 18, 34, 0.72);
   border-radius: 8px;
   padding: 16px;
   height: fit-content;
-  border: 1px solid #e2e8f0;
+  border: 1px solid rgba(145, 196, 255, 0.2);
 }
-.info-title { font-size: 14px; font-weight: 600; color: #1e293b; margin-bottom: 12px; }
+.info-title { font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px; }
 .info-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
-.info-row .label { color: #64748b; }
-.info-row .val { color: #334155; }
-.info-row .val.highlight { color: #1e293b; }
+.info-row .label { color: var(--text-secondary); }
+.info-row .val { color: var(--text-primary); }
+.info-row .val.highlight { color: var(--text-primary); }
 .info-row .val.up { color: #ef5350; }
 .info-row .val.down { color: #26a69a; }
 
 .history-section { margin-top: 24px; }
 .analysis-section { margin-top: 24px; }
-.section-title { font-size: 14px; font-weight: 600; color: #1e293b; margin-bottom: 12px; }
-.history-table { background: #ffffff; border-radius: 8px; overflow: hidden; }
+.section-title { font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px; }
+.history-table { background: transparent; border-radius: 8px; overflow: hidden; }
 .text-up { color: #ef5350; }
 .text-down { color: #26a69a; }
-.reasons { margin: 0; padding-left: 18px; color: #334155; }
+.reasons { margin: 0; padding-left: 18px; color: var(--text-secondary); }
 </style>

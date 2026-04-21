@@ -25,8 +25,10 @@ import { useRoute } from 'vue-router'
 import * as echarts from 'echarts'
 import { dataApi } from '@/api/data'
 import { marketApi } from '@/api/market'
+import { useToast } from '@/composables/useToast'
 
 const route = useRoute()
+const toast = useToast()
 const chartRef = ref<HTMLElement>()
 const dateRange = ref<[Date, Date] | null>(null)
 const realtime = ref<{ close_price?: number; change_pct?: number } | null>(null)
@@ -43,6 +45,7 @@ async function loadRealtime() {
     realtime.value = d && (d.close_price != null || d.change_pct != null) ? d : null
   } catch {
     realtime.value = null
+    toast.warning('实时行情拉取失败')
   } finally {
     realtimeLoading.value = false
   }
@@ -97,5 +100,5 @@ watch(() => route.query.code, (code) => {
 .realtime-bar .price { font-weight: 600; font-size: 18px; }
 .realtime-bar .up { color: #ef5350; }
 .realtime-bar .down { color: #26a69a; }
-.legend { margin-top: 12px; color: #888; font-size: 12px; }
+.legend { margin-top: 12px; color: var(--text-secondary); font-size: 12px; }
 </style>

@@ -1,165 +1,175 @@
 <template>
-  <el-container class="main-layout">
-    <el-aside width="240px" class="aside">
-      <div class="logo">📈 量化交易</div>
-      <el-menu
-        :default-active="activeMenu"
-        router
-        background-color="#1e3a5f"
-        text-color="#93c5fd"
-        active-text-color="#ffffff"
-      >
-        <el-menu-item index="/dashboard">
-          <el-icon><DataLine /></el-icon>
-          <span>行情看板</span>
-        </el-menu-item>
-        <el-menu-item index="/account">
-          <el-icon><Wallet /></el-icon>
-          <span>账户资产</span>
-        </el-menu-item>
-        <el-menu-item index="/data/overview">
-          <el-icon><FolderOpened /></el-icon>
-          <span>数据管理</span>
-        </el-menu-item>
-        <el-menu-item index="/data/stocks">
-          <el-icon><List /></el-icon>
-          <span>股票浏览器</span>
-        </el-menu-item>
-        <el-menu-item index="/market/stock">
-          <el-icon><TrendCharts /></el-icon>
-          <span>股票详情</span>
-        </el-menu-item>
-        <el-menu-item index="/market/analysis-dashboard">
-          <el-icon><Histogram /></el-icon>
-          <span>股票分析看板</span>
-        </el-menu-item>
-        <el-menu-item index="/market/kline">
-          <el-icon><DataAnalysis /></el-icon>
-          <span>K线图</span>
-        </el-menu-item>
-        <el-menu-item index="/market/realtime">
-          <el-icon><Odometer /></el-icon>
-          <span>实时盯盘</span>
-        </el-menu-item>
-        <el-menu-item index="/market/stock-picker">
-          <el-icon><Search /></el-icon>
-          <span>打分选股</span>
-        </el-menu-item>
-        <el-menu-item index="/backtest">
-          <el-icon><Cpu /></el-icon>
-          <span>回测分析</span>
-        </el-menu-item>
-      </el-menu>
-    </el-aside>
-    <el-container>
-      <el-header class="header">
-        <span class="title">{{ $route.meta?.title || '量化交易' }}</span>
-        <div class="user-area">
-          <!-- removed offline badge -->
-          <el-dropdown>
-            <span class="user-name">
-              {{ userStore.username }}
-              <el-icon><ArrowDown /></el-icon>
-            </span>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item @click="handleLogout">退出</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </div>
-      </el-header>
-      <el-main class="main">
-        <!-- 不使用 transition + out-in：避免返回上一页时进入动画异常导致白屏 -->
-        <router-view v-slot="{ Component }">
-          <component :is="Component" :key="routeKey" />
-        </router-view>
-      </el-main>
-    </el-container>
-  </el-container>
+  <div class="main-layout">
+    <header class="topbar glass">
+      <div class="brand">
+        <strong>QUANT TERMINAL</strong>
+        <span>深色专业交易终端</span>
+      </div>
+      <div class="toolbar">
+        <StatusChip status="running" label="系统运行中" />
+        <UiButton variant="ghost" @click="router.push('/ai-chat')">AI聊天</UiButton>
+        <UiButton variant="danger" @click="handleLogout">退出</UiButton>
+      </div>
+    </header>
+    <nav class="tabs glass">
+      <div v-for="group in navGroups" :key="group.title" class="nav-group">
+        <span class="group-title">{{ group.title }}</span>
+        <button
+          v-for="item in group.items"
+          :key="item.path"
+          class="tab-item"
+          :class="{ active: route.path === item.path }"
+          @click="router.push(item.path)"
+        >
+          {{ item.label }}
+        </button>
+      </div>
+    </nav>
+    <main class="page-main">
+      <router-view />
+    </main>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useUserStore } from '@/stores/user'
-import {
-  ArrowDown,
-  Cpu,
-  DataAnalysis,
-  DataLine,
-  FolderOpened,
-  Histogram,
-  List,
-  Odometer,
-  Search,
-  TrendCharts,
-  Wallet
-} from '@element-plus/icons-vue'
+import { computed } from "vue"
+import { useRoute, useRouter } from "vue-router"
+import { useUserStore } from "@/stores/user"
+import StatusChip from "@/components/ui/StatusChip.vue"
+import UiButton from "@/components/ui/Button.vue"
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
-const activeMenu = computed(() => route.path)
+const navGroups = computed(() => [
+  {
+    title: "核心",
+    items: [
+      { path: "/dashboard", label: "总览" },
+      { path: "/account", label: "账户" },
+      { path: "/trading", label: "交易执行" },
+      { path: "/backtest", label: "回测分析" }
+    ]
+  },
+  {
+    title: "数据",
+    items: [
+      { path: "/data/overview", label: "数据管理" },
+      { path: "/data/stocks", label: "股票浏览器" }
+    ]
+  },
+  {
+    title: "行情",
+    items: [
+      { path: "/market/stock", label: "股票详情" },
+      { path: "/market/kline", label: "K线图" },
+      { path: "/market/stock-picker", label: "选股工作台" },
+      { path: "/market/realtime", label: "实时盯盘" },
+      { path: "/market/analysis-dashboard", label: "AI分析" }
+    ]
+  },
+  {
+    title: "扩展",
+    items: [
+      { path: "/ai-chat", label: "AI聊天" },
+      { path: "/scheduler", label: "定时设置" },
+      { path: "/settings", label: "设置" }
+    ]
+  }
+])
 
-/** 路由名 + 路径 + 查询：切换页面时强制重建，避免复用导致二次进入不渲染 */
-const routeKey = computed(() => {
-  const name = route.name != null ? String(route.name) : ''
-  return `${name}|${route.fullPath}`
-})
-
-const handleLogout = () => {
+function handleLogout() {
   userStore.logout()
-  router.push('/login')
+  router.push("/login")
 }
 </script>
 
 <style scoped>
 .main-layout {
   height: 100vh;
-  background: #eef2f7;
+  padding: var(--sp-4);
+  display: grid;
+  grid-template-rows: var(--topbar-h) var(--tab-h) 1fr;
+  gap: var(--sp-3);
 }
-.aside {
-  background: #1e3a5f;
-}
-.logo {
-  height: 60px;
-  line-height: 60px;
-  text-align: center;
-  font-size: 14px;
-  font-weight: bold;
-  color: #93c5fd;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-.header {
-  background: #26496b;
-  border-bottom: 1px solid #e2e8f0;
+
+.topbar {
+  border-radius: var(--r-md);
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  align-items: center;
+  padding: 0 var(--sp-5);
 }
-.title {
-  font-size: 18px;
-  color: #1e293b;
-  font-weight: 600;
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
-.user-area {
+
+.brand strong {
+  font-size: var(--fz-md);
+  letter-spacing: 1px;
+}
+
+.brand span {
+  font-size: var(--fz-xs);
+  color: var(--text-secondary);
+}
+
+.toolbar {
   display: flex;
   align-items: center;
+  gap: var(--sp-2);
+}
+
+.tabs {
+  border-radius: var(--r-md);
+  padding: 8px;
+  display: flex;
   gap: 12px;
+  overflow: auto;
+  align-items: center;
 }
-.user-name {
-  color: #475569;
-  cursor: pointer;
+
+.nav-group {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  min-width: max-content;
 }
-.main {
-  background: #eef2f7;
-  padding: 20px;
-  overflow-y: auto;
+
+.group-title {
+  font-size: var(--fz-xs);
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+
+.tab-item {
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 0 12px;
+  min-width: max-content;
+  cursor: pointer;
+  transition: all var(--dur-mid);
+}
+
+.tab-item:hover {
+  color: var(--text-primary);
+  background: rgba(88, 185, 255, 0.1);
+}
+
+.tab-item.active {
+  color: var(--text-primary);
+  border-color: rgba(88, 185, 255, 0.5);
+  background: rgba(88, 185, 255, 0.16);
+}
+
+.page-main {
+  min-height: 0;
+  overflow: auto;
 }
 </style>

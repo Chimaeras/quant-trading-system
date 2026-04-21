@@ -42,6 +42,12 @@ public class GlobalExceptionHandler {
         return ApiResponse.error(400, e.getMessage());
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleIllegalArgument(IllegalArgumentException e) {
+        return ApiResponse.error(400, e.getMessage());
+    }
+
     /** 静态资源 404 时不记录日志，避免刷屏（多为 SPA 路由或 favicon 等） */
     @ExceptionHandler(NoResourceFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)

@@ -1,135 +1,87 @@
 <template>
-  <div class="analysis-dashboard" v-loading="loading">
-    <el-empty v-if="!route.query.code" description="请从股票浏览器选择股票或在下方输入代码" style="padding: 60px 0">
-      <el-button type="primary" @click="$router.push('/data/stocks')">去选股</el-button>
-    </el-empty>
-    <template v-else>
-      <div class="dash-header">
-        <div class="title-block">
-          <span class="name">{{ detail.stock_name || '--' }}</span>
-          <span class="code">{{ detail.stock_code }}</span>
-          <el-tag size="small" type="info">{{ detail.exchange_type_name || detail.exchange_type || '--' }}</el-tag>
-        </div>
-        <div class="price-block" :class="priceChangeClass">
-          <span class="price">{{ formatPrice(detail.close_price) }}</span>
-          <span v-if="detail.change_pct != null" class="chg">
-            {{ formatChange(detail.close_price, detail.pre_close) }}
-            <span class="pct">({{ formatPct(detail.change_pct) }}%)</span>
-          </span>
-        </div>
-      </div>
+  <div class="page-wrap analysis-dashboard">
+    <EmptyState
+      v-if="!route.query.code"
+      title="未选择股票"
+      description="请从股票浏览器选择标的，或直接在下方输入代码。"
+    >
+      <UiButton variant="primary" @click="$router.push('/data/stocks')">去选股</UiButton>
+    </EmptyState>
 
-      <div class="toolbar">
-        <el-input v-model="quickCode" placeholder="股票代码" style="width: 160px" size="small" clearable @keyup.enter="goStock" />
-        <el-button size="small" type="primary" @click="goStock">切换</el-button>
-        <el-date-picker
-          v-model="dateRange"
-          type="daterange"
-          range-separator="至"
-          start-placeholder="开始"
-          end-placeholder="结束"
-          size="small"
-          value-format="YYYY-MM-DD"
-          :shortcuts="dateShortcuts"
-          style="margin-left: 12px"
-        />
-        <el-button size="small" @click="loadAll" :loading="loading">刷新</el-button>
-        <el-button size="small" type="success" @click="runAnalysis" :loading="analysisLoading">生成分析</el-button>
-      </div>
+    <template v-else>
+      <Panel elevated>
+        <div class="dash-header">
+          <div class="title-block">
+            <span class="name">{{ detail.stock_name || "--" }}</span>
+            <Badge>{{ detail.stock_code || "--" }}</Badge>
+          </div>
+          <div class="price-block" :class="priceChangeClass">
+            <span class="price">{{ formatPrice(detail.close_price) }}</span>
+            <span v-if="detail.change_pct != null" class="chg">
+              {{ formatChange(detail.close_price, detail.pre_close) }} ({{ formatPct(detail.change_pct) }}%)
+            </span>
+          </div>
+        </div>
+        <div class="toolbar">
+          <UiInput v-model="quickCode" placeholder="股票代码" @enter="goStock" />
+          <UiButton variant="primary" @click="goStock">切换</UiButton>
+          <UiInput v-model="startDate" placeholder="开始日期 YYYY-MM-DD" />
+          <UiInput v-model="endDate" placeholder="结束日期 YYYY-MM-DD" />
+          <UiButton variant="ghost" :loading="loading" @click="loadAll">刷新</UiButton>
+          <UiButton variant="primary" :loading="analysisLoading" @click="runAnalysis">生成分析</UiButton>
+        </div>
+      </Panel>
 
       <div class="dash-body">
-        <div class="chart-col">
+        <Panel title="K线图" class="chart-col">
           <div ref="chartRef" class="kline-chart" />
           <div class="ma-legend" v-if="klineData.length">
             <span v-for="ma in maList" :key="ma.key" :style="{ color: ma.color }">MA{{ ma.period }}: {{ ma.value }}</span>
           </div>
-        </div>
+        </Panel>
 
         <div class="panel-col">
-          <el-alert
-            v-if="report?.data_insufficient"
-            type="warning"
-            :closable="false"
-            show-icon
-            title="历史数据不足，分析结果仅供参考"
-            style="margin-bottom: 12px"
-          />
-
-          <div class="stat-cards" v-if="report">
-            <div class="stat-card">
-              <div class="label">评分</div>
-              <div class="val">{{ report.confidence ?? '--' }}</div>
+          <Panel v-if="report" title="状态">
+            <div class="stat-cards">
+              <Card label="评分" :value="report.confidence ?? '--'" />
+              <Card label="决策" :value="actionLabel(report.action)" />
+              <Card label="置信度" :value="confidenceBand(report.confidence)" />
+              <Card label="趋势" :value="trendLabel(report)" />
             </div>
-            <div class="stat-card">
-              <div class="label">决策</div>
-              <div class="val sm">{{ actionLabel(report.action) }}</div>
-            </div>
-            <div class="stat-card">
-              <div class="label">置信度</div>
-              <div class="val sm">{{ confidenceBand(report.confidence) }}</div>
-            </div>
-            <div class="stat-card">
-              <div class="label">趋势</div>
-              <div class="val sm">{{ trendLabel(report) }}</div>
-            </div>
-          </div>
-
-          <el-card shadow="never" class="panel-card" v-if="report">
-            <template #header><span class="card-h">技术指标</span></template>
-            <div class="tag-row">
-              <el-tag v-for="(t, i) in displayTags" :key="i" size="small" class="tag-item">{{ t }}</el-tag>
-            </div>
-            <el-descriptions :column="1" size="small" border class="desc-block">
-              <el-descriptions-item label="趋势强度">{{ report.score_breakdown?.trend ?? '--' }} / 100</el-descriptions-item>
-              <el-descriptions-item label="RSI">{{ rsiLabel(report) }}</el-descriptions-item>
-              <el-descriptions-item label="均线">{{ maStructureLabel(report) }}</el-descriptions-item>
-              <el-descriptions-item label="MACD">{{ macdLabel(report) }}</el-descriptions-item>
-              <el-descriptions-item label="量能">{{ volumeLabel(report) }}</el-descriptions-item>
-              <el-descriptions-item label="动能分">{{ report.score_breakdown?.momentum ?? '--' }} / 100</el-descriptions-item>
-            </el-descriptions>
-          </el-card>
-
-          <el-card shadow="never" class="panel-card" v-if="report && planSafe">
-            <template #header><span class="card-h">操作计划</span></template>
-            <el-descriptions :column="1" size="small" border>
-              <el-descriptions-item label="参考入场">{{ planSafe.entry || '--' }}</el-descriptions-item>
-              <el-descriptions-item label="止损">{{ fmtNum(planSafe.stopLoss) }}</el-descriptions-item>
-              <el-descriptions-item label="目标/止盈">{{ fmtNum(planSafe.takeProfit) }}</el-descriptions-item>
-              <el-descriptions-item label="支撑 / 阻力">{{ fmtNum(planSafe.support) }} / {{ fmtNum(planSafe.resistance) }}</el-descriptions-item>
-              <el-descriptions-item label="目标仓位">{{ planSafe.targetPosition || report.target_position }}</el-descriptions-item>
-              <el-descriptions-item label="加仓条件">{{ planSafe.add || '--' }}</el-descriptions-item>
-              <el-descriptions-item label="减仓条件">{{ planSafe.reduce || '--' }}</el-descriptions-item>
-            </el-descriptions>
-          </el-card>
-
-          <el-card shadow="never" class="panel-card" v-if="report">
-            <template #header><span class="card-h">分析摘要</span></template>
-            <p class="summary-text">{{ displaySummary }}</p>
-          </el-card>
-
-          <el-card shadow="never" class="panel-card" v-if="report">
-            <template #header><span class="card-h">风险 & 机会</span></template>
-            <div class="risk-block">
-              <div class="sub-t">风险</div>
-              <ul class="bullet-list risk">
-                <li v-for="(x, i) in displayRisks" :key="'r' + i">{{ x }}</li>
-              </ul>
-            </div>
-            <div class="opp-block">
-              <div class="sub-t opp">机会</div>
-              <ul class="bullet-list opp">
-                <li v-for="(x, i) in displayOpps" :key="'o' + i">{{ x }}</li>
-              </ul>
-            </div>
-          </el-card>
-
-          <el-card shadow="never" class="panel-card" v-if="report?.reasons?.length">
-            <template #header><span class="card-h">分析要点（原始）</span></template>
+          </Panel>
+          <Panel v-if="report" title="接口调用与指标">
             <ul class="bullet-list">
-              <li v-for="(r, i) in report.reasons" :key="i">{{ r }}</li>
+              <li>趋势强度：{{ report.score_breakdown?.trend ?? "--" }} / 100</li>
+              <li>RSI：{{ rsiLabel(report) }}</li>
+              <li>均线：{{ maStructureLabel(report) }}</li>
+              <li>MACD：{{ macdLabel(report) }}</li>
+              <li>量能：{{ volumeLabel(report) }}</li>
             </ul>
-          </el-card>
+          </Panel>
+          <Panel v-if="report && planSafe" title="交易执行建议">
+            <ul class="bullet-list">
+              <li>参考入场：{{ planSafe.entry || "--" }}</li>
+              <li>止损：{{ fmtNum(planSafe.stopLoss) }}</li>
+              <li>止盈：{{ fmtNum(planSafe.takeProfit) }}</li>
+              <li>支撑/阻力：{{ fmtNum(planSafe.support) }} / {{ fmtNum(planSafe.resistance) }}</li>
+              <li>目标仓位：{{ planSafe.targetPosition || report.target_position }}</li>
+            </ul>
+          </Panel>
         </div>
+      </div>
+
+      <div class="grid-2">
+        <Panel v-if="report" title="输出摘要">
+          <p class="summary-text">{{ displaySummary }}</p>
+        </Panel>
+        <Panel v-if="report" title="风险与机会">
+          <ul class="bullet-list risk">
+            <li v-for="(x, i) in displayRisks" :key="'r' + i">{{ x }}</li>
+          </ul>
+          <ul class="bullet-list opp">
+            <li v-for="(x, i) in displayOpps" :key="'o' + i">{{ x }}</li>
+          </ul>
+        </Panel>
       </div>
     </template>
   </div>
@@ -146,6 +98,12 @@ import {
   type KLineItem,
   type StockAnalysisReport
 } from '@/api/market'
+import Panel from '@/components/ui/Panel.vue'
+import Card from '@/components/ui/Card.vue'
+import Badge from '@/components/ui/Badge.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
+import UiButton from '@/components/ui/Button.vue'
+import UiInput from '@/components/ui/Input.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -153,7 +111,8 @@ const loading = ref(false)
 const analysisLoading = ref(false)
 const detail = ref<Partial<StockDetail>>({})
 const klineData = ref<KLineItem[]>([])
-const dateRange = ref<[string, string] | null>(null)
+const startDate = ref('')
+const endDate = ref('')
 const quickCode = ref('')
 const report = ref<StockAnalysisReport | null>(null)
 const chartRef = ref<HTMLElement>()
@@ -161,13 +120,6 @@ let chart: echarts.ECharts | null = null
 
 const maPeriods = [5, 10, 20, 30]
 const maColors: Record<number, string> = { 5: '#f5a623', 10: '#2e7d32', 20: '#1976d2', 30: '#7b1fa2' }
-
-const dateShortcuts = [
-  { label: '近1月', value: () => [dayjs().subtract(1, 'month').toDate(), dayjs().toDate()] },
-  { label: '近3月', value: () => [dayjs().subtract(3, 'month').toDate(), dayjs().toDate()] },
-  { label: '近半年', value: () => [dayjs().subtract(6, 'month').toDate(), dayjs().toDate()] },
-  { label: '近1年', value: () => [dayjs().subtract(1, 'year').toDate(), dayjs().toDate()] }
-]
 
 const priceChangeClass = computed(() => {
   const pct = detail.value.change_pct
@@ -319,10 +271,8 @@ async function loadDetail() {
 async function loadKline() {
   const code = route.query.code as string
   if (!code) return
-  const [start, end] = dateRange.value || [
-    dayjs().subtract(1, 'year').format('YYYY-MM-DD'),
-    dayjs().format('YYYY-MM-DD')
-  ]
+  const start = startDate.value || dayjs().subtract(1, 'year').format('YYYY-MM-DD')
+  const end = endDate.value || dayjs().format('YYYY-MM-DD')
   try {
     const res = await marketApi.getKline(code, {
       exchange: route.query.exchange as string,
@@ -477,7 +427,8 @@ function goStock() {
 
 onMounted(() => {
   quickCode.value = (route.query.code as string) || ''
-  dateRange.value = [dayjs().subtract(1, 'year').format('YYYY-MM-DD'), dayjs().format('YYYY-MM-DD')]
+  startDate.value = dayjs().subtract(1, 'year').format('YYYY-MM-DD')
+  endDate.value = dayjs().format('YYYY-MM-DD')
   if (route.query.code) loadAll()
 })
 
@@ -490,17 +441,9 @@ watch(
   }
 )
 
-watch(
-  () => dateRange.value,
-  () => {
-    if (route.query.code) loadKline()
-  }
-)
-
-watch(
-  () => window.innerWidth,
-  () => chart?.resize()
-)
+watch([startDate, endDate], () => {
+  if (route.query.code) loadKline()
+})
 
 onBeforeUnmount(() => {
   chart?.dispose()
@@ -510,19 +453,13 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .analysis-dashboard {
-  background: #fff;
-  border-radius: 8px;
-  padding: 16px 20px;
-  min-height: 640px;
-  border: 1px solid #e2e8f0;
+  gap: var(--sp-4);
 }
 .dash-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #e2e8f0;
 }
 .title-block {
   display: flex;
@@ -532,11 +469,11 @@ onBeforeUnmount(() => {
 .title-block .name {
   font-size: 20px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--text-primary);
 }
 .title-block .code {
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 .price-block {
   font-size: 24px;
@@ -553,11 +490,9 @@ onBeforeUnmount(() => {
   margin-left: 10px;
 }
 .toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(120px, 160px) auto repeat(4, minmax(110px, 1fr));
   gap: 8px;
-  margin-bottom: 16px;
 }
 .dash-body {
   display: flex;
@@ -570,7 +505,7 @@ onBeforeUnmount(() => {
   position: relative;
 }
 .kline-chart {
-  height: 460px;
+  height: 500px;
 }
 .ma-legend {
   position: absolute;
@@ -582,7 +517,7 @@ onBeforeUnmount(() => {
   gap: 10px;
 }
 .panel-col {
-  width: 380px;
+  width: 360px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -593,62 +528,17 @@ onBeforeUnmount(() => {
   grid-template-columns: repeat(2, 1fr);
   gap: 8px;
 }
-.stat-card {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 10px 12px;
-}
-.stat-card .label {
-  font-size: 12px;
-  color: #64748b;
-}
-.stat-card .val {
-  font-size: 22px;
-  font-weight: 700;
-  color: #0f172a;
-}
-.stat-card .val.sm {
-  font-size: 15px;
-  font-weight: 600;
-}
-.panel-card {
-  border-radius: 8px;
-}
-.card-h {
-  font-weight: 600;
-  font-size: 14px;
-}
-.tag-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-.desc-block {
-  margin-top: 4px;
-}
 .summary-text {
   margin: 0;
   font-size: 13px;
   line-height: 1.65;
-  color: #334155;
-}
-.sub-t {
-  font-size: 12px;
-  font-weight: 600;
-  color: #b91c1c;
-  margin-bottom: 6px;
-}
-.sub-t.opp {
-  color: #15803d;
-  margin-top: 12px;
+  color: var(--text-secondary);
 }
 .bullet-list {
   margin: 0;
   padding-left: 18px;
   font-size: 13px;
-  color: #334155;
+  color: var(--text-secondary);
   line-height: 1.55;
 }
 .bullet-list.risk li::marker {
@@ -658,6 +548,9 @@ onBeforeUnmount(() => {
   color: #22c55e;
 }
 @media (max-width: 1100px) {
+  .toolbar {
+    grid-template-columns: 1fr 1fr;
+  }
   .dash-body {
     flex-direction: column;
   }

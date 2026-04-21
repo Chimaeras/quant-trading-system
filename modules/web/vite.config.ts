@@ -7,8 +7,7 @@ export default defineConfig({
   plugins: [vue()],
   resolve: {
     alias: [
-      { find: '@', replacement: resolve(__dirname, 'src') },
-      { find: 'element-plus', replacement: resolve(__dirname, 'node_modules/element-plus/lib/index.js') }
+      { find: '@', replacement: resolve(__dirname, 'src') }
     ]
   },
   server: {

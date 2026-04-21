@@ -1,6 +1,5 @@
 import axios from 'axios'
-import { ElMessage } from 'element-plus'
-import { useUserStore } from '@/store/user'
+import { useUserStore } from '@/stores/user'
 import router from '@/router'
 
 const request = axios.create({
@@ -25,8 +24,7 @@ request.interceptors.response.use(
     if (code === 200) {
       return res.data
     }
-    ElMessage.error(message || '请求失败')
-    return Promise.reject(new Error(message))
+    return Promise.reject(new Error(message || '请求失败'))
   },
   (err) => {
     if (err.response?.status === 401) {
@@ -34,8 +32,7 @@ request.interceptors.response.use(
       userStore.logout()
       router.push('/login')
     }
-    ElMessage.error(err.response?.data?.message || err.message || '网络错误')
-    return Promise.reject(err)
+    return Promise.reject(new Error(err.response?.data?.message || err.message || '网络错误'))
   }
 )
 

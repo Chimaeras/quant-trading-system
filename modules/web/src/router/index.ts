@@ -20,14 +20,17 @@ const routes = [
         path: 'market/analysis-dashboard',
         name: 'StockAnalysisDashboard',
         component: () => import('@/views/market/StockAnalysisDashboard.vue'),
-        meta: { title: '股票分析看板' }
+        meta: { title: 'AI分析' }
       },
       { path: 'market/kline', name: 'KLine', component: () => import('@/views/market/KLineView.vue'), meta: { title: 'K线图' } },
       { path: 'market/stock-picker', name: 'StockPicker', component: () => import('@/views/market/StockPicker.vue'), meta: { title: '打分选股' } },
       { path: 'market/realtime', name: 'RealtimeWatch', component: () => import('@/views/market/RealtimeWatch.vue'), meta: { title: '实时盯盘' } },
-      { path: 'dashboard', name: 'Dashboard', component: () => import('@/views/dashboard/Index.vue'), meta: { title: '行情看板' } },
+      { path: 'dashboard', name: 'Dashboard', component: () => import('@/views/dashboard/Index.vue'), meta: { title: '总览' } },
       { path: 'backtest', name: 'Backtest', component: () => import('@/views/strategy/BacktestView.vue'), meta: { title: '回测分析' } },
-      { path: 'trading', name: 'Trading', component: () => import('@/views/trading/Index.vue'), meta: { title: '实盘监控' } }
+      { path: 'trading', name: 'Trading', component: () => import('@/views/trading/Index.vue'), meta: { title: '交易执行' } },
+      { path: 'ai-chat', name: 'AiChat', component: () => import('@/views/chat/Index.vue'), meta: { title: 'AI聊天' } },
+      { path: 'scheduler', name: 'Scheduler', component: () => import('@/views/scheduler/Index.vue'), meta: { title: '定时设置' } },
+      { path: 'settings', name: 'Settings', component: () => import('@/views/settings/Index.vue'), meta: { title: '设置' } }
     ]
   }
 ]

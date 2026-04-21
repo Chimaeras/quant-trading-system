@@ -1,5 +1,5 @@
 <template>
-  <el-card shadow="hover">
+  <el-card shadow="hover" class="terminal-page">
     <template #header>
       <span>回测分析</span>
       <el-button type="primary" size="small" :loading="running" @click="runBacktest">运行回测</el-button>
@@ -98,8 +98,10 @@ import { useRoute } from 'vue-router'
 import StrategyConfigPanel from '@/components/strategy/StrategyConfigPanel.vue'
 import type { StrategyParams, BacktestResult, BacktestHistoryItem } from '@/types'
 import { strategyApi } from '@/api/strategy'
+import { useToast } from '@/composables/useToast'
 
 const route = useRoute()
+const toast = useToast()
 const strategyId = ref<string>('MA_Cross')
 const stockCode = ref('000001.SZ')
 const dateRange = ref<string[]>(['2023-01-01', '2024-12-31'])
@@ -130,6 +132,10 @@ const loadStrategies = async () => {
 }
 
 const runBacktest = async () => {
+  if (!stockCode.value.trim()) {
+    toast.warning('请填写回测标的')
+    return
+  }
   running.value = true
   try {
     result.value = await strategyApi.runBacktest({
@@ -141,6 +147,9 @@ const runBacktest = async () => {
       params: backtestParams.value
     })
     await loadHistory()
+    toast.success('回测执行完成')
+  } catch (error: any) {
+    toast.error(error?.message || '回测失败')
   } finally {
     running.value = false
   }
@@ -159,8 +168,12 @@ const loadHistory = async () => {
 
 const viewDetail = async (resultId: string) => {
   if (!resultId) return
-  detailData.value = await strategyApi.getBacktestResult(resultId)
-  detailVisible.value = true
+  try {
+    detailData.value = await strategyApi.getBacktestResult(resultId)
+    detailVisible.value = true
+  } catch (error: any) {
+    toast.error(error?.message || '加载详情失败')
+  }
 }
 
 const reuseBacktest = (item: BacktestHistoryItem) => {
@@ -176,11 +189,14 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.config-section { margin-top: 16px; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
-.result-grid { display: flex; gap: 24px; margin-top: 20px; }
-.stat { padding: 12px 20px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
+.terminal-page {
+  color: var(--text-primary);
+}
+.config-section { margin-top: 16px; padding: 12px; background: rgba(9, 18, 34, 0.72); border-radius: 8px; border: 1px solid rgba(145, 196, 255, 0.2); }
+.result-grid { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+.stat { padding: 12px 14px; background: rgba(9, 18, 34, 0.72); border-radius: 8px; border: 1px solid rgba(145, 196, 255, 0.2); }
 .history-section { margin-top: 20px; }
 .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .pager-wrap { margin-top: 10px; display: flex; justify-content: flex-end; }
-.params-json { max-height: 220px; overflow: auto; margin: 0; white-space: pre-wrap; background: #f8fafc; border: 1px solid #e2e8f0; padding: 8px; border-radius: 6px; }
+.params-json { max-height: 220px; overflow: auto; margin: 0; white-space: pre-wrap; background: rgba(9, 18, 34, 0.72); border: 1px solid rgba(145, 196, 255, 0.2); padding: 8px; border-radius: 6px; color: var(--text-primary); }
 </style>

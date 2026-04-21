@@ -1,21 +1,17 @@
 <template>
   <div class="login-page">
-    <div class="login-box">
-      <h1>📈 量化交易系统</h1>
-      <el-form ref="formRef" :model="form" :rules="rules" class="login-form">
-        <el-form-item prop="username">
-          <el-input v-model="form.username" placeholder="用户名" size="large" />
-        </el-form-item>
-        <el-form-item prop="password">
-          <el-input v-model="form.password" type="password" placeholder="密码" size="large" show-password @keyup.enter="handleLogin" />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" size="large" :loading="loading" @click="handleLogin" style="width: 100%">
-            登录
-          </el-button>
-        </el-form-item>
-      </el-form>
-      <p class="tip">请输入账号密码登录</p>
+    <div class="login-box glass">
+      <h1>QUANT TERMINAL</h1>
+      <p class="tip">深色专业交易终端</p>
+      <label class="field">
+        <span>用户名</span>
+        <UiInput v-model="form.username" placeholder="请输入用户名" />
+      </label>
+      <label class="field">
+        <span>密码</span>
+        <UiInput v-model="form.password" type="password" placeholder="请输入密码" @enter="handleLogin" />
+      </label>
+      <UiButton variant="primary" :loading="loading" block @click="handleLogin">登录</UiButton>
     </div>
   </div>
 </template>
@@ -23,28 +19,25 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
+import UiInput from '@/components/ui/Input.vue'
+import UiButton from '@/components/ui/Button.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
-const formRef = ref()
 const loading = ref(false)
 const form = reactive({
   username: 'admin',
   password: '123456'
 })
-const rules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
-}
 
 const handleLogin = async () => {
-  await formRef.value?.validate()
+  if (!form.username || !form.password) {
+    return
+  }
   loading.value = true
   try {
     userStore.login(form)
-    ElMessage.success('登录成功')
     router.push('/data/overview')
   } finally {
     loading.value = false
@@ -55,29 +48,42 @@ const handleLogin = async () => {
 <style scoped>
 .login-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 50%, #3b82f6 100%);
+  background:
+    radial-gradient(circle at 80% 10%, rgba(88, 185, 255, 0.3), transparent 35%),
+    linear-gradient(140deg, var(--bg-0), var(--bg-1) 46%, var(--bg-2));
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .login-box {
-  width: 400px;
-  padding: 40px;
-  background: #ffffff;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  width: min(420px, 92vw);
+  padding: 36px;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 .login-box h1 {
-  color: #1e40af;
+  color: var(--text-primary);
   text-align: center;
-  margin-bottom: 32px;
+  margin: 0;
   font-size: 22px;
+  letter-spacing: 1px;
 }
 .tip {
-  color: #64748b;
-  font-size: 12px;
+  color: var(--text-secondary);
+  font-size: var(--fz-sm);
   text-align: center;
-  margin-top: 16px;
+  margin: 0 0 6px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.field span {
+  color: var(--text-secondary);
+  font-size: var(--fz-xs);
 }
 </style>

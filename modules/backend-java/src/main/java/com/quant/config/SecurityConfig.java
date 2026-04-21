@@ -43,6 +43,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/data/**").permitAll()
                 .requestMatchers("/api/market/**").permitAll()
                 .requestMatchers("/api/scoring/**").permitAll()
+                .requestMatchers("/api/llm/**").permitAll()
+                .requestMatchers("/api/chat/**").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers(HttpMethod.GET, "/", "/index.html", "/assets/**", "/login", "/dashboard", "/strategy", "/backtest", "/trading", "/account", "/favicon.ico", "/vite.svg").permitAll()
                 .requestMatchers("/api/**").authenticated()

@@ -1,5 +1,5 @@
 <template>
-  <el-card shadow="hover">
+  <el-card shadow="hover" class="terminal-page">
     <template #header>
       <div class="header-row">
         <span>统一打分选股工作台</span>
@@ -299,16 +299,17 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import { selectorApi } from '@/api/selector'
 import { scoringApi, type UnifiedScoringStrategy, type UnifiedScoringTaskStatus } from '@/api/scoring'
+import { useToast } from '@/composables/useToast'
 
 type ModeType = 'classic' | 'oversold' | 'geopolicy'
 type TaskStatusType = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | ''
 
 const loading = ref(false)
 const running = ref(false)
+const toast = useToast()
 const mode = ref<ModeType>('classic')
 const results = ref<Record<string, any>[]>([])
 const focusResults = ref<Record<string, any>[]>([])
@@ -577,10 +578,10 @@ async function runSelection() {
       ? await scoringApi.getUnifiedResult(done.result_id, { page: 1, size: form.scoreTopN })
       : await scoringApi.getUnifiedLatest({ strategy: 'CLASSIC_SELECTOR', tradeDate: form.tradeDate, page: 1, size: form.scoreTopN })
     applyResult(data)
-    ElMessage.success(`打分完成，共 ${results.value.length} 只`)
+    toast.success(`打分完成，共 ${results.value.length} 只`)
   } catch (e: any) {
     taskError.value = String(e?.message || '运行选股失败')
-    ElMessage.error(taskError.value)
+    toast.error(taskError.value)
   } finally {
     running.value = false
     loading.value = false
@@ -604,10 +605,10 @@ async function runOversold() {
       ? await scoringApi.getUnifiedResult(done.result_id, { page: 1, size: oversoldForm.scoreTopN })
       : await scoringApi.getUnifiedLatest({ strategy: 'OVERSOLD_REBOUND', tradeDate: oversoldForm.tradeDate, page: 1, size: oversoldForm.scoreTopN })
     applyResult(data)
-    ElMessage.success(`打分完成，共 ${results.value.length} 只`)
+    toast.success(`打分完成，共 ${results.value.length} 只`)
   } catch (e: any) {
     taskError.value = String(e?.message || '运行超跌筛选失败')
-    ElMessage.error(taskError.value)
+    toast.error(taskError.value)
   } finally {
     running.value = false
     loading.value = false
@@ -641,13 +642,13 @@ async function runGeopolicy() {
       ? await scoringApi.getUnifiedResult(done.result_id, { page: 1, size: geoForm.scoreTopN })
       : await scoringApi.getUnifiedLatest({ strategy: 'GEOPOLICY_NEWS', tradeDate: geoForm.tradeDate, page: 1, size: geoForm.scoreTopN })
     applyResult(data)
-    ElMessage.success(`打分完成，共 ${results.value.length} 只`)
+    toast.success(`打分完成，共 ${results.value.length} 只`)
   } catch (e: any) {
     results.value = []
     focusResults.value = []
     macro.value = null
     taskError.value = String(e?.response?.data?.message || e?.message || '运行政策/新闻失败')
-    ElMessage.error(taskError.value)
+    toast.error(taskError.value)
   } finally {
     running.value = false
     loading.value = false
@@ -656,7 +657,7 @@ async function runGeopolicy() {
 
 async function resumeTaskWatch() {
   if (!taskId.value) {
-    ElMessage.warning('没有可恢复监控的任务')
+    toast.warning('没有可恢复监控的任务')
     return
   }
   running.value = true
@@ -688,7 +689,7 @@ async function resumeTaskWatch() {
                 size: currentScorePoolSize()
               })
           applyResult(data)
-          ElMessage.success(`任务已完成，共 ${results.value.length} 只`)
+          toast.success(`任务已完成，共 ${results.value.length} 只`)
           return
         }
         if (t.status === 'FAILED') {
@@ -713,7 +714,7 @@ async function resumeTaskWatch() {
     throw new Error(pollStopReason.value || '任务监控已停止')
   } catch (e: any) {
     taskError.value = String(e?.message || '恢复监控失败')
-    ElMessage.error(taskError.value)
+    toast.error(taskError.value)
   } finally {
     isPollingActive.value = false
     running.value = false
@@ -733,7 +734,7 @@ async function cancelTaskServer() {
     taskMessage.value = msg || '任务已取消'
     await resumeTaskWatch()
   } catch (e: any) {
-    ElMessage.error(e?.message || '取消任务失败')
+    toast.error(e?.message || '取消任务失败')
   }
 }
 
@@ -743,10 +744,10 @@ async function prioritizeCurrentTask() {
     const ret = await scoringApi.prioritizeUnifiedScoringTask(taskId.value)
     const msg = String(ret?.message || '已触发优先执行')
     taskMessage.value = msg
-    ElMessage.success(msg)
+    toast.success(msg)
     await resumeTaskWatch()
   } catch (e: any) {
-    ElMessage.error(e?.message || '优先执行失败')
+    toast.error(e?.message || '优先执行失败')
   }
 }
 
@@ -756,19 +757,19 @@ async function clearPendingQueue() {
     const msg = String(ret?.message || '')
     if (msg) {
       taskMessage.value = msg
-      ElMessage.success(msg)
+      toast.success(msg)
     }
     if (taskId.value) {
       await resumeTaskWatch()
     }
   } catch (e: any) {
-    ElMessage.error(e?.message || '清空待执行队列失败')
+    toast.error(e?.message || '清空待执行队列失败')
   }
 }
 
 async function forceRestartCurrentTask() {
   if (!taskId.value) {
-    ElMessage.warning('没有可重跑的任务')
+    toast.warning('没有可重跑的任务')
     return
   }
   const oldTaskId = taskId.value
@@ -784,7 +785,7 @@ async function forceRestartCurrentTask() {
     const summary = [clearMsg, cancelMsg].filter(Boolean).join('；')
     if (summary) {
       taskMessage.value = summary
-      ElMessage.success(summary)
+      toast.success(summary)
     }
     if (mode.value === 'classic') {
       await runSelection()
@@ -796,7 +797,7 @@ async function forceRestartCurrentTask() {
   } catch (e: any) {
     const msg = String(e?.message || '强制重跑失败')
     taskError.value = msg
-    ElMessage.error(msg)
+    toast.error(msg)
   }
 }
 
@@ -816,7 +817,7 @@ async function saveTemplate() {
       minTrendScore: form.minTrendScore
     }
   })
-  ElMessage.success('模板已保存')
+  toast.success('模板已保存')
   await loadTemplates()
 }
 
@@ -832,7 +833,7 @@ async function saveOversoldTemplate() {
       persist: oversoldForm.persist
     }
   })
-  ElMessage.success('模板已保存')
+  toast.success('模板已保存')
   await loadTemplates()
 }
 
@@ -872,9 +873,9 @@ async function loadLatest() {
       size: currentScorePoolSize()
     })
     applyResult(data)
-    if (!results.value.length) ElMessage.info('当日暂无结果，请先执行打分')
+    if (!results.value.length) toast.info('当日暂无结果，请先执行打分')
   } catch (e: any) {
-    ElMessage.error(e?.message || '加载结果失败')
+    toast.error(e?.message || '加载结果失败')
   } finally {
     loading.value = false
   }
@@ -916,7 +917,7 @@ onBeforeUnmount(() => {
   margin: 2px 0 10px;
   font-size: 14px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-primary);
 }
 .focus-form {
   margin-bottom: 10px;
@@ -925,7 +926,7 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 20px;
   margin: 8px 0 12px;
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 13px;
   flex-wrap: wrap;
 }
@@ -933,7 +934,7 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 16px;
   margin: 0 0 12px;
-  color: #334155;
+  color: var(--text-secondary);
   font-size: 13px;
   flex-wrap: wrap;
 }
@@ -951,18 +952,19 @@ onBeforeUnmount(() => {
   margin-bottom: 6px;
 }
 .tip {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 12px;
   margin-top: 12px;
 }
 .json-box {
   margin: 0;
   white-space: pre-wrap;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: rgba(9, 18, 34, 0.72);
+  border: 1px solid rgba(145, 196, 255, 0.2);
   border-radius: 6px;
   padding: 8px;
   max-height: 220px;
   overflow: auto;
+  color: var(--text-primary);
 }
 </style>

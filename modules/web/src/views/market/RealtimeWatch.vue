@@ -1,5 +1,5 @@
 <template>
-  <div class="realtime-watch">
+  <div class="realtime-watch terminal-page">
     <el-card shadow="hover">
       <template #header>
         <span>实时盯盘</span>
@@ -83,13 +83,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import { marketApi } from '@/api/market'
+import { useToast } from '@/composables/useToast'
 
 const STORAGE_KEY = 'realtime_watch_list'
 const DEFAULT_INTERVAL = 5
 
 const router = useRouter()
+const toast = useToast()
 const inputCode = ref('')
 const inputExchange = ref('')
 const autoRefresh = ref(true)
@@ -138,13 +139,13 @@ function saveToStorage() {
 function addStock() {
   const code = inputCode.value?.trim()
   if (!code) {
-    ElMessage.warning('请输入股票代码')
+    toast.warning('请输入股票代码')
     return
   }
   const exchange = inputExchange.value || undefined
   const key = `${code}_${exchange || 'auto'}`
   if (watchList.value.some((s) => `${s.code}_${s.exchange || 'auto'}` === key)) {
-    ElMessage.info('该股票已在列表中')
+    toast.info('该股票已在列表中')
     return
   }
   watchList.value.push({ code, exchange })
@@ -244,7 +245,7 @@ onUnmounted(() => {
   flex-wrap: wrap;
 }
 .header-actions .muted {
-  color: #888;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 .watch-table .up {
@@ -256,6 +257,6 @@ onUnmounted(() => {
 .empty-tip {
   padding: 40px;
   text-align: center;
-  color: #909399;
+  color: var(--text-secondary);
 }
 </style>

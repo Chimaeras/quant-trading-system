@@ -1,5 +1,5 @@
 <template>
-  <div class="account-page">
+  <div class="account-page terminal-page">
     <el-card shadow="hover">
       <template #header>账户概览</template>
       <el-descriptions :column="2" border>
@@ -43,3 +43,9 @@ onMounted(async () => {
   }
 })
 </script>
+
+<style scoped>
+.terminal-page :deep(.el-card) {
+  margin-bottom: 16px;
+}
+</style>

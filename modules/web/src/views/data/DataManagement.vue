@@ -1,5 +1,5 @@
 <template>
-  <div class="data-management">
+  <div class="data-management terminal-page">
     <el-card shadow="hover">
       <template #header>
         <span>数据概览</span>
@@ -180,12 +180,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive } from 'vue'
 import dayjs from 'dayjs'
-import { ElMessage } from 'element-plus'
 import { useDataStore } from '@/stores/data'
 import { dataApi } from '@/api/data'
 import { applyTradingDayPreset, type PresetKey } from '@/utils/tradingDays'
+import { useToast } from '@/composables/useToast'
 
 const dataStore = useDataStore()
+const toast = useToast()
 const loading = ref(false)
 const taskLoading = ref(false)
 const taskSubmitting = ref(false)
@@ -284,7 +285,7 @@ const runUpdateTask = async () => {
   const startIso = parseFlexibleDate(taskForm.startDateInput)
   const endIso = parseFlexibleDate(taskForm.endDateInput)
   if (!startIso || !endIso) {
-    ElMessage.warning('请填写有效日期：支持 20250407 或 2025-04-07')
+    toast.warning('请填写有效日期：支持 20250407 或 2025-04-07')
     return
   }
   let startDate = startIso
@@ -297,11 +298,11 @@ const runUpdateTask = async () => {
     taskForm.endDateInput = normalizeDateDisplay(endDate)
   }
   if (taskForm.mode === 'SINGLE' && !taskForm.stockCode.trim()) {
-    ElMessage.warning('请输入股票代码')
+    toast.warning('请输入股票代码')
     return
   }
   if (taskForm.mode === 'LIST' && !taskForm.stockListText.trim()) {
-    ElMessage.warning('请输入股票清单')
+    toast.warning('请输入股票清单')
     return
   }
   taskSubmitting.value = true
@@ -319,9 +320,9 @@ const runUpdateTask = async () => {
       if (taskForm.maxStocks > 0) payload.maxStocks = taskForm.maxStocks
     }
     const data = await dataApi.runUpdateTask(payload)
-    ElMessage.success(`任务已创建：${data.task_id}，请点击「刷新任务列表」查看进度`)
+    toast.success(`任务已创建：${data.task_id}，请点击「刷新任务列表」查看进度`)
   } catch (e: any) {
-    ElMessage.error(e?.message || '创建任务失败')
+    toast.error(e?.message || '创建任务失败')
   } finally {
     taskSubmitting.value = false
   }
@@ -363,9 +364,9 @@ const onDetailSizeChange = async (size: number) => {
 const retryTask = async (taskId: string) => {
   try {
     const data = await dataApi.retryUpdateTask(taskId)
-    ElMessage.success(`已创建重试任务：${data.task_id}，请点击「刷新任务列表」查看进度`)
+    toast.success(`已创建重试任务：${data.task_id}，请点击「刷新任务列表」查看进度`)
   } catch (e: any) {
-    ElMessage.error(e?.message || '重试任务创建失败')
+    toast.error(e?.message || '重试任务创建失败')
   }
 }
 
@@ -382,26 +383,27 @@ onMounted(async () => {
 }
 .stat-item {
   padding: 16px;
-  background: #f8fafc;
+  background: rgba(9, 18, 34, 0.72);
+  border: 1px solid rgba(145, 196, 255, 0.18);
   border-radius: 8px;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 .stat-item .label {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 .stat-item .value {
   font-size: 18px;
   font-weight: bold;
-  color: #1e40af;
+  color: var(--text-primary);
 }
 .update-form { margin-bottom: 8px; }
 .task-hint {
   margin: 0 0 12px;
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-secondary);
   line-height: 1.5;
 }
 .date-preset-row {
@@ -414,7 +416,7 @@ onMounted(async () => {
 }
 .preset-tip {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-muted);
   line-height: 1.4;
 }
 

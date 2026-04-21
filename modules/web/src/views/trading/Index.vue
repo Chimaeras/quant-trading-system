@@ -1,5 +1,5 @@
 <template>
-  <div class="trading-page">
+  <div class="trading-page terminal-page">
     <el-row :gutter="20">
       <el-col :span="16">
         <el-card shadow="hover">
@@ -40,7 +40,7 @@
               <el-input-number v-model="orderForm.price" :min="0" :precision="2" />
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" @click="placeOrder">提交订单</el-button>
+              <el-button type="primary" :loading="submitting" @click="placeOrder">提交订单</el-button>
             </el-form-item>
           </el-form>
         </el-card>
@@ -52,8 +52,11 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import request from '@/api/request'
+import { useToast } from '@/composables/useToast'
 
 const orders = ref([])
+const submitting = ref(false)
+const toast = useToast()
 const orderForm = reactive({
   symbol: '000001',
   action: 'buy',
@@ -63,13 +66,33 @@ const orderForm = reactive({
 })
 
 const placeOrder = async () => {
+  if (!orderForm.symbol.trim()) {
+    toast.warning('请输入标的代码')
+    return
+  }
+  if (!orderForm.volume || orderForm.volume < 100) {
+    toast.warning('数量不能小于100')
+    return
+  }
   try {
+    submitting.value = true
     await request.post('/order/place', orderForm)
     orders.value.unshift({
       orderId: 'ORD' + Date.now(),
       ...orderForm,
       status: 'submitted'
     })
-  } catch (e) {}
+    toast.success('订单提交成功')
+  } catch (e) {
+    toast.error('订单提交失败')
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
+
+<style scoped>
+.terminal-page :deep(.el-card) {
+  margin-bottom: 14px;
+}
+</style>

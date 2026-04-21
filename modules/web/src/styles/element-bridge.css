@@ -1,0 +1,57 @@
+.el-card {
+  background: var(--glass-bg) !important;
+  border: 1px solid var(--glass-bd) !important;
+  box-shadow: var(--shadow-soft) !important;
+  border-radius: var(--r-md) !important;
+  color: var(--text-primary);
+}
+
+.el-card__header {
+  border-bottom: 1px solid rgba(145, 196, 255, 0.18) !important;
+  color: var(--text-primary);
+}
+
+.el-input__wrapper,
+.el-textarea__inner,
+.el-select__wrapper {
+  background: rgba(9, 18, 34, 0.75) !important;
+  box-shadow: inset 0 0 0 1px rgba(145, 196, 255, 0.2) !important;
+  color: var(--text-primary) !important;
+}
+
+.el-input__wrapper.is-focus,
+.el-select__wrapper.is-focused {
+  box-shadow: inset 0 0 0 1px rgba(88, 185, 255, 0.5), 0 0 0 3px rgba(88, 185, 255, 0.2) !important;
+}
+
+.el-table {
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: rgba(10, 18, 34, 0.88);
+  --el-table-text-color: var(--text-primary);
+  --el-table-header-text-color: var(--text-secondary);
+  --el-table-border-color: rgba(145, 196, 255, 0.16);
+}
+
+.el-table th.el-table__cell,
+.el-table td.el-table__cell {
+  background: transparent !important;
+}
+
+.el-dialog {
+  background: rgba(8, 16, 30, 0.96) !important;
+  border: 1px solid rgba(145, 196, 255, 0.2) !important;
+  border-radius: var(--r-md) !important;
+}
+
+.el-pagination {
+  --el-pagination-bg-color: transparent;
+  --el-pagination-button-bg-color: rgba(9, 18, 34, 0.75);
+  --el-pagination-text-color: var(--text-secondary);
+}
+
+.el-descriptions__body .el-descriptions__table .el-descriptions__cell {
+  background: rgba(11, 21, 38, 0.72) !important;
+  border-color: rgba(145, 196, 255, 0.16) !important;
+  color: var(--text-primary) !important;
+}

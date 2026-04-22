@@ -123,7 +123,7 @@
                     </execution>
                 </executions>
             </plugin>
-            <!-- 复制前端构建产物到 resources/static，由 process-resources 一并打包 -->
+            <!-- 复制前端完整 dist（含 assets）到 target/classes/static，避免只拷贝 index 导致白屏；勿写入 src/main/resources -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
@@ -135,7 +135,7 @@
                             <goal>copy-resources</goal>
                         </goals>
                         <configuration>
-                            <outputDirectory>${project.basedir}/src/main/resources/static</outputDirectory>
+                            <outputDirectory>${project.build.outputDirectory}/static</outputDirectory>
                             <resources>
                                 <resource>
                                     <directory>${project.basedir}/../web/dist</directory>
@@ -149,6 +149,14 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>8</source>
+                    <target>8</target>
+                </configuration>
             </plugin>
         </plugins>
     </build>

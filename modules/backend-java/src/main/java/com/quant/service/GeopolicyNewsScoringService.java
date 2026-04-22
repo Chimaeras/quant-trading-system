@@ -13,15 +13,16 @@ import com.quant.repository.SelectorResultItemRepository;
 import com.quant.repository.SelectorResultRepository;
 import com.quant.repository.SelectorTemplateRepository;
 import com.quant.repository.StockInfoRepository;
+import com.quant.service.scoring.ProgressiveResultWriter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.*;
 
 /**
  * 政策/地缘政治/新闻（GDELT）因子选股（MVP：市场级指数 → 统一作用到所有股票）。
@@ -43,8 +44,8 @@ public class GeopolicyNewsScoringService {
     private final SelectorResultItemRepository selectorResultItemRepository;
     private final SelectorTemplateRepository selectorTemplateRepository;
     private final GdeltClient gdeltClient;
+    private final ProgressiveResultWriter progressiveResultWriter;
 
-    @Transactional
     public Map<String, Object> run(Map<String, Object> request) {
         Map<String, Object> req = mergeTemplate(request != null ? request : Map.of());
 
@@ -69,6 +70,8 @@ public class GeopolicyNewsScoringService {
         int eventsMaxRecords = parseInt(req.get("gdeltEventsMaxRecords"), 250, 10, 250);
         int newsMaxRecords = parseInt(req.get("gdeltNewsMaxRecords"), 250, 10, 250);
         int topK = parseInt(req.get("topK"), 10, 3, 30);
+        int threads = parseInt(req.get("threads"),
+                Math.max(1, Runtime.getRuntime().availableProcessors()), 1, 64);
 
         // 新闻过滤（后处理，避免依赖 GDELT query 语法差异）
         Set<String> newsLangAllow = parseCsvSet(req.get("newsLangAllow"), Set.of("Chinese", "English"));
@@ -189,63 +192,110 @@ public class GeopolicyNewsScoringService {
             }
         }
 
+        Map<String, List<MarketData>> grouped = Map.of();
         if (bulkFetch) {
-            // 性能优化：一次性拉取区间内全部行情，再在应用层按股票分组，避免 N+1 查询
             List<MarketData> allBars = marketDataRepository
                     .findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(rangeStart, tradeDate);
-            Map<String, List<MarketData>> grouped = new LinkedHashMap<>();
+            Map<String, List<MarketData>> tmp = new LinkedHashMap<>();
             for (MarketData m : allBars) {
                 String key = m.getStockCode() + "|" + m.getExchangeType();
-                grouped.computeIfAbsent(key, k -> new ArrayList<>(Math.min(lookbackDays + 40, 400))).add(m);
+                tmp.computeIfAbsent(key, k -> new ArrayList<>(Math.min(lookbackDays + 40, 400))).add(m);
             }
-
-            for (Object[] pair : pairs) {
-                ensureNotInterrupted();
-                if (pair == null || pair.length < 2) continue;
-                String stockCode = String.valueOf(pair[0]);
-                String exchangeType = String.valueOf(pair[1]);
-                scanned++;
-
-                String key = stockCode + "|" + exchangeType;
-                List<MarketData> bars = grouped.getOrDefault(key, List.of());
-                Candidate c = buildCandidate(stockCode, exchangeType, bars, minAvgAmount, minTrendScore, nameCache, excludeST);
-                if (c == null) continue;
-                scored++;
-                if (resumeMode && existingStockKeys.contains(c.stockCode + "|" + c.exchangeType)) continue;
-                applyMacroOverlay(factor, c);
-                candidates.add(c);
-                if (isCandidatePassed(c)) {
-                    passedCandidates.add(c);
-                }
-                if (progressiveResultId != null) {
-                    selectorResultItemRepository.save(toItem(progressiveResultId, progressiveRank++, c, factor));
-                }
-            }
+            grouped = tmp;
             log.info("[geopolicy_news] bulkFetch=ON barsFetched={} groupedKeys={}", allBars.size(), grouped.size());
         } else {
-            for (Object[] pair : pairs) {
-                ensureNotInterrupted();
-                if (pair == null || pair.length < 2) continue;
-                String stockCode = String.valueOf(pair[0]);
-                String exchangeType = String.valueOf(pair[1]);
-                scanned++;
+            log.info("[geopolicy_news] bulkFetch=OFF, using per-stock queries");
+        }
 
-                List<MarketData> bars = marketDataRepository
-                        .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(stockCode, exchangeType, rangeStart, tradeDate);
+        record StockTaskResult(String stockKey, Candidate candidate) {}
+        int failed = 0;
+        ExecutorService pool = Executors.newFixedThreadPool(threads, runnable -> {
+            Thread t = new Thread(runnable);
+            t.setName("geopolicy-score-" + t.getId());
+            t.setDaemon(true);
+            return t;
+        });
+        CompletionService<StockTaskResult> cs = new ExecutorCompletionService<>(pool);
+        int submitted = 0;
+        for (Object[] pair : pairs) {
+            if (pair == null || pair.length < 2) continue;
+            String stockCode = String.valueOf(pair[0]);
+            String exchangeType = String.valueOf(pair[1]);
+            String key = stockCode + "|" + exchangeType;
+            submitted++;
+            Map<String, List<MarketData>> groupedRef = grouped;
+            cs.submit(() -> {
+                ensureNotInterrupted();
+                List<MarketData> bars;
+                if (bulkFetch) {
+                    bars = groupedRef.getOrDefault(key, List.of());
+                } else {
+                    bars = marketDataRepository
+                            .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(stockCode, exchangeType, rangeStart, tradeDate);
+                }
                 Candidate c = buildCandidate(stockCode, exchangeType, bars, minAvgAmount, minTrendScore, nameCache, excludeST);
-                if (c == null) continue;
+                return new StockTaskResult(key, c);
+            });
+        }
+
+        try {
+            for (int i = 0; i < submitted; i++) {
+                ensureNotInterrupted();
+                StockTaskResult result;
+                try {
+                    result = cs.take().get();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("任务被取消（线程中断）", e);
+                } catch (ExecutionException e) {
+                    result = new StockTaskResult("", null);
+                }
+                scanned++;
+                if (result.candidate() == null) {
+                    failed++;
+                    if (progressiveResultId != null) {
+                        progressiveResultWriter.updateProgress(
+                                progressiveResultId,
+                                submitted,
+                                scanned,
+                                scored,
+                                failed,
+                                ""
+                        );
+                    }
+                    continue;
+                }
+                Candidate c = result.candidate();
                 scored++;
-                if (resumeMode && existingStockKeys.contains(c.stockCode + "|" + c.exchangeType)) continue;
-                applyMacroOverlay(factor, c);
-                candidates.add(c);
-                if (isCandidatePassed(c)) {
-                    passedCandidates.add(c);
+                String stockKey = c.stockCode + "|" + c.exchangeType;
+                if (!(resumeMode && existingStockKeys.contains(stockKey))) {
+                    applyMacroOverlay(factor, c);
+                    candidates.add(c);
+                    if (isCandidatePassed(c)) {
+                        passedCandidates.add(c);
+                    }
+                    if (progressiveResultId != null) {
+                        SelectorResultItem item = toItem(progressiveResultId, progressiveRank, c, factor);
+                        boolean inserted = progressiveResultWriter.saveItemIfAbsent(item);
+                        if (inserted) {
+                            progressiveRank++;
+                            existingStockKeys.add(stockKey);
+                        }
+                    }
                 }
                 if (progressiveResultId != null) {
-                    selectorResultItemRepository.save(toItem(progressiveResultId, progressiveRank++, c, factor));
+                    progressiveResultWriter.updateProgress(
+                            progressiveResultId,
+                            submitted,
+                            scanned,
+                            scored,
+                            failed,
+                            stockKey
+                    );
                 }
             }
-            log.info("[geopolicy_news] bulkFetch=OFF perStockQueries scanned={}", scanned);
+        } finally {
+            pool.shutdownNow();
         }
 
         passedCandidates.sort((a, b) -> Double.compare(b.macroAdjustedFinal, a.macroAdjustedFinal));
@@ -328,7 +378,9 @@ public class GeopolicyNewsScoringService {
             int scanned,
             int scored
     ) {
-        String resultId = ensureResultSkeleton(
+        String resultId = (progressivePersist && fixedResultId != null && !fixedResultId.isBlank())
+                ? fixedResultId
+                : ensureResultSkeleton(
                 fixedResultId, tradeDate, req, lookbackDays, topN, minAvgAmount, minTrendScore, excludeST, factor, resumeMode
         );
 
@@ -423,10 +475,11 @@ public class GeopolicyNewsScoringService {
         result.setFailedCandidates(0);
         result.setLastProcessedKey("");
         result.setFactorSnapshot(snapshot);
-        selectorResultRepository.save(result);
-        if (fixedResultId != null && !fixedResultId.isBlank() && !resumeMode) {
-            selectorResultItemRepository.deleteByResultId(resultId);
-        }
+        progressiveResultWriter.upsertRunningResult(
+                resultId,
+                result,
+                fixedResultId != null && !fixedResultId.isBlank() && !resumeMode
+        );
         return resultId;
     }
 

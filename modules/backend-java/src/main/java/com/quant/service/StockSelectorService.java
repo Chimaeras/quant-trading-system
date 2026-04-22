@@ -10,6 +10,7 @@ import com.quant.repository.SelectorResultItemRepository;
 import com.quant.repository.SelectorResultRepository;
 import com.quant.repository.SelectorTemplateRepository;
 import com.quant.repository.StockInfoRepository;
+import com.quant.service.scoring.ProgressiveResultWriter;
 import com.quant.service.scoring.ScoringUtils;
 import com.quant.service.scoring.TechnicalIndicators;
 import lombok.RequiredArgsConstructor;
@@ -18,8 +19,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.*;
 
 @Slf4j
 @Service
@@ -30,22 +33,29 @@ public class StockSelectorService {
     private final SelectorResultItemRepository selectorResultItemRepository;
     private final StockInfoRepository stockInfoRepository;
     private final SelectorTemplateRepository selectorTemplateRepository;
+    private final ProgressiveResultWriter progressiveResultWriter;
 
-    @Transactional
     public Map<String, Object> runSelection(Map<String, Object> request) {
         LocalDate reqDate = parseDate(request.get("tradeDate"), LocalDate.now());
         LocalDate tradeDate = marketDataRepository.findLatestTradeDateOnOrBefore(reqDate).orElse(reqDate);
-        int lookbackDays = parseInt(request.get("lookbackDays"), 60, 20, 120);
-        int topN = parseInt(request.get("topN"), 10, 1, 50);
-        double minAvgAmount = parseDouble(request.get("minAvgAmount"), 30000000d, 1000000d, 500000000d);
+        boolean fullHistory = parseBool(request.get("fullHistory"), true);
+        int lookbackDaysRequested = parseInt(request.get("lookbackDays"), 60, 20, 3650);
+        int topN = parseInt(request.get("topN"), 10, 1, 500);
+        double minAvgAmount = parseDouble(request.get("minAvgAmount"), 30000000d, 0d, 1_000_000_000_000d);
         double minTrendScore = parseDouble(request.get("minTrendScore"), 40d, 0d, 100d);
         String templateId = String.valueOf(request.getOrDefault("templateId", "")).trim();
         String factorVersion = String.valueOf(request.getOrDefault("factorVersion", "v1")).trim();
         boolean progressivePersist = parseBool(request.get("progressivePersist"), false);
         String fixedResultId = String.valueOf(request.getOrDefault("resultId", "")).trim();
         boolean resumeMode = parseBool(request.get("resumeMode"), false);
+        boolean bulkFetch = parseBool(request.get("bulkFetch"), true);
+        int threads = parseInt(request.get("threads"),
+                Math.max(1, Runtime.getRuntime().availableProcessors()), 1, 64);
 
-        LocalDate rangeStart = tradeDate.minusDays(Math.max(lookbackDays + 30L, 90L));
+        LocalDate rangeStart = fullHistory
+                ? marketDataRepository.findMinTradeDate().orElse(tradeDate.minusDays(3650L))
+                : tradeDate.minusDays(Math.max(lookbackDaysRequested + 30L, 90L));
+        int effectiveLookbackDays = capCalendarDays(rangeStart, tradeDate);
         List<Object[]> pairs = marketDataRepository.findDistinctStockPairsInRange(rangeStart, tradeDate);
         String targetStockCode = String.valueOf(request.getOrDefault("stockCode", "")).trim();
         String targetExchangeType = String.valueOf(request.getOrDefault("exchangeType", "")).trim();
@@ -70,89 +80,155 @@ public class StockSelectorService {
             return Map.of("message", "无可用行情数据", "trade_date", tradeDate.toString(), "items", List.of());
         }
 
+        Map<String, List<MarketData>> bulkByKey = null;
+        if (bulkFetch && !pairs.isEmpty()) {
+            List<MarketData> allBars = marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(rangeStart, tradeDate);
+            bulkByKey = new HashMap<>(Math.max(16, pairs.size() * 2));
+            for (MarketData m : allBars) {
+                if (m.getStockCode() == null || m.getExchangeType() == null) continue;
+                bulkByKey.computeIfAbsent(m.getStockCode() + "|" + m.getExchangeType(), k -> new ArrayList<>()).add(m);
+            }
+        }
+
         Map<String, String> nameCache = new HashMap<>();
         List<Candidate> candidates = new ArrayList<>();
-        List<Candidate> passedCandidates = new ArrayList<>();
         int scoredCount = 0;
         String progressiveResultId = null;
-        int progressiveRank = 1;
-        Set<String> existingStockKeys = new HashSet<>();
         if (progressivePersist) {
             progressiveResultId = ensureResultSkeleton(
                     fixedResultId,
                     tradeDate,
-                    lookbackDays,
+                    effectiveLookbackDays,
+                    fullHistory,
+                    lookbackDaysRequested,
+                    rangeStart,
                     topN,
                     minAvgAmount,
                     minTrendScore,
                     templateId,
                     factorVersion,
+                    bulkFetch,
                     resumeMode
             );
-            if (resumeMode && progressiveResultId != null && !progressiveResultId.isBlank()) {
-                existingStockKeys = selectorResultItemRepository.findStockKeysByResultId(progressiveResultId);
-                progressiveRank = existingStockKeys.size() + 1;
-            }
         }
 
+        int processedCount = 0;
+        int failedCount = 0;
+        ExecutorService pool = Executors.newFixedThreadPool(threads, r -> {
+            Thread t = new Thread(r);
+            t.setName("classic-selector-" + t.getId());
+            t.setDaemon(true);
+            return t;
+        });
+        CompletionService<Candidate> cs = new ExecutorCompletionService<>(pool);
+        final Map<String, List<MarketData>> bulkRef = bulkByKey;
+        int submitted = 0;
         for (Object[] pair : pairs) {
-            ensureNotInterrupted();
             if (pair == null || pair.length < 2) continue;
             String stockCode = String.valueOf(pair[0]);
             String exchangeType = String.valueOf(pair[1]);
-            List<MarketData> bars = marketDataRepository
-                    .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(stockCode, exchangeType, rangeStart, tradeDate);
-            Candidate c = buildCandidate(stockCode, exchangeType, bars, minAvgAmount, minTrendScore, nameCache);
-            if (c != null) {
-                scoredCount++;
-                String stockKey = c.stockCode + "|" + c.exchangeType;
-                if (resumeMode && existingStockKeys.contains(stockKey)) {
-                    continue;
+            submitted++;
+            cs.submit(() -> {
+                ScoringUtils.checkInterrupted();
+                List<MarketData> bars;
+                if (bulkRef != null) {
+                    bars = bulkRef.getOrDefault(stockCode + "|" + exchangeType, List.of());
+                } else {
+                    bars = marketDataRepository
+                            .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(stockCode, exchangeType, rangeStart, tradeDate);
                 }
-                candidates.add(c);
-                if (isCandidatePassed(c)) {
-                    passedCandidates.add(c);
-                }
-                if (progressiveResultId != null) {
-                    selectorResultItemRepository.save(toItem(progressiveResultId, progressiveRank++, c));
-                }
-            }
+                return buildCandidate(stockCode, exchangeType, bars, minAvgAmount, minTrendScore, nameCache);
+            });
         }
 
-        passedCandidates.sort((a, b) -> Double.compare(b.finalScore, a.finalScore));
-        List<Candidate> selected = passedCandidates.stream().limit(topN).toList();
+        try {
+            for (int i = 0; i < submitted; i++) {
+                ensureNotInterrupted();
+                Candidate c;
+                try {
+                    c = cs.take().get();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("任务被取消（线程中断）", e);
+                } catch (ExecutionException e) {
+                    c = null;
+                }
+                processedCount++;
+                if (c == null) {
+                    failedCount++;
+                    if (progressiveResultId != null) {
+                        progressiveResultWriter.updateProgress(
+                                progressiveResultId,
+                                targetsSize(pairs),
+                                processedCount,
+                                scoredCount,
+                                failedCount,
+                                ""
+                        );
+                    }
+                    continue;
+                }
+                scoredCount++;
+                String stockKey = c.stockCode + "|" + c.exchangeType;
+                candidates.add(c);
+                if (progressiveResultId != null) {
+                    progressiveResultWriter.updateProgress(
+                            progressiveResultId,
+                            targetsSize(pairs),
+                            processedCount,
+                            scoredCount,
+                            failedCount,
+                            stockKey
+                    );
+                }
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
+        candidates.sort((a, b) -> Double.compare(b.finalScore, a.finalScore));
+        List<Candidate> selected = candidates.stream().limit(topN).toList();
 
         String finalResultId = progressiveResultId != null
                 ? progressiveResultId
                 : ensureResultSkeleton(
                 null,
                 tradeDate,
-                lookbackDays,
+                effectiveLookbackDays,
+                fullHistory,
+                lookbackDaysRequested,
+                rangeStart,
                 topN,
                 minAvgAmount,
                 minTrendScore,
                 templateId,
                 factorVersion,
+                bulkFetch,
                 false
         );
-        if (progressiveResultId == null) {
+        List<SelectorResultItem> topItems = new ArrayList<>(selected.size());
+        int rk = 1;
+        for (Candidate c : selected) {
+            topItems.add(toItem(finalResultId, rk++, c));
+        }
+        if (progressiveResultId != null) {
+            progressiveResultWriter.replaceResultItems(finalResultId, topItems);
+        } else {
             selectorResultItemRepository.deleteByResultId(finalResultId);
-            int rank = 1;
-            for (Candidate c : selected) {
-                SelectorResultItem item = toItem(finalResultId, rank++, c);
+            for (SelectorResultItem item : topItems) {
                 selectorResultItemRepository.save(item);
             }
         }
         int totalTargets = targetsSize(pairs);
         int finalScoredCount = scoredCount;
-        selectorResultRepository.findByResultId(finalResultId).ifPresent(r -> {
-            r.setRunStatus("SUCCESS");
-            r.setTotalCandidates(totalTargets);
-            r.setProcessedCandidates(totalTargets);
-            r.setSuccessCandidates(finalScoredCount);
-            r.setFailedCandidates(Math.max(0, totalTargets - finalScoredCount));
-            selectorResultRepository.save(r);
-        });
+        progressiveResultWriter.finishResult(
+                finalResultId,
+                "SUCCESS",
+                totalTargets,
+                totalTargets,
+                finalScoredCount,
+                Math.max(0, totalTargets - finalScoredCount)
+        );
         return getResultById(finalResultId);
     }
 
@@ -264,37 +340,64 @@ public class StockSelectorService {
         return true;
     }
 
-    private Map<String, Object> buildFactorSnapshot(double minAvgAmount, double minTrendScore) {
+    private Map<String, Object> buildFactorSnapshot(
+            double minAvgAmount,
+            double minTrendScore,
+            boolean fullHistory,
+            int lookbackDaysRequested,
+            LocalDate rangeStart,
+            boolean bulkFetch
+    ) {
         Map<String, Object> weights = Map.of(
                 "trend", 0.4,
                 "momentum", 0.25,
                 "volume", 0.2,
                 "risk", -0.15
         );
-        Map<String, Object> thresholds = Map.of(
-                "min_avg_amount", minAvgAmount,
-                "min_trend_score", minTrendScore,
-                "must_ma20_gt_ma60", true
-        );
+        Map<String, Object> thresholds = new LinkedHashMap<>();
+        thresholds.put("min_avg_amount", minAvgAmount);
+        thresholds.put("min_trend_score", minTrendScore);
+        thresholds.put("must_ma20_gt_ma60", true);
+        thresholds.put("full_history", fullHistory);
+        thresholds.put("lookback_days_requested", lookbackDaysRequested);
+        thresholds.put("range_start", rangeStart != null ? rangeStart.toString() : "");
+        thresholds.put("bulk_fetch", bulkFetch);
+        thresholds.put("ranking", "all_stocks_by_final_score_then_top_n");
         return Map.of("weights", weights, "thresholds", thresholds);
+    }
+
+    private static int capCalendarDays(LocalDate start, LocalDate end) {
+        if (start == null || end == null) return 0;
+        long d = ChronoUnit.DAYS.between(start, end);
+        if (d < 0) {
+            d = 0;
+        }
+        if (d > Integer.MAX_VALUE - 2) {
+            return Integer.MAX_VALUE - 2;
+        }
+        return (int) d;
     }
 
     private String ensureResultSkeleton(
             String resultId,
             LocalDate tradeDate,
-            int lookbackDays,
+            int effectiveLookbackDays,
+            boolean fullHistory,
+            int lookbackDaysRequested,
+            LocalDate rangeStart,
             int topN,
             double minAvgAmount,
             double minTrendScore,
             String templateId,
             String factorVersion,
+            boolean bulkFetch,
             boolean resumeMode
     ) {
         String rid = (resultId != null && !resultId.isBlank()) ? resultId : genResultId();
         SelectorResult result = selectorResultRepository.findByResultId(rid).orElse(new SelectorResult());
         result.setResultId(rid);
         result.setTradeDate(tradeDate);
-        result.setLookbackDays(lookbackDays);
+        result.setLookbackDays(effectiveLookbackDays);
         result.setTopN(topN);
         result.setMinAvgAmount(minAvgAmount);
         result.setMinTrendScore(minTrendScore);
@@ -307,11 +410,12 @@ public class StockSelectorService {
         result.setSuccessCandidates(0);
         result.setFailedCandidates(0);
         result.setLastProcessedKey("");
-        result.setFactorSnapshot(buildFactorSnapshot(minAvgAmount, minTrendScore));
-        selectorResultRepository.save(result);
-        if (result.getId() != null && resultId != null && !resultId.isBlank() && !resumeMode) {
-            selectorResultItemRepository.deleteByResultId(rid);
-        }
+        result.setFactorSnapshot(buildFactorSnapshot(minAvgAmount, minTrendScore, fullHistory, lookbackDaysRequested, rangeStart, bulkFetch));
+        progressiveResultWriter.upsertRunningResult(
+                rid,
+                result,
+                resultId != null && !resultId.isBlank() && !resumeMode
+        );
         return rid;
     }
 
@@ -411,10 +515,6 @@ public class StockSelectorService {
         c.passMaTrend = passMaTrend;
         c.passRet20 = passRet20;
         return c;
-    }
-
-    private boolean isCandidatePassed(Candidate c) {
-        return c != null && c.passMinAvgAmount && c.passMinTrendScore && c.passMaTrend && c.passRet20;
     }
 
     private String getStockName(String stockCode, String exchangeType) {

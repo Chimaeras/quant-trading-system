@@ -10,18 +10,20 @@ import com.quant.repository.SelectorResultItemRepository;
 import com.quant.repository.SelectorResultRepository;
 import com.quant.repository.SelectorTemplateRepository;
 import com.quant.repository.StockInfoRepository;
+import com.quant.service.scoring.ProgressiveResultWriter;
 import com.quant.service.scoring.ScoringConstants;
 import com.quant.service.scoring.ScoringRules;
 import com.quant.service.scoring.ScoringUtils;
 import com.quant.service.scoring.TechnicalIndicators;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.time.temporal.IsoFields;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.*;
 
 /**
  * 超跌反弹打分服务
@@ -38,26 +40,30 @@ public class OversoldReboundScoringService {
     private final SelectorResultRepository selectorResultRepository;
     private final SelectorResultItemRepository selectorResultItemRepository;
     private final SelectorTemplateRepository selectorTemplateRepository;
+    private final ProgressiveResultWriter progressiveResultWriter;
 
     /**
      * 计算超跌反弹打分
      */
-    @Transactional
     public Map<String, Object> run(Map<String, Object> request) {
         Map<String, Object> req = mergeTemplate(request != null ? request : Map.of());
 
         LocalDate reqDate = ScoringUtils.parseDate(req.get("tradeDate"), LocalDate.now());
         LocalDate tradeDate = marketDataRepository.findLatestTradeDateOnOrBefore(reqDate).orElse(reqDate);
 
-        int topN = ScoringUtils.parseInt(req.get("topN"), 50, 1, 300);
+        int topN = ScoringUtils.parseInt(req.get("topN"), 50, 1, 500);
         double minTotalScore = ScoringUtils.parseDouble(req.get("minTotalScore"), 60, 0, 100);
         boolean excludeST = ScoringUtils.parseBool(req.get("excludeST"), true);
         boolean persist = ScoringUtils.parseBool(req.get("persist"), true);
         boolean progressivePersist = ScoringUtils.parseBool(req.get("progressivePersist"), false);
         String fixedResultId = ScoringUtils.parseString(req.get("resultId"), "");
         boolean resumeMode = ScoringUtils.parseBool(req.get("resumeMode"), false);
+        boolean bulkFetch = ScoringUtils.parseBool(req.get("bulkFetch"), true);
+        int threads = ScoringUtils.parseInt(req.get("threads"),
+                Math.max(1, Runtime.getRuntime().availableProcessors()), 1, 64);
 
-        LocalDate rangeStart = tradeDate.minusDays(520);
+        LocalDate rangeStart = marketDataRepository.findMinTradeDate().orElse(tradeDate.minusDays(520));
+        int effectiveLookbackDays = capCalendarDays(rangeStart, tradeDate);
         List<Object[]> pairs = marketDataRepository.findDistinctStockPairsInRange(rangeStart, tradeDate);
         String targetStockCode = ScoringUtils.parseString(req.get("stockCode"), "");
         String targetExchangeType = ScoringUtils.parseString(req.get("exchangeType"), "");
@@ -87,49 +93,113 @@ public class OversoldReboundScoringService {
             return empty;
         }
 
+        Map<String, List<MarketData>> bulkByKey = null;
+        if (bulkFetch && !pairs.isEmpty()) {
+            List<MarketData> allBars = marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(rangeStart, tradeDate);
+            bulkByKey = new HashMap<>(Math.max(16, pairs.size() * 2));
+            for (MarketData m : allBars) {
+                if (m.getStockCode() == null || m.getExchangeType() == null) continue;
+                bulkByKey.computeIfAbsent(m.getStockCode() + "|" + m.getExchangeType(), k -> new ArrayList<>()).add(m);
+            }
+        }
+
         Map<String, String> nameCache = new HashMap<>();
-        List<ScoreResult> passed = new ArrayList<>();
+        List<ScoreResult> allScored = new ArrayList<>();
         int scanned = 0;
         int scored = 0;
         String progressiveResultId = null;
-        int progressiveRank = 1;
-        Set<String> existingStockKeys = new HashSet<>();
         if (persist && progressivePersist) {
-            progressiveResultId = ensureResultSkeleton(fixedResultId, tradeDate, req, topN, resumeMode);
-            if (resumeMode && ScoringUtils.isNotEmpty(progressiveResultId)) {
-                existingStockKeys = selectorResultItemRepository.findStockKeysByResultId(progressiveResultId);
-                progressiveRank = existingStockKeys.size() + 1;
-            }
+            progressiveResultId = ensureResultSkeleton(fixedResultId, tradeDate, req, topN, resumeMode, effectiveLookbackDays);
         }
 
+        int failed = 0;
+        ExecutorService pool = Executors.newFixedThreadPool(threads, runnable -> {
+            Thread t = new Thread(runnable);
+            t.setName("oversold-score-" + t.getId());
+            t.setDaemon(true);
+            return t;
+        });
+        CompletionService<ScoreResult> cs = new ExecutorCompletionService<>(pool);
+        final Map<String, List<MarketData>> bulkRef = bulkByKey;
+        int submitted = 0;
         for (Object[] pair : pairs) {
-            ScoringUtils.checkInterrupted();
             if (pair == null || pair.length < 2) continue;
             String stockCode = String.valueOf(pair[0]);
             String exchangeType = String.valueOf(pair[1]);
-            scanned++;
-
-            List<MarketData> bars = marketDataRepository
-                    .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(stockCode, exchangeType, rangeStart, tradeDate);
-            ScoreResult r = scoreOne(stockCode, exchangeType, tradeDate, bars, nameCache, excludeST);
-            if (r == null) continue;
-            scored++;
-            if (resumeMode && existingStockKeys.contains(r.stockCode + "|" + r.exchangeType)) continue;
-
-            if (progressiveResultId != null) {
-                selectorResultItemRepository.save(toItem(progressiveResultId, progressiveRank++, r));
-            }
-            if (r.totalScore >= minTotalScore && r.trendScore40 > 25 && r.volumeScore30 > 15 && r.oversoldScore30 > 15) {
-                passed.add(r);
-            }
+            submitted++;
+            cs.submit(() -> {
+                ScoringUtils.checkInterrupted();
+                List<MarketData> bars;
+                if (bulkRef != null) {
+                    bars = bulkRef.getOrDefault(stockCode + "|" + exchangeType, List.of());
+                } else {
+                    bars = marketDataRepository
+                            .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(stockCode, exchangeType, rangeStart, tradeDate);
+                }
+                return scoreOne(stockCode, exchangeType, tradeDate, bars, nameCache, excludeST);
+            });
         }
 
-        passed.sort((a, b) -> Double.compare(b.totalScore, a.totalScore));
-        List<ScoreResult> top = passed.stream().limit(topN).toList();
+        try {
+            for (int i = 0; i < submitted; i++) {
+                ScoringUtils.checkInterrupted();
+                ScoreResult r;
+                try {
+                    r = cs.take().get();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("任务被取消（线程中断）", e);
+                } catch (ExecutionException e) {
+                    r = null;
+                }
+                scanned++;
+                if (r == null) {
+                    failed++;
+                    if (progressiveResultId != null) {
+                        progressiveResultWriter.updateProgress(
+                                progressiveResultId,
+                                submitted,
+                                scanned,
+                                scored,
+                                failed,
+                                ""
+                        );
+                    }
+                    continue;
+                }
+                scored++;
+                String stockKey = r.stockCode + "|" + r.exchangeType;
+                allScored.add(r);
+                if (progressiveResultId != null) {
+                    progressiveResultWriter.updateProgress(
+                            progressiveResultId,
+                            submitted,
+                            scanned,
+                            scored,
+                            failed,
+                            stockKey
+                    );
+                }
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
+        List<ScoreResult> top = pickTopN(allScored, topN, minTotalScore);
 
         String resultId = null;
         if (persist) {
-            resultId = persistResult(tradeDate, req, top, progressiveResultId, resumeMode, progressivePersist, scanned, scored);
+            resultId = persistResult(tradeDate, req, top, progressiveResultId, resumeMode, progressivePersist, scanned, scored, effectiveLookbackDays);
+        }
+        if (progressiveResultId != null) {
+            progressiveResultWriter.finishResult(
+                    progressiveResultId,
+                    "SUCCESS",
+                    scanned,
+                    scanned,
+                    scored,
+                    Math.max(0, scanned - scored)
+            );
         }
 
         List<Map<String, Object>> out = new ArrayList<>();
@@ -145,8 +215,8 @@ public class OversoldReboundScoringService {
         res.put("trade_date", tradeDate.toString());
         res.put("factor_version", FACTOR_VERSION);
         res.put("scanned", scanned);
-        res.put("passed", passed.size());
-        res.put("lookback_days", 260);
+        res.put("passed", allScored.stream().mapToInt(r -> strictQuality(r, minTotalScore) ? 1 : 0).sum());
+        res.put("lookback_days", effectiveLookbackDays);
         res.put("top_n", topN);
         res.put("min_total_score", minTotalScore);
         res.put("exclude_st", excludeST);
@@ -177,12 +247,22 @@ public class OversoldReboundScoringService {
             boolean resumeMode,
             boolean progressivePersist,
             int scanned,
-            int scored
+            int scored,
+            int effectiveLookbackDays
     ) {
-        String resultId = ensureResultSkeleton(fixedResultId, tradeDate, req, ScoringUtils.parseInt(req.get("topN"), 50, 1, 300), resumeMode);
+        int topN = ScoringUtils.parseInt(req.get("topN"), 50, 1, 500);
+        String resultId = (progressivePersist && ScoringUtils.isNotEmpty(fixedResultId))
+                ? fixedResultId
+                : ensureResultSkeleton(
+                fixedResultId,
+                tradeDate,
+                req,
+                topN,
+                resumeMode,
+                effectiveLookbackDays
+        );
         double minTotalScore = ScoringUtils.parseDouble(req.get("minTotalScore"), 60, 0, 100);
         boolean excludeST = ScoringUtils.parseBool(req.get("excludeST"), true);
-        int topN = ScoringUtils.parseInt(req.get("topN"), 50, 1, 300);
 
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("factor", FACTOR_VERSION);
@@ -192,11 +272,13 @@ public class OversoldReboundScoringService {
         snapshot.put("minOversoldScore30", 15);
         snapshot.put("excludeST", excludeST);
         snapshot.put("weights", Map.of("trend", 0.4, "volume", 0.3, "oversold", 0.3));
+        snapshot.put("effective_lookback_days", effectiveLookbackDays);
+        snapshot.put("ranking", "weighted_score_primary_then_fill_top_n");
 
         SelectorResult result = selectorResultRepository.findByResultId(resultId).orElse(new SelectorResult());
         result.setResultId(resultId);
         result.setTradeDate(tradeDate);
-        result.setLookbackDays(260);
+        result.setLookbackDays(effectiveLookbackDays);
         result.setTopN(topN);
         result.setMinAvgAmount(0.0);
         result.setMinTrendScore(25.0);
@@ -212,7 +294,14 @@ public class OversoldReboundScoringService {
         result.setFactorSnapshot(snapshot);
         selectorResultRepository.save(result);
 
-        if (!progressivePersist) {
+        if (progressivePersist) {
+            List<SelectorResultItem> items = new ArrayList<>();
+            int rank = 1;
+            for (ScoreResult r : top) {
+                items.add(toItem(resultId, rank++, r));
+            }
+            progressiveResultWriter.replaceResultItems(resultId, items);
+        } else {
             selectorResultItemRepository.deleteByResultId(resultId);
             int rank = 1;
             for (ScoreResult r : top) {
@@ -223,12 +312,19 @@ public class OversoldReboundScoringService {
         return resultId;
     }
 
-    private String ensureResultSkeleton(String fixedResultId, LocalDate tradeDate, Map<String, Object> req, int topN, boolean resumeMode) {
+    private String ensureResultSkeleton(
+            String fixedResultId,
+            LocalDate tradeDate,
+            Map<String, Object> req,
+            int topN,
+            boolean resumeMode,
+            int effectiveLookbackDays
+    ) {
         String resultId = ScoringUtils.isNotEmpty(fixedResultId) ? fixedResultId : genResultId();
         SelectorResult result = selectorResultRepository.findByResultId(resultId).orElse(new SelectorResult());
         result.setResultId(resultId);
         result.setTradeDate(tradeDate);
-        result.setLookbackDays(260);
+        result.setLookbackDays(effectiveLookbackDays);
         result.setTopN(topN);
         result.setMinAvgAmount(0.0);
         result.setMinTrendScore(25.0);
@@ -242,11 +338,68 @@ public class OversoldReboundScoringService {
         result.setFailedCandidates(0);
         result.setLastProcessedKey("");
         result.setFactorSnapshot(Map.of("factor", FACTOR_VERSION, "progressive", true));
-        selectorResultRepository.save(result);
-        if (ScoringUtils.isNotEmpty(fixedResultId) && !resumeMode) {
-            selectorResultItemRepository.deleteByResultId(resultId);
-        }
+        progressiveResultWriter.upsertRunningResult(
+                resultId,
+                result,
+                ScoringUtils.isNotEmpty(fixedResultId) && !resumeMode
+        );
         return resultId;
+    }
+
+    private static int capCalendarDays(LocalDate start, LocalDate end) {
+        if (start == null || end == null) return 0;
+        long d = ChronoUnit.DAYS.between(start, end);
+        if (d < 0) {
+            d = 0;
+        }
+        if (d > Integer.MAX_VALUE - 2) {
+            return Integer.MAX_VALUE - 2;
+        }
+        return (int) d;
+    }
+
+    private static boolean strictQuality(ScoreResult r, double minTotal) {
+        return r.totalScore >= minTotal && r.trendScore40 > 25 && r.volumeScore30 > 15 && r.oversoldScore30 > 15;
+    }
+
+    /**
+     * 先在「全市场有有效分数」的集合上按加权分排序，优先取通过质量闸的结果；不足 TopN 时用次优分补足，避免闸值过严导致返回条数过少。
+     */
+    private static List<ScoreResult> pickTopN(List<ScoreResult> allScored, int topN, double minTotalScore) {
+        if (allScored == null || allScored.isEmpty()) {
+            return List.of();
+        }
+        List<ScoreResult> sorted = new ArrayList<>(allScored);
+        sorted.sort(Comparator
+                .comparingDouble((ScoreResult r) -> r.weightedScore).reversed()
+                .thenComparingDouble(r -> r.totalScore)
+                .thenComparing(r -> r.stockCode, String.CASE_INSENSITIVE_ORDER));
+        List<ScoreResult> out = new ArrayList<>(Math.min(topN, sorted.size()));
+        Set<String> used = new HashSet<>();
+        for (ScoreResult r : sorted) {
+            if (out.size() >= topN) {
+                break;
+            }
+            if (!strictQuality(r, minTotalScore)) {
+                continue;
+            }
+            String k = r.stockCode + "|" + r.exchangeType;
+            if (used.add(k)) {
+                out.add(r);
+            }
+        }
+        for (ScoreResult r : sorted) {
+            if (out.size() >= topN) {
+                break;
+            }
+            String k = r.stockCode + "|" + r.exchangeType;
+            if (used.contains(k)) {
+                continue;
+            }
+            used.add(k);
+            out.add(r);
+        }
+        return out;
     }
 
     private SelectorResultItem toItem(String resultId, int rankNo, ScoreResult r) {

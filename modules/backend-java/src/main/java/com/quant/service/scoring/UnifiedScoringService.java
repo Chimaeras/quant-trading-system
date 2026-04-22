@@ -17,6 +17,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -170,7 +172,7 @@ public class UnifiedScoringService {
         }
         unifiedScoringTaskRepository.save(task);
 
-        scheduleTask(taskId, normalizedReq);
+        scheduleTaskAfterCommit(taskId, normalizedReq);
         long runningCount = unifiedScoringTaskRepository.countByStatus("RUNNING");
         long pendingAhead = task.getCreatedAt() != null
                 ? unifiedScoringTaskRepository.countByStatusAndCreatedAtBefore("PENDING", task.getCreatedAt())
@@ -464,7 +466,7 @@ public class UnifiedScoringService {
             }
 
             task.setProgressPct(15);
-            task.setMessage("打分计算中（按股票增量落库）");
+            task.setMessage("打分计算中（进度实时更新；经典/超跌结束后仅保留 TopN）");
             unifiedScoringTaskRepository.save(task);
 
             Map<String, Object> result = run(req);
@@ -517,6 +519,19 @@ public class UnifiedScoringService {
         }
         Future<?> future = taskExecutor.submit(() -> runTask(taskId, request));
         taskFutures.put(taskId, future);
+    }
+
+    private void scheduleTaskAfterCommit(String taskId, Map<String, Object> request) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            scheduleTask(taskId, request);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                scheduleTask(taskId, request);
+            }
+        });
     }
 
     private void ensurePendingTaskScheduled(com.quant.entity.UnifiedScoringTask task) {
@@ -638,6 +653,29 @@ public class UnifiedScoringService {
                 ? fixedResultId
                 : "US" + System.currentTimeMillis() + ThreadLocalRandom.current().nextInt(1000, 9999);
         LocalDate d = parseDate(tradeDate, LocalDate.now());
+
+        if (!fixedResultId.isBlank()
+                && (strategy == UnifiedScoringStrategy.CLASSIC_SELECTOR || strategy == UnifiedScoringStrategy.OVERSOLD_REBOUND)) {
+            com.quant.entity.SelectorResult existing = selectorResultRepository.findByResultId(resultId).orElse(null);
+            if (existing != null) {
+                existing.setRequestFingerprint(requestFingerprint);
+                Integer curLb = existing.getLookbackDays();
+                int lb = parseInt(rawResult.get("lookback_days"), curLb != null ? curLb : 0, 0, 500_000);
+                existing.setLookbackDays(lb);
+                existing.setTopN(topN);
+                Map<String, Object> snap = existing.getFactorSnapshot() != null
+                        ? new LinkedHashMap<>(existing.getFactorSnapshot())
+                        : new LinkedHashMap<>();
+                snap.put("unified_layer", Map.of(
+                        "strategy", strategy.name(),
+                        "raw_summary", extractSummary(rawResult)
+                ));
+                existing.setFactorSnapshot(snap);
+                existing.setRunStatus("SUCCESS");
+                selectorResultRepository.save(existing);
+                return resultId;
+            }
+        }
 
         com.quant.entity.SelectorResult sr = selectorResultRepository.findByResultId(resultId).orElse(new com.quant.entity.SelectorResult());
         sr.setResultId(resultId);

@@ -3,6 +3,7 @@ package com.quant;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -83,20 +84,26 @@ public class QuantBackendApplication {
             List<List<String>> npmCandidates = npmCommands();
             boolean npmOk = false;
             for (List<String> npm : npmCandidates) {
-                // npm install
-                pb.command(join(npm, List.of("install", "--prefer-offline", "--no-audit", "--no-fund")));
-                int installCode = pb.start().waitFor();
-                if (installCode != 0) continue;
-                // npm run build
-                pb.command(join(npm, List.of("run", "build")));
-                int buildCode = pb.start().waitFor();
-                if (buildCode == 0) {
-                    npmOk = true;
-                    break;
+                try {
+                    // npm install
+                    pb.command(join(npm, List.of("install", "--prefer-offline", "--no-audit", "--no-fund")));
+                    int installCode = pb.start().waitFor();
+                    if (installCode != 0) {
+                        continue;
+                    }
+                    // npm run build
+                    pb.command(join(npm, List.of("run", "build")));
+                    int buildCode = pb.start().waitFor();
+                    if (buildCode == 0) {
+                        npmOk = true;
+                        break;
+                    }
+                } catch (IOException e) {
+                    // 当前候选无法启动（例如 PATH 中无 npm.cmd），尝试下一组命令
                 }
             }
             if (!npmOk) {
-                System.err.println("[Quant] npm 不可用或构建失败（将使用已有前端资源）。若你在 Windows+IDEA 运行，请确保已安装 Node.js，并让 IDEA 进程可访问 npm。");
+                System.err.println("[Quant] npm 不可用或构建失败（将使用已有前端资源）。请安装 Node.js 并确保 npm 在 PATH 中，或设置环境变量 NODE_HOME；也可在 VM 选项加 -Dquant.skipFrontendBuild=true 并在 modules/web 下手动执行 npm run build。");
                 return;
             }
             // 复制 dist 到 target/classes/static
@@ -136,12 +143,26 @@ public class QuantBackendApplication {
         List<List<String>> out = new ArrayList<>();
         boolean isWindows = System.getProperty("os.name", "").toLowerCase().contains("win");
         if (isWindows) {
-            // 常见：npm 在 nodejs 目录下，或需通过 cmd 调用
-            out.add(List.of("npm.cmd"));
+            String nodeHome = System.getenv("NODE_HOME");
+            if (nodeHome != null && !nodeHome.isBlank()) {
+                Path npmFromHome = Path.of(nodeHome.trim(), "npm.cmd");
+                if (Files.isRegularFile(npmFromHome)) {
+                    out.add(List.of(npmFromHome.toString()));
+                }
+            }
+            String localAppData = System.getenv("LOCALAPPDATA");
+            if (localAppData != null && !localAppData.isBlank()) {
+                Path npmLocal = Path.of(localAppData, "Programs", "nodejs", "npm.cmd");
+                if (Files.isRegularFile(npmLocal)) {
+                    out.add(List.of(npmLocal.toString()));
+                }
+            }
+            // cmd 会加载用户 PATH，部分环境下比直接 exec npm.cmd 更易找到 Node
             out.add(List.of("cmd", "/c", "npm"));
             out.add(List.of("cmd", "/c", "npm.cmd"));
-            out.add(List.of("C:\\\\Program Files\\\\nodejs\\\\npm.cmd"));
-            out.add(List.of("C:\\\\Program Files (x86)\\\\nodejs\\\\npm.cmd"));
+            out.add(List.of("npm.cmd"));
+            out.add(List.of("C:\\Program Files\\nodejs\\npm.cmd"));
+            out.add(List.of("C:\\Program Files (x86)\\nodejs\\npm.cmd"));
         }
         out.add(List.of("npm"));
         return out;

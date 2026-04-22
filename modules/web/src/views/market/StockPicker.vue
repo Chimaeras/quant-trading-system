@@ -16,14 +16,17 @@
       <el-form-item label="交易日">
         <el-date-picker v-model="form.tradeDate" type="date" value-format="YYYY-MM-DD" />
       </el-form-item>
-      <el-form-item label="回看天数">
-        <el-input-number v-model="form.lookbackDays" :min="20" :max="260" :step="5" />
+      <el-form-item label="全库历史">
+        <el-switch v-model="form.fullHistory" active-text="开" inactive-text="关" />
+      </el-form-item>
+      <el-form-item v-if="!form.fullHistory" label="回看天数">
+        <el-input-number v-model="form.lookbackDays" :min="20" :max="3650" :step="5" />
       </el-form-item>
       <el-form-item label="打分池数量">
         <el-input-number v-model="form.scoreTopN" :min="10" :max="500" :step="10" />
       </el-form-item>
       <el-form-item label="最小日均成交额">
-        <el-input-number v-model="form.minAvgAmount" :min="1000000" :step="5000000" />
+        <el-input-number v-model="form.minAvgAmount" :min="0" :step="5000000" />
       </el-form-item>
       <el-form-item label="最小趋势分">
         <el-input-number v-model="form.minTrendScore" :min="0" :max="100" />
@@ -368,16 +371,17 @@ const templates = ref<Array<Record<string, unknown>>>([])
 
 const form = reactive({
   tradeDate: dayjs().format('YYYY-MM-DD'),
-  lookbackDays: 60,
-  scoreTopN: 120,
-  minAvgAmount: 30000000,
+  fullHistory: true,
+  lookbackDays: 120,
+  scoreTopN: 500,
+  minAvgAmount: 0,
   minTrendScore: 40,
   templateId: ''
 })
 
 const oversoldForm = reactive({
   tradeDate: dayjs().format('YYYY-MM-DD'),
-  scoreTopN: 150,
+  scoreTopN: 500,
   minTotalScore: 60,
   excludeST: true,
   persist: true,
@@ -675,7 +679,8 @@ async function runSelection() {
     const done = await runAndWaitTask({
       strategy: 'CLASSIC_SELECTOR',
       tradeDate: form.tradeDate,
-      lookbackDays: form.lookbackDays,
+      fullHistory: form.fullHistory,
+      lookbackDays: form.fullHistory ? undefined : form.lookbackDays,
       topN: form.scoreTopN,
       minAvgAmount: form.minAvgAmount,
       minTrendScore: form.minTrendScore,
@@ -918,6 +923,7 @@ async function saveTemplate() {
     templateId: form.templateId || undefined,
     name,
     params: {
+      fullHistory: form.fullHistory,
       lookbackDays: form.lookbackDays,
       topN: form.scoreTopN,
       minAvgAmount: form.minAvgAmount,

@@ -1,0 +1,158 @@
+package com.quant.service.scoring;
+
+import com.quant.entity.SelectorResult;
+import com.quant.entity.SelectorResultItem;
+import com.quant.repository.SelectorResultItemRepository;
+import com.quant.repository.SelectorResultRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * 增量落库写入器：使用独立事务提交进度与明细，保证前端可实时查询。
+ */
+@Component
+@Slf4j
+@RequiredArgsConstructor
+public class ProgressiveResultWriter {
+
+    private final SelectorResultRepository selectorResultRepository;
+    private final SelectorResultItemRepository selectorResultItemRepository;
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void upsertRunningResult(
+            String resultId,
+            SelectorResult seed,
+            boolean clearItems
+    ) {
+        SelectorResult result = selectorResultRepository.findByResultId(resultId).orElse(new SelectorResult());
+        result.setResultId(resultId);
+        result.setTradeDate(seed.getTradeDate());
+        result.setLookbackDays(seed.getLookbackDays());
+        result.setTopN(seed.getTopN());
+        result.setMinAvgAmount(seed.getMinAvgAmount());
+        result.setMinTrendScore(seed.getMinTrendScore());
+        result.setTemplateId(seed.getTemplateId());
+        result.setFactorVersion(seed.getFactorVersion());
+        result.setStrategyType(seed.getStrategyType());
+        result.setRunStatus("RUNNING");
+        result.setTotalCandidates(nvl(seed.getTotalCandidates(), 0));
+        result.setProcessedCandidates(nvl(seed.getProcessedCandidates(), 0));
+        result.setSuccessCandidates(nvl(seed.getSuccessCandidates(), 0));
+        result.setFailedCandidates(nvl(seed.getFailedCandidates(), 0));
+        result.setLastProcessedKey(nvl(seed.getLastProcessedKey(), ""));
+        result.setRequestFingerprint(seed.getRequestFingerprint());
+        result.setFactorSnapshot(seed.getFactorSnapshot() != null ? seed.getFactorSnapshot() : Map.of());
+        selectorResultRepository.save(result);
+        if (clearItems) {
+            selectorResultItemRepository.deleteByResultId(resultId);
+        }
+    }
+
+    /**
+     * 全量打分结束后再写入 TopN：先清空再批量写入，避免运行过程中库内出现非 Top 的噪声明细。
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void replaceResultItems(String resultId, List<SelectorResultItem> items) {
+        selectorResultItemRepository.deleteByResultId(resultId);
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+        int rank = 1;
+        for (SelectorResultItem item : items) {
+            item.setResultId(resultId);
+            item.setRankNo(rank++);
+            sanitizeNumericFields(item);
+        }
+        selectorResultItemRepository.saveAll(items);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean saveItemIfAbsent(SelectorResultItem item) {
+        sanitizeNumericFields(item);
+        Optional<SelectorResultItem> existing = selectorResultItemRepository.findByResultIdAndStockCodeAndExchangeType(
+                item.getResultId(), item.getStockCode(), item.getExchangeType()
+        );
+        if (existing.isPresent()) {
+            return false;
+        }
+        try {
+            selectorResultItemRepository.save(item);
+            return true;
+        } catch (DataIntegrityViolationException e) {
+            log.warn("Skip progressive insert resultId={} stock={}|{} cause={}",
+                    item.getResultId(), item.getStockCode(), item.getExchangeType(), e.getMessage());
+            return false;
+        }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void updateProgress(
+            String resultId,
+            int totalCandidates,
+            int processedCandidates,
+            int successCandidates,
+            int failedCandidates,
+            String lastProcessedKey
+    ) {
+        selectorResultRepository.findByResultId(resultId).ifPresent(result -> {
+            result.setRunStatus("RUNNING");
+            result.setTotalCandidates(Math.max(0, totalCandidates));
+            result.setProcessedCandidates(Math.max(0, processedCandidates));
+            result.setSuccessCandidates(Math.max(0, successCandidates));
+            result.setFailedCandidates(Math.max(0, failedCandidates));
+            result.setLastProcessedKey(nvl(lastProcessedKey, ""));
+            selectorResultRepository.save(result);
+        });
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void finishResult(
+            String resultId,
+            String runStatus,
+            int totalCandidates,
+            int processedCandidates,
+            int successCandidates,
+            int failedCandidates
+    ) {
+        selectorResultRepository.findByResultId(resultId).ifPresent(result -> {
+            result.setRunStatus(nvl(runStatus, "SUCCESS"));
+            result.setTotalCandidates(Math.max(0, totalCandidates));
+            result.setProcessedCandidates(Math.max(0, processedCandidates));
+            result.setSuccessCandidates(Math.max(0, successCandidates));
+            result.setFailedCandidates(Math.max(0, failedCandidates));
+            selectorResultRepository.save(result);
+        });
+    }
+
+    private static <T> T nvl(T value, T def) {
+        return value != null ? value : def;
+    }
+
+    private static void sanitizeNumericFields(SelectorResultItem item) {
+        item.setFinalScore(safe(item.getFinalScore()));
+        item.setTrendScore(safe(item.getTrendScore()));
+        item.setMomentumScore(safe(item.getMomentumScore()));
+        item.setVolumeScore(safe(item.getVolumeScore()));
+        item.setRiskPenalty(safe(item.getRiskPenalty()));
+        item.setRet20(safe(item.getRet20()));
+        item.setRet60(safe(item.getRet60()));
+        item.setVolatility20(safe(item.getVolatility20()));
+        item.setMaxDrawdown60(safe(item.getMaxDrawdown60()));
+        item.setAvgAmount20(safe(item.getAvgAmount20()));
+    }
+
+    private static double safe(Double value) {
+        if (value == null || value.isNaN() || value.isInfinite()) {
+            return 0d;
+        }
+        return value;
+    }
+}

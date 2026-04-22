@@ -34,6 +34,14 @@ public class UnifiedScoringTask {
     @Column(length = 32)
     private String resultId;
 
+    @Column(length = 64)
+    private String requestFingerprint;
+
+    @Column(length = 32)
+    private String resumeFromResultId;
+
+    private Boolean reusedResult = false;
+
     @Column(length = 500)
     private String message;
 

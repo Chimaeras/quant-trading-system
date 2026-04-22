@@ -55,9 +55,29 @@ public class OversoldReboundScoringService {
         boolean persist = ScoringUtils.parseBool(req.get("persist"), true);
         boolean progressivePersist = ScoringUtils.parseBool(req.get("progressivePersist"), false);
         String fixedResultId = ScoringUtils.parseString(req.get("resultId"), "");
+        boolean resumeMode = ScoringUtils.parseBool(req.get("resumeMode"), false);
 
         LocalDate rangeStart = tradeDate.minusDays(520);
         List<Object[]> pairs = marketDataRepository.findDistinctStockPairsInRange(rangeStart, tradeDate);
+        String targetStockCode = ScoringUtils.parseString(req.get("stockCode"), "");
+        String targetExchangeType = ScoringUtils.parseString(req.get("exchangeType"), "");
+        if (!targetStockCode.isBlank()) {
+            List<Object[]> exactPairs = pairs.stream()
+                    .filter(p -> p != null
+                            && p.length >= 2
+                            && targetStockCode.equalsIgnoreCase(String.valueOf(p[0]))
+                            && (targetExchangeType.isBlank() || targetExchangeType.equalsIgnoreCase(String.valueOf(p[1]))))
+                    .toList();
+            if (!exactPairs.isEmpty()) {
+                pairs = exactPairs;
+            } else {
+                pairs = pairs.stream()
+                        .filter(p -> p != null
+                                && p.length >= 2
+                                && targetStockCode.equalsIgnoreCase(String.valueOf(p[0])))
+                        .toList();
+            }
+        }
         if (pairs.isEmpty()) {
             Map<String, Object> empty = new LinkedHashMap<>();
             empty.put("message", "无可用行情数据");
@@ -70,10 +90,16 @@ public class OversoldReboundScoringService {
         Map<String, String> nameCache = new HashMap<>();
         List<ScoreResult> passed = new ArrayList<>();
         int scanned = 0;
+        int scored = 0;
         String progressiveResultId = null;
         int progressiveRank = 1;
+        Set<String> existingStockKeys = new HashSet<>();
         if (persist && progressivePersist) {
-            progressiveResultId = ensureResultSkeleton(fixedResultId, tradeDate, req, topN);
+            progressiveResultId = ensureResultSkeleton(fixedResultId, tradeDate, req, topN, resumeMode);
+            if (resumeMode && ScoringUtils.isNotEmpty(progressiveResultId)) {
+                existingStockKeys = selectorResultItemRepository.findStockKeysByResultId(progressiveResultId);
+                progressiveRank = existingStockKeys.size() + 1;
+            }
         }
 
         for (Object[] pair : pairs) {
@@ -87,12 +113,14 @@ public class OversoldReboundScoringService {
                     .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(stockCode, exchangeType, rangeStart, tradeDate);
             ScoreResult r = scoreOne(stockCode, exchangeType, tradeDate, bars, nameCache, excludeST);
             if (r == null) continue;
+            scored++;
+            if (resumeMode && existingStockKeys.contains(r.stockCode + "|" + r.exchangeType)) continue;
 
+            if (progressiveResultId != null) {
+                selectorResultItemRepository.save(toItem(progressiveResultId, progressiveRank++, r));
+            }
             if (r.totalScore >= minTotalScore && r.trendScore40 > 25 && r.volumeScore30 > 15 && r.oversoldScore30 > 15) {
                 passed.add(r);
-                if (progressiveResultId != null) {
-                    selectorResultItemRepository.save(toItem(progressiveResultId, progressiveRank++, r));
-                }
             }
         }
 
@@ -101,7 +129,7 @@ public class OversoldReboundScoringService {
 
         String resultId = null;
         if (persist) {
-            resultId = persistResult(tradeDate, req, top, progressiveResultId);
+            resultId = persistResult(tradeDate, req, top, progressiveResultId, resumeMode, progressivePersist, scanned, scored);
         }
 
         List<Map<String, Object>> out = new ArrayList<>();
@@ -141,8 +169,17 @@ public class OversoldReboundScoringService {
         return merged;
     }
 
-    private String persistResult(LocalDate tradeDate, Map<String, Object> req, List<ScoreResult> top, String fixedResultId) {
-        String resultId = ensureResultSkeleton(fixedResultId, tradeDate, req, ScoringUtils.parseInt(req.get("topN"), 50, 1, 300));
+    private String persistResult(
+            LocalDate tradeDate,
+            Map<String, Object> req,
+            List<ScoreResult> top,
+            String fixedResultId,
+            boolean resumeMode,
+            boolean progressivePersist,
+            int scanned,
+            int scored
+    ) {
+        String resultId = ensureResultSkeleton(fixedResultId, tradeDate, req, ScoringUtils.parseInt(req.get("topN"), 50, 1, 300), resumeMode);
         double minTotalScore = ScoringUtils.parseDouble(req.get("minTotalScore"), 60, 0, 100);
         boolean excludeST = ScoringUtils.parseBool(req.get("excludeST"), true);
         int topN = ScoringUtils.parseInt(req.get("topN"), 50, 1, 300);
@@ -166,19 +203,27 @@ public class OversoldReboundScoringService {
         result.setTemplateId(ScoringUtils.parseString(req.get("templateId"), "").isEmpty() ? null : ScoringUtils.parseString(req.get("templateId"), ""));
         result.setFactorVersion(FACTOR_VERSION);
         result.setStrategyType("OVERSOLD_REBOUND");
+        result.setRunStatus("SUCCESS");
+        result.setTotalCandidates(scanned);
+        result.setProcessedCandidates(scanned);
+        result.setSuccessCandidates(scored);
+        result.setFailedCandidates(Math.max(0, scanned - scored));
+        result.setLastProcessedKey("");
         result.setFactorSnapshot(snapshot);
         selectorResultRepository.save(result);
 
-        selectorResultItemRepository.deleteByResultId(resultId);
-        int rank = 1;
-        for (ScoreResult r : top) {
-            SelectorResultItem item = toItem(resultId, rank++, r);
-            selectorResultItemRepository.save(item);
+        if (!progressivePersist) {
+            selectorResultItemRepository.deleteByResultId(resultId);
+            int rank = 1;
+            for (ScoreResult r : top) {
+                SelectorResultItem item = toItem(resultId, rank++, r);
+                selectorResultItemRepository.save(item);
+            }
         }
         return resultId;
     }
 
-    private String ensureResultSkeleton(String fixedResultId, LocalDate tradeDate, Map<String, Object> req, int topN) {
+    private String ensureResultSkeleton(String fixedResultId, LocalDate tradeDate, Map<String, Object> req, int topN, boolean resumeMode) {
         String resultId = ScoringUtils.isNotEmpty(fixedResultId) ? fixedResultId : genResultId();
         SelectorResult result = selectorResultRepository.findByResultId(resultId).orElse(new SelectorResult());
         result.setResultId(resultId);
@@ -190,9 +235,15 @@ public class OversoldReboundScoringService {
         result.setTemplateId(ScoringUtils.parseString(req.get("templateId"), "").isEmpty() ? null : ScoringUtils.parseString(req.get("templateId"), ""));
         result.setFactorVersion(FACTOR_VERSION);
         result.setStrategyType("OVERSOLD_REBOUND");
+        result.setRunStatus("RUNNING");
+        result.setTotalCandidates(0);
+        result.setProcessedCandidates(0);
+        result.setSuccessCandidates(0);
+        result.setFailedCandidates(0);
+        result.setLastProcessedKey("");
         result.setFactorSnapshot(Map.of("factor", FACTOR_VERSION, "progressive", true));
         selectorResultRepository.save(result);
-        if (ScoringUtils.isNotEmpty(fixedResultId)) {
+        if (ScoringUtils.isNotEmpty(fixedResultId) && !resumeMode) {
             selectorResultItemRepository.deleteByResultId(resultId);
         }
         return resultId;

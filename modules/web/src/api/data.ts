@@ -159,6 +159,11 @@ export const dataApi = {
     return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>)
   },
 
+  async stopUpdateTask(taskId: string) {
+    const res = await request.post<{ data: Record<string, unknown> }>(`/data/update/tasks/${taskId}/stop`)
+    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>)
+  },
+
   /** 更新股票列表 */
   async updateStockList(): Promise<{ success: boolean; count: number }> {
     const db = await getDB()

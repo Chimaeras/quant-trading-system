@@ -11,7 +11,14 @@ import java.util.Map;
 
 @Data
 @Entity
-@Table(name = "selector_result")
+@Table(
+        name = "selector_result",
+        indexes = {
+                @Index(name = "idx_selector_result_strategy_trade", columnList = "strategyType,tradeDate"),
+                @Index(name = "idx_selector_result_fingerprint", columnList = "requestFingerprint"),
+                @Index(name = "idx_selector_result_run_status", columnList = "runStatus")
+        }
+)
 public class SelectorResult {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -44,6 +51,30 @@ public class SelectorResult {
     /** 统一入口策略类型（TREND/COMPREHENSIVE/MULTI_DIM/CLASSIC_SELECTOR/OVERSOLD_REBOUND/GEOPOLICY_NEWS） */
     @Column(length = 32)
     private String strategyType;
+
+    /** 参数指纹：用于同参复用/断点续跑。 */
+    @Column(length = 64)
+    private String requestFingerprint;
+
+    /** 执行状态：RUNNING/SUCCESS/PARTIAL/FAILED/CANCELLED。 */
+    @Column(length = 20)
+    private String runStatus = "RUNNING";
+
+    /** 候选总数。 */
+    private Integer totalCandidates = 0;
+
+    /** 已处理数。 */
+    private Integer processedCandidates = 0;
+
+    /** 成功数。 */
+    private Integer successCandidates = 0;
+
+    /** 失败数。 */
+    private Integer failedCandidates = 0;
+
+    /** 最近处理游标（可选），用于排障。 */
+    @Column(length = 64)
+    private String lastProcessedKey;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json")

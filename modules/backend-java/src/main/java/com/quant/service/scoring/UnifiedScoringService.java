@@ -20,7 +20,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,6 +46,7 @@ import java.util.Set;
 public class UnifiedScoringService {
 
     private static final int MAX_ITEMS = 500;
+    private static final Set<String> RESULT_RESUMABLE_STATUSES = Set.of("RUNNING", "PARTIAL", "FAILED", "CANCELLED");
 
     private final StockTrendScoringService trendScoringService;
     private final ComprehensiveScoringService comprehensiveScoringService;
@@ -97,7 +102,54 @@ public class UnifiedScoringService {
     public Map<String, Object> createTask(Map<String, Object> request) {
         Map<String, Object> req = request != null ? request : Map.of();
         UnifiedScoringStrategy strategy = UnifiedScoringStrategy.parse(String.valueOf(req.getOrDefault("strategy", "CLASSIC_SELECTOR")));
+        Map<String, Object> normalizedReq = normalizeRequestForFingerprint(req, strategy);
+        String requestFingerprint = buildFingerprint(strategy.name(), normalizedReq);
         String taskId = "USK" + System.currentTimeMillis() + ThreadLocalRandom.current().nextInt(1000, 9999);
+
+        com.quant.entity.SelectorResult successfulResult = selectorResultRepository
+                .findFirstByStrategyTypeAndRequestFingerprintAndRunStatusInOrderByCreatedAtDesc(
+                        strategy.name(), requestFingerprint, List.of("SUCCESS")
+                ).orElse(null);
+        if (successfulResult != null) {
+            long doneItems = selectorResultItemRepository.countByResultId(successfulResult.getResultId());
+            if (doneItems > 0) {
+                com.quant.entity.UnifiedScoringTask fastTask = new com.quant.entity.UnifiedScoringTask();
+                fastTask.setTaskId(taskId);
+                fastTask.setStrategy(strategy.name());
+                fastTask.setStatus("SUCCESS");
+                fastTask.setProgressPct(100);
+                fastTask.setResultId(successfulResult.getResultId());
+                fastTask.setReturnedItems((int) doneItems);
+                fastTask.setTotalItems((int) doneItems);
+                fastTask.setRequestFingerprint(requestFingerprint);
+                fastTask.setReusedResult(true);
+                fastTask.setResumeFromResultId(successfulResult.getResultId());
+                fastTask.setStartedAt(LocalDateTime.now());
+                fastTask.setFinishedAt(LocalDateTime.now());
+                fastTask.setMessage("命中同参历史结果，直接复用");
+                try {
+                    fastTask.setRequestJson(objectMapper.writeValueAsString(normalizedReq));
+                } catch (Exception e) {
+                    fastTask.setRequestJson("{}");
+                }
+                unifiedScoringTaskRepository.save(fastTask);
+
+                return new LinkedHashMap<>(Map.of(
+                        "task_id", taskId,
+                        "strategy", strategy.name(),
+                        "status", "SUCCESS",
+                        "progress_pct", 100,
+                        "message", "命中同参历史结果，直接复用",
+                        "reused_result", true,
+                        "result_id", successfulResult.getResultId()
+                ));
+            }
+        }
+
+        com.quant.entity.SelectorResult resumableResult = selectorResultRepository
+                .findFirstByStrategyTypeAndRequestFingerprintAndRunStatusInOrderByCreatedAtDesc(
+                        strategy.name(), requestFingerprint, RESULT_RESUMABLE_STATUSES
+                ).orElse(null);
 
         com.quant.entity.UnifiedScoringTask task = new com.quant.entity.UnifiedScoringTask();
         task.setTaskId(taskId);
@@ -105,14 +157,20 @@ public class UnifiedScoringService {
         task.setStatus("PENDING");
         task.setProgressPct(0);
         task.setMessage("任务已创建，等待执行");
+        task.setRequestFingerprint(requestFingerprint);
+        if (resumableResult != null) {
+            task.setResumeFromResultId(resumableResult.getResultId());
+            task.setResultId(resumableResult.getResultId());
+            task.setMessage("命中同参历史任务，准备断点续跑");
+        }
         try {
-            task.setRequestJson(objectMapper.writeValueAsString(req));
+            task.setRequestJson(objectMapper.writeValueAsString(normalizedReq));
         } catch (Exception e) {
             task.setRequestJson("{}");
         }
         unifiedScoringTaskRepository.save(task);
 
-        scheduleTask(taskId, req);
+        scheduleTask(taskId, normalizedReq);
         long runningCount = unifiedScoringTaskRepository.countByStatus("RUNNING");
         long pendingAhead = task.getCreatedAt() != null
                 ? unifiedScoringTaskRepository.countByStatusAndCreatedAtBefore("PENDING", task.getCreatedAt())
@@ -131,6 +189,9 @@ public class UnifiedScoringService {
         out.put("message", queueMessage);
         out.put("pending_ahead", pendingAhead);
         out.put("running_count", runningCount);
+        out.put("request_fingerprint", requestFingerprint);
+        out.put("resume_result_id", resumableResult != null ? resumableResult.getResultId() : "");
+        out.put("reused_result", false);
         return out;
     }
 
@@ -171,6 +232,18 @@ public class UnifiedScoringService {
                 ? unifiedScoringTaskRepository.countByStatusAndCreatedAtBefore("PENDING", task.getCreatedAt())
                 : 0L);
         out.put("running_count", unifiedScoringTaskRepository.countByStatus("RUNNING"));
+        out.put("request_fingerprint", nvl(task.getRequestFingerprint(), ""));
+        out.put("resume_from_result_id", nvl(task.getResumeFromResultId(), ""));
+        out.put("reused_result", Boolean.TRUE.equals(task.getReusedResult()));
+        if (task.getResultId() != null && !task.getResultId().isBlank()) {
+            selectorResultRepository.findByResultId(task.getResultId()).ifPresent(r -> {
+                out.put("processed_candidates", nvl(r.getProcessedCandidates(), 0));
+                out.put("total_candidates", nvl(r.getTotalCandidates(), 0));
+                out.put("success_candidates", nvl(r.getSuccessCandidates(), 0));
+                out.put("failed_candidates", nvl(r.getFailedCandidates(), 0));
+                out.put("result_run_status", nvl(r.getRunStatus(), ""));
+            });
+        }
         return out;
     }
 
@@ -320,6 +393,13 @@ public class UnifiedScoringService {
         out.put("template_id", result.getTemplateId());
         out.put("created_at", result.getCreatedAt() != null ? result.getCreatedAt().toString() : "");
         out.put("factor_snapshot", result.getFactorSnapshot() != null ? result.getFactorSnapshot() : Map.of());
+        out.put("run_status", nvl(result.getRunStatus(), ""));
+        out.put("request_fingerprint", nvl(result.getRequestFingerprint(), ""));
+        out.put("processed_candidates", nvl(result.getProcessedCandidates(), 0));
+        out.put("total_candidates", nvl(result.getTotalCandidates(), 0));
+        out.put("success_candidates", nvl(result.getSuccessCandidates(), 0));
+        out.put("failed_candidates", nvl(result.getFailedCandidates(), 0));
+        out.put("last_processed_key", nvl(result.getLastProcessedKey(), ""));
         out.put("list", list);
         out.put("items", list);
         out.put("total", pg.getTotalElements());
@@ -364,17 +444,27 @@ public class UnifiedScoringService {
             }
             boolean persist = parseBool(req.get("persist"), true);
             UnifiedScoringStrategy strategy = UnifiedScoringStrategy.parse(String.valueOf(req.getOrDefault("strategy", task.getStrategy())));
-            if (persist && supportsProgressive(strategy)) {
-                String liveResultId = "USL" + System.currentTimeMillis() + ThreadLocalRandom.current().nextInt(1000, 9999);
+            String resumeResultId = task.getResumeFromResultId() != null ? task.getResumeFromResultId().trim() : "";
+            if (persist) {
+                String liveResultId = !resumeResultId.isBlank()
+                        ? resumeResultId
+                        : "USL" + System.currentTimeMillis() + ThreadLocalRandom.current().nextInt(1000, 9999);
                 req.put("resultId", liveResultId);
-                req.put("progressivePersist", true);
+                if (supportsProgressive(strategy)) {
+                    req.put("progressivePersist", true);
+                }
+                if (!resumeResultId.isBlank()) {
+                    req.put("resumeMode", true);
+                }
                 task.setResultId(liveResultId);
-                task.setMessage("任务执行中，结果将持续写入，可实时查看已完成部分");
+                task.setMessage(!resumeResultId.isBlank()
+                        ? "命中同参历史结果，正在断点续跑"
+                        : "任务执行中，结果将持续写入，可实时查看已完成部分");
                 unifiedScoringTaskRepository.save(task);
             }
 
             task.setProgressPct(15);
-            task.setMessage("打分计算中（该阶段耗时可能较长）");
+            task.setMessage("打分计算中（按股票增量落库）");
             unifiedScoringTaskRepository.save(task);
 
             Map<String, Object> result = run(req);
@@ -384,6 +474,9 @@ public class UnifiedScoringService {
             task.setResultId(String.valueOf(result.getOrDefault("result_id", "")));
             task.setTotalItems(parseInt(result.get("total_items"), 0, 0, Integer.MAX_VALUE));
             task.setReturnedItems(parseInt(result.get("returned_items"), 0, 0, Integer.MAX_VALUE));
+            if (task.getResumeFromResultId() != null && !task.getResumeFromResultId().isBlank()) {
+                task.setMessage("断点续跑完成");
+            }
             unifiedScoringTaskRepository.save(task);
 
             task.setStatus("SUCCESS");
@@ -539,10 +632,14 @@ public class UnifiedScoringService {
             Map<String, Object> rawResult,
             List<Map<String, Object>> items) {
 
-        String resultId = "US" + System.currentTimeMillis() + ThreadLocalRandom.current().nextInt(1000, 9999);
+        String fixedResultId = String.valueOf(strategyReq.getOrDefault("resultId", "")).trim();
+        String requestFingerprint = buildFingerprint(strategy.name(), normalizeRequestForFingerprint(strategyReq, strategy));
+        String resultId = !fixedResultId.isBlank()
+                ? fixedResultId
+                : "US" + System.currentTimeMillis() + ThreadLocalRandom.current().nextInt(1000, 9999);
         LocalDate d = parseDate(tradeDate, LocalDate.now());
 
-        com.quant.entity.SelectorResult sr = new com.quant.entity.SelectorResult();
+        com.quant.entity.SelectorResult sr = selectorResultRepository.findByResultId(resultId).orElse(new com.quant.entity.SelectorResult());
         sr.setResultId(resultId);
         sr.setTradeDate(d);
         sr.setLookbackDays(parseInt(strategyReq.get("lookbackDays"), 60, 1, 5000));
@@ -553,6 +650,13 @@ public class UnifiedScoringService {
                 ? null : String.valueOf(strategyReq.get("templateId")).trim());
         sr.setFactorVersion(factorVersion);
         sr.setStrategyType(strategy.name());
+        sr.setRequestFingerprint(requestFingerprint);
+        sr.setRunStatus("RUNNING");
+        sr.setTotalCandidates(Math.max(items.size(), parseInt(rawResult.get("scanned"), items.size(), 0, Integer.MAX_VALUE)));
+        sr.setProcessedCandidates(0);
+        sr.setSuccessCandidates(0);
+        sr.setFailedCandidates(0);
+        sr.setLastProcessedKey("");
 
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("entry", "unified_scoring");
@@ -562,11 +666,31 @@ public class UnifiedScoringService {
         sr.setFactorSnapshot(snapshot);
         selectorResultRepository.save(sr);
 
-        selectorResultItemRepository.deleteByResultId(resultId);
-        int rank = 1;
+        Set<String> existing = selectorResultItemRepository.findStockKeysByResultId(resultId);
+        int rank = selectorResultItemRepository.findByResultIdOrderByRankNoAsc(resultId).size() + 1;
+        int processed = 0;
+        int success = 0;
         for (Map<String, Object> item : items) {
+            String stockCode = str(item, "stock_code", "code");
+            String exchangeType = str(item, "exchange_type", "exchange", "market");
+            String stockKey = stockCode + "|" + exchangeType;
+            processed++;
+            if (existing.contains(stockKey)) {
+                continue;
+            }
             selectorResultItemRepository.save(toUnifiedItem(resultId, rank++, strategy, item));
+            success++;
+            sr.setProcessedCandidates(processed);
+            sr.setSuccessCandidates(success);
+            sr.setFailedCandidates(Math.max(0, processed - success));
+            sr.setLastProcessedKey(stockKey);
+            selectorResultRepository.save(sr);
         }
+        sr.setProcessedCandidates(processed);
+        sr.setSuccessCandidates(success);
+        sr.setFailedCandidates(Math.max(0, processed - success));
+        sr.setRunStatus("SUCCESS");
+        selectorResultRepository.save(sr);
         return resultId;
     }
 
@@ -820,6 +944,60 @@ public class UnifiedScoringService {
 
     private static <T> T nvl(T v, T def) {
         return v != null ? v : def;
+    }
+
+    private String buildFingerprint(String strategy, Map<String, Object> normalizedReq) {
+        try {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("strategy", strategy);
+            payload.put("request", normalizedReq);
+            String json = objectMapper.writeValueAsString(payload);
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(json.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : hash) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.substring(0, 32);
+        } catch (Exception e) {
+            return strategy + "_" + Math.abs(normalizedReq.hashCode());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> normalizeRequestForFingerprint(Map<String, Object> req, UnifiedScoringStrategy strategy) {
+        Map<String, Object> copy = new LinkedHashMap<>(req != null ? req : Map.of());
+        copy.remove("persist");
+        copy.remove("resultId");
+        copy.remove("progressivePersist");
+        copy.remove("requestFingerprint");
+        copy.put("strategy", strategy.name());
+        return (Map<String, Object>) normalizeObject(copy);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object normalizeObject(Object value) {
+        if (value == null) return null;
+        if (value instanceof Map<?, ?> m) {
+            List<String> keys = new ArrayList<>();
+            for (Object k : m.keySet()) {
+                if (k != null) keys.add(String.valueOf(k));
+            }
+            Collections.sort(keys);
+            Map<String, Object> sorted = new LinkedHashMap<>();
+            for (String k : keys) {
+                sorted.put(k, normalizeObject(((Map<String, Object>) m).get(k)));
+            }
+            return sorted;
+        }
+        if (value instanceof Collection<?> c) {
+            List<Object> out = new ArrayList<>();
+            for (Object o : c) out.add(normalizeObject(o));
+            out.sort((a, b) -> String.valueOf(a).compareTo(String.valueOf(b)));
+            return out;
+        }
+        String text = String.valueOf(value).trim();
+        return text;
     }
 
     private Map<String, Object> emptyQuery(String strategyName, int page, int size) {

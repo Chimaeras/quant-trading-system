@@ -9,7 +9,19 @@ import java.util.Map;
 
 @Data
 @Entity
-@Table(name = "selector_result_item")
+@Table(
+        name = "selector_result_item",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_selector_result_item_result_stock",
+                        columnNames = {"resultId", "stockCode", "exchangeType"}
+                )
+        },
+        indexes = {
+                @Index(name = "idx_selector_result_item_result_rank", columnList = "resultId,rankNo"),
+                @Index(name = "idx_selector_result_item_result_stock", columnList = "resultId,stockCode,exchangeType")
+        }
+)
 public class SelectorResultItem {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

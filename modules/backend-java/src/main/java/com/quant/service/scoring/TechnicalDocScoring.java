@@ -60,7 +60,7 @@ public final class TechnicalDocScoring {
 
         double rsi = TechnicalIndicators.rsiAt(close, L, ScoringConstants.RSI_PERIOD);
         String rsiStatus = TechnicalIndicators.classifyRsi(rsi);
-        double rsiScore = scoreRsiDoc(rsi);
+        double rsiScore = scoreRsiDoc(rsiStatus);
 
         TechnicalIndicators.KdjResult kdj = TechnicalIndicators.kdj(high, low, close, ScoringConstants.KDJ_PERIOD);
         String kdjStatus = TechnicalIndicators.classifyKdj(kdj, L);

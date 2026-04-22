@@ -406,7 +406,7 @@ public class ComprehensiveScoringService {
         if (includeItems) {
             List<Map<String, Object>> items = new ArrayList<>();
             int rank = 1;
-            for (StockTrendScore s : toSave.stream().limit(200).toList()) {
+            for (StockTrendScore s : toSave) {
                 items.add(toMap(s, rank++));
             }
             res.put("items", items);

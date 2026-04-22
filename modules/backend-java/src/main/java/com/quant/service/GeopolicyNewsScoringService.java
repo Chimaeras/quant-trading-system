@@ -59,6 +59,7 @@ public class GeopolicyNewsScoringService {
         boolean excludeST = parseBool(req.get("excludeST"), true);
         boolean progressivePersist = parseBool(req.get("progressivePersist"), false);
         String fixedResultId = String.valueOf(req.getOrDefault("resultId", "")).trim();
+        boolean resumeMode = parseBool(req.get("resumeMode"), false);
 
         // GDELT 参数（默认：CHN 相关）
         String eventsQuery = String.valueOf(req.getOrDefault("gdeltEventsQuery", "CHN")).trim();
@@ -141,6 +142,25 @@ public class GeopolicyNewsScoringService {
         LocalDate rangeStart = tradeDate.minusDays(Math.max(lookbackDays + 30L, 90L));
         boolean bulkFetch = parseBool(req.get("bulkFetch"), true);
         List<Object[]> pairs = marketDataRepository.findDistinctStockPairsInRange(rangeStart, tradeDate);
+        String targetStockCode = String.valueOf(req.getOrDefault("stockCode", "")).trim();
+        String targetExchangeType = String.valueOf(req.getOrDefault("exchangeType", "")).trim();
+        if (!targetStockCode.isBlank()) {
+            List<Object[]> exactPairs = pairs.stream()
+                    .filter(p -> p != null
+                            && p.length >= 2
+                            && targetStockCode.equalsIgnoreCase(String.valueOf(p[0]))
+                            && (targetExchangeType.isBlank() || targetExchangeType.equalsIgnoreCase(String.valueOf(p[1]))))
+                    .toList();
+            if (!exactPairs.isEmpty()) {
+                pairs = exactPairs;
+            } else {
+                pairs = pairs.stream()
+                        .filter(p -> p != null
+                                && p.length >= 2
+                                && targetStockCode.equalsIgnoreCase(String.valueOf(p[0])))
+                        .toList();
+            }
+        }
         if (pairs.isEmpty()) {
             log.info("[geopolicy_news] no market_data pairs in range [{}..{}], tradeDate={}", rangeStart, tradeDate, tradeDate);
             return Map.of(
@@ -153,13 +173,20 @@ public class GeopolicyNewsScoringService {
 
         Map<String, String> nameCache = new HashMap<>();
         List<Candidate> candidates = new ArrayList<>();
+        List<Candidate> passedCandidates = new ArrayList<>();
         int scanned = 0;
+        int scored = 0;
         String progressiveResultId = null;
         int progressiveRank = 1;
+        Set<String> existingStockKeys = new HashSet<>();
         if (persist && progressivePersist) {
             progressiveResultId = ensureResultSkeleton(
-                    fixedResultId, tradeDate, req, lookbackDays, topN, minAvgAmount, minTrendScore, excludeST, factor
+                    fixedResultId, tradeDate, req, lookbackDays, topN, minAvgAmount, minTrendScore, excludeST, factor, resumeMode
             );
+            if (resumeMode && progressiveResultId != null && !progressiveResultId.isBlank()) {
+                existingStockKeys = selectorResultItemRepository.findStockKeysByResultId(progressiveResultId);
+                progressiveRank = existingStockKeys.size() + 1;
+            }
         }
 
         if (bulkFetch) {
@@ -183,8 +210,13 @@ public class GeopolicyNewsScoringService {
                 List<MarketData> bars = grouped.getOrDefault(key, List.of());
                 Candidate c = buildCandidate(stockCode, exchangeType, bars, minAvgAmount, minTrendScore, nameCache, excludeST);
                 if (c == null) continue;
+                scored++;
+                if (resumeMode && existingStockKeys.contains(c.stockCode + "|" + c.exchangeType)) continue;
                 applyMacroOverlay(factor, c);
                 candidates.add(c);
+                if (isCandidatePassed(c)) {
+                    passedCandidates.add(c);
+                }
                 if (progressiveResultId != null) {
                     selectorResultItemRepository.save(toItem(progressiveResultId, progressiveRank++, c, factor));
                 }
@@ -202,8 +234,13 @@ public class GeopolicyNewsScoringService {
                         .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(stockCode, exchangeType, rangeStart, tradeDate);
                 Candidate c = buildCandidate(stockCode, exchangeType, bars, minAvgAmount, minTrendScore, nameCache, excludeST);
                 if (c == null) continue;
+                scored++;
+                if (resumeMode && existingStockKeys.contains(c.stockCode + "|" + c.exchangeType)) continue;
                 applyMacroOverlay(factor, c);
                 candidates.add(c);
+                if (isCandidatePassed(c)) {
+                    passedCandidates.add(c);
+                }
                 if (progressiveResultId != null) {
                     selectorResultItemRepository.save(toItem(progressiveResultId, progressiveRank++, c, factor));
                 }
@@ -211,13 +248,14 @@ public class GeopolicyNewsScoringService {
             log.info("[geopolicy_news] bulkFetch=OFF perStockQueries scanned={}", scanned);
         }
 
-        candidates.sort((a, b) -> Double.compare(b.macroAdjustedFinal, a.macroAdjustedFinal));
-        List<Candidate> selected = candidates.stream().limit(topN).toList();
+        passedCandidates.sort((a, b) -> Double.compare(b.macroAdjustedFinal, a.macroAdjustedFinal));
+        List<Candidate> selected = passedCandidates.stream().limit(topN).toList();
 
         String resultId = null;
         if (persist) {
             resultId = persistResult(
-                    tradeDate, req, selected, factor, lookbackDays, topN, minAvgAmount, minTrendScore, excludeST, progressiveResultId
+                    tradeDate, req, selected, factor, lookbackDays, topN, minAvgAmount, minTrendScore, excludeST,
+                    progressiveResultId, resumeMode, progressivePersist, scanned, scored
             );
         }
         log.info(
@@ -284,10 +322,14 @@ public class GeopolicyNewsScoringService {
             double minAvgAmount,
             double minTrendScore,
             boolean excludeST,
-            String fixedResultId
+            String fixedResultId,
+            boolean resumeMode,
+            boolean progressivePersist,
+            int scanned,
+            int scored
     ) {
         String resultId = ensureResultSkeleton(
-                fixedResultId, tradeDate, req, lookbackDays, topN, minAvgAmount, minTrendScore, excludeST, factor
+                fixedResultId, tradeDate, req, lookbackDays, topN, minAvgAmount, minTrendScore, excludeST, factor, resumeMode
         );
 
         Map<String, Object> snapshot = new LinkedHashMap<>();
@@ -319,14 +361,22 @@ public class GeopolicyNewsScoringService {
                 ? null : String.valueOf(req.get("templateId")).trim());
         result.setFactorVersion(FACTOR_VERSION);
         result.setStrategyType("GEOPOLICY_NEWS");
+        result.setRunStatus("SUCCESS");
+        result.setTotalCandidates(scanned);
+        result.setProcessedCandidates(scanned);
+        result.setSuccessCandidates(scored);
+        result.setFailedCandidates(Math.max(0, scanned - scored));
+        result.setLastProcessedKey("");
         result.setFactorSnapshot(snapshot);
         selectorResultRepository.save(result);
 
-        selectorResultItemRepository.deleteByResultId(resultId);
-        int rank = 1;
-        for (Candidate c : selected) {
-            SelectorResultItem item = toItem(resultId, rank++, c, factor);
-            selectorResultItemRepository.save(item);
+        if (!progressivePersist) {
+            selectorResultItemRepository.deleteByResultId(resultId);
+            int rank = 1;
+            for (Candidate c : selected) {
+                SelectorResultItem item = toItem(resultId, rank++, c, factor);
+                selectorResultItemRepository.save(item);
+            }
         }
         return resultId;
     }
@@ -340,7 +390,8 @@ public class GeopolicyNewsScoringService {
             double minAvgAmount,
             double minTrendScore,
             boolean excludeST,
-            GeoNewsFactor factor
+            GeoNewsFactor factor,
+            boolean resumeMode
     ) {
         String resultId = (fixedResultId != null && !fixedResultId.isBlank()) ? fixedResultId : genResultId();
         SelectorResult result = selectorResultRepository.findByResultId(resultId).orElse(new SelectorResult());
@@ -365,9 +416,15 @@ public class GeopolicyNewsScoringService {
                 ? null : String.valueOf(req.get("templateId")).trim());
         result.setFactorVersion(FACTOR_VERSION);
         result.setStrategyType("GEOPOLICY_NEWS");
+        result.setRunStatus("RUNNING");
+        result.setTotalCandidates(0);
+        result.setProcessedCandidates(0);
+        result.setSuccessCandidates(0);
+        result.setFailedCandidates(0);
+        result.setLastProcessedKey("");
         result.setFactorSnapshot(snapshot);
         selectorResultRepository.save(result);
-        if (fixedResultId != null && !fixedResultId.isBlank()) {
+        if (fixedResultId != null && !fixedResultId.isBlank() && !resumeMode) {
             selectorResultItemRepository.deleteByResultId(resultId);
         }
         return resultId;
@@ -609,10 +666,10 @@ public class GeopolicyNewsScoringService {
         String name = nameCache.computeIfAbsent(stockCode + ":" + exchangeType, k -> getStockName(stockCode, exchangeType));
         if (excludeST && name != null && name.toUpperCase().contains("ST")) return null;
 
-        if (avgAmount20 < minAvgAmount) return null;
-        if (trend < minTrendScore) return null;
-        if (ma20 <= ma60) return null;
-        if (ret20 < -5) return null;
+        boolean passMinAvgAmount = avgAmount20 >= minAvgAmount;
+        boolean passMinTrendScore = trend >= minTrendScore;
+        boolean passMaTrend = ma20 > ma60;
+        boolean passRet20 = ret20 >= -5;
 
         Candidate c = new Candidate();
         c.stockCode = stockCode;
@@ -628,14 +685,26 @@ public class GeopolicyNewsScoringService {
         c.volatility20 = vol20;
         c.maxDrawdown60 = mdd60;
         c.avgAmount20 = avgAmount20;
-        c.reasons = Map.of(
-                "trend", ma20 > ma60 ? "MA20 在 MA60 上方" : "趋势偏弱",
-                "ret20", round2(ret20) + "%",
-                "ret60", round2(ret60) + "%",
-                "rsi14", round2(rsi14),
-                "volume_ratio", round2(volumeRatio)
-        );
+        Map<String, Object> reasons = new LinkedHashMap<>();
+        reasons.put("trend", ma20 > ma60 ? "MA20 在 MA60 上方" : "趋势偏弱");
+        reasons.put("ret20", round2(ret20) + "%");
+        reasons.put("ret60", round2(ret60) + "%");
+        reasons.put("rsi14", round2(rsi14));
+        reasons.put("volume_ratio", round2(volumeRatio));
+        reasons.put("pass_min_avg_amount", passMinAvgAmount);
+        reasons.put("pass_min_trend_score", passMinTrendScore);
+        reasons.put("pass_ma20_gt_ma60", passMaTrend);
+        reasons.put("pass_ret20_floor", passRet20);
+        c.reasons = reasons;
+        c.passMinAvgAmount = passMinAvgAmount;
+        c.passMinTrendScore = passMinTrendScore;
+        c.passMaTrend = passMaTrend;
+        c.passRet20 = passRet20;
         return c;
+    }
+
+    private static boolean isCandidatePassed(Candidate c) {
+        return c != null && c.passMinAvgAmount && c.passMinTrendScore && c.passMaTrend && c.passRet20;
     }
 
     private String getStockName(String stockCode, String exchangeType) {
@@ -884,6 +953,10 @@ public class GeopolicyNewsScoringService {
         double newsSentIndex01;
         double macroPolicyScore01;
         double macroAdjustedFinal;
+        boolean passMinAvgAmount;
+        boolean passMinTrendScore;
+        boolean passMaTrend;
+        boolean passRet20;
     }
 
     private record GeoNewsFactor(

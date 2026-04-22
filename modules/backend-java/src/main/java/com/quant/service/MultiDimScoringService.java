@@ -15,6 +15,9 @@ import com.quant.service.scoring.TechnicalDocScoring;
 import com.quant.service.scoring.DynamicWeightingService;
 import com.quant.service.scoring.CompositeScoringService;
 import com.quant.service.scoring.EnhancedMarketSentimentService;
+import com.quant.service.scoring.MarketEnvironmentAnalyzer;
+import com.quant.service.scoring.ScoringRules;
+import com.quant.service.scoring.ScoringUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -52,6 +55,7 @@ public class MultiDimScoringService {
     private final StockMultiDimScoreRepository stockMultiDimScoreRepository;
     private final ObjectMapper objectMapper;
     private final EnhancedMarketSentimentService enhancedMarketSentimentService;
+    private final MarketEnvironmentAnalyzer marketEnvironmentAnalyzer;
 
     @Transactional(readOnly = true)
     public Map<String, Object> listScores(LocalDate tradeDate, int page, int size) {
@@ -198,7 +202,7 @@ public class MultiDimScoringService {
         if (includeItems) {
             List<Map<String, Object>> items = new ArrayList<>();
             int i = 0;
-            for (StockMultiDimScore s : toSave.stream().sorted(Comparator.comparing(StockMultiDimScore::getCompositeScore).reversed()).limit(200).toList()) {
+            for (StockMultiDimScore s : toSave.stream().sorted(Comparator.comparing(StockMultiDimScore::getCompositeScore).reversed()).toList()) {
                 items.add(toMap(s, ++i));
             }
             res.put("items", items);
@@ -274,12 +278,23 @@ public class MultiDimScoringService {
                         industry);
         double sentimentScore = sentimentResult.totalScore();
 
-        // 动态权重分配（模拟数据，实际应根据真实市场环境和股票特性计算）
-        String marketEnvironment = DynamicWeightingService.classifyMarketEnvironment(5, 15, 10, 1000000000000L);
-        DynamicWeightingService.MarketEnvironment marketWeights = DynamicWeightingService.getMarketEnvironmentWeights(marketEnvironment);
-        String stockType = DynamicWeightingService.classifyStockCharacteristics(40, 1.2, 2, 1.1, 15, 3, 10, 0.5, 20, 0.7);
-        DynamicWeightingService.StockCharacteristics stockWeights = DynamicWeightingService.getStockCharacteristicsWeights(stockType);
-        DynamicWeightingService.DynamicWeights dynamicWeights = DynamicWeightingService.calculateDynamicWeights(marketWeights, stockWeights, 0.6, 0.4);
+        // 使用真实市场环境分析
+        MarketEnvironmentAnalyzer.MarketIndicators marketIndicators =
+                marketEnvironmentAnalyzer.analyze(tradeDate, 60);
+        String marketEnvironment = marketIndicators.marketEnvironment();
+        DynamicWeightingService.MarketEnvironment marketWeights =
+                DynamicWeightingService.getMarketEnvironmentWeights(marketEnvironment);
+
+        // 使用真实股票特性分类
+        Double peValue = todayBar != null && todayBar.getPeRatio() != null
+                ? todayBar.getPeRatio().doubleValue() : null;
+        String stockType = marketEnvironmentAnalyzer.classifyStock(bars, peValue, industry);
+        DynamicWeightingService.StockCharacteristics stockWeights =
+                DynamicWeightingService.getStockCharacteristicsWeights(stockType);
+
+        // 计算动态权重
+        DynamicWeightingService.DynamicWeights dynamicWeights =
+                DynamicWeightingService.calculateDynamicWeights(marketWeights, stockWeights, 0.6, 0.4);
 
         // 计算综合得分
         double technicalScore = techW;
@@ -299,11 +314,13 @@ public class MultiDimScoringService {
         ) + industryAdjustment;
 
         // 投资建议和风险控制
+        // 计算财务健康度得分（基于PE和负债率估算）
+        double financialHealthScore = estimateFinancialHealthScore(todayBar, info);
         CompositeScoringService.CompositeScoreResult compositeResult = CompositeScoringService.scoreComposite(
                 technicalScore,
                 fundamentalScore,
                 sentimentScore,
-                8.0, // 模拟财务健康度得分
+                financialHealthScore,
                 dynamicWeights.technicalWeight(),
                 dynamicWeights.fundamentalWeight(),
                 dynamicWeights.sentimentWeight()
@@ -559,6 +576,37 @@ public class MultiDimScoringService {
         } catch (Exception e) {
             return def;
         }
+    }
+
+    /**
+     * 估算财务健康度得分
+     */
+    private double estimateFinancialHealthScore(MarketData todayBar, StockInfo info) {
+        double score = 8.0; // 默认中等健康度
+
+        if (todayBar != null) {
+            // PE估值调整
+            if (todayBar.getPeRatio() != null) {
+                double pe = todayBar.getPeRatio().doubleValue();
+                if (pe > 0 && pe < 15) score += 1.5;
+                else if (pe >= 15 && pe < 30) score += 0.5;
+                else if (pe > 60) score -= 1.0;
+            }
+
+            // PB估值调整
+            if (todayBar.getPbRatio() != null) {
+                double pb = todayBar.getPbRatio().doubleValue();
+                if (pb > 0 && pb < 1.5) score += 0.5;
+                else if (pb > 4) score -= 0.5;
+            }
+        }
+
+        // 行业调整
+        if (info != null && info.getIndustry() != null) {
+            score += ScoringRules.getIndustryAdjustment(info.getIndustry()) * 0.1;
+        }
+
+        return ScoringUtils.clamp(score, 0, 10);
     }
 
     private static double round2(double v) {

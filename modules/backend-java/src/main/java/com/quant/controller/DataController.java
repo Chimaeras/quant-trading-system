@@ -82,6 +82,13 @@ public class DataController {
         return ApiResponse.success(data);
     }
 
+    @PostMapping("/update/tasks/{taskId}/stop")
+    public ApiResponse<Map<String, Object>> stopTask(@PathVariable String taskId) {
+        Map<String, Object> data = historicalDataUpdateService.stopTask(taskId);
+        if (data == null) return ApiResponse.error(404, "任务不存在");
+        return ApiResponse.success(data);
+    }
+
     @Data
     public static class FinancialItem {
         private String stockCode;

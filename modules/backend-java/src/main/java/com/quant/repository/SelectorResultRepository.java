@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.Optional;
 
 public interface SelectorResultRepository extends JpaRepository<SelectorResult, Long> {
@@ -20,6 +21,14 @@ public interface SelectorResultRepository extends JpaRepository<SelectorResult, 
     Optional<SelectorResult> findFirstByTradeDateAndStrategyTypeOrderByCreatedAtDesc(LocalDate tradeDate, String strategyType);
 
     Optional<SelectorResult> findFirstByStrategyTypeOrderByCreatedAtDesc(String strategyType);
+
+    Optional<SelectorResult> findFirstByStrategyTypeAndRequestFingerprintOrderByCreatedAtDesc(
+            String strategyType, String requestFingerprint
+    );
+
+    Optional<SelectorResult> findFirstByStrategyTypeAndRequestFingerprintAndRunStatusInOrderByCreatedAtDesc(
+            String strategyType, String requestFingerprint, Collection<String> runStatus
+    );
 
     @Query("SELECT MAX(s.tradeDate) FROM SelectorResult s WHERE s.strategyType = :strategy")
     Optional<LocalDate> findMaxTradeDateByStrategy(@Param("strategy") String strategyType);

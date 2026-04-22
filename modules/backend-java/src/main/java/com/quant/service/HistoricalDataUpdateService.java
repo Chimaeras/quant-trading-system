@@ -22,6 +22,8 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -35,6 +37,9 @@ public class HistoricalDataUpdateService {
     private final DataUpdateTaskItemRepository dataUpdateTaskItemRepository;
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final Map<String, Future<?>> taskFutures = new ConcurrentHashMap<>();
+    private final Set<String> cancelRequestedTaskIds = ConcurrentHashMap.newKeySet();
+    private static final Set<String> TERMINAL_STATUSES = Set.of("SUCCESS", "PARTIAL", "FAILED", "STOPPED");
 
     public Map<String, Object> createTask(Map<String, Object> request) {
         String mode = normalizeMode(String.valueOf(request.getOrDefault("mode", "SINGLE")));
@@ -72,7 +77,8 @@ public class HistoricalDataUpdateService {
         final LocalDate e = endDate;
         final long delayBetween = delayMs;
         final boolean stockInfoStyleMainBoard = "MAIN_BOARD".equals(mode);
-        executor.submit(() -> runTask(task.getTaskId(), targetsForRun, s, e, delayBetween, stockInfoStyleMainBoard));
+        Future<?> future = executor.submit(() -> runTask(task.getTaskId(), targetsForRun, s, e, delayBetween, stockInfoStyleMainBoard));
+        taskFutures.put(task.getTaskId(), future);
 
         Map<String, Object> res = new LinkedHashMap<>();
         res.put("task_id", task.getTaskId());
@@ -140,60 +146,144 @@ public class HistoricalDataUpdateService {
         retry.setTotalStocks(targets.size());
         dataUpdateTaskRepository.save(retry);
 
-        executor.submit(() -> runTask(retry.getTaskId(), targets, retry.getStartDate(), retry.getEndDate(), 150L, false));
+        Future<?> future = executor.submit(() -> runTask(retry.getTaskId(), targets, retry.getStartDate(), retry.getEndDate(), 150L, false));
+        taskFutures.put(retry.getTaskId(), future);
         return Map.of("task_id", retry.getTaskId(), "status", retry.getStatus(), "total_stocks", retry.getTotalStocks());
+    }
+
+    public Map<String, Object> stopTask(String taskId) {
+        DataUpdateTask task = dataUpdateTaskRepository.findByTaskId(taskId).orElse(null);
+        if (task == null) return null;
+
+        String status = String.valueOf(task.getStatus()).toUpperCase(Locale.ROOT);
+        if (TERMINAL_STATUSES.contains(status)) {
+            return Map.of(
+                    "task_id", taskId,
+                    "status", task.getStatus(),
+                    "message", "任务已结束，无需停止"
+            );
+        }
+
+        cancelRequestedTaskIds.add(taskId);
+        task.setStatus("STOPPING");
+        task.setMessage("收到停止请求，正在终止");
+        dataUpdateTaskRepository.save(task);
+
+        Future<?> future = taskFutures.get(taskId);
+        boolean cancelled = future != null && future.cancel(true);
+
+        if ("PENDING".equals(status) && (future == null || cancelled || future.isCancelled())) {
+            task.setStatus("STOPPED");
+            task.setFinishedAt(LocalDateTime.now());
+            task.setMessage(String.format("已手动停止，处理%d只，成功%d，失败%d",
+                    safeInt(task.getProcessedStocks()), safeInt(task.getSuccessStocks()), safeInt(task.getFailedStocks())));
+            dataUpdateTaskRepository.save(task);
+            taskFutures.remove(taskId);
+            cancelRequestedTaskIds.remove(taskId);
+        }
+
+        return Map.of(
+                "task_id", taskId,
+                "status", task.getStatus(),
+                "message", task.getMessage() != null ? task.getMessage() : "",
+                "cancel_signal_sent", cancelled
+        );
     }
 
     private void runTask(String taskId, List<StockTarget> targets, LocalDate startDate, LocalDate endDate,
                          long delayMsBetweenStocks, boolean stockInfoStyleMainBoard) {
-        DataUpdateTask task = dataUpdateTaskRepository.findByTaskId(taskId).orElse(null);
-        if (task == null) return;
-        task.setStatus("RUNNING");
-        task.setStartedAt(LocalDateTime.now());
-        dataUpdateTaskRepository.save(task);
-
-        int processed = 0, success = 0, failed = 0;
-        int inserted = 0, skipped = 0, fetched = 0;
-        for (int i = 0; i < targets.size(); i++) {
-            StockTarget t = targets.get(i);
-            try {
-                Map<String, Object> res = stockInfoStyleMainBoard
-                        ? historicalDataService.updateHistoryInRangeStockInfoStyle(t.stockCode(), t.exchangeType(), startDate, endDate)
-                        : historicalDataService.updateHistoryInRange(t.stockCode(), t.exchangeType(), startDate, endDate);
-                int ins = toInt(res.get("inserted"));
-                int skp = toInt(res.get("skipped"));
-                int fch = toInt(res.get("total"));
-                inserted += ins;
-                skipped += skp;
-                fetched += fch;
-                success++;
-                saveItem(taskId, t, "SUCCESS", ins, skp, fch, String.valueOf(res.getOrDefault("message", "")));
-            } catch (Exception e) {
-                failed++;
-                saveItem(taskId, t, "FAILED", 0, 0, 0, e.getMessage());
-                log.warn("更新失败 {}.{}: {}", t.stockCode(), t.exchangeType(), e.getMessage());
+        try {
+            DataUpdateTask task = dataUpdateTaskRepository.findByTaskId(taskId).orElse(null);
+            if (task == null) return;
+            if (shouldStop(taskId)) {
+                markTaskStopped(task, task.getProcessedStocks(), task.getSuccessStocks(), task.getFailedStocks());
+                return;
             }
-            processed++;
-            task.setProcessedStocks(processed);
-            task.setSuccessStocks(success);
-            task.setFailedStocks(failed);
-            task.setInsertedCount(inserted);
-            task.setSkippedCount(skipped);
-            task.setFetchedCount(fetched);
+            task.setStatus("RUNNING");
+            task.setStartedAt(LocalDateTime.now());
             dataUpdateTaskRepository.save(task);
-            if (i < targets.size() - 1 && delayMsBetweenStocks > 0) {
-                try {
-                    Thread.sleep(delayMsBetweenStocks);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
+
+            int processed = 0, success = 0, failed = 0;
+            int inserted = 0, skipped = 0, fetched = 0;
+            boolean stopped = false;
+            for (int i = 0; i < targets.size(); i++) {
+                if (shouldStop(taskId)) {
+                    stopped = true;
                     break;
                 }
+
+                StockTarget t = targets.get(i);
+                try {
+                    Map<String, Object> res = stockInfoStyleMainBoard
+                            ? historicalDataService.updateHistoryInRangeStockInfoStyle(t.stockCode(), t.exchangeType(), startDate, endDate)
+                            : historicalDataService.updateHistoryInRange(t.stockCode(), t.exchangeType(), startDate, endDate);
+                    int ins = toInt(res.get("inserted"));
+                    int skp = toInt(res.get("skipped"));
+                    int fch = toInt(res.get("total"));
+                    inserted += ins;
+                    skipped += skp;
+                    fetched += fch;
+                    success++;
+                    saveItem(taskId, t, "SUCCESS", ins, skp, fch, String.valueOf(res.getOrDefault("message", "")));
+                } catch (Exception e) {
+                    if (Thread.currentThread().isInterrupted() || shouldStop(taskId)) {
+                        stopped = true;
+                        break;
+                    }
+                    failed++;
+                    saveItem(taskId, t, "FAILED", 0, 0, 0, e.getMessage());
+                    log.warn("更新失败 {}.{}: {}", t.stockCode(), t.exchangeType(), e.getMessage());
+                }
+                processed++;
+                task.setProcessedStocks(processed);
+                task.setSuccessStocks(success);
+                task.setFailedStocks(failed);
+                task.setInsertedCount(inserted);
+                task.setSkippedCount(skipped);
+                task.setFetchedCount(fetched);
+                dataUpdateTaskRepository.save(task);
+                if (i < targets.size() - 1 && delayMsBetweenStocks > 0) {
+                    try {
+                        Thread.sleep(delayMsBetweenStocks);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        stopped = true;
+                        break;
+                    }
+                }
             }
+            task.setFinishedAt(LocalDateTime.now());
+            if (stopped) {
+                markTaskStopped(task, processed, success, failed);
+            } else {
+                task.setStatus(failed == 0 ? "SUCCESS" : (success > 0 ? "PARTIAL" : "FAILED"));
+                task.setMessage(String.format("处理%d只，成功%d，失败%d", processed, success, failed));
+                dataUpdateTaskRepository.save(task);
+            }
+        } finally {
+            taskFutures.remove(taskId);
+            cancelRequestedTaskIds.remove(taskId);
         }
+    }
+
+    private void markTaskStopped(DataUpdateTask task, Integer processed, Integer success, Integer failed) {
         task.setFinishedAt(LocalDateTime.now());
-        task.setStatus(failed == 0 ? "SUCCESS" : (success > 0 ? "PARTIAL" : "FAILED"));
-        task.setMessage(String.format("处理%d只，成功%d，失败%d", processed, success, failed));
+        task.setStatus("STOPPED");
+        task.setMessage(String.format("已手动停止，处理%d只，成功%d，失败%d",
+                safeInt(processed), safeInt(success), safeInt(failed)));
         dataUpdateTaskRepository.save(task);
+    }
+
+    private boolean shouldStop(String taskId) {
+        if (cancelRequestedTaskIds.contains(taskId)) return true;
+        DataUpdateTask latest = dataUpdateTaskRepository.findByTaskId(taskId).orElse(null);
+        if (latest == null) return true;
+        String status = String.valueOf(latest.getStatus()).toUpperCase(Locale.ROOT);
+        return "STOPPING".equals(status) || "STOPPED".equals(status);
+    }
+
+    private int safeInt(Integer n) {
+        return n == null ? 0 : n;
     }
 
     private void saveItem(String taskId, StockTarget t, String status, int inserted, int skipped, int fetched, String message) {
@@ -442,6 +532,7 @@ public class HistoricalDataUpdateService {
         out.put("created_at", t.getCreatedAt() != null ? t.getCreatedAt().toString() : "");
         out.put("started_at", t.getStartedAt() != null ? t.getStartedAt().toString() : "");
         out.put("finished_at", t.getFinishedAt() != null ? t.getFinishedAt().toString() : "");
+        out.put("can_stop", "PENDING".equals(t.getStatus()) || "RUNNING".equals(t.getStatus()) || "STOPPING".equals(t.getStatus()));
         return out;
     }
 

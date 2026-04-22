@@ -150,6 +150,8 @@
             清队列+取消并立即重跑
           </el-button>
           <el-button v-if="isPollingActive" link type="warning" @click="cancelTaskWatch">停止监控</el-button>
+          <el-button v-if="taskId" link type="primary" @click="refreshTaskStatus">刷新任务状态</el-button>
+          <el-button v-if="resultMeta.result_id" link type="primary" @click="refreshResultData">刷新已完成股票</el-button>
           <el-button
             v-else-if="taskId && taskStatus !== 'SUCCESS' && taskStatus !== 'FAILED' && taskStatus !== 'CANCELLED'"
             link
@@ -162,6 +164,20 @@
         <el-progress :percentage="Math.max(0, Math.min(100, taskProgress))" :status="taskStatus === 'FAILED' ? 'exception' : taskStatus === 'SUCCESS' ? 'success' : taskStatus === 'CANCELLED' ? 'warning' : undefined" />
       </template>
     </el-alert>
+    <el-form inline class="task-query-form">
+      <el-form-item label="任务ID查询">
+        <el-input v-model="queryTaskId" placeholder="USK..." style="width: 220px" clearable />
+      </el-form-item>
+      <el-form-item>
+        <el-button @click="queryByTaskId">查询任务</el-button>
+      </el-form-item>
+      <el-form-item label="结果ID查询">
+        <el-input v-model="queryResultId" placeholder="US..." style="width: 220px" clearable />
+      </el-form-item>
+      <el-form-item>
+        <el-button @click="queryByResultId">查询结果</el-button>
+      </el-form-item>
+    </el-form>
 
     <div v-if="lastTaskSummary" class="meta">
       <span>最近任务：{{ lastTaskSummary.taskId }}</span>
@@ -195,8 +211,10 @@
       <span>结果ID: {{ resultMeta.result_id }}</span>
       <span>交易日: {{ resultMeta.trade_date }}</span>
       <span>已评分: {{ results.length }} 只</span>
+      <span v-if="resultMeta.total_candidates > 0">进度: {{ resultMeta.processed_candidates }}/{{ resultMeta.total_candidates }}</span>
       <span>关注: {{ focusResults.length }} 只</span>
       <span>因子版本: {{ resultMeta.factor_version || 'v1' }}</span>
+      <span v-if="resultMeta.run_status">状态: {{ resultMeta.run_status }}</span>
     </div>
 
     <div v-if="mode === 'geopolicy' && macro" class="macro">
@@ -327,6 +345,8 @@ const pollStopReason = ref('')
 const pollStopAt = ref('')
 const pendingAhead = ref(0)
 const runningCount = ref(0)
+const queryTaskId = ref('')
+const queryResultId = ref('')
 const lastTaskSummary = ref<{
   taskId: string
   strategy: string
@@ -339,7 +359,10 @@ const lastTaskSummary = ref<{
 const resultMeta = reactive({
   result_id: '',
   trade_date: '',
-  factor_version: 'v1'
+  factor_version: 'v1',
+  run_status: '',
+  processed_candidates: 0,
+  total_candidates: 0
 })
 const templates = ref<Array<Record<string, unknown>>>([])
 
@@ -452,7 +475,26 @@ function applyResult(data: Record<string, any>) {
   resultMeta.result_id = String(data.result_id ?? '')
   resultMeta.trade_date = String(data.trade_date ?? '')
   resultMeta.factor_version = String(data.factor_version ?? 'v1')
-  results.value = Array.isArray(data.items) ? data.items : Array.isArray(data.list) ? data.list : []
+  resultMeta.run_status = String(data.run_status ?? '')
+  resultMeta.processed_candidates = Number(data.processed_candidates || 0)
+  resultMeta.total_candidates = Number(data.total_candidates || 0)
+  const incoming = Array.isArray(data.items) ? data.items : Array.isArray(data.list) ? data.list : []
+  const merged = new Map<string, Record<string, any>>()
+  for (const row of results.value) {
+    const key = `${String(row.stock_code || '')}|${String(row.exchange_type || '')}`
+    if (key !== '|') merged.set(key, row)
+  }
+  for (const row of incoming) {
+    const key = `${String(row.stock_code || '')}|${String(row.exchange_type || '')}`
+    if (key === '|') continue
+    merged.set(key, { ...(merged.get(key) || {}), ...row })
+  }
+  results.value = Array.from(merged.values()).sort((a, b) => {
+    const ar = Number(a.rank_no ?? Number.MAX_SAFE_INTEGER)
+    const br = Number(b.rank_no ?? Number.MAX_SAFE_INTEGER)
+    if (ar !== br) return ar - br
+    return scoreOf(b) - scoreOf(a)
+  })
   macro.value = (data.macro || data.source_summary?.macro)
     ? ((data.macro || data.source_summary?.macro) as Record<string, any>)
     : null
@@ -540,6 +582,71 @@ async function syncPartialResult(resultId: string) {
     taskMessage.value = `任务执行中，已同步 ${items.length} 条阶段结果`
   } catch {
     // 阶段结果尚未落库时忽略，避免打断主轮询
+  }
+}
+
+async function refreshTaskStatus() {
+  if (!taskId.value) return
+  try {
+    const t = await scoringApi.getUnifiedScoringTask(taskId.value)
+    setTaskState(t)
+    queryTaskId.value = taskId.value
+    if (t.result_id) {
+      await syncPartialResult(t.result_id)
+    }
+  } catch (e: any) {
+    toast.error(e?.message || '刷新任务状态失败')
+  }
+}
+
+async function refreshResultData() {
+  if (!resultMeta.result_id) return
+  loading.value = true
+  try {
+    const data = await scoringApi.getUnifiedResult(resultMeta.result_id, { page: 1, size: currentScorePoolSize() })
+    applyResult(data as Record<string, any>)
+  } catch (e: any) {
+    toast.error(e?.message || '刷新结果失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function queryByTaskId() {
+  const id = queryTaskId.value.trim()
+  if (!id) {
+    toast.warning('请输入任务ID')
+    return
+  }
+  try {
+    const t = await scoringApi.getUnifiedScoringTask(id)
+    setTaskState(t)
+    taskId.value = id
+    if (t.result_id) {
+      resultMeta.result_id = t.result_id
+      queryResultId.value = t.result_id
+      await refreshResultData()
+    }
+  } catch (e: any) {
+    toast.error(e?.message || '任务查询失败')
+  }
+}
+
+async function queryByResultId() {
+  const id = queryResultId.value.trim()
+  if (!id) {
+    toast.warning('请输入结果ID')
+    return
+  }
+  loading.value = true
+  try {
+    const data = await scoringApi.getUnifiedResult(id, { page: 1, size: currentScorePoolSize() })
+    applyResult(data as Record<string, any>)
+    resultMeta.result_id = id
+  } catch (e: any) {
+    toast.error(e?.message || '结果查询失败')
+  } finally {
+    loading.value = false
   }
 }
 
@@ -950,6 +1057,9 @@ onBeforeUnmount(() => {
 }
 .run-actions {
   margin-bottom: 6px;
+}
+.task-query-form {
+  margin: 8px 0 12px;
 }
 .tip {
   color: var(--text-secondary);

@@ -115,6 +115,13 @@ export interface UnifiedScoringResultPage {
   template_id?: string
   created_at?: string
   factor_snapshot?: Record<string, unknown>
+  run_status?: string
+  request_fingerprint?: string
+  processed_candidates?: number
+  total_candidates?: number
+  success_candidates?: number
+  failed_candidates?: number
+  last_processed_key?: string
   list: UnifiedScoringResultItem[]
   total: number
   page: number
@@ -130,6 +137,10 @@ export interface UnifiedScoringTaskRunResult {
   message?: string
   pending_ahead?: number
   running_count?: number
+  request_fingerprint?: string
+  resume_result_id?: string
+  reused_result?: boolean
+  result_id?: string
 }
 
 export interface UnifiedScoringTaskStatus {
@@ -148,6 +159,14 @@ export interface UnifiedScoringTaskStatus {
   updated_at?: string
   pending_ahead?: number
   running_count?: number
+  request_fingerprint?: string
+  resume_from_result_id?: string
+  reused_result?: boolean
+  processed_candidates?: number
+  total_candidates?: number
+  success_candidates?: number
+  failed_candidates?: number
+  result_run_status?: string
 }
 
 export interface UnifiedScoringTaskActionResult {

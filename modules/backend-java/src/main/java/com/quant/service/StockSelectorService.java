@@ -10,6 +10,8 @@ import com.quant.repository.SelectorResultItemRepository;
 import com.quant.repository.SelectorResultRepository;
 import com.quant.repository.SelectorTemplateRepository;
 import com.quant.repository.StockInfoRepository;
+import com.quant.service.scoring.ScoringUtils;
+import com.quant.service.scoring.TechnicalIndicators;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -41,17 +43,40 @@ public class StockSelectorService {
         String factorVersion = String.valueOf(request.getOrDefault("factorVersion", "v1")).trim();
         boolean progressivePersist = parseBool(request.get("progressivePersist"), false);
         String fixedResultId = String.valueOf(request.getOrDefault("resultId", "")).trim();
+        boolean resumeMode = parseBool(request.get("resumeMode"), false);
 
         LocalDate rangeStart = tradeDate.minusDays(Math.max(lookbackDays + 30L, 90L));
         List<Object[]> pairs = marketDataRepository.findDistinctStockPairsInRange(rangeStart, tradeDate);
+        String targetStockCode = String.valueOf(request.getOrDefault("stockCode", "")).trim();
+        String targetExchangeType = String.valueOf(request.getOrDefault("exchangeType", "")).trim();
+        if (!targetStockCode.isBlank()) {
+            List<Object[]> exactPairs = pairs.stream()
+                    .filter(p -> p != null
+                            && p.length >= 2
+                            && targetStockCode.equalsIgnoreCase(String.valueOf(p[0]))
+                            && (targetExchangeType.isBlank() || targetExchangeType.equalsIgnoreCase(String.valueOf(p[1]))))
+                    .toList();
+            if (!exactPairs.isEmpty()) {
+                pairs = exactPairs;
+            } else {
+                pairs = pairs.stream()
+                        .filter(p -> p != null
+                                && p.length >= 2
+                                && targetStockCode.equalsIgnoreCase(String.valueOf(p[0])))
+                        .toList();
+            }
+        }
         if (pairs.isEmpty()) {
             return Map.of("message", "无可用行情数据", "trade_date", tradeDate.toString(), "items", List.of());
         }
 
         Map<String, String> nameCache = new HashMap<>();
         List<Candidate> candidates = new ArrayList<>();
+        List<Candidate> passedCandidates = new ArrayList<>();
+        int scoredCount = 0;
         String progressiveResultId = null;
         int progressiveRank = 1;
+        Set<String> existingStockKeys = new HashSet<>();
         if (progressivePersist) {
             progressiveResultId = ensureResultSkeleton(
                     fixedResultId,
@@ -61,8 +86,13 @@ public class StockSelectorService {
                     minAvgAmount,
                     minTrendScore,
                     templateId,
-                    factorVersion
+                    factorVersion,
+                    resumeMode
             );
+            if (resumeMode && progressiveResultId != null && !progressiveResultId.isBlank()) {
+                existingStockKeys = selectorResultItemRepository.findStockKeysByResultId(progressiveResultId);
+                progressiveRank = existingStockKeys.size() + 1;
+            }
         }
 
         for (Object[] pair : pairs) {
@@ -74,15 +104,23 @@ public class StockSelectorService {
                     .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(stockCode, exchangeType, rangeStart, tradeDate);
             Candidate c = buildCandidate(stockCode, exchangeType, bars, minAvgAmount, minTrendScore, nameCache);
             if (c != null) {
+                scoredCount++;
+                String stockKey = c.stockCode + "|" + c.exchangeType;
+                if (resumeMode && existingStockKeys.contains(stockKey)) {
+                    continue;
+                }
                 candidates.add(c);
+                if (isCandidatePassed(c)) {
+                    passedCandidates.add(c);
+                }
                 if (progressiveResultId != null) {
                     selectorResultItemRepository.save(toItem(progressiveResultId, progressiveRank++, c));
                 }
             }
         }
 
-        candidates.sort((a, b) -> Double.compare(b.finalScore, a.finalScore));
-        List<Candidate> selected = candidates.stream().limit(topN).toList();
+        passedCandidates.sort((a, b) -> Double.compare(b.finalScore, a.finalScore));
+        List<Candidate> selected = passedCandidates.stream().limit(topN).toList();
 
         String finalResultId = progressiveResultId != null
                 ? progressiveResultId
@@ -94,15 +132,32 @@ public class StockSelectorService {
                 minAvgAmount,
                 minTrendScore,
                 templateId,
-                factorVersion
+                factorVersion,
+                false
         );
-        selectorResultItemRepository.deleteByResultId(finalResultId);
-        int rank = 1;
-        for (Candidate c : selected) {
-            SelectorResultItem item = toItem(finalResultId, rank++, c);
-            selectorResultItemRepository.save(item);
+        if (progressiveResultId == null) {
+            selectorResultItemRepository.deleteByResultId(finalResultId);
+            int rank = 1;
+            for (Candidate c : selected) {
+                SelectorResultItem item = toItem(finalResultId, rank++, c);
+                selectorResultItemRepository.save(item);
+            }
         }
+        int totalTargets = targetsSize(pairs);
+        int finalScoredCount = scoredCount;
+        selectorResultRepository.findByResultId(finalResultId).ifPresent(r -> {
+            r.setRunStatus("SUCCESS");
+            r.setTotalCandidates(totalTargets);
+            r.setProcessedCandidates(totalTargets);
+            r.setSuccessCandidates(finalScoredCount);
+            r.setFailedCandidates(Math.max(0, totalTargets - finalScoredCount));
+            selectorResultRepository.save(r);
+        });
         return getResultById(finalResultId);
+    }
+
+    private int targetsSize(List<Object[]> pairs) {
+        return pairs == null ? 0 : pairs.size();
     }
 
     public Map<String, Object> getLatestResult(LocalDate tradeDate, String factorVersion) {
@@ -232,7 +287,8 @@ public class StockSelectorService {
             double minAvgAmount,
             double minTrendScore,
             String templateId,
-            String factorVersion
+            String factorVersion,
+            boolean resumeMode
     ) {
         String rid = (resultId != null && !resultId.isBlank()) ? resultId : genResultId();
         SelectorResult result = selectorResultRepository.findByResultId(rid).orElse(new SelectorResult());
@@ -245,9 +301,15 @@ public class StockSelectorService {
         result.setTemplateId(templateId.isBlank() ? null : templateId);
         result.setFactorVersion(factorVersion.isBlank() ? "v1" : factorVersion);
         result.setStrategyType("CLASSIC_SELECTOR");
+        result.setRunStatus("RUNNING");
+        result.setTotalCandidates(0);
+        result.setProcessedCandidates(0);
+        result.setSuccessCandidates(0);
+        result.setFailedCandidates(0);
+        result.setLastProcessedKey("");
         result.setFactorSnapshot(buildFactorSnapshot(minAvgAmount, minTrendScore));
         selectorResultRepository.save(result);
-        if (result.getId() != null && resultId != null && !resultId.isBlank()) {
+        if (result.getId() != null && resultId != null && !resultId.isBlank() && !resumeMode) {
             selectorResultItemRepository.deleteByResultId(rid);
         }
         return rid;
@@ -314,10 +376,10 @@ public class StockSelectorService {
         double riskPenalty = clamp(vol20 * 1.5 + mdd60 * 1.2, 0, 100);
         double finalScore = 0.4 * trend + 0.25 * momentum + 0.2 * volumeScore - 0.15 * riskPenalty;
 
-        if (avgAmount20 < minAvgAmount) return null;
-        if (trend < minTrendScore) return null;
-        if (ma20 <= ma60) return null;
-        if (ret20 < -5) return null;
+        boolean passMinAvgAmount = avgAmount20 >= minAvgAmount;
+        boolean passMinTrendScore = trend >= minTrendScore;
+        boolean passMaTrend = ma20 > ma60;
+        boolean passRet20 = ret20 >= -5;
 
         Candidate c = new Candidate();
         c.stockCode = stockCode;
@@ -333,14 +395,26 @@ public class StockSelectorService {
         c.volatility20 = vol20;
         c.maxDrawdown60 = mdd60;
         c.avgAmount20 = avgAmount20;
-        c.reasons = Map.of(
-                "trend", ma20 > ma60 ? "MA20 在 MA60 上方" : "趋势偏弱",
-                "ret20", round2(ret20) + "%",
-                "ret60", round2(ret60) + "%",
-                "rsi14", round2(rsi14),
-                "volume_ratio", round2(volumeRatio)
-        );
+        Map<String, Object> reasons = new LinkedHashMap<>();
+        reasons.put("trend", ma20 > ma60 ? "MA20 在 MA60 上方" : "趋势偏弱");
+        reasons.put("ret20", round2(ret20) + "%");
+        reasons.put("ret60", round2(ret60) + "%");
+        reasons.put("rsi14", round2(rsi14));
+        reasons.put("volume_ratio", round2(volumeRatio));
+        reasons.put("pass_min_avg_amount", passMinAvgAmount);
+        reasons.put("pass_min_trend_score", passMinTrendScore);
+        reasons.put("pass_ma20_gt_ma60", passMaTrend);
+        reasons.put("pass_ret20_floor", passRet20);
+        c.reasons = reasons;
+        c.passMinAvgAmount = passMinAvgAmount;
+        c.passMinTrendScore = passMinTrendScore;
+        c.passMaTrend = passMaTrend;
+        c.passRet20 = passRet20;
         return c;
+    }
+
+    private boolean isCandidatePassed(Candidate c) {
+        return c != null && c.passMinAvgAmount && c.passMinTrendScore && c.passMaTrend && c.passRet20;
     }
 
     private String getStockName(String stockCode, String exchangeType) {
@@ -436,53 +510,37 @@ public class StockSelectorService {
         return mdd;
     }
 
-    private double ema(List<Double> values, int period) {
-        if (values.isEmpty()) return 0;
-        double k = 2.0 / (period + 1);
-        double ema = values.get(0);
-        for (int i = 1; i < values.size(); i++) ema = values.get(i) * k + ema * (1 - k);
-        return ema;
-    }
-
+    /**
+     * 使用TechnicalIndicators工具类计算MACD柱状图
+     */
     private double macdHistogram(List<Double> close) {
         int n = close.size();
         if (n < 35) return 0;
-        List<Double> macdSeries = new ArrayList<>();
-        for (int i = 0; i < n; i++) {
-            List<Double> sub = close.subList(0, i + 1);
-            macdSeries.add(ema(sub, 12) - ema(sub, 26));
-        }
-        double dif = macdSeries.get(macdSeries.size() - 1);
-        double dea = ema(macdSeries, 9);
-        return dif - dea;
+        double[] closeArr = close.stream().mapToDouble(Double::doubleValue).toArray();
+        TechnicalIndicators.MacdResult macd = TechnicalIndicators.macd(closeArr);
+        int lastIdx = n - 1;
+        return macd.macd()[lastIdx];
     }
 
+    /**
+     * 使用TechnicalIndicators工具类计算RSI
+     */
     private double rsi(List<Double> close, int period) {
         if (close.size() < period + 1) return 50;
-        double gain = 0, loss = 0;
-        for (int i = close.size() - period; i < close.size(); i++) {
-            double d = close.get(i) - close.get(i - 1);
-            if (d >= 0) gain += d;
-            else loss += -d;
-        }
-        if (gain == 0 && loss == 0) return 50;
-        if (loss == 0) return 100;
-        double rs = gain / loss;
-        return 100 - 100 / (1 + rs);
+        double[] closeArr = close.stream().mapToDouble(Double::doubleValue).toArray();
+        return TechnicalIndicators.rsiAt(closeArr, closeArr.length - 1, period);
     }
 
     private double clamp(double v, double min, double max) {
-        return Math.max(min, Math.min(max, v));
+        return ScoringUtils.clamp(v, min, max);
     }
 
     private double round2(double v) {
-        return Math.round(v * 100.0) / 100.0;
+        return ScoringUtils.round2(v);
     }
 
     private void ensureNotInterrupted() {
-        if (Thread.currentThread().isInterrupted()) {
-            throw new RuntimeException("任务被取消（线程中断）");
-        }
+        ScoringUtils.checkInterrupted();
     }
 
     private static class Candidate {
@@ -500,5 +558,9 @@ public class StockSelectorService {
         double maxDrawdown60;
         double avgAmount20;
         Map<String, Object> reasons;
+        boolean passMinAvgAmount;
+        boolean passMinTrendScore;
+        boolean passMaTrend;
+        boolean passRet20;
     }
 }

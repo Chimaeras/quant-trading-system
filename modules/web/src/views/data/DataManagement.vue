@@ -125,6 +125,15 @@
           <el-table-column label="操作" min-width="140" fixed="right">
             <template #default="{ row }">
               <el-button link type="primary" @click="viewTask(row.task_id)">详情</el-button>
+              <el-button
+                v-if="['PENDING', 'RUNNING', 'STOPPING'].includes(row.status)"
+                link
+                type="danger"
+                :loading="stoppingTaskId === row.task_id"
+                @click="stopTask(row.task_id)"
+              >
+                停止
+              </el-button>
               <el-button link type="warning" @click="retryTask(row.task_id)" v-if="row.failed_stocks > 0">重试失败</el-button>
             </template>
           </el-table-column>
@@ -190,6 +199,7 @@ const toast = useToast()
 const loading = ref(false)
 const taskLoading = ref(false)
 const taskSubmitting = ref(false)
+const stoppingTaskId = ref('')
 const tasks = ref<any[]>([])
 const detailVisible = ref(false)
 const taskDetail = ref<any>(null)
@@ -367,6 +377,28 @@ const retryTask = async (taskId: string) => {
     toast.success(`已创建重试任务：${data.task_id}，请点击「刷新任务列表」查看进度`)
   } catch (e: any) {
     toast.error(e?.message || '重试任务创建失败')
+  }
+}
+
+const stopTask = async (taskId: string) => {
+  if (!taskId) return
+  stoppingTaskId.value = taskId
+  try {
+    const data = await dataApi.stopUpdateTask(taskId)
+    const status = String(data?.status ?? '')
+    if (status === 'STOPPED') {
+      toast.success('任务已停止')
+    } else {
+      toast.success('已发送停止请求，任务将尽快终止')
+    }
+    await loadTasks()
+    if (detailVisible.value && detailTaskId.value === taskId) {
+      await loadTaskDetail(taskId, detailPage.value, detailSize.value)
+    }
+  } catch (e: any) {
+    toast.error(e?.message || '停止任务失败')
+  } finally {
+    stoppingTaskId.value = ''
   }
 }
 

@@ -28,17 +28,6 @@ spring:
         order_inserts: true
         order_updates: true
     open-in-view: false
-  data:
-    redis:
-      host: localhost
-      port: 6379
-      database: 0
-      timeout: 5000ms
-
-# JWT 配置
-jwt:
-  secret: quant-trading-system-secret-key-2026-change-in-production
-  expiration: 86400000  # 24小时
 
 # 日志配置
 logging:
@@ -73,17 +62,6 @@ quant:
       buy: 70
       hold: 55
       watch: 30
-    gdelt:
-      risk-red: 0.4
-      risk-yellow: 0.2
-      lambda: 0.1
-      event-weights:
-        "01": 0.6
-        "04": 0.4
-        "12": 0.3
-        default: 0.1
-    news:
-      preferred-boost: 1.5
     decay:
       technical-half-life-days: 5
       news-half-life-days: 2
@@ -102,21 +80,3 @@ quant:
         防御股: [0.25, 0.4, 0.35]
         普通股: [0.33, 0.34, 0.33]
 
-backtest:
-  cost:
-    commission-rate: 0.0003
-    min-commission: 5.0
-    stamp-duty-rate: 0.001
-    transfer-fee-rate: 0.00002
-    slippage-bps: 2.0
-
-llm:
-  base-url: ${LLM_BASE_URL:http://220.241.121.166:38000}
-  api-key: ${LLM_API_KEY:123456}
-  model: ${LLM_MODEL:glm-5-fp8}
-  temperature: ${LLM_TEMPERATURE:0.3}
-  max-tokens: ${LLM_MAX_TOKENS:1024}
-  connect-timeout-ms: ${LLM_CONNECT_TIMEOUT_MS:5000}
-  read-timeout-ms: ${LLM_READ_TIMEOUT_MS:120000}
-  enable-stream: ${LLM_ENABLE_STREAM:true}
-  session-max-messages: ${LLM_SESSION_MAX_MESSAGES:20}

@@ -167,7 +167,7 @@ public class ClassicFactorCalculator {
     private void zScoreAndRescore(
             List<CandidateScore> candidates,
             java.util.function.ToDoubleFunction<CandidateScore> getter,
-            java.util.function.DoubleConsumer setter
+            java.util.function.BiConsumer<CandidateScore, Double> setter
     ) {
         double[] values = candidates.stream().mapToDouble(getter).toArray();
         double mean = Arrays.stream(values).average().orElse(0);
@@ -181,7 +181,7 @@ public class ClassicFactorCalculator {
         for (int i = 0; i < candidates.size(); i++) {
             double z = (values[i] - mean) / std;
             double normalized = ScoringUtils.clamp(50 + z * 15, 0, 100);
-            setter.accept(normalized);
+            setter.accept(candidates.get(i), normalized);
         }
     }
 }

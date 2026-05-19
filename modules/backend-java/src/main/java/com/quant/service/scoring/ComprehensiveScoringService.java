@@ -614,18 +614,19 @@ public class ComprehensiveScoringService {
                     "sentiment", result.weights().sentimentWeight()
             ));
             reasons.put("risk_control", result.riskControlMessage());
-            reasons.put("score_field_mapping", Map.of(
-                    "scoreTrend", "技术面总分",
-                    "scoreBias", "基本面总分",
-                    "scoreVolume", "情绪面总分",
-                    "scoreSupport", "均线排列得分",
-                    "scoreMacd", "MACD得分",
-                    "scoreRsi", "RSI得分",
-                    "trendStatus", "均线排列状态",
-                    "volumeStatus", "新闻情绪状态",
-                    "macdStatus", "MACD状态",
-                    "rsiStatus", "RSI状态",
-                    "buySignal", "投资建议"));
+            Map<String, String> fieldMapping = new LinkedHashMap<>();
+            fieldMapping.put("scoreTrend", "技术面总分");
+            fieldMapping.put("scoreBias", "基本面总分");
+            fieldMapping.put("scoreVolume", "情绪面总分");
+            fieldMapping.put("scoreSupport", "均线排列得分");
+            fieldMapping.put("scoreMacd", "MACD得分");
+            fieldMapping.put("scoreRsi", "RSI得分");
+            fieldMapping.put("trendStatus", "均线排列状态");
+            fieldMapping.put("volumeStatus", "新闻情绪状态");
+            fieldMapping.put("macdStatus", "MACD状态");
+            fieldMapping.put("rsiStatus", "RSI状态");
+            fieldMapping.put("buySignal", "投资建议");
+            reasons.put("score_field_mapping", fieldMapping);
             e.setReasonsJson(objectMapper.writeValueAsString(reasons));
         } catch (JsonProcessingException ex) {
             e.setReasonsJson("{}");

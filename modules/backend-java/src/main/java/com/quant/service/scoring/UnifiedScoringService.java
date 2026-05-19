@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quant.repository.SelectorResultItemRepository;
 import com.quant.repository.SelectorResultRepository;
 import com.quant.repository.UnifiedScoringTaskRepository;
-import com.quant.service.GeopolicyNewsScoringService;
 import com.quant.service.MultiDimScoringService;
 import com.quant.service.OversoldReboundScoringService;
 import com.quant.service.StockSelectorService;
@@ -56,7 +55,6 @@ public class UnifiedScoringService {
     private final MultiDimScoringService multiDimScoringService;
     private final StockSelectorService stockSelectorService;
     private final OversoldReboundScoringService oversoldReboundScoringService;
-    private final GeopolicyNewsScoringService geopolicyNewsScoringService;
     private final SelectorResultRepository selectorResultRepository;
     private final SelectorResultItemRepository selectorResultItemRepository;
     private final UnifiedScoringTaskRepository unifiedScoringTaskRepository;
@@ -424,7 +422,6 @@ public class UnifiedScoringService {
             case MULTI_DIM -> runMultiDim(req);
             case CLASSIC_SELECTOR -> runClassicSelector(req);
             case OVERSOLD_REBOUND -> runOversold(req);
-            case GEOPOLICY_NEWS -> runGeopolicy(req);
         };
     }
 
@@ -600,8 +597,7 @@ public class UnifiedScoringService {
 
     private static boolean supportsProgressive(UnifiedScoringStrategy strategy) {
         return strategy == UnifiedScoringStrategy.CLASSIC_SELECTOR
-                || strategy == UnifiedScoringStrategy.OVERSOLD_REBOUND
-                || strategy == UnifiedScoringStrategy.GEOPOLICY_NEWS;
+                || strategy == UnifiedScoringStrategy.OVERSOLD_REBOUND;
     }
 
     private Map<String, Object> runTrend(Map<String, Object> req) {
@@ -636,12 +632,6 @@ public class UnifiedScoringService {
         Map<String, Object> p = new LinkedHashMap<>(req);
         p.put("persist", false);
         return oversoldReboundScoringService.run(p);
-    }
-
-    private Map<String, Object> runGeopolicy(Map<String, Object> req) {
-        Map<String, Object> p = new LinkedHashMap<>(req);
-        p.put("persist", false);
-        return geopolicyNewsScoringService.run(p);
     }
 
     private String persistUnified(

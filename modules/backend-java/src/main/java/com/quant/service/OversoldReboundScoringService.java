@@ -442,38 +442,49 @@ public class OversoldReboundScoringService {
                                  Map<String, String> nameCache, boolean excludeST) {
         if (bars == null || bars.size() < ScoringConstants.MIN_BARS_OVERSOLD) return null;
 
-        List<Double> close = new ArrayList<>();
-        List<Double> open = new ArrayList<>();
-        List<Double> volume = new ArrayList<>();
-        List<Double> amount = new ArrayList<>();
-        for (MarketData b : bars) {
+        int barCount = bars.size();
+        double[] close = new double[barCount];
+        double[] open = new double[barCount];
+        double[] volume = new double[barCount];
+        double[] amount = new double[barCount];
+        int validCount = 0;
+        for (int i = 0; i < barCount; i++) {
+            MarketData b = bars.get(i);
             if (b.getTradeDate() == null || b.getClosePrice() == null) continue;
             double c = b.getClosePrice().doubleValue();
             if (c <= 0) continue;
-            close.add(c);
-            open.add(b.getOpenPrice() != null ? b.getOpenPrice().doubleValue() : c);
-            volume.add(b.getVolume() != null ? b.getVolume().doubleValue() : 0d);
-            amount.add(b.getAmount() != null ? b.getAmount().doubleValue() : 0d);
+            close[validCount] = c;
+            open[validCount] = b.getOpenPrice() != null ? b.getOpenPrice().doubleValue() : c;
+            volume[validCount] = b.getVolume() != null ? b.getVolume().doubleValue() : 0.0;
+            amount[validCount] = b.getAmount() != null ? b.getAmount().doubleValue() : 0.0;
+            validCount++;
         }
-        if (close.size() < ScoringConstants.MIN_BARS_OVERSOLD) return null;
+        if (validCount < ScoringConstants.MIN_BARS_OVERSOLD) return null;
+
+        int n = validCount;
+        double lastClose = close[n - 1];
 
         String stockName = nameCache.computeIfAbsent(stockCode + ":" + exchangeType, k -> getStockName(stockCode, exchangeType));
         if (excludeST && stockName != null && stockName.toUpperCase().contains("ST")) return null;
 
-        int n = close.size();
-        double lastClose = close.get(n - 1);
-
         // 收益率计算
-        double ret60 = (n >= 61) ? ScoringUtils.pct(lastClose, close.get(n - 61)) : 0;
-        double ret120 = (n >= 121) ? ScoringUtils.pct(lastClose, close.get(n - 121)) : 0;
-        double ret20 = (n >= 21) ? ScoringUtils.pct(lastClose, close.get(n - 21)) : 0;
-        double avgAmount20 = TechnicalIndicators.avg(amount, n - 20, n - 1);
+        double ret60 = (n >= 61) ? ScoringUtils.pct(lastClose, close[n - 61]) : 0;
+        double ret120 = (n >= 121) ? ScoringUtils.pct(lastClose, close[n - 121]) : 0;
+        double ret20 = (n >= 21) ? ScoringUtils.pct(lastClose, close[n - 21]) : 0;
 
-        // 均线计算 - 使用统一工具类
-        double[] closeArr = close.stream().mapToDouble(Double::doubleValue).toArray();
-        double ma20 = TechnicalIndicators.smaAt(closeArr, n - 1, 20);
-        double ma60 = TechnicalIndicators.smaAt(closeArr, n - 1, 60);
-        double ma120 = TechnicalIndicators.smaAt(closeArr, n - 1, 120);
+        // 日均成交额（20日）
+        double avgAmount20 = 0;
+        for (int i = Math.max(0, n - 20); i < n; i++) avgAmount20 += amount[i];
+        avgAmount20 = (n >= 20) ? avgAmount20 / 20.0 : 0;
+
+        // 预计算均线数组（一次性批量计算，后续 O(1) 取值）
+        double[] ma20Arr = TechnicalIndicators.sma(close, 20);
+        double[] ma60Arr = TechnicalIndicators.sma(close, 60);
+        double[] ma120Arr = TechnicalIndicators.sma(close, 120);
+        int L = n - 1;
+        double ma20 = ma20Arr[L];
+        double ma60 = ma60Arr[L];
+        double ma120 = ma120Arr[L];
 
         // 周K连续阴线
         int consecutiveBearWeeks = consecutiveBearWeeks(bars);
@@ -486,11 +497,12 @@ public class OversoldReboundScoringService {
         // 量价配合
         VolumePriceType vp = volumePriceType(close, volume);
 
-        // RSI14 - 使用统一工具类
-        double rsi14 = TechnicalIndicators.rsiAt(closeArr, n - 1, ScoringConstants.RSI_PERIOD);
+        // RSI14（使用预计算的 RSI 数组避免重复计算）
+        double[] rsiArr = TechnicalIndicators.rsi(close, ScoringConstants.RSI_PERIOD);
+        double rsi14 = rsiArr[L];
 
         // 布林带
-        double std20 = TechnicalIndicators.stdDev(closeArr, n - 20, n - 1);
+        double std20 = TechnicalIndicators.stdDev(close, L - 20 + 1, L);
         double bollMid = ma20;
         double bollLower = bollMid - 2 * std20;
         double bollLowerExtreme = bollMid - 3.5 * std20;
@@ -622,13 +634,13 @@ public class OversoldReboundScoringService {
         DOWN_VOL_SHRINK
     }
 
-    private VolumePriceType volumePriceType(List<Double> close, List<Double> volume) {
-        int n = close.size();
+    private VolumePriceType volumePriceType(double[] close, double[] volume) {
+        int n = close.length;
         if (n < 40) return VolumePriceType.DOWN_VOL_SHRINK;
 
         int from = Math.max(0, n - 30);
-        double start = close.get(from);
-        double end = close.get(n - 1);
+        double start = close[from];
+        double end = close[n - 1];
         boolean down = end < start;
 
         double vFirstHalf = TechnicalIndicators.avg(volume, from, from + 14);

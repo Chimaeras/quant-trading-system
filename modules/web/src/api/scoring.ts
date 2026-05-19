@@ -73,7 +73,6 @@ export type UnifiedScoringStrategy =
   | 'MULTI_DIM'
   | 'CLASSIC_SELECTOR'
   | 'OVERSOLD_REBOUND'
-  | 'GEOPOLICY_NEWS'
 
 export interface UnifiedScoringRunRequest {
   strategy: UnifiedScoringStrategy

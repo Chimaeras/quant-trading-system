@@ -326,6 +326,23 @@ public final class TechnicalIndicators {
     }
 
     /**
+     * 计算数组区间平均值
+     */
+    public static double avg(double[] arr, int from, int to) {
+        if (arr == null || arr.length == 0) return 0;
+        int f = Math.max(0, from);
+        int t = Math.min(arr.length - 1, to);
+        if (f > t) return 0;
+        double sum = 0;
+        int n = 0;
+        for (int i = f; i <= t; i++) {
+            sum += arr[i];
+            n++;
+        }
+        return n > 0 ? sum / n : 0;
+    }
+
+    /**
      * 计算列表区间最小值
      */
     public static double min(java.util.List<Double> list, int from, int to) {
@@ -339,6 +356,19 @@ public final class TechnicalIndicators {
     }
 
     /**
+     * 计算数组区间最小值
+     */
+    public static double min(double[] arr, int from, int to) {
+        int f = Math.max(0, from);
+        int t = Math.min(arr.length - 1, to);
+        double m = Double.POSITIVE_INFINITY;
+        for (int i = f; i <= t; i++) {
+            m = Math.min(m, arr[i]);
+        }
+        return m == Double.POSITIVE_INFINITY ? 0 : m;
+    }
+
+    /**
      * 计算列表区间最大值
      */
     public static double max(java.util.List<Double> list, int from, int to) {
@@ -347,6 +377,19 @@ public final class TechnicalIndicators {
         double m = Double.NEGATIVE_INFINITY;
         for (int i = f; i <= t; i++) {
             m = Math.max(m, list.get(i));
+        }
+        return m == Double.NEGATIVE_INFINITY ? 0 : m;
+    }
+
+    /**
+     * 计算数组区间最大值
+     */
+    public static double max(double[] arr, int from, int to) {
+        int f = Math.max(0, from);
+        int t = Math.min(arr.length - 1, to);
+        double m = Double.NEGATIVE_INFINITY;
+        for (int i = f; i <= t; i++) {
+            m = Math.max(m, arr[i]);
         }
         return m == Double.NEGATIVE_INFINITY ? 0 : m;
     }
@@ -568,6 +611,28 @@ public final class TechnicalIndicators {
         double ma20 = smaAt(close, index, 20);
         if (Double.isNaN(ma5) || Double.isNaN(ma20)) return 0;
         return (ma5 - ma20) / ma20;
+    }
+
+    /**
+     * 均线发散方向（使用预计算的均线值，避免重复 smaAt 调用）。
+     */
+    public static double maDivergenceDirection(double ma5, double ma20) {
+        if (Double.isNaN(ma5) || Double.isNaN(ma20)) return 0;
+        return (ma5 - ma20) / ma20;
+    }
+
+    /**
+     * 均线粘合度（使用预计算的均线值，避免重复 smaAt 调用）。
+     */
+    public static double maConvergenceDegree(double ma5, double ma10, double ma20, double ma60) {
+        if (Double.isNaN(ma5) || Double.isNaN(ma10) || Double.isNaN(ma20) || Double.isNaN(ma60)) {
+            return 1.0;
+        }
+        double mean = (ma5 + ma10 + ma20 + ma60) / 4.0;
+        if (mean < 1e-9) return 1.0;
+        double var = (Math.pow(ma5 - mean, 2) + Math.pow(ma10 - mean, 2)
+                + Math.pow(ma20 - mean, 2) + Math.pow(ma60 - mean, 2)) / 4.0;
+        return Math.sqrt(var) / mean;
     }
 
     // ==================== P1: 日内振幅与影线 ====================

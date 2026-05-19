@@ -8,8 +8,7 @@ public enum UnifiedScoringStrategy {
     COMPREHENSIVE,
     MULTI_DIM,
     CLASSIC_SELECTOR,
-    OVERSOLD_REBOUND,
-    GEOPOLICY_NEWS;
+    OVERSOLD_REBOUND;
 
     public static UnifiedScoringStrategy parse(String raw) {
         if (raw == null || raw.isBlank()) {
@@ -22,7 +21,6 @@ public enum UnifiedScoringStrategy {
             case "MULTI_DIM", "MULTI-DIM", "MULTIDIM" -> MULTI_DIM;
             case "CLASSIC", "CLASSIC_SELECTOR", "SELECTOR" -> CLASSIC_SELECTOR;
             case "OVERSOLD", "OVERSOLD_REBOUND", "OVERSOLD-REBOUND" -> OVERSOLD_REBOUND;
-            case "GEOPOLICY", "GEOPOLICY_NEWS", "GEOPOLICY-NEWS" -> GEOPOLICY_NEWS;
             default -> throw new IllegalArgumentException("不支持的策略类型: " + raw);
         };
     }

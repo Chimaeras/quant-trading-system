@@ -36,5 +36,9 @@ public interface SelectorResultRepository extends JpaRepository<SelectorResult, 
 
     Page<SelectorResult> findByStrategyTypeOrderByCreatedAtDesc(String strategyType, Pageable pageable);
 
-    List<SelectorResult> findByTradeDateBetweenOrderByCreatedAtDesc(LocalDate start, LocalDate end);
+    @Query("SELECT s FROM SelectorResult s WHERE s.tradeDate BETWEEN :start AND :end ORDER BY s.createdAt DESC")
+    List<SelectorResult> findByTradeDateBetweenOrderByCreatedAtDesc(@Param("start") LocalDate start, @Param("end") LocalDate end);
+
+    @Query("SELECT DISTINCT s.strategyType FROM SelectorResult s WHERE s.strategyType IS NOT NULL ORDER BY s.strategyType")
+    List<String> findDistinctStrategyTypes();
 }

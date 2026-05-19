@@ -6,7 +6,6 @@
         <el-radio-group v-model="mode" size="small" @change="onModeChange">
           <el-radio-button value="classic">经典多因子</el-radio-button>
           <el-radio-button value="oversold">超跌反弹</el-radio-button>
-          <el-radio-button value="geopolicy">政策/新闻</el-radio-button>
         </el-radio-group>
       </div>
     </template>
@@ -43,7 +42,7 @@
       </el-form-item>
     </el-form>
 
-    <el-form v-else-if="mode === 'oversold'" inline>
+    <el-form v-else inline>
       <el-form-item label="交易日">
         <el-date-picker v-model="oversoldForm.tradeDate" type="date" value-format="YYYY-MM-DD" />
       </el-form-item>
@@ -71,42 +70,6 @@
       </el-form-item>
     </el-form>
 
-    <el-form v-else inline>
-      <el-form-item label="交易日">
-        <el-date-picker v-model="geoForm.tradeDate" type="date" value-format="YYYY-MM-DD" />
-      </el-form-item>
-      <el-form-item label="回看天数">
-        <el-input-number v-model="geoForm.lookbackDays" :min="20" :max="260" :step="5" />
-      </el-form-item>
-      <el-form-item label="打分池数量">
-        <el-input-number v-model="geoForm.scoreTopN" :min="10" :max="500" :step="10" />
-      </el-form-item>
-      <el-form-item label="事件回看(日)">
-        <el-input-number v-model="geoForm.gdeltEventsLookbackDays" :min="1" :max="60" />
-      </el-form-item>
-      <el-form-item label="新闻回看(日)">
-        <el-input-number v-model="geoForm.gdeltNewsLookbackDays" :min="1" :max="30" />
-      </el-form-item>
-      <el-form-item label="新闻语言(允许)">
-        <el-input v-model="geoForm.newsLangAllow" placeholder="如 Chinese,English（留空=不过滤）" style="width: 240px" />
-      </el-form-item>
-      <el-form-item label="新闻域名(拒绝)">
-        <el-input v-model="geoForm.newsDomainDeny" placeholder="如 kenh14.vn（留空=不过滤）" style="width: 220px" />
-      </el-form-item>
-      <el-form-item label="风险阈值(黄/红)">
-        <el-input-number v-model="geoForm.riskYellow" :min="0.05" :max="0.9" :step="0.05" :precision="2" />
-        <span style="margin: 0 6px">/</span>
-        <el-input-number v-model="geoForm.riskRed" :min="0.05" :max="0.95" :step="0.05" :precision="2" />
-      </el-form-item>
-      <el-form-item label="落库">
-        <el-switch v-model="geoForm.persist" />
-      </el-form-item>
-      <el-form-item>
-        <el-button type="primary" :loading="running" @click="runGeopolicy">执行打分</el-button>
-        <el-button :disabled="running" @click="loadLatest">加载最新</el-button>
-      </el-form-item>
-    </el-form>
-
     <el-alert v-if="taskStatus" :type="taskStatus === 'FAILED' ? 'error' : taskStatus === 'SUCCESS' ? 'success' : taskStatus === 'CANCELLED' ? 'warning' : 'info'" show-icon :closable="false" class="run-alert">
       <template #title>
         执行任务状态：{{ taskStatus }} <span v-if="taskId">（{{ taskId }}）</span>
@@ -120,49 +83,14 @@
           <span v-if="pollStopAt">停止时间：{{ pollStopAt }}</span>
         </div>
         <div class="run-actions">
-          <el-button
-            v-if="taskId && (taskStatus === 'PENDING' || taskStatus === 'RUNNING')"
-            link
-            type="danger"
-            @click="cancelTaskServer"
-          >
-            取消当前任务
-          </el-button>
-          <el-button
-            v-if="taskId && taskStatus === 'PENDING'"
-            link
-            type="warning"
-            @click="prioritizeCurrentTask"
-          >
-            取消前序并优先执行当前任务
-          </el-button>
-          <el-button
-            v-if="pendingAhead > 0"
-            link
-            type="danger"
-            @click="clearPendingQueue"
-          >
-            一键清空待执行队列
-          </el-button>
-          <el-button
-            v-if="taskId && (taskStatus === 'PENDING' || taskStatus === 'RUNNING')"
-            link
-            type="danger"
-            @click="forceRestartCurrentTask"
-          >
-            清队列+取消并立即重跑
-          </el-button>
+          <el-button v-if="taskId && (taskStatus === 'PENDING' || taskStatus === 'RUNNING')" link type="danger" @click="cancelTaskServer">取消当前任务</el-button>
+          <el-button v-if="taskId && taskStatus === 'PENDING'" link type="warning" @click="prioritizeCurrentTask">取消前序并优先执行当前任务</el-button>
+          <el-button v-if="pendingAhead > 0" link type="danger" @click="clearPendingQueue">一键清空待执行队列</el-button>
+          <el-button v-if="taskId && (taskStatus === 'PENDING' || taskStatus === 'RUNNING')" link type="danger" @click="forceRestartCurrentTask">清队列+取消并立即重跑</el-button>
           <el-button v-if="isPollingActive" link type="warning" @click="cancelTaskWatch">停止监控</el-button>
           <el-button v-if="taskId" link type="primary" @click="refreshTaskStatus">刷新任务状态</el-button>
           <el-button v-if="resultMeta.result_id" link type="primary" @click="refreshResultData">刷新已完成股票</el-button>
-          <el-button
-            v-else-if="taskId && taskStatus !== 'SUCCESS' && taskStatus !== 'FAILED' && taskStatus !== 'CANCELLED'"
-            link
-            type="primary"
-            @click="resumeTaskWatch"
-          >
-            恢复监控
-          </el-button>
+          <el-button v-else-if="taskId && taskStatus !== 'SUCCESS' && taskStatus !== 'FAILED' && taskStatus !== 'CANCELLED'" link type="primary" @click="resumeTaskWatch">恢复监控</el-button>
         </div>
         <el-progress :percentage="Math.max(0, Math.min(100, taskProgress))" :status="taskStatus === 'FAILED' ? 'exception' : taskStatus === 'SUCCESS' ? 'success' : taskStatus === 'CANCELLED' ? 'warning' : undefined" />
       </template>
@@ -220,14 +148,6 @@
       <span v-if="resultMeta.run_status">状态: {{ resultMeta.run_status }}</span>
     </div>
 
-    <div v-if="mode === 'geopolicy' && macro" class="macro">
-      <span>风险: <b>{{ macro.risk_level }}</b>（建议仓位 {{ Math.round((macro.recommended_position_pct ?? 1) * 100) }}%）</span>
-      <span>GeoRiskIndex: {{ macro.geo_risk_index01 }}</span>
-      <span>NewsSentIndex: {{ macro.news_sent_index01 }}</span>
-      <span>PolicyScore: {{ macro.policy_score01 }}</span>
-      <span>事件: {{ macro.events_count }} / 新闻: {{ macro.news_count }}</span>
-    </div>
-
     <el-table v-if="mode === 'classic'" v-loading="loading" :data="displayedResults" stripe>
       <el-table-column label="排名" width="70">
         <template #default="{ row, $index }">{{ resolveRank(row, $index) }}</template>
@@ -247,7 +167,7 @@
       </el-table-column>
     </el-table>
 
-    <el-table v-else-if="mode === 'oversold'" v-loading="loading" :data="displayedResults" stripe>
+    <el-table v-else v-loading="loading" :data="displayedResults" stripe>
       <el-table-column label="排名" width="70">
         <template #default="{ row, $index }">{{ resolveRank(row, $index) }}</template>
       </el-table-column>
@@ -267,29 +187,8 @@
       </el-table-column>
     </el-table>
 
-    <el-table v-else v-loading="loading" :data="displayedResults" stripe>
-      <el-table-column label="排名" width="70">
-        <template #default="{ row, $index }">{{ resolveRank(row, $index) }}</template>
-      </el-table-column>
-      <el-table-column prop="stock_code" label="代码" min-width="95" />
-      <el-table-column prop="stock_name" label="名称" min-width="120" />
-      <el-table-column prop="final_score" label="综合分" min-width="90" />
-      <el-table-column prop="trend_score" label="趋势分" min-width="90" />
-      <el-table-column prop="momentum_score" label="动量分" min-width="90" />
-      <el-table-column prop="volume_score" label="量价分" min-width="90" />
-      <el-table-column prop="risk_penalty" label="风险惩罚" min-width="90" />
-      <el-table-column prop="ret20" label="20日收益(%)" min-width="110" />
-      <el-table-column prop="ret60" label="60日收益(%)" min-width="110" />
-      <el-table-column label="操作" min-width="90" fixed="right">
-        <template #default="{ row }">
-          <el-button link type="primary" @click="showDetail(row)">详情</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-
     <p v-if="mode === 'classic'" class="tip">流程：先执行打分拿到评分池，再按 TopN 和最低分生成关注清单。</p>
-    <p v-else-if="mode === 'oversold'" class="tip">逻辑：趋势确认(40) + 成交量验证(30) + 超跌程度(30)；关注清单支持二次阈值筛选。</p>
-    <p v-else class="tip">逻辑：经典多因子 + 政策/新闻偏置 - 地缘风险惩罚；可结合风险等级动态调整关注池规模。</p>
+    <p v-else class="tip">逻辑：趋势确认(40) + 成交量验证(30) + 超跌程度(30)；关注清单支持二次阈值筛选。</p>
   </el-card>
 
   <el-dialog v-model="detailVisible" title="选股详情" width="640px">
@@ -325,7 +224,7 @@ import { selectorApi } from '@/api/selector'
 import { scoringApi, type UnifiedScoringStrategy, type UnifiedScoringTaskStatus } from '@/api/scoring'
 import { useToast } from '@/composables/useToast'
 
-type ModeType = 'classic' | 'oversold' | 'geopolicy'
+type ModeType = 'classic' | 'oversold'
 type TaskStatusType = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | ''
 
 const loading = ref(false)
@@ -336,7 +235,6 @@ const results = ref<Record<string, any>[]>([])
 const focusResults = ref<Record<string, any>[]>([])
 const detailVisible = ref(false)
 const detailRow = ref<Record<string, any> | null>(null)
-const macro = ref<Record<string, any> | null>(null)
 const taskId = ref('')
 const taskStatus = ref<TaskStatusType>('')
 const taskProgress = ref(0)
@@ -386,25 +284,6 @@ const oversoldForm = reactive({
   excludeST: true,
   persist: true,
   templateId: ''
-})
-
-const geoForm = reactive({
-  tradeDate: dayjs().format('YYYY-MM-DD'),
-  lookbackDays: 60,
-  scoreTopN: 150,
-  minAvgAmount: 30000000,
-  minTrendScore: 40,
-  gdeltEventsQuery: 'CHN',
-  gdeltNewsQuery: 'CHN',
-  gdeltEventsLookbackDays: 14,
-  gdeltNewsLookbackDays: 3,
-  newsLangAllow: 'Chinese,English',
-  newsSourceCountryAllow: '',
-  newsDomainAllow: '',
-  newsDomainDeny: '',
-  riskYellow: 0.2,
-  riskRed: 0.4,
-  persist: true
 })
 
 const focusForm = reactive({
@@ -499,9 +378,6 @@ function applyResult(data: Record<string, any>) {
     if (ar !== br) return ar - br
     return scoreOf(b) - scoreOf(a)
   })
-  macro.value = (data.macro || data.source_summary?.macro)
-    ? ((data.macro || data.source_summary?.macro) as Record<string, any>)
-    : null
   applyFocusSelection()
 }
 
@@ -555,13 +431,12 @@ async function runAndWaitTask(payload: Record<string, unknown>) {
       } catch (e: any) {
         errorCount += 1
         const msg = String(e?.message || '')
-        // 任务明确失败直接抛出，其余网络波动按重试处理
         if (msg.includes('任务执行失败')) {
           throw e
         }
         taskMessage.value = `进度查询波动，正在重试（${errorCount}/6）`
         if (errorCount >= 6) {
-          throw new Error('进度查询连续失败，任务可能仍在执行。可点击“恢复监控”继续查看。')
+          throw new Error('进度查询连续失败，任务可能仍在执行。可点击"恢复监控"继续查看。')
         }
       }
       await sleep(Math.min(2000 + errorCount * 1000, 6000))
@@ -585,7 +460,7 @@ async function syncPartialResult(resultId: string) {
     applyResult(page as Record<string, any>)
     taskMessage.value = `任务执行中，已同步 ${items.length} 条阶段结果`
   } catch {
-    // 阶段结果尚未落库时忽略，避免打断主轮询
+    // 阶段结果尚未落库时忽略
   }
 }
 
@@ -656,20 +531,17 @@ async function queryByResultId() {
 
 function currentStrategy(): UnifiedScoringStrategy {
   if (mode.value === 'classic') return 'CLASSIC_SELECTOR'
-  if (mode.value === 'oversold') return 'OVERSOLD_REBOUND'
-  return 'GEOPOLICY_NEWS'
+  return 'OVERSOLD_REBOUND'
 }
 
 function currentTradeDate() {
   if (mode.value === 'classic') return form.tradeDate
-  if (mode.value === 'oversold') return oversoldForm.tradeDate
-  return geoForm.tradeDate
+  return oversoldForm.tradeDate
 }
 
 function currentScorePoolSize() {
   if (mode.value === 'classic') return form.scoreTopN
-  if (mode.value === 'oversold') return oversoldForm.scoreTopN
-  return geoForm.scoreTopN
+  return oversoldForm.scoreTopN
 }
 
 async function runSelection() {
@@ -720,46 +592,6 @@ async function runOversold() {
     toast.success(`打分完成，共 ${results.value.length} 只`)
   } catch (e: any) {
     taskError.value = String(e?.message || '运行超跌筛选失败')
-    toast.error(taskError.value)
-  } finally {
-    running.value = false
-    loading.value = false
-  }
-}
-
-async function runGeopolicy() {
-  running.value = true
-  loading.value = true
-  try {
-    const done = await runAndWaitTask({
-      strategy: 'GEOPOLICY_NEWS',
-      tradeDate: geoForm.tradeDate,
-      lookbackDays: geoForm.lookbackDays,
-      topN: geoForm.scoreTopN,
-      minAvgAmount: geoForm.minAvgAmount,
-      minTrendScore: geoForm.minTrendScore,
-      gdeltEventsQuery: geoForm.gdeltEventsQuery,
-      gdeltNewsQuery: geoForm.gdeltNewsQuery,
-      gdeltEventsLookbackDays: geoForm.gdeltEventsLookbackDays,
-      gdeltNewsLookbackDays: geoForm.gdeltNewsLookbackDays,
-      newsLangAllow: geoForm.newsLangAllow,
-      newsSourceCountryAllow: geoForm.newsSourceCountryAllow,
-      newsDomainAllow: geoForm.newsDomainAllow,
-      newsDomainDeny: geoForm.newsDomainDeny,
-      riskYellow: geoForm.riskYellow,
-      riskRed: geoForm.riskRed,
-      persist: geoForm.persist
-    })
-    const data = done.result_id
-      ? await scoringApi.getUnifiedResult(done.result_id, { page: 1, size: geoForm.scoreTopN })
-      : await scoringApi.getUnifiedLatest({ strategy: 'GEOPOLICY_NEWS', tradeDate: geoForm.tradeDate, page: 1, size: geoForm.scoreTopN })
-    applyResult(data)
-    toast.success(`打分完成，共 ${results.value.length} 只`)
-  } catch (e: any) {
-    results.value = []
-    focusResults.value = []
-    macro.value = null
-    taskError.value = String(e?.response?.data?.message || e?.message || '运行政策/新闻失败')
     toast.error(taskError.value)
   } finally {
     running.value = false
@@ -901,10 +733,8 @@ async function forceRestartCurrentTask() {
     }
     if (mode.value === 'classic') {
       await runSelection()
-    } else if (mode.value === 'oversold') {
-      await runOversold()
     } else {
-      await runGeopolicy()
+      await runOversold()
     }
   } catch (e: any) {
     const msg = String(e?.message || '强制重跑失败')
@@ -967,7 +797,7 @@ function exportCsv() {
 }
 
 function downloadCsv(lines: string[], filename: string) {
-  const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+  const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -1004,7 +834,6 @@ function onModeChange() {
   resetTaskState()
   results.value = []
   focusResults.value = []
-  macro.value = null
   loadLatest().catch(() => {})
 }
 
@@ -1039,14 +868,6 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 20px;
   margin: 8px 0 12px;
-  color: var(--text-secondary);
-  font-size: 13px;
-  flex-wrap: wrap;
-}
-.macro {
-  display: flex;
-  gap: 16px;
-  margin: 0 0 12px;
   color: var(--text-secondary);
   font-size: 13px;
   flex-wrap: wrap;

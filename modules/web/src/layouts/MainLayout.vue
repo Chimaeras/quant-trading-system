@@ -3,12 +3,7 @@
     <header class="topbar glass">
       <div class="brand">
         <strong>QUANT TERMINAL</strong>
-        <span>深色专业交易终端</span>
-      </div>
-      <div class="toolbar">
-        <StatusChip status="running" label="系统运行中" />
-        <UiButton variant="ghost" @click="router.push('/ai-chat')">AI聊天</UiButton>
-        <UiButton variant="danger" @click="handleLogout">退出</UiButton>
+        <span>量化选股系统</span>
       </div>
     </header>
     <nav class="tabs glass">
@@ -34,24 +29,11 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { useRoute, useRouter } from "vue-router"
-import { useUserStore } from "@/stores/user"
-import StatusChip from "@/components/ui/StatusChip.vue"
-import UiButton from "@/components/ui/Button.vue"
 
 const route = useRoute()
 const router = useRouter()
-const userStore = useUserStore()
 
 const navGroups = computed(() => [
-  {
-    title: "核心",
-    items: [
-      { path: "/dashboard", label: "总览" },
-      { path: "/account", label: "账户" },
-      { path: "/trading", label: "交易执行" },
-      { path: "/backtest", label: "回测分析" }
-    ]
-  },
   {
     title: "数据",
     items: [
@@ -64,25 +46,11 @@ const navGroups = computed(() => [
     items: [
       { path: "/market/stock", label: "股票详情" },
       { path: "/market/kline", label: "K线图" },
-      { path: "/market/stock-picker", label: "选股工作台" },
-      { path: "/market/realtime", label: "实时盯盘" },
-      { path: "/market/analysis-dashboard", label: "AI分析" }
-    ]
-  },
-  {
-    title: "扩展",
-    items: [
-      { path: "/ai-chat", label: "AI聊天" },
-      { path: "/scheduler", label: "定时设置" },
-      { path: "/settings", label: "设置" }
+      { path: "/market/stock-picker", label: "选股打分" },
+      { path: "/backtest/scoring", label: "打分回测" }
     ]
   }
 ])
-
-function handleLogout() {
-  userStore.logout()
-  router.push("/login")
-}
 </script>
 
 <style scoped>
@@ -116,12 +84,6 @@ function handleLogout() {
 .brand span {
   font-size: var(--fz-xs);
   color: var(--text-secondary);
-}
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
 }
 
 .tabs {

@@ -373,20 +373,25 @@ public class StockTrendScoringService {
 
         int L = n - 1;
 
-        // 均线系统
-        double ma5 = TechnicalIndicators.smaAt(close, L, 5);
-        double ma10 = TechnicalIndicators.smaAt(close, L, 10);
-        double ma20 = TechnicalIndicators.smaAt(close, L, 20);
+        // 预计算均线数组（一次性批量计算，后续 O(1) 取值，避免反复 smaAt）
+        double[] ma5Arr = TechnicalIndicators.sma(close, 5);
+        double[] ma10Arr = TechnicalIndicators.sma(close, 10);
+        double[] ma20Arr = TechnicalIndicators.sma(close, 20);
+        double[] ma60Arr = TechnicalIndicators.sma(close, 60);
+
+        double ma5 = ma5Arr[L];
+        double ma10 = ma10Arr[L];
+        double ma20 = ma20Arr[L];
         if (Double.isNaN(ma5) || Double.isNaN(ma10) || Double.isNaN(ma20)) {
             return Optional.empty();
         }
 
         int prevIdx = n >= 5 ? n - 5 : L;
-        double currSpread = spreadAt(close, L);
-        double prevSpread = spreadAt(close, prevIdx);
+        double currSpread = spreadAt(ma5Arr, ma10Arr, ma20Arr, L);
+        double prevSpread = spreadAt(ma5Arr, ma10Arr, ma20Arr, prevIdx);
 
         // === 核心趋势因子 (22分) ===
-        String trendStatus = classifyTrend(close, L, currSpread, prevSpread);
+        String trendStatus = classifyTrend(ma5Arr, ma10Arr, ma20Arr, L, currSpread, prevSpread);
         double scoreTrend = ScoringRules.scoreTrend(trendStatus);
         // 调整到22分制：原30分制按比例缩放
         scoreTrend = scoreTrend * 22.0 / 30.0;
@@ -413,7 +418,8 @@ public class StockTrendScoringService {
         scoreMacd = scoreMacd * 10.0 / 15.0;
 
         // === RSI因子 (8分) ===
-        double rsi14 = TechnicalIndicators.rsiAt(close, L, ScoringConstants.RSI_PERIOD);
+        double[] rsiArr = TechnicalIndicators.rsi(close, ScoringConstants.RSI_PERIOD);
+        double rsi14 = rsiArr[L];
         String rsiStatus = classifyRsiDetailed(rsi14);
         double scoreRsi = ScoringRules.scoreRsiTrend(rsi14);
         scoreRsi = scoreRsi * 8.0 / 10.0;
@@ -425,10 +431,10 @@ public class StockTrendScoringService {
         double scoreTurnover = ScoringRules.scoreTurnover(turnoverRate, priceChangeToday, isRising);
 
         // ==================== P0: 指标变化率因子 (10分) ====================
-        double deltaRsi = TechnicalIndicators.deltaRsi(close, L, ScoringConstants.RSI_PERIOD);
+        double deltaRsi = rsi14 - rsiArr[L - 1];
         double scoreDeltaRsi = ScoringRules.scoreDeltaRsi(rsi14, deltaRsi);
-        double deltaMacdHist = TechnicalIndicators.deltaMacdHist(close, L);
         double macdHist = macd.macd()[L];
+        double deltaMacdHist = macdHist - macd.macd()[L - 1];
         double scoreDeltaMacd = ScoringRules.scoreDeltaMacd(macdHist, deltaMacdHist, macdStatus);
         double scoreDelta = scoreDeltaRsi + scoreDeltaMacd; // 0-10
 
@@ -445,8 +451,8 @@ public class StockTrendScoringService {
         double scoreConsecutiveVol = ScoringRules.scoreConsecutiveVolume(expandDays, shrinkDays, isRising);
 
         // ==================== P1: 均线粘合发散因子 (2分) ====================
-        double maConv = TechnicalIndicators.maConvergenceDegree(close, L);
-        double maDivDir = TechnicalIndicators.maDivergenceDirection(close, L);
+        double maConv = TechnicalIndicators.maConvergenceDegree(ma5, ma10, ma20, ma60Arr[L]);
+        double maDivDir = TechnicalIndicators.maDivergenceDirection(ma5, ma20);
         double scoreMaConv = ScoringRules.scoreMaConvergence(maConv, maDivDir);
 
         // ==================== P2: 波动率收敛因子 (2分) ====================
@@ -530,10 +536,10 @@ public class StockTrendScoringService {
         return m;
     }
 
-    private static double spreadAt(double[] close, int idx) {
-        double ma5 = TechnicalIndicators.smaAt(close, idx, 5);
-        double ma10 = TechnicalIndicators.smaAt(close, idx, 10);
-        double ma20 = TechnicalIndicators.smaAt(close, idx, 20);
+    private static double spreadAt(double[] ma5Arr, double[] ma10Arr, double[] ma20Arr, int idx) {
+        double ma5 = ma5Arr[idx];
+        double ma10 = ma10Arr[idx];
+        double ma20 = ma20Arr[idx];
         if (Double.isNaN(ma5) || Double.isNaN(ma10) || Double.isNaN(ma20)) {
             return 0;
         }
@@ -546,10 +552,11 @@ public class StockTrendScoringService {
         return 0;
     }
 
-    private static String classifyTrend(double[] close, int L, double currSpread, double prevSpread) {
-        double ma5 = TechnicalIndicators.smaAt(close, L, 5);
-        double ma10 = TechnicalIndicators.smaAt(close, L, 10);
-        double ma20 = TechnicalIndicators.smaAt(close, L, 20);
+    private static String classifyTrend(double[] ma5Arr, double[] ma10Arr, double[] ma20Arr,
+                                         int L, double currSpread, double prevSpread) {
+        double ma5 = ma5Arr[L];
+        double ma10 = ma10Arr[L];
+        double ma20 = ma20Arr[L];
 
         if (ma5 > ma10 && ma10 > ma20) {
             if (currSpread > prevSpread && currSpread > 5) {

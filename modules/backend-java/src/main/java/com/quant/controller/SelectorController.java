@@ -2,7 +2,6 @@ package com.quant.controller;
 
 import com.quant.dto.ApiResponse;
 import com.quant.service.OversoldReboundScoringService;
-import com.quant.service.GeopolicyNewsScoringService;
 import com.quant.service.StockSelectorService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -17,7 +16,6 @@ import java.util.Map;
 public class SelectorController {
     private final StockSelectorService stockSelectorService;
     private final OversoldReboundScoringService oversoldReboundScoringService;
-    private final GeopolicyNewsScoringService geopolicyNewsScoringService;
 
     @PostMapping("/run")
     public ApiResponse<Map<String, Object>> run(@RequestBody(required = false) Map<String, Object> request) {
@@ -27,12 +25,6 @@ public class SelectorController {
     @PostMapping("/oversold-rebound/run")
     public ApiResponse<Map<String, Object>> runOversoldRebound(@RequestBody(required = false) Map<String, Object> request) {
         return ApiResponse.success(oversoldReboundScoringService.run(request != null ? request : Map.of()));
-    }
-
-    /** 政策/地缘政治/新闻(GDELT) 因子选股（落库 factor_version = geopolicy_news_v1） */
-    @PostMapping("/geopolicy-news/run")
-    public ApiResponse<Map<String, Object>> runGeopolicyNews(@RequestBody(required = false) Map<String, Object> request) {
-        return ApiResponse.success(geopolicyNewsScoringService.run(request != null ? request : Map.of()));
     }
 
     @GetMapping("/result")

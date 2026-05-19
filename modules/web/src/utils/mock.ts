@@ -48,36 +48,3 @@ export function generateMockKLine(_stockCode: string, days = 100) {
   }
   return data
 }
-
-export function generateMockTrades(count = 50) {
-  const stocks = generateMockStocks(20)
-  const result = []
-  for (let i = 0; i < count; i++) {
-    const s = stocks[i % stocks.length]
-    const price = 10 + Math.random() * 20
-    const volume = (100 + Math.floor(Math.random() * 900)) * 100
-    const tradeType = i % 2 === 0 ? 1 : 2
-    const amount = price * volume
-    result.push({
-      order_id: 'ORD' + Date.now() + i,
-      stock_code: s.stock_code,
-      stock_name: s.stock_name,
-      trade_type: tradeType,
-      trade_price: Number(price.toFixed(2)),
-      trade_volume: volume,
-      trade_amount: Number(amount.toFixed(2)),
-      profit_loss: tradeType === 2 ? (Math.random() - 0.3) * 2000 : undefined,
-      trade_time: dayjs().subtract(i * 2, 'day').format('YYYY-MM-DD HH:mm:ss'),
-      strategy_name: ['双均线', 'MACD', 'RSI'][i % 3]
-    })
-  }
-  return result.sort((a, b) => (b.trade_time as string).localeCompare(a.trade_time as string))
-}
-
-export function generateMockStrategies() {
-  return [
-    { id: 1, name: 'MA_Cross', strategy_name: 'MA_Cross', strategy_type: 1, language: 'python', params: { short_period: 5, long_period: 20 }, status: 0, total_return: 0, sharpe_ratio: 0, max_drawdown: 0, last_backtest: '', created_at: '2026-03-01', content: '均线金叉死叉策略：短均线(5)上穿长均线(20)买入，下穿卖出' },
-    { id: 2, name: 'BOLL_Strategy', strategy_name: 'BOLL_Strategy', strategy_type: 1, language: 'python', params: { period: 20, std_dev: 2 }, status: 0, total_return: 0, sharpe_ratio: 0, max_drawdown: 0, last_backtest: '', created_at: '2026-03-05', content: '布林带策略：价格触及下轨买入，触及上轨卖出' },
-    { id: 3, name: 'MACD_Strategy', strategy_name: 'MACD_Strategy', strategy_type: 1, language: 'python', params: { fast: 12, slow: 26, signal: 9 }, status: 0, total_return: 0, sharpe_ratio: 0, max_drawdown: 0, last_backtest: '', created_at: '2026-03-10', content: 'MACD策略：金叉买入，死叉卖出' }
-  ]
-}

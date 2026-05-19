@@ -67,23 +67,38 @@ public final class ReboundConfirmationScorer {
         TechnicalIndicators.MacdResult macd = TechnicalIndicators.macd(arr);
 
         int lookback = Math.min(20, n - 5);
-        int idx1 = -1, idx2 = -1;
-        double low1 = Double.MAX_VALUE, low2 = Double.MAX_VALUE;
-
-        for (int i = n - lookback; i < n - 3; i++) {
-            if (close.get(i) < low1) {
-                low2 = low1;
-                idx2 = idx1;
-                low1 = close.get(i);
-                idx1 = i;
-            } else if (close.get(i) < low2) {
-                low2 = close.get(i);
-                idx2 = i;
+        // 在 lookback 窗口内寻找两个显著的局部低点（价格谷底）
+        int firstTrough = -1, secondTrough = -1;
+        for (int i = n - lookback + 2; i < n - 5; i++) {
+            double prev = close.get(i - 1);
+            double curr = close.get(i);
+            double next = close.get(i + 1);
+            double next2 = close.get(i + 2);
+            // 局部低点：当前价格低于前后各 2 根 K 线
+            if (curr <= prev && curr <= next && curr <= next2
+                    && curr <= close.get(i - 2)) {
+                if (secondTrough < 0) {
+                    secondTrough = i;
+                } else if (firstTrough < 0) {
+                    firstTrough = secondTrough;
+                    secondTrough = i;
+                } else {
+                    firstTrough = secondTrough;
+                    secondTrough = i;
+                }
             }
         }
-        if (idx1 < 0 || idx2 < 0 || idx1 == idx2) return false;
-        boolean priceLowerLow = close.get(n - 1) <= low1 * 1.01;
-        return priceLowerLow && macd.macd()[idx1] > macd.macd()[idx2];
+        // 需要至少两个低点来比较
+        if (firstTrough < 0 || secondTrough < 0) return false;
+
+        // 底背离：价格新低（secondTrough < firstTrough）但 MACD 柱未创新低
+        boolean priceLowerLow = close.get(secondTrough) <= close.get(firstTrough) * 1.02;
+        boolean macdHigherLow = macd.macd()[secondTrough] > macd.macd()[firstTrough];
+        // 当前价格接近最新的低点（在反弹起始位置）
+        boolean nearRecentLow = Math.abs(close.get(n - 1) - close.get(secondTrough))
+                / Math.max(1e-9, close.get(secondTrough)) < 0.03;
+
+        return priceLowerLow && macdHigherLow && nearRecentLow;
     }
 
     private static boolean volumeConfirmation(List<Double> amount) {

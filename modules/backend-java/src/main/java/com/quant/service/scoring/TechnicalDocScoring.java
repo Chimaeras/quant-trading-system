@@ -56,18 +56,18 @@ public final class TechnicalDocScoring {
         // 使用统一的技术指标计算工具
         TechnicalIndicators.MacdResult macd = TechnicalIndicators.macd(close);
         String macdStatus = TechnicalIndicators.classifyMacd(macd, L);
-        double macdScore = scoreMacdDoc(macdStatus);
+        double macdScore = ScoringRules.scoreMacd(macdStatus);
 
         double rsi = TechnicalIndicators.rsiAt(close, L, ScoringConstants.RSI_PERIOD);
         String rsiStatus = TechnicalIndicators.classifyRsi(rsi);
-        double rsiScore = scoreRsiDoc(rsiStatus);
+        double rsiScore = ScoringRules.scoreRsi(rsi);
 
         TechnicalIndicators.KdjResult kdj = TechnicalIndicators.kdj(high, low, close, ScoringConstants.KDJ_PERIOD);
         String kdjStatus = TechnicalIndicators.classifyKdj(kdj, L);
         double kdjScore = ScoringRules.scoreKdj(kdjStatus);
 
         String volStatus = TechnicalIndicators.classifyVolumePrice(close, vol, L);
-        double volScore = scoreVolumeDoc(volStatus);
+        double volScore = ScoringRules.scoreVolumePrice(volStatus);
 
         String maStatus = TechnicalIndicators.classifyMaArrangement(close, L);
         double maScore = ScoringRules.scoreMaArrangement(maStatus);
@@ -79,40 +79,4 @@ public final class TechnicalDocScoring {
                 ScoringUtils.round2(tech), macdStatus, rsiStatus, kdjStatus, volStatus, maStatus);
     }
 
-    /**
-     * MACD状态打分（文档版本，支持负分）
-     */
-    private static double scoreMacdDoc(String status) {
-        return switch (status) {
-            case "零轴上金叉" -> 15;
-            case "金叉" -> 10;
-            case "死叉" -> -10;
-            case "下穿零轴" -> -15;
-            default -> 0;
-        };
-    }
-
-    /**
-     * RSI打分（文档版本，支持负分）
-     */
-    private static double scoreRsiDoc(String status) {
-        return switch (status) {
-            case "超卖" -> 10;
-            case "中性" -> 5;
-            case "超买" -> -10;
-            default -> 5;
-        };
-    }
-
-    /**
-     * 量价状态打分（文档版本，支持负分）
-     */
-    private static double scoreVolumeDoc(String status) {
-        return switch (status) {
-            case "量价齐升" -> 10;
-            case "量价背离" -> -7;
-            case "量能正常" -> 3;
-            default -> 3;
-        };
-    }
 }

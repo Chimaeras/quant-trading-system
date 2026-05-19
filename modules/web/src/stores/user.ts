@@ -1,15 +1,18 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { login as apiLogin } from '@/api/auth'
 
 export const useUserStore = defineStore('user', () => {
   const token = ref(localStorage.getItem('token') || '')
-  const username = ref(localStorage.getItem('username') || 'admin')
+  const username = ref(localStorage.getItem('username') || '')
 
-  function login(form: { username: string; password: string }) {
-    token.value = 'offline-token'
+  async function login(form: { username: string; password: string }) {
+    const res = await apiLogin(form)
+    token.value = res.data.token
     username.value = form.username
-    localStorage.setItem('token', token.value)
-    localStorage.setItem('username', username.value)
+    localStorage.setItem('token', res.data.token)
+    localStorage.setItem('username', form.username)
+    return res
   }
 
   function logout() {

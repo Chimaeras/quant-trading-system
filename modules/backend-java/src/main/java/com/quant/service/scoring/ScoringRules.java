@@ -40,24 +40,30 @@ public final class ScoringRules {
 
     public static double scoreBias(double bias, String trendStatus, double threshold) {
         boolean strongBull = "强势多头".equals(trendStatus) && trendStrength(trendStatus) >= 70;
-        double effective = strongBull ? threshold * 1.5 : threshold;
+        // 强势多头时容忍更高乖离：threshold * 1.5
+        double maxTolerable = strongBull ? threshold * 1.5 : threshold;
 
         if (Double.isNaN(bias)) bias = 0;
 
+        // 负乖离（价格低于MA5）：偏差越大分越低
         if (bias < 0) {
             if (bias > -3) return 20;
             if (bias > -5) return 16;
             return 8;
         }
-        if (bias < 2) return 18;
-        if (bias < threshold) return 14;
-        if (bias > effective) return 4;
-        if (bias > threshold && strongBull) return 10;
-        return 4;
+
+        // 正乖离（价格高于MA5）
+        if (bias < 2) return 18;                          // 轻微乖离，最佳
+        if (bias <= threshold) return 14;                  // 在标准阈值内
+        if (bias <= maxTolerable) return strongBull ? 10 : 4;  // 超标准但未超强势上限
+        return 4;                                          // 乖离过大，回调风险
     }
 
     // ==================== 成交量打分规则 (15分) ====================
 
+    /**
+     * 趋势量价关系打分（放量上涨/缩量回调等）
+     */
     public static double scoreVolume(String volumeStatus) {
         return switch (volumeStatus) {
             case "缩量回调" -> 15;
@@ -66,6 +72,18 @@ public final class ScoringRules {
             case "缩量上涨" -> 6;
             case "放量下跌" -> 0;
             default -> 10;
+        };
+    }
+
+    /**
+     * 技术面量价关系打分（量价齐升/量价背离/量能正常），与 classifyVolumePrice 返回的状态对应。
+     */
+    public static double scoreVolumePrice(String vpStatus) {
+        return switch (vpStatus) {
+            case "量价齐升" -> 10;
+            case "量能正常" -> 3;
+            case "量价背离" -> -7;
+            default -> 3;
         };
     }
 
@@ -86,6 +104,9 @@ public final class ScoringRules {
 
     // ==================== RSI打分规则 (10分) ====================
 
+    /**
+     * RSI 通用评分（适用于综合/超跌反弹等场景）
+     */
     public static double scoreRsi(double rsi) {
         if (rsi < 30) return 10;       // 超卖，可能反弹
         if (rsi <= 40) return 8;
@@ -94,6 +115,25 @@ public final class ScoringRules {
         return 3;                       // 超买
     }
 
+    /**
+     * RSI 趋势策略评分：奖励趋势中的健康区间（40-65），平滑过渡避免断层。
+     * 趋势策略中 RSI<30 意味着弱势，不应给满分（超卖可以更超卖）。
+     */
+    public static double scoreRsiTrend(double rsi) {
+        if (rsi >= 40 && rsi <= 60) return 10;   // 趋势最佳区间
+        if (rsi > 60 && rsi <= 68) return 9;      // 偏强但健康
+        if (rsi > 35 && rsi < 40) return 9;       // 略弱但可接受
+        if (rsi > 68 && rsi <= 75) return 7;      // 偏强/轻度超买
+        if (rsi >= 30 && rsi <= 35) return 6;     // 偏弱
+        if (rsi > 75) return 3;                   // 严重超买
+        return 3;                                  // RSI<30：弱势，谨慎
+    }
+
+    /**
+     * @deprecated 使用 {@link #scoreRsi(double)} 或 {@link #scoreRsiTrend(double)} 代替。
+     * 基于状态字符串的 RSI 评分与连续值评分不一致，将在后续版本移除。
+     */
+    @Deprecated
     public static double scoreRsiByStatus(String rsiStatus) {
         return switch (rsiStatus) {
             case "超卖" -> 10;
@@ -119,6 +159,10 @@ public final class ScoringRules {
 
     // ==================== KDJ打分规则 ====================
 
+    /**
+     * KDJ 状态打分。注意：K高位向下 / K下穿D 返回负分，在组合打分中权重一般较小(≤0.1)，
+     * 单个 KDJ 负分影响有限，不会显著拉低总分。
+     */
     public static double scoreKdj(String kdjStatus) {
         return switch (kdjStatus) {
             case "K低位向上" -> 12;

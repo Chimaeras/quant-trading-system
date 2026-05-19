@@ -16,9 +16,9 @@ def ema(series: pd.Series, period: int) -> pd.Series:
 
 
 def bollinger_bands(series: pd.Series, period: int = 20, std_dev: float = 2.0) -> tuple:
-    """布林带"""
+    """布林带（使用样本标准差 ddof=1，与 Java 对齐）"""
     ma = sma(series, period)
-    std = series.rolling(window=period).std()
+    std = series.rolling(window=period).std(ddof=1)
     upper = ma + std_dev * std
     lower = ma - std_dev * std
     return upper, ma, lower
@@ -35,12 +35,23 @@ def macd(series: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> 
 
 
 def rsi(series: pd.Series, period: int = 14) -> pd.Series:
-    """RSI 相对强弱指标（Wilder 简化版）"""
+    """RSI 相对强弱指标，使用标准 Wilder 指数平滑。
+    首个窗口使用 SMA 初始化，之后用 Wilder 递推。
+    """
     delta = series.diff()
-    gain = delta.where(delta > 0, 0.0)
-    loss = (-delta).where(delta < 0, 0.0)
+    gain = delta.clip(lower=0)
+    loss = (-delta).clip(lower=0)
+
+    # 首个窗口用 SMA 初始化
     avg_gain = gain.rolling(window=period).mean()
     avg_loss = loss.rolling(window=period).mean()
-    rs = avg_gain / avg_loss.replace(0, pd.NA)
-    rsi_val = 100 - (100 / (1 + rs))
-    return rsi_val.fillna(50)
+
+    # Wilder 指数平滑递推: avg = (prev * (period-1) + current) / period
+    alpha = 1.0 / period
+    for i in range(period + 1, len(series)):
+        avg_gain.iloc[i] = avg_gain.iloc[i - 1] * (1 - alpha) + gain.iloc[i] * alpha
+        avg_loss.iloc[i] = avg_loss.iloc[i - 1] * (1 - alpha) + loss.iloc[i] * alpha
+
+    rs = avg_gain / avg_loss.replace(0, float("nan"))
+    rsi_val = 100.0 - 100.0 / (1.0 + rs)
+    return rsi_val.fillna(50).clip(0, 100)

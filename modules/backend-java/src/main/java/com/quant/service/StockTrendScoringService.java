@@ -374,7 +374,6 @@ public class StockTrendScoringService {
         double prevSpread = spreadAt(close, prevIdx);
 
         String trendStatus = classifyTrend(close, L, currSpread, prevSpread);
-        int trendStrength = ScoringRules.trendStrength(trendStatus);
         double scoreTrend = ScoringRules.scoreTrend(trendStatus);
 
         double biasMa5 = (close[L] - ma5) / ma5 * 100.0;
@@ -392,10 +391,10 @@ public class StockTrendScoringService {
         String macdStatus = TechnicalIndicators.classifyMacd(macd, L);
         double scoreMacd = ScoringRules.scoreMacd(macdStatus);
 
-        // 使用统一工具类计算RSI
-        double rsi12 = TechnicalIndicators.rsiAt(close, L, 12);
-        String rsiStatus = classifyRsiDetailed(rsi12);
-        double scoreRsi = ScoringRules.scoreRsiByStatus(rsiStatus);
+        // 使用统一工具类计算RSI（趋势策略专用评分）
+        double rsi14 = TechnicalIndicators.rsiAt(close, L, ScoringConstants.RSI_PERIOD);
+        String rsiStatus = classifyRsiDetailed(rsi14);
+        double scoreRsi = ScoringRules.scoreRsiTrend(rsi14);
 
         double total = scoreTrend + scoreBias + scoreVolume + scoreSupport + scoreMacd + scoreRsi;
         total = ScoringUtils.clampScore(total);

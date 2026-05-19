@@ -374,7 +374,6 @@ public class OversoldReboundScoringService {
         List<ScoreResult> sorted = new ArrayList<>(allScored);
         sorted.sort(Comparator
                 .comparingDouble((ScoreResult r) -> r.weightedScore).reversed()
-                .thenComparingDouble(r -> r.totalScore)
                 .thenComparing(r -> r.stockCode, String.CASE_INSENSITIVE_ORDER));
         List<ScoreResult> out = new ArrayList<>(Math.min(topN, sorted.size()));
         Set<String> used = new HashSet<>();
@@ -532,16 +531,15 @@ public class OversoldReboundScoringService {
         ReboundConfirmationScorer.ConfirmationResult confirm = ReboundConfirmationScorer.score(bars);
         int confirmScore = confirm.score();
 
-        double totalScore = trendScore * 35.0 / 40.0 + volumeScore * 25.0 / 30.0
-                + oversoldScore * 25.0 / 30.0 + confirmScore;
+        // 统一使用加权归一化得分 (0-100 分制)
         double weightedScore = (trendScore / 40.0) * 100 * 0.35
                 + (volumeScore / 30.0) * 100 * 0.25
                 + (oversoldScore / 30.0) * 100 * 0.25
                 + (confirmScore / 15.0) * 100 * 0.15;
         if (!confirm.hasSignal()) {
             weightedScore = Math.min(weightedScore, 70.0);
-            totalScore = Math.min(totalScore, 70.0);
         }
+        double totalScore = weightedScore;  // 统一得分，不再双轨制
 
         Map<String, Object> detail = new LinkedHashMap<>();
         detail.put("ret20_pct", ScoringUtils.round2(ret20));

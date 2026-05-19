@@ -17,6 +17,9 @@ public class ScoringProperties {
     private Gdelt gdelt = new Gdelt();
     private News news = new News();
     private Decay decay = new Decay();
+    private DynamicWeightConfig dynamicWeights = new DynamicWeightConfig();
+    private RotationConfig rotation = new RotationConfig();
+    private ClassicFactorConfig classicFactor = new ClassicFactorConfig();
 
     @Data
     public static class CrossSection {
@@ -55,6 +58,53 @@ public class ScoringProperties {
         private int technicalHalfLifeDays = 5;
         private int newsHalfLifeDays = 2;
         private int fundamentalHalfLifeDays = 90;
+    }
+
+    /** 经典多因子选股权重配置 */
+    @Data
+    public static class ClassicFactorConfig {
+        private double trendWeight = 0.35;
+        private double momentumWeight = 0.20;
+        private double volumeWeight = 0.20;
+        private double riskPenaltyWeight = 0.25;
+    }
+
+    /** 板块轮动配置 */
+    @Data
+    public static class RotationConfig {
+        private double inflowThreshold = 10.0;
+        private double outflowThreshold = -5.0;
+        private int topRankBonus = 3;
+        private int bottomRankPenalty = 3;
+    }
+
+    /** 动态权重配置：市场环境 + 股票特性权重，支持运行时调整 */
+    @Data
+    public static class DynamicWeightConfig {
+        private Map<String, double[]> marketWeights = defaultMarketWeights();
+        private Map<String, double[]> stockTypeWeights = defaultStockTypeWeights();
+        private double marketEnvRatio = 0.6;
+        private double stockCharRatio = 0.4;
+    }
+
+    private static Map<String, double[]> defaultMarketWeights() {
+        Map<String, double[]> m = new LinkedHashMap<>();
+        // [技术面, 基本面, 情绪面]
+        m.put("牛市", new double[]{0.3, 0.5, 0.2});
+        m.put("熊市", new double[]{0.4, 0.3, 0.3});
+        m.put("震荡市", new double[]{0.35, 0.30, 0.35});
+        return m;
+    }
+
+    private static Map<String, double[]> defaultStockTypeWeights() {
+        Map<String, double[]> m = new LinkedHashMap<>();
+        // [技术面, 基本面, 情绪面]
+        m.put("价值股", new double[]{0.3, 0.5, 0.2});
+        m.put("成长股", new double[]{0.35, 0.45, 0.2});
+        m.put("周期股", new double[]{0.4, 0.3, 0.3});
+        m.put("防御股", new double[]{0.25, 0.4, 0.35});
+        m.put("普通股", new double[]{0.33, 0.34, 0.33});
+        return m;
     }
 
     private static Map<String, Double> defaultIndustryAdjustments() {

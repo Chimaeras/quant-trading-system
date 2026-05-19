@@ -18,6 +18,12 @@ import java.util.List;
 @Service
 public class EnhancedMarketSentimentService {
 
+    /** 当数据来自技术面推导时，情绪面权重打 6 折以减少循环论证影响 */
+    public static final double DERIVED_DATA_DISCOUNT = 0.6;
+
+    /** 当数据来自真实外部源时，不打折 */
+    public static final double REAL_DATA_FACTOR = 1.0;
+
     /**
      * 完整的市场情绪分析结果
      */
@@ -30,7 +36,8 @@ public class EnhancedMarketSentimentService {
             String newsStatus,               // 新闻状态描述
             String socialStatus,             // 社交状态描述
             String institutionStatus,        // 机构状态描述
-            String dataSource                // 数据来源：real/api/default
+            String dataSource,               // 数据来源：real/api/derived_from_technical
+            double discountFactor            // 数据可信度折扣因子 (0-1)
     ) {}
 
     /**
@@ -64,47 +71,73 @@ public class EnhancedMarketSentimentService {
     ) {}
 
     /**
-     * 执行完整的市场情绪分析
+     * 执行完整的市场情绪分析（默认从技术面推导）
+     */
+    public SentimentAnalysisResult analyzeSentiment(
+            List<MarketData> bars, Double pe, String industry) {
+        return analyzeSentiment(bars, pe, industry, null, null, null);
+    }
+
+    /**
+     * 执行市场情绪分析（支持传入真实数据）。
      *
      * @param bars K线数据
      * @param pe PE值（可为null）
      * @param industry 行业（可为null）
+     * @param realNewsSentiment 真实新闻舆情评分 0-100（null时从技术面推导）
+     * @param realSocialVolume 真实社交讨论热度比例（null时从技术面推导）
+     * @param realInstitutionalRating 真实机构评级数量（null时从技术面推导）
      * @return 情绪分析结果
      */
     public SentimentAnalysisResult analyzeSentiment(
-            List<MarketData> bars,
-            Double pe,
-            String industry
-    ) {
+            List<MarketData> bars, Double pe, String industry,
+            Double realNewsSentiment, Double realSocialVolume, Integer realInstitutionalRating) {
+
+        boolean hasRealData = realNewsSentiment != null || realSocialVolume != null
+                || realInstitutionalRating != null;
+        double discountFactor = hasRealData ? REAL_DATA_FACTOR : DERIVED_DATA_DISCOUNT;
+        String dataSource = hasRealData ? "external_api" : "derived_from_technical";
+
         // 1. 新闻舆情分析
-        NewsSentimentDetail news = analyzeNewsSentiment(bars, pe, industry);
+        NewsSentimentDetail news;
+        if (realNewsSentiment != null) {
+            double score = calculateNewsScore(realNewsSentiment, isPriceTrendUp(bars, 3));
+            news = new NewsSentimentDetail(score, classifyNewsStatus(realNewsSentiment, isPriceTrendUp(bars, 3)),
+                    realNewsSentiment, isPriceTrendUp(bars, 3));
+        } else {
+            news = analyzeNewsSentiment(bars, pe, industry);
+        }
 
         // 2. 社交媒体分析
-        SocialMediaDetail social = analyzeSocialMedia(bars);
+        SocialMediaDetail social;
+        if (realSocialVolume != null) {
+            double sentimentVal = Math.tanh((realSocialVolume - 1.0) * 2);
+            double score = calculateSocialScore(realSocialVolume, sentimentVal);
+            social = new SocialMediaDetail(score, classifySocialStatus(realSocialVolume, sentimentVal),
+                    realSocialVolume, sentimentVal);
+        } else {
+            social = analyzeSocialMedia(bars);
+        }
 
         // 3. 机构观点分析
-        InstitutionalDetail institution = analyzeInstitutionalView(bars, pe, industry);
+        InstitutionalDetail institution;
+        if (realInstitutionalRating != null) {
+            double score = calculateInstitutionalScore(realInstitutionalRating, 0);
+            String status = classifyInstitutionalStatus(realInstitutionalRating, 0);
+            institution = new InstitutionalDetail(score, status, realInstitutionalRating, 0);
+        } else {
+            institution = analyzeInstitutionalView(bars, pe, industry);
+        }
 
-        // 计算总分
-        double totalScore = news.score() + social.score() + institution.score();
-
-        // 确定情绪等级
-        String sentimentLevel = determineSentimentLevel(totalScore);
-
-        // 确定数据来源（当前使用基于技术指标的默认值）
-        String dataSource = "derived_from_technical";
+        double rawTotal = news.score() + social.score() + institution.score();
+        double totalScore = rawTotal * discountFactor;
+        String sentimentLevel = determineSentimentLevel(rawTotal);
 
         return new SentimentAnalysisResult(
-                news.score(),
-                social.score(),
-                institution.score(),
-                totalScore,
-                sentimentLevel,
-                news.status(),
-                social.status(),
-                institution.status(),
-                dataSource
-        );
+                news.score(), social.score(), institution.score(),
+                totalScore, sentimentLevel,
+                news.status(), social.status(), institution.status(),
+                dataSource, discountFactor);
     }
 
     /**

@@ -3,6 +3,7 @@ package com.quant.service;
 import com.quant.entity.Account;
 import com.quant.exception.BusinessException;
 import com.quant.repository.AccountRepository;
+import com.quant.repository.PositionRepository;
 import com.quant.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,6 +16,7 @@ import java.util.Map;
 public class AccountService {
 
     private final AccountRepository accountRepository;
+    private final PositionRepository positionRepository;
     private final UserRepository userRepository;
 
     public Map<String, Object> getAccountInfo(String username) {
@@ -25,12 +27,14 @@ public class AccountService {
         Account account = accountRepository.findByUserId(userId)
             .orElseGet(() -> createDefaultAccount(userId));
 
+        int positionCount = positionRepository.countByAccountId(account.getId());
+
         Map<String, Object> result = new HashMap<>();
         result.put("totalAsset", account.getTotalAsset());
         result.put("cash", account.getCash());
         result.put("positionValue", account.getPositionValue());
         result.put("todayPnl", account.getTodayPnl());
-        result.put("positionCount", 0);  // 可从position表统计
+        result.put("positionCount", positionCount);
         return result;
     }
 

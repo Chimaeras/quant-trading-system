@@ -9,6 +9,7 @@ import java.math.RoundingMode;
  * @deprecated 已由 {@link com.quant.service.EnhancedMarketSentimentService} 替代，将在后续版本移除。
  */
 @Deprecated(forRemoval = true)
+@Deprecated
 public final class MarketSentimentScoring {
 
     private MarketSentimentScoring() {}

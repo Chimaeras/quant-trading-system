@@ -20,6 +20,9 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final UserRepository userRepository;
 
+    @org.springframework.beans.factory.annotation.Value("${jwt.expiration}")
+    private long jwtExpirationMs;
+
     public LoginResponse login(LoginRequest request) {
         User user = userRepository.findByUsername(request.getUsername())
             .orElseThrow(() -> new BusinessException("用户不存在"));
@@ -28,6 +31,6 @@ public class AuthService {
             new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
 
         String token = jwtTokenProvider.generateToken(authentication);
-        return new LoginResponse(token, 86400L);  // 24小时
+        return new LoginResponse(token, jwtExpirationMs / 1000);
     }
 }

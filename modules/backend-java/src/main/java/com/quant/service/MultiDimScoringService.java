@@ -18,6 +18,7 @@ import com.quant.service.scoring.EnhancedMarketSentimentService;
 import com.quant.service.scoring.MarketEnvironmentAnalyzer;
 import com.quant.service.scoring.ScoringRules;
 import com.quant.service.scoring.ScoringUtils;
+import com.quant.service.scoring.SignalDecay;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -277,6 +278,13 @@ public class MultiDimScoringService {
                                 ? todayBar.getPeRatio().doubleValue() : null,
                         industry);
         double sentimentScore = sentimentResult.totalScore();
+        // 信号时间衰减：若最新 K 线日期与交易日期有偏差，对情绪面和技术面做衰减
+        if (lastBarDate != null && !tradeDate.equals(lastBarDate)) {
+            long daysStale = java.time.temporal.ChronoUnit.DAYS.between(lastBarDate, tradeDate);
+            if (daysStale > 0) {
+                sentimentScore = SignalDecay.apply(sentimentScore, lastBarDate, tradeDate, SignalDecay.newsHalfLife());
+            }
+        }
 
         // 使用真实市场环境分析
         MarketEnvironmentAnalyzer.MarketIndicators marketIndicators =
@@ -303,30 +311,34 @@ public class MultiDimScoringService {
         double rotationNorm100 = normSectorRotTo10(rotSec, totalSec) * 10.0;
         double industryNorm100 = normIndCompareTo10(indCmp) * 10.0;
 
-        double techWeight = Math.max(0.1, dynamicWeights.technicalWeight() - 0.10);
+        // 权重归一化，确保总和为 1.0
+        double techWeight = dynamicWeights.technicalWeight();
+        double fundWeight = dynamicWeights.fundamentalWeight();
+        double sentWeight = dynamicWeights.sentimentWeight();
         double rotationWeight = 0.05;
         double industryWeight = 0.05;
+        double totalWeight = techWeight + fundWeight + sentWeight + rotationWeight + industryWeight;
+        techWeight /= totalWeight;
+        fundWeight /= totalWeight;
+        sentWeight /= totalWeight;
+        rotationWeight /= totalWeight;
+        industryWeight /= totalWeight;
 
-        // 行业适配修正
-        double industryAdjustment = CompositeScoringService.getIndustryAdjustment(industry);
+        // 行业适配修正：作为估值基准调整，而非直接加分
+        double industryAdjustment = CompositeScoringService.getIndustryAdjustment(industry) * 0.5;
 
-        double composite = technicalNorm100 * techWeight
-                + fundamentalNorm100 * dynamicWeights.fundamentalWeight()
-                + sentimentNorm100 * dynamicWeights.sentimentWeight()
+        double composite = ScoringUtils.clampScore(
+                technicalNorm100 * techWeight
+                + fundamentalNorm100 * fundWeight
+                + sentimentNorm100 * sentWeight
                 + rotationNorm100 * rotationWeight
                 + industryNorm100 * industryWeight
-                + industryAdjustment;
+                + industryAdjustment);
 
         double financialHealthScore = estimateFinancialHealthScore(todayBar, info);
-        CompositeScoringService.CompositeScoreResult compositeResult = CompositeScoringService.scoreComposite(
-                technicalNorm100,
-                fundamentalNorm100,
-                sentimentNorm100,
-                financialHealthScore,
-                techWeight,
-                dynamicWeights.fundamentalWeight(),
-                dynamicWeights.sentimentWeight()
-        );
+        String investmentAdvice = ScoringRules.getInvestmentAdvice(composite);
+        String riskControlMessage = CompositeScoringService.getRiskControlMessage(
+                composite, fundamentalNorm100, technicalNorm100, financialHealthScore);
 
         StockMultiDimScore e = new StockMultiDimScore();
         e.setStockCode(stockCode);
@@ -341,7 +353,7 @@ public class MultiDimScoringService {
         e.setScoreIndustryCompare((double) indCmp);
         e.setScoreSentiment(round2(sentimentNorm100));
         e.setCompositeScore(composite);
-        e.setSuggestion(compositeResult.investmentAdvice());
+        e.setSuggestion(investmentAdvice);
         e.setTechMacd(tech.macdScore());
         e.setTechRsi(tech.rsiScore());
         e.setTechKdj(tech.kdjScore());
@@ -379,7 +391,7 @@ public class MultiDimScoringService {
             reasons.put("stock_type", stockType);
             reasons.put("dynamic_weights", "技术面: " + dynamicWeights.technicalWeight() + ", 基本面: " + dynamicWeights.fundamentalWeight() + ", 情绪面: " + dynamicWeights.sentimentWeight());
             reasons.put("industry_adjustment", industryAdjustment);
-            reasons.put("risk_control_message", compositeResult.riskControlMessage());
+            reasons.put("risk_control_message", riskControlMessage);
             e.setReasonsJson(objectMapper.writeValueAsString(reasons));
         } catch (JsonProcessingException ignored) {
             e.setReasonsJson("{}");
@@ -404,26 +416,6 @@ public class MultiDimScoringService {
     private static double normIndCompareTo10(int indCmp) {
         double n = (indCmp + 4.0) / 8.0 * 10.0;
         return Math.max(0, Math.min(10, n));
-    }
-
-    private static String suggestComposite(double compositeNorm, double normTech, double fundPe) {
-        double techRawApprox = TECH_NORM_LOW + (normTech / 10.0) * (TECH_NORM_HIGH - TECH_NORM_LOW);
-        if (techRawApprox < -5) {
-            return "卖出(强制)";
-        }
-        if (normTech >= 8 && fundPe > 8) {
-            return "止盈";
-        }
-        if (compositeNorm >= 8 && normTech > 5 && fundPe > 6) {
-            return "买入";
-        }
-        if (compositeNorm < 5 || normTech < 3 || fundPe < 4) {
-            return "卖出";
-        }
-        if (compositeNorm >= 5 && compositeNorm < 8) {
-            return "持有";
-        }
-        return "持有";
     }
 
     private record IndustryAvgs(

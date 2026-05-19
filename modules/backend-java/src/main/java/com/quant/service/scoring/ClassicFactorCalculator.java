@@ -14,12 +14,25 @@ import java.util.function.Function;
 public class ClassicFactorCalculator {
 
     public static final String FACTOR_VERSION = "classic_v2_cross_section";
-
-    private static final double WEIGHT_TREND = 0.35;
-    private static final double WEIGHT_MOMENTUM = 0.20;
-    private static final double WEIGHT_VOLUME = 0.20;
-    private static final double WEIGHT_RISK = -0.25;
     private static final int MIN_BARS = 70;
+
+    /** 权重优先从 YAML 读取，缺失时使用硬编码默认值 */
+    private static double weightTrend() {
+        var p = ScoringPropertiesBridge.get();
+        return p != null && p.getClassicFactor() != null ? p.getClassicFactor().getTrendWeight() : 0.35;
+    }
+    private static double weightMomentum() {
+        var p = ScoringPropertiesBridge.get();
+        return p != null && p.getClassicFactor() != null ? p.getClassicFactor().getMomentumWeight() : 0.20;
+    }
+    private static double weightVolume() {
+        var p = ScoringPropertiesBridge.get();
+        return p != null && p.getClassicFactor() != null ? p.getClassicFactor().getVolumeWeight() : 0.20;
+    }
+    private static double weightRiskPenalty() {
+        var p = ScoringPropertiesBridge.get();
+        return p != null && p.getClassicFactor() != null ? p.getClassicFactor().getRiskPenaltyWeight() : 0.25;
+    }
 
     public Optional<CandidateScore> calculate(
             String stockCode,
@@ -83,8 +96,8 @@ public class ClassicFactorCalculator {
         double volumeScore = ScoringUtils.clamp(
                 (avgAmount20 / Math.max(1, minAvgAmount)) * 60 + volumeRatio * 20, 0, 100);
         double riskPenalty = ScoringUtils.clamp(vol20 * 1.5 + mdd60 * 1.2, 0, 100);
-        double finalScore = WEIGHT_TREND * trend + WEIGHT_MOMENTUM * momentum
-                + WEIGHT_VOLUME * volumeScore + WEIGHT_RISK * riskPenalty;
+        double finalScore = weightTrend() * trend + weightMomentum() * momentum
+                + weightVolume() * volumeScore - weightRiskPenalty() * riskPenalty;
 
         boolean passMinAvgAmount = avgAmount20 >= minAvgAmount;
         boolean passMinTrendScore = trend >= minTrendScore;
@@ -126,7 +139,7 @@ public class ClassicFactorCalculator {
     }
 
     /**
-     * 截面 Z-Score 标准化后重算 finalScore。
+     * 截面 Z-Score 标准化后重算 finalScore，并输出因子共线性检测日志。
      */
     public void normalizeCrossSection(List<CandidateScore> candidates, double minStd) {
         if (candidates == null || candidates.size() < 2) return;
@@ -134,13 +147,15 @@ public class ClassicFactorCalculator {
         zScoreAndRescore(candidates, CandidateScore::getMomentumScore, CandidateScore::setMomentumScore);
         zScoreAndRescore(candidates, CandidateScore::getVolumeScore, CandidateScore::setVolumeScore);
         zScoreAndRescore(candidates, CandidateScore::getRiskPenalty, CandidateScore::setRiskPenalty);
+        // 因子共线性检测（仅日志告警，不阻断计算）
+        FactorCollinearityChecker.logVifReport(candidates);
         for (CandidateScore c : candidates) {
             double oldFinal = c.getFinalScore();
             double oldMacro = c.getMacroAdjustedFinal();
-            double fs = WEIGHT_TREND * c.getTrendScore()
-                    + WEIGHT_MOMENTUM * c.getMomentumScore()
-                    + WEIGHT_VOLUME * c.getVolumeScore()
-                    + WEIGHT_RISK * c.getRiskPenalty();
+            double fs = weightTrend() * c.getTrendScore()
+                    + weightMomentum() * c.getMomentumScore()
+                    + weightVolume() * c.getVolumeScore()
+                    - weightRiskPenalty() * c.getRiskPenalty();
             c.setFinalScore(ScoringUtils.clamp(fs, 0, 100));
             if (oldMacro > 0 && oldFinal > 0) {
                 double ratio = c.getFinalScore() / oldFinal;

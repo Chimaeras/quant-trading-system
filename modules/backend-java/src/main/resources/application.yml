@@ -94,6 +94,19 @@ quant:
       technical-half-life-days: 5
       news-half-life-days: 2
       fundamental-half-life-days: 90
+    dynamic-weights:
+      market-env-ratio: 0.6
+      stock-char-ratio: 0.4
+      market-weights:
+        牛市: [0.3, 0.5, 0.2]
+        熊市: [0.4, 0.3, 0.3]
+        震荡市: [0.35, 0.30, 0.35]
+      stock-type-weights:
+        价值股: [0.3, 0.5, 0.2]
+        成长股: [0.35, 0.45, 0.2]
+        周期股: [0.4, 0.3, 0.3]
+        防御股: [0.25, 0.4, 0.35]
+        普通股: [0.33, 0.34, 0.33]
 
 backtest:
   cost:

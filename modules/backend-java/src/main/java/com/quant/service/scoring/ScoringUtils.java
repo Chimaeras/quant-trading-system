@@ -293,6 +293,22 @@ public final class ScoringUtils {
     }
 
     /**
+     * 基于 ATR 计算动态止损建议。
+     * @param currentPrice 当前价格
+     * @param atr14 14日ATR值
+     * @return [保守止损价, 激进止损价]，止损幅度以价格百分比表示
+     */
+    public static double[] atrStopLevels(double currentPrice, double atr14) {
+        if (currentPrice <= 0 || atr14 <= 0) return new double[]{currentPrice * 0.95, currentPrice * 0.97};
+        double conservativeStop = currentPrice - 2.5 * atr14;
+        double aggressiveStop = currentPrice - 1.5 * atr14;
+        return new double[]{
+            Math.max(conservativeStop, currentPrice * 0.90),
+            Math.max(aggressiveStop, currentPrice * 0.93)
+        };
+    }
+
+    /**
      * 计算区间最大回撤（百分比）
      */
     public static double maxDrawdown(java.util.List<Double> close, int period) {

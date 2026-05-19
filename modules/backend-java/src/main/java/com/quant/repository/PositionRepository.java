@@ -10,4 +10,6 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
     List<Position> findByAccountId(Long accountId);
 
     List<Position> findByAccountIdAndVolumeGreaterThan(Long accountId, Integer volume);
+
+    int countByAccountId(Long accountId);
 }

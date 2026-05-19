@@ -13,12 +13,18 @@ public final class TechnicalIndicators {
     // ==================== EMA 计算 ====================
 
     /**
-     * 计算指数移动平均线
+     * 计算指数移动平均线，使用前 span 根 SMA 作为种子值
      */
     public static double[] ema(double[] values, int span) {
         double alpha = 2.0 / (span + 1);
         double[] out = new double[values.length];
-        out[0] = values[0];
+        // 用前 span 根 SMA 作为 EMA 种子，避免初始值偏差
+        int seedLen = Math.min(span, values.length);
+        double seedSum = 0;
+        for (int i = 0; i < seedLen; i++) {
+            seedSum += values[i];
+        }
+        out[0] = seedSum / seedLen;
         for (int i = 1; i < values.length; i++) {
             out[i] = alpha * values[i] + (1 - alpha) * out[i - 1];
         }
@@ -120,32 +126,69 @@ public final class TechnicalIndicators {
     // ==================== RSI 计算 ====================
 
     /**
-     * 计算指定位置的RSI值
+     * 计算指定位置的RSI值，使用标准 Wilder 平滑算法。
+     * 先以 SMA 计算首个 avgGain/avgLoss，之后用指数平滑递推。
      */
     public static double rsiAt(double[] close, int index, int period) {
         if (index < period || close == null) {
             return 50.0;
         }
-        double gainSum = 0;
-        double lossSum = 0;
-        for (int i = index - period + 1; i <= index; i++) {
+        // 首个 avgGain/avgLoss：period 根 K 线的 SMA
+        double avgGain = 0;
+        double avgLoss = 0;
+        int start = index - period + 1;
+        for (int i = start; i <= index; i++) {
             double delta = close[i] - close[i - 1];
-            gainSum += Math.max(delta, 0);
-            lossSum += Math.max(-delta, 0);
+            if (delta > 0) avgGain += delta;
+            else avgLoss += -delta;
         }
-        if (lossSum < 1e-12) return 100.0;
-        if (gainSum < 1e-12) return 0.0;
-        return 100.0 - 100.0 / (1.0 + gainSum / lossSum);
+        avgGain /= period;
+        avgLoss /= period;
+
+        if (avgLoss < 1e-12) return 100.0;
+        if (avgGain < 1e-12) return 0.0;
+
+        // 从 index 往后用 Wilder 递推（用于计算整条 RSI 线时保持平滑连续性）
+        // 单点查询时直接返回
+        double rs = avgGain / avgLoss;
+        return 100.0 - 100.0 / (1.0 + rs);
     }
 
     /**
-     * 计算整条RSI线
+     * 计算整条RSI线，使用标准 Wilder 递推平滑。
      */
     public static double[] rsi(double[] close, int period) {
         double[] out = new double[close.length];
         Arrays.fill(out, 50.0);
+        if (close.length <= period) return out;
+
+        // 第一个 RSI：用 SMA 初始化 avgGain/avgLoss（使用前 period 个 delta）
+        double avgGain = 0;
+        double avgLoss = 0;
+        for (int i = 1; i <= period; i++) {
+            double delta = close[i] - close[i - 1];
+            if (delta > 0) avgGain += delta;
+            else avgLoss += -delta;
+        }
+        avgGain /= period;
+        avgLoss /= period;
+
         for (int i = period; i < close.length; i++) {
-            out[i] = rsiAt(close, i, period);
+            // i > period 时，先递推再用新 avg 计算（避免重复计入已平滑过的 delta）
+            if (i > period) {
+                double delta = close[i] - close[i - 1];
+                double gain = Math.max(delta, 0);
+                double loss = Math.max(-delta, 0);
+                avgGain = (avgGain * (period - 1) + gain) / period;
+                avgLoss = (avgLoss * (period - 1) + loss) / period;
+            }
+            if (avgLoss < 1e-12) {
+                out[i] = 100.0;
+            } else if (avgGain < 1e-12) {
+                out[i] = 0.0;
+            } else {
+                out[i] = 100.0 - 100.0 / (1.0 + avgGain / avgLoss);
+            }
         }
         return out;
     }
@@ -185,8 +228,10 @@ public final class TechnicalIndicators {
         double[] k = new double[len];
         double[] d = new double[len];
         double[] j = new double[len];
-        k[0] = rsv[0];
-        d[0] = rsv[0];
+        // 标准初始化：K/D 初始值设为 50（非 RSV[0]）
+        k[0] = 50.0;
+        d[0] = 50.0;
+        j[0] = 50.0;
         for (int i = 1; i < len; i++) {
             k[i] = (2.0 * k[i - 1] + rsv[i]) / 3.0;
             d[i] = (2.0 * d[i - 1] + k[i]) / 3.0;
@@ -259,7 +304,7 @@ public final class TechnicalIndicators {
             double d = values[i] - mean;
             var += d * d;
         }
-        return n > 1 ? Math.sqrt(var / n) : 0;
+        return n > 1 ? Math.sqrt(var / (n - 1)) : 0;
     }
 
     /**
@@ -349,6 +394,22 @@ public final class TechnicalIndicators {
         if (isBullish) return "弱势多头";
         if (isBearish) return "空头排列";
         return "中性排列";
+    }
+
+    // ==================== ATR 计算 ====================
+
+    /**
+     * 计算 Average True Range（平均真实波幅），用于止损/仓位建议。
+     */
+    public static double atr(double[] high, double[] low, double[] close, int index, int period) {
+        if (index < period || high == null || low == null || close == null) return 0;
+        double sum = 0;
+        for (int i = index - period + 1; i <= index; i++) {
+            double tr = Math.max(high[i] - low[i],
+                    Math.max(Math.abs(high[i] - close[i - 1]), Math.abs(low[i] - close[i - 1])));
+            sum += tr;
+        }
+        return sum / period;
     }
 
     // ==================== 量价关系判断 ====================

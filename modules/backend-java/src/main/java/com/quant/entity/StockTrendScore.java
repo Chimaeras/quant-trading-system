@@ -53,6 +53,23 @@ public class StockTrendScore {
     @Column(nullable = false)
     private Double scoreRsi;
 
+    @Column(nullable = false)
+    private Double scoreTurnover;
+
+    @Column(nullable = false)
+    private Double scoreDelta;
+
+    @Column(nullable = false)
+    private Double scoreAmplitude;
+
+    /** 原始换手率（%），用于结果展示和调试 */
+    @Column
+    private Double turnoverRate;
+
+    /** 连续放量天数 */
+    @Column
+    private Integer consecutiveVolumeDays;
+
     @Column(nullable = false, length = 32)
     private String trendStatus;
 

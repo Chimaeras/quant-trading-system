@@ -346,4 +346,159 @@ public final class ScoringRules {
             default -> 0.0;
         };
     }
+
+    // ==================== P0: 换手率打分 (5分) ====================
+
+    /**
+     * 换手率评分：结合换手率与价格方向
+     */
+    public static double scoreTurnover(double turnoverRate, double priceChange, boolean isRising) {
+        if (turnoverRate < ScoringConstants.TURNOVER_COLD) return 1.0;
+        if (turnoverRate > ScoringConstants.TURNOVER_HOT) return 0.5;
+        if (turnoverRate >= ScoringConstants.TURNOVER_MILD && turnoverRate <= ScoringConstants.TURNOVER_ACTIVE) {
+            return isRising ? 5.0 : 2.0;
+        }
+        if (turnoverRate > ScoringConstants.TURNOVER_ACTIVE) {
+            return isRising ? 3.0 : 1.0;
+        }
+        if (turnoverRate >= ScoringConstants.TURNOVER_COLD && turnoverRate < ScoringConstants.TURNOVER_MILD) {
+            return isRising ? 3.0 : 1.5;
+        }
+        return 2.0;
+    }
+
+    // ==================== P0: 指标变化率打分 (10分) ====================
+
+    /**
+     * ΔRSI 评分：RSI变化方向与位置组合判断
+     */
+    public static double scoreDeltaRsi(double rsi, double deltaRsi) {
+        double score = 0;
+        // RSI从低位回升 → 强看涨信号
+        if (rsi < 40 && deltaRsi > 3) score = 5;
+        else if (rsi < 40 && deltaRsi > 0) score = 4;
+        // RSI在健康区间加速上行
+        else if (rsi >= 40 && rsi <= 60 && deltaRsi > 2) score = 4;
+        else if (rsi >= 40 && rsi <= 60 && deltaRsi > 0) score = 3;
+        // RSI高位回落 → 看跌
+        else if (rsi > 70 && deltaRsi < -2) score = 0;
+        else if (rsi > 70 && deltaRsi < 0) score = 1;
+        // RSI从高位回落但仍在健康范围 → 中性
+        else if (rsi > 60 && deltaRsi < 0) score = 2;
+        // 其他情况
+        else if (deltaRsi > 0) score = 2.5;
+        else score = 1.5;
+        return score;
+    }
+
+    /**
+     * ΔMACD柱 评分：MACD动量加速/减速
+     */
+    public static double scoreDeltaMacd(double macdHist, double deltaMacdHist, String macdStatus) {
+        double score = 0;
+        boolean isBullish = "多头".equals(macdStatus) || "零轴上金叉".equals(macdStatus)
+                || "金叉".equals(macdStatus) || "上穿零轴".equals(macdStatus);
+        if (isBullish && deltaMacdHist > 0) score = 5;       // 多头+动量加速
+        else if (isBullish && deltaMacdHist <= 0) score = 3;  // 多头+动量减速
+        else if (deltaMacdHist > 0 && macdHist < 0) score = 4; // 空头但动量改善
+        else if (deltaMacdHist > 0) score = 3;                 // 动量改善
+        else if (deltaMacdHist <= 0 && macdHist > 0) score = 1.5;
+        else score = 0.5;
+        return score;
+    }
+
+    // ==================== P1: 日内振幅与影线打分 (5分) ====================
+
+    /**
+     * 日内振幅/影线形态评分
+     */
+    public static double scoreCandlestick(double amplitude, double upperShadow, double lowerShadow,
+                                          double bodyRatio, boolean isRising) {
+        double score = 2.5;
+        // 振幅适中（2-7%）→ 有活性，加分
+        if (amplitude >= ScoringConstants.AMPLITUDE_LOW && amplitude <= ScoringConstants.AMPLITUDE_HIGH) {
+            score += 1.5;
+        } else if (amplitude > ScoringConstants.AMPLITUDE_EXTREME) {
+            score -= 1.0;
+        }
+        // 下影线长 + 上涨 → 买盘承接强
+        if (isRising && lowerShadow > 0.4 && lowerShadow > upperShadow) {
+            score += 1.5;
+        }
+        // 上影线长 + 上涨 → 抛压重
+        if (isRising && upperShadow > 0.5) {
+            score -= 1.0;
+        }
+        // 实体占比高 → 方向明确
+        if (bodyRatio > 0.6) {
+            score += 0.5;
+        }
+        return ScoringUtils.clampSubScore(score, 5.0);
+    }
+
+    // ==================== P1: 均线粘合发散打分 ====================
+
+    /**
+     * 均线粘合发散评分：粘合后向上发散是强信号
+     */
+    public static double scoreMaConvergence(double convergenceDegree, double divergenceDirection) {
+        // 粘合+多头向上发散 → 最佳买点
+        if (convergenceDegree < ScoringConstants.MA_CONVERGENCE_TIGHT && divergenceDirection > 0) {
+            return 3.0;
+        }
+        // 粘合 → 即将选择方向
+        if (convergenceDegree < ScoringConstants.MA_CONVERGENCE_TIGHT) {
+            return 2.0;
+        }
+        // 多头排列但不过度发散
+        if (divergenceDirection > 0 && convergenceDegree < ScoringConstants.MA_CONVERGENCE_LOOSE) {
+            return 1.5;
+        }
+        // 过度发散 → 可能回调
+        if (convergenceDegree > ScoringConstants.MA_CONVERGENCE_LOOSE && divergenceDirection > 0) {
+            return 0.5;
+        }
+        return 1.0;
+    }
+
+    // ==================== P2: 波动率收敛打分 ====================
+
+    /**
+     * 波动率收敛评分：波动率低位收敛+放量 = 突破前兆
+     */
+    public static double scoreVolConvergence(double volConvergence, double volPercentile, boolean volumeExpanding) {
+        double score = 1.0;
+        // 波动率显著收敛（< -20%）→ 变盘前兆
+        if (volConvergence < ScoringConstants.VOL_CONVERGENCE_THRESHOLD) {
+            score = volumeExpanding ? 3.0 : 2.0;
+        }
+        // 波动率低位
+        else if (volPercentile < 0.25) {
+            score = volumeExpanding ? 2.5 : 1.5;
+        }
+        // 波动率扩张
+        else if (volConvergence > ScoringConstants.VOL_EXPANSION_THRESHOLD) {
+            score = 0.5;
+        }
+        return score;
+    }
+
+    // ==================== P1: 连续量能状态打分 ====================
+
+    /**
+     * 连续放量/缩量状态评分
+     */
+    public static double scoreConsecutiveVolume(int expandDays, int shrinkDays, boolean isRising) {
+        // 连续3天以上放量上涨 → 资金持续介入
+        if (expandDays >= ScoringConstants.CONSECUTIVE_VOL_STRONG_SIGNAL && isRising) return 3.0;
+        // 连续缩量后企稳 → 底部信号
+        if (shrinkDays >= 3 && isRising) return 2.5;
+        // 连续放量但不上涨 → 出货嫌疑
+        if (expandDays >= ScoringConstants.CONSECUTIVE_VOL_STRONG_SIGNAL && !isRising) return 0.5;
+        // 连续缩量下跌 → 弱势
+        if (shrinkDays >= 3 && !isRising) return 1.0;
+        // 放量1-2天
+        if (expandDays >= 1 && isRising) return 2.0;
+        return 1.5;
+    }
 }

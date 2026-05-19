@@ -439,4 +439,203 @@ public final class TechnicalIndicators {
         if ((priceUp && ratio < 0.75) || (!priceUp && ratio > 1.4)) return "量价背离";
         return "量能正常";
     }
+
+    // ==================== P0: 换手率分析 ====================
+
+    /**
+     * 换手率状态分类（A股特征）
+     */
+    public static String classifyTurnover(double turnoverRate, double priceChange) {
+        if (turnoverRate < 1.0) return "换手极低";
+        if (turnoverRate < 3.0) return priceChange > 0 ? "温和放量上涨" : "温和换手";
+        if (turnoverRate <= 8.0) return priceChange > 0 ? "活跃上涨" : "活跃换手";
+        if (turnoverRate <= 15.0) return priceChange > 0 ? "高度活跃" : "异常换手";
+        return "过度换手";
+    }
+
+    // ==================== P0: 指标变化率（Delta） ====================
+
+    /**
+     * RSI 变化量：今日RSI - 昨日RSI
+     */
+    public static double deltaRsi(double[] close, int index, int period) {
+        if (index < period + 1) return 0;
+        double rsiToday = rsiAt(close, index, period);
+        double rsiYesterday = rsiAt(close, index - 1, period);
+        return rsiToday - rsiYesterday;
+    }
+
+    /**
+     * MACD 柱变化量：今日hist - 昨日hist
+     */
+    public static double deltaMacdHist(double[] close, int index) {
+        MacdResult macd = macd(close);
+        if (index < 1 || index >= macd.macd().length) return 0;
+        return macd.macd()[index] - macd.macd()[index - 1];
+    }
+
+    /**
+     * 乖离率变化量：今日bias - N日前bias
+     */
+    public static double deltaBias(double[] close, int index, int maPeriod, int lookbackDays) {
+        if (index < lookbackDays) return 0;
+        double maToday = smaAt(close, index, maPeriod);
+        double maPast = smaAt(close, index - lookbackDays, maPeriod);
+        if (Double.isNaN(maToday) || Double.isNaN(maPast)) return 0;
+        double biasToday = (close[index] - maToday) / maToday * 100;
+        double biasPast = (close[index - lookbackDays] - maPast) / maPast * 100;
+        return biasToday - biasPast;
+    }
+
+    // ==================== P1: 连续放量/缩量天数 ====================
+
+    /**
+     * 连续放量天数：当日量比超过阈值的天数
+     */
+    public static int consecutiveVolumeExpandDays(double[] volume, int index, double threshold) {
+        if (index < 1) return 0;
+        int count = 0;
+        for (int i = index; i >= 1; i--) {
+            double avg5 = 0;
+            int start = Math.max(0, i - 5);
+            int cnt = 0;
+            for (int j = start; j < i; j++) {
+                avg5 += volume[j];
+                cnt++;
+            }
+            avg5 = cnt > 0 ? avg5 / cnt : 1;
+            double ratio = avg5 > 1e-9 ? volume[i] / avg5 : 1.0;
+            if (ratio >= threshold) {
+                count++;
+            } else {
+                break;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * 连续缩量天数：当日量比低于阈值的天数
+     */
+    public static int consecutiveVolumeShrinkDays(double[] volume, int index, double threshold) {
+        if (index < 1) return 0;
+        int count = 0;
+        for (int i = index; i >= 1; i--) {
+            double avg5 = 0;
+            int start = Math.max(0, i - 5);
+            int cnt = 0;
+            for (int j = start; j < i; j++) {
+                avg5 += volume[j];
+                cnt++;
+            }
+            avg5 = cnt > 0 ? avg5 / cnt : 1;
+            double ratio = avg5 > 1e-9 ? volume[i] / avg5 : 1.0;
+            if (ratio <= threshold) {
+                count++;
+            } else {
+                break;
+            }
+        }
+        return count;
+    }
+
+    // ==================== P1: 均线粘合发散 ====================
+
+    /**
+     * 均线粘合度：多根均线标准差的归一化值（越小越粘合）
+     * 返回值 0~1，<0.02 为高度粘合，>0.08 为发散
+     */
+    public static double maConvergenceDegree(double[] close, int index) {
+        double ma5 = smaAt(close, index, 5);
+        double ma10 = smaAt(close, index, 10);
+        double ma20 = smaAt(close, index, 20);
+        double ma60 = smaAt(close, index, 60);
+        if (Double.isNaN(ma5) || Double.isNaN(ma10) || Double.isNaN(ma20) || Double.isNaN(ma60)) {
+            return 1.0;
+        }
+        double mean = (ma5 + ma10 + ma20 + ma60) / 4.0;
+        if (mean < 1e-9) return 1.0;
+        double var = (Math.pow(ma5 - mean, 2) + Math.pow(ma10 - mean, 2)
+                + Math.pow(ma20 - mean, 2) + Math.pow(ma60 - mean, 2)) / 4.0;
+        return Math.sqrt(var) / mean;
+    }
+
+    /**
+     * 均线发散方向：正值=多头向上发散，负值=空头向下发散，0=粘合
+     */
+    public static double maDivergenceDirection(double[] close, int index) {
+        double ma5 = smaAt(close, index, 5);
+        double ma20 = smaAt(close, index, 20);
+        if (Double.isNaN(ma5) || Double.isNaN(ma20)) return 0;
+        return (ma5 - ma20) / ma20;
+    }
+
+    // ==================== P1: 日内振幅与影线 ====================
+
+    /**
+     * 日内振幅（百分比）
+     */
+    public static double dailyAmplitudePct(double high, double low, double preClose) {
+        if (preClose <= 1e-9) return 0;
+        return (high - low) / preClose * 100.0;
+    }
+
+    /**
+     * 上影线占比：上影线 / 总影线长度
+     */
+    public static double upperShadowRatio(double open, double close, double high, double low) {
+        double bodyHigh = Math.max(open, close);
+        double range = high - low;
+        if (range < 1e-9) return 0;
+        return Math.max(0, high - bodyHigh) / range;
+    }
+
+    /**
+     * 下影线占比：下影线 / 总影线长度
+     */
+    public static double lowerShadowRatio(double open, double close, double high, double low) {
+        double bodyLow = Math.min(open, close);
+        double range = high - low;
+        if (range < 1e-9) return 0;
+        return Math.max(0, bodyLow - low) / range;
+    }
+
+    /**
+     * K线实体占比
+     */
+    public static double bodyRatio(double open, double close, double high, double low) {
+        double range = high - low;
+        if (range < 1e-9) return 0;
+        return Math.abs(close - open) / range;
+    }
+
+    // ==================== P2: 波动率收敛 ====================
+
+    /**
+     * 波动率收敛度：当前波动率相对于历史波动率的变化
+     * 负值表示波动率在收缩，正值表示扩张；<-0.2 显著收敛
+     */
+    public static double volatilityConvergence(double[] close, int index, int shortPeriod, int longPeriod) {
+        if (index < longPeriod) return 0;
+        double volShort = stdDev(close, index - shortPeriod + 1, index);
+        double volLong = stdDev(close, index - longPeriod + 1, index);
+        if (volLong < 1e-9) return 0;
+        return (volShort - volLong) / volLong;
+    }
+
+    /**
+     * 波动率相对分位：当前波动率在历史N日中的分位（0~1）
+     */
+    public static double volatilityPercentile(double[] close, int index, int period) {
+        if (index < period) return 0.5;
+        double currentVol = stdDev(close, index - 20 + 1, index);
+        int countBelow = 0;
+        int total = 0;
+        for (int i = period - 1; i <= index; i++) {
+            double vol = stdDev(close, Math.max(0, i - 20 + 1), i);
+            if (vol < currentVol) countBelow++;
+            total++;
+        }
+        return total > 0 ? (double) countBelow / total : 0.5;
+    }
 }

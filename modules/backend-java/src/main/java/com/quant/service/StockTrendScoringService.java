@@ -254,6 +254,10 @@ public class StockTrendScoringService {
         }
         long tScore1 = System.nanoTime();
 
+        // ==================== P2: 板块内相对排名调整 ====================
+        Map<String, String> industryMap = buildIndustryMap();
+        applyIntraSectorAdjustment(rows, industryMap);
+
         rows.sort((a, b) -> Double.compare(b.getTotalScore(), a.getTotalScore()));
         final List<StockTrendScore> rowsToPersist = dedupeByStock(rows);
 
@@ -349,11 +353,19 @@ public class StockTrendScoringService {
         int n = bars.size();
         double[] close = new double[n];
         double[] vol = new double[n];
+        double[] high = new double[n];
+        double[] low = new double[n];
+        double[] open = new double[n];
+        double[] turnover = new double[n];
         for (int i = 0; i < n; i++) {
             MarketData m = bars.get(i);
             close[i] = m.getClosePrice() != null ? m.getClosePrice().doubleValue() : Double.NaN;
+            high[i] = m.getHighPrice() != null ? m.getHighPrice().doubleValue() : Double.NaN;
+            low[i] = m.getLowPrice() != null ? m.getLowPrice().doubleValue() : Double.NaN;
+            open[i] = m.getOpenPrice() != null ? m.getOpenPrice().doubleValue() : Double.NaN;
             Long v = m.getVolume();
             vol[i] = v != null ? v.doubleValue() : 0;
+            turnover[i] = m.getTurnoverRate() != null ? m.getTurnoverRate().doubleValue() : 0;
         }
         if (Arrays.stream(close).anyMatch(Double::isNaN)) {
             return Optional.empty();
@@ -361,7 +373,7 @@ public class StockTrendScoringService {
 
         int L = n - 1;
 
-        // 使用统一工具类计算均线
+        // 均线系统
         double ma5 = TechnicalIndicators.smaAt(close, L, 5);
         double ma10 = TechnicalIndicators.smaAt(close, L, 10);
         double ma20 = TechnicalIndicators.smaAt(close, L, 20);
@@ -373,30 +385,80 @@ public class StockTrendScoringService {
         double currSpread = spreadAt(close, L);
         double prevSpread = spreadAt(close, prevIdx);
 
+        // === 核心趋势因子 (22分) ===
         String trendStatus = classifyTrend(close, L, currSpread, prevSpread);
         double scoreTrend = ScoringRules.scoreTrend(trendStatus);
+        // 调整到22分制：原30分制按比例缩放
+        scoreTrend = scoreTrend * 22.0 / 30.0;
 
+        // === 乖离率因子 (18分) ===
         double biasMa5 = (close[L] - ma5) / ma5 * 100.0;
         double scoreBias = ScoringRules.scoreBias(biasMa5, trendStatus, biasThreshold);
+        scoreBias = scoreBias * 18.0 / 20.0;
 
+        // === 量价因子 (10分) ===
         String volumeStatus = classifyVolume(close, vol, L);
         double scoreVolume = ScoringRules.scoreVolume(volumeStatus);
+        scoreVolume = scoreVolume * 10.0 / 15.0;
 
+        // === 均线支撑因子 (5分) ===
         boolean sup5 = maSupport(close[L], ma5);
         boolean sup10 = maSupport(close[L], ma10);
-        double scoreSupport = (sup5 ? 5 : 0) + (sup10 ? 5 : 0);
+        double scoreSupport = (sup5 ? 2.5 : 0) + (sup10 ? 2.5 : 0);
 
-        // 使用统一工具类计算MACD
+        // === MACD因子 (10分) ===
         TechnicalIndicators.MacdResult macd = TechnicalIndicators.macd(close);
         String macdStatus = TechnicalIndicators.classifyMacd(macd, L);
         double scoreMacd = ScoringRules.scoreMacd(macdStatus);
+        scoreMacd = scoreMacd * 10.0 / 15.0;
 
-        // 使用统一工具类计算RSI（趋势策略专用评分）
+        // === RSI因子 (8分) ===
         double rsi14 = TechnicalIndicators.rsiAt(close, L, ScoringConstants.RSI_PERIOD);
         String rsiStatus = classifyRsiDetailed(rsi14);
         double scoreRsi = ScoringRules.scoreRsiTrend(rsi14);
+        scoreRsi = scoreRsi * 8.0 / 10.0;
 
-        double total = scoreTrend + scoreBias + scoreVolume + scoreSupport + scoreMacd + scoreRsi;
+        // ==================== P0: 换手率因子 (5分) ====================
+        double turnoverRate = turnover[L];
+        double priceChangeToday = close[L - 1] > 0 ? (close[L] - close[L - 1]) / close[L - 1] : 0;
+        boolean isRising = priceChangeToday > 0;
+        double scoreTurnover = ScoringRules.scoreTurnover(turnoverRate, priceChangeToday, isRising);
+
+        // ==================== P0: 指标变化率因子 (10分) ====================
+        double deltaRsi = TechnicalIndicators.deltaRsi(close, L, ScoringConstants.RSI_PERIOD);
+        double scoreDeltaRsi = ScoringRules.scoreDeltaRsi(rsi14, deltaRsi);
+        double deltaMacdHist = TechnicalIndicators.deltaMacdHist(close, L);
+        double macdHist = macd.macd()[L];
+        double scoreDeltaMacd = ScoringRules.scoreDeltaMacd(macdHist, deltaMacdHist, macdStatus);
+        double scoreDelta = scoreDeltaRsi + scoreDeltaMacd; // 0-10
+
+        // ==================== P1: 日内振幅与影线因子 (5分) ====================
+        double amplitude = TechnicalIndicators.dailyAmplitudePct(high[L], low[L], close[L - 1]);
+        double upperShadow = TechnicalIndicators.upperShadowRatio(open[L], close[L], high[L], low[L]);
+        double lowerShadow = TechnicalIndicators.lowerShadowRatio(open[L], close[L], high[L], low[L]);
+        double bodyRatio = TechnicalIndicators.bodyRatio(open[L], close[L], high[L], low[L]);
+        double scoreAmplitude = ScoringRules.scoreCandlestick(amplitude, upperShadow, lowerShadow, bodyRatio, isRising);
+
+        // ==================== P1: 连续量能状态因子 (3分) ====================
+        int expandDays = TechnicalIndicators.consecutiveVolumeExpandDays(vol, L, ScoringConstants.VOLUME_HEAVY_RATIO);
+        int shrinkDays = TechnicalIndicators.consecutiveVolumeShrinkDays(vol, L, ScoringConstants.VOLUME_SHRINK_RATIO);
+        double scoreConsecutiveVol = ScoringRules.scoreConsecutiveVolume(expandDays, shrinkDays, isRising);
+
+        // ==================== P1: 均线粘合发散因子 (2分) ====================
+        double maConv = TechnicalIndicators.maConvergenceDegree(close, L);
+        double maDivDir = TechnicalIndicators.maDivergenceDirection(close, L);
+        double scoreMaConv = ScoringRules.scoreMaConvergence(maConv, maDivDir);
+
+        // ==================== P2: 波动率收敛因子 (2分) ====================
+        double volConv = TechnicalIndicators.volatilityConvergence(close, L, 10, 40);
+        double volPct = TechnicalIndicators.volatilityPercentile(close, L, 60);
+        boolean volExpanding = expandDays >= 1;
+        double scoreVolConv = ScoringRules.scoreVolConvergence(volConv, volPct, volExpanding);
+
+        // === 综合得分 ===
+        double total = scoreTrend + scoreBias + scoreVolume + scoreSupport
+                + scoreMacd + scoreRsi + scoreTurnover + scoreDelta
+                + scoreAmplitude + scoreConsecutiveVol + scoreMaConv + scoreVolConv;
         total = ScoringUtils.clampScore(total);
 
         String buySignal = ScoringRules.getBuySignal(total, trendStatus);
@@ -425,6 +487,11 @@ public class StockTrendScoringService {
         e.setScoreSupport(ScoringUtils.round2(scoreSupport));
         e.setScoreMacd(ScoringUtils.round2(scoreMacd));
         e.setScoreRsi(ScoringUtils.round2(scoreRsi));
+        e.setScoreTurnover(ScoringUtils.round2(scoreTurnover));
+        e.setScoreDelta(ScoringUtils.round2(scoreDelta));
+        e.setScoreAmplitude(ScoringUtils.round2(scoreAmplitude));
+        e.setTurnoverRate(ScoringUtils.round2(turnoverRate));
+        e.setConsecutiveVolumeDays(expandDays);
         e.setTrendStatus(trendStatus);
         e.setVolumeStatus(volumeStatus);
         e.setMacdStatus(macdStatus);
@@ -449,6 +516,11 @@ public class StockTrendScoringService {
         m.put("score_support", s.getScoreSupport());
         m.put("score_macd", s.getScoreMacd());
         m.put("score_rsi", s.getScoreRsi());
+        m.put("score_turnover", s.getScoreTurnover());
+        m.put("score_delta", s.getScoreDelta());
+        m.put("score_amplitude", s.getScoreAmplitude());
+        m.put("turnover_rate", s.getTurnoverRate());
+        m.put("consecutive_volume_days", s.getConsecutiveVolumeDays());
         m.put("trend_status", s.getTrendStatus());
         m.put("volume_status", s.getVolumeStatus());
         m.put("macd_status", s.getMacdStatus());
@@ -540,5 +612,65 @@ public class StockTrendScoringService {
         if (rsi >= 40) return "中性";
         if (rsi >= 30) return "弱势";
         return "超卖";
+    }
+
+    // ==================== P2: 板块内相对排名 ====================
+
+    /**
+     * 构建股票代码→行业映射
+     */
+    private Map<String, String> buildIndustryMap() {
+        Map<String, String> map = new HashMap<>();
+        for (var s : stockInfoRepository.findAll()) {
+            String industry = s.getIndustry();
+            if (industry != null && !industry.isBlank()) {
+                map.put(s.getStockCode() + "|" + s.getExchangeType(), industry);
+            }
+        }
+        return map;
+    }
+
+    /**
+     * 板块内相对排名调整：同行业排名靠前的股票获得小幅加分
+     */
+    private void applyIntraSectorAdjustment(List<StockTrendScore> rows, Map<String, String> industryMap) {
+        if (rows == null || rows.size() < 2 || industryMap.isEmpty()) return;
+
+        // 按行业分组
+        Map<String, List<StockTrendScore>> sectorGroups = new LinkedHashMap<>();
+        for (StockTrendScore row : rows) {
+            String key = row.getStockCode() + "|" + row.getExchangeType();
+            String industry = industryMap.getOrDefault(key, "");
+            sectorGroups.computeIfAbsent(industry, k -> new ArrayList<>()).add(row);
+        }
+
+        for (var entry : sectorGroups.entrySet()) {
+            List<StockTrendScore> group = entry.getValue();
+            if (entry.getKey().isBlank() || group.size() < 3) continue; // 无行业信息或样本太少，不做调整
+
+            // 组内按总分排序
+            group.sort((a, b) -> Double.compare(b.getTotalScore(), a.getTotalScore()));
+            int size = group.size();
+
+            // 按排名分位给予小幅调整
+            for (int i = 0; i < size; i++) {
+                StockTrendScore row = group.get(i);
+                double percentile = (double) i / size;
+                double adjustment;
+                if (percentile <= 0.2) {
+                    adjustment = 3.0;       // 行业前20%：+3
+                } else if (percentile <= 0.4) {
+                    adjustment = 1.5;       // 行业20-40%：+1.5
+                } else if (percentile >= 0.8) {
+                    adjustment = -2.0;      // 行业后20%：-2
+                } else {
+                    adjustment = 0;
+                }
+                if (adjustment != 0) {
+                    row.setTotalScore(ScoringUtils.clampScore(
+                            ScoringUtils.round2(row.getTotalScore() + adjustment)));
+                }
+            }
+        }
     }
 }

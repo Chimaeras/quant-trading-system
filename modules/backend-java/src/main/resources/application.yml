@@ -73,12 +73,6 @@ quant:
       buy: 70
       hold: 55
       watch: 30
-    industry-adjustments:
-      银行: 5.0
-      保险: 3.0
-      房地产: -2.0
-      新能源: 4.0
-      科技: 3.0
     gdelt:
       risk-red: 0.4
       risk-yellow: 0.2

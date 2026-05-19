@@ -266,6 +266,13 @@ public final class ScoringUtils {
     }
 
     /**
+     * 子维度打分钳制（钳制在0-max之间）
+     */
+    public static double clampSubScore(double score, double max) {
+        return clamp(score, 0, max);
+    }
+
+    /**
      * 检查当前线程是否被中断
      */
     public static void checkInterrupted() {

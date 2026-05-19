@@ -19,7 +19,7 @@ public final class ScoringConstants {
     public static final int MA60_PERIOD = 60;
 
     // ==================== 最小K线数要求 ====================
-    public static final int MIN_BARS_TECHNICAL = 26;
+    public static final int MIN_BARS_TECHNICAL = 60;
     public static final int MIN_BARS_COMPREHENSIVE = 60;
     public static final int MIN_BARS_OVERSOLD = 260;
     public static final int MIN_BARS_TREND = 26;
@@ -39,11 +39,33 @@ public final class ScoringConstants {
     public static final double DEFAULT_SENTIMENT_WEIGHT = 0.33;
 
     // ==================== 因子版本 ====================
-    public static final String VERSION_TREND = "trend_signal_v1";
+    public static final String VERSION_TREND = "trend_signal_v2";
     public static final String VERSION_OVERSOLD = "oversold_rebound_v2_confirm";
     public static final String VERSION_COMPREHENSIVE = "comprehensive_v2_fundamentals";
     public static final String VERSION_MULTI_DIM = "multi_dim_v2_normalized";
 
     // ==================== 默认回溯天数 ====================
     public static final int DEFAULT_LOOKBACK_DAYS = 520;
+
+    // ==================== P0: 换手率阈值 ====================
+    public static final double TURNOVER_COLD = 1.0;
+    public static final double TURNOVER_MILD = 3.0;
+    public static final double TURNOVER_ACTIVE = 8.0;
+    public static final double TURNOVER_HOT = 15.0;
+
+    // ==================== P1: 均线粘合阈值 ====================
+    public static final double MA_CONVERGENCE_TIGHT = 0.02;
+    public static final double MA_CONVERGENCE_LOOSE = 0.08;
+
+    // ==================== P1: 日内振幅阈值 ====================
+    public static final double AMPLITUDE_LOW = 2.0;
+    public static final double AMPLITUDE_HIGH = 7.0;
+    public static final double AMPLITUDE_EXTREME = 10.0;
+
+    // ==================== P1: 连续量能天数阈值 ====================
+    public static final int CONSECUTIVE_VOL_STRONG_SIGNAL = 3;
+
+    // ==================== P2: 波动率收敛阈值 ====================
+    public static final double VOL_CONVERGENCE_THRESHOLD = -0.2;
+    public static final double VOL_EXPANSION_THRESHOLD = 0.3;
 }

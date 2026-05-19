@@ -4,7 +4,6 @@ import com.quant.entity.DataUpdateTask;
 import com.quant.entity.DataUpdateTaskItem;
 import com.quant.repository.DataUpdateTaskItemRepository;
 import com.quant.repository.DataUpdateTaskRepository;
-import com.quant.repository.StockInfoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -32,7 +31,6 @@ public class HistoricalDataUpdateService {
     private static final String A_SHARE_UNIVERSE_RESOURCE = "universe/a_share_codes.txt";
 
     private final HistoricalDataService historicalDataService;
-    private final StockInfoRepository stockInfoRepository;
     private final DataUpdateTaskRepository dataUpdateTaskRepository;
     private final DataUpdateTaskItemRepository dataUpdateTaskItemRepository;
 
@@ -300,19 +298,13 @@ public class HistoricalDataUpdateService {
     }
 
     private List<StockTarget> resolveTargets(String mode, Map<String, Object> request) {
-        /** 与 StockInfo/quant-core {@code StringUtil.generateMainBoardCodes()} 一致：深市 000001–004999 + 沪市 600000–605999 */
         if ("MAIN_BOARD".equals(mode)) {
-            return generateMainBoardTargets();
+            // 主板模式也强制走固定清单，不再按 000001~ 区间盲扫
+            return loadUniverseTargetsFromResource();
         }
         if ("ALL".equals(mode)) {
-            List<StockTarget> fromFile = loadUniverseTargetsFromResource();
-            if (!fromFile.isEmpty()) {
-                return fromFile;
-            }
-            // 兜底：当资源文件不存在或为空时，仍兼容历史逻辑（按 stock_info 全量）
-            return stockInfoRepository.findAll(Sort.by(Sort.Direction.ASC, "stockCode")).stream()
-                    .map(s -> new StockTarget(s.getStockCode(), normalizeExchange(s.getExchangeType())))
-                    .toList();
+            // ALL 模式仅按固定清单执行，清单外股票直接跳过
+            return loadUniverseTargetsFromResource();
         }
         if ("LIST".equals(mode)) {
             @SuppressWarnings("unchecked")
@@ -392,30 +384,6 @@ public class HistoricalDataUpdateService {
         };
     }
 
-    /**
-     * 主板代码枚举（quant-core 同源逻辑），写入 {@link com.quant.entity.MarketData}（stock_code + exchange_type + trade_date 等）。
-     */
-    /** 与 StockInfo {@code StringUtil.generateMainBoardCodes()} 逐字一致 */
-    private static List<StockTarget> generateMainBoardTargets() {
-        List<StockTarget> codes = new ArrayList<>(11_000);
-        for (int i = 1; i <= 4999; i++) {
-            String code = String.format("00%04d", i);
-            codes.add(new StockTarget(code, inferExchangeFromCode(code)));
-        }
-        for (int i = 0; i <= 5999; i++) {
-            String code = String.format("60%04d", i);
-            codes.add(new StockTarget(code, "SSE"));
-        }
-        return codes;
-    }
-
-    private static String inferExchangeFromCode(String code) {
-        if (code == null || code.length() < 4) return "SZSE";
-        if (code.startsWith("6") || code.startsWith("5") || code.startsWith("9")) return "SSE";
-        if (code.startsWith("8") || code.startsWith("4")) return "BSE";
-        return "SZSE";
-    }
-
     /** 未传 delayMs 时：MAIN_BOARD 默认 150ms（对齐 StockInfo），其余模式无间隔 */
     private static long resolveDelayMs(Object delayParam, String mode) {
         if (delayParam != null) {
@@ -450,21 +418,14 @@ public class HistoricalDataUpdateService {
         }
     }
 
-    private String normalizeExchange(String ex) {
-        if (ex == null) return "SZSE";
-        String e = ex.toUpperCase();
-        if ("SH".equals(e) || "SSE".equals(e)) return "SSE";
-        if ("BJ".equals(e) || "BSE".equals(e)) return "BSE";
-        return "SZSE";
-    }
-
     /**
-     * ALL 模式优先读取项目内固定股票清单，避免按代码区间盲扫。
+     * ALL / MAIN_BOARD 模式读取项目内固定股票清单，避免按代码区间盲扫。
      * 文件格式：每行一个股票代码，支持 000001 / 000001.SZ / 600519.SH / 920001.BJ。
      */
     private List<StockTarget> loadUniverseTargetsFromResource() {
         InputStream in = getClass().getClassLoader().getResourceAsStream(A_SHARE_UNIVERSE_RESOURCE);
         if (in == null) {
+            log.warn("固定全量清单不存在: {}", A_SHARE_UNIVERSE_RESOURCE);
             return List.of();
         }
         List<StockTarget> targets = new ArrayList<>();
@@ -484,7 +445,11 @@ public class HistoricalDataUpdateService {
             log.warn("读取固定全量清单失败: {}", e.getMessage());
             return List.of();
         }
-        return dedupTargets(targets);
+        List<StockTarget> deduped = dedupTargets(targets);
+        if (deduped.isEmpty()) {
+            log.warn("固定全量清单为空: {}", A_SHARE_UNIVERSE_RESOURCE);
+        }
+        return deduped;
     }
 
     private String exchangeToSuffix(String ex) {

@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface SelectorResultRepository extends JpaRepository<SelectorResult, Long> {
@@ -34,4 +35,6 @@ public interface SelectorResultRepository extends JpaRepository<SelectorResult, 
     Optional<LocalDate> findMaxTradeDateByStrategy(@Param("strategy") String strategyType);
 
     Page<SelectorResult> findByStrategyTypeOrderByCreatedAtDesc(String strategyType, Pageable pageable);
+
+    List<SelectorResult> findByTradeDateBetweenOrderByCreatedAtDesc(LocalDate start, LocalDate end);
 }

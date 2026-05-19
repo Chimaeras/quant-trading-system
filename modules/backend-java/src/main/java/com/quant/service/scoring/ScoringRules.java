@@ -254,10 +254,15 @@ public final class ScoringRules {
      * 根据综合得分给出投资建议
      */
     public static String getInvestmentAdvice(double compositeScore) {
-        if (compositeScore >= 85) return "强烈买入";
-        if (compositeScore >= 70) return "买入";
-        if (compositeScore >= 55) return "持有";
-        if (compositeScore >= 30) return "观望";
+        var props = ScoringPropertiesBridge.get();
+        double strongBuy = props != null ? props.getAdvice().getStrongBuy() : 85;
+        double buy = props != null ? props.getAdvice().getBuy() : 70;
+        double hold = props != null ? props.getAdvice().getHold() : 55;
+        double watch = props != null ? props.getAdvice().getWatch() : 30;
+        if (compositeScore >= strongBuy) return "强烈买入";
+        if (compositeScore >= buy) return "买入";
+        if (compositeScore >= hold) return "持有";
+        if (compositeScore >= watch) return "观望";
         return "强烈卖出";
     }
 
@@ -284,6 +289,10 @@ public final class ScoringRules {
      */
     public static double getIndustryAdjustment(String industry) {
         if (industry == null) return 0;
+        var props = ScoringPropertiesBridge.get();
+        if (props != null && props.getIndustryAdjustments() != null) {
+            return props.getIndustryAdjustments().getOrDefault(industry, 0.0);
+        }
         return switch (industry) {
             case "银行" -> 5.0;
             case "保险" -> 3.0;

@@ -273,4 +273,39 @@ public final class ScoringUtils {
             throw new RuntimeException("任务被取消（线程中断）");
         }
     }
+
+    /**
+     * 计算收益率序列标准差（小数）
+     */
+    public static double stdPct(java.util.List<Double> close, int period) {
+        if (close == null || close.size() < period + 1) return 0;
+        java.util.List<Double> rets = new java.util.ArrayList<>();
+        for (int i = close.size() - period; i < close.size(); i++) {
+            if (i <= 0) continue;
+            double prev = close.get(i - 1);
+            if (prev <= 0) continue;
+            rets.add(close.get(i) / prev - 1);
+        }
+        if (rets.isEmpty()) return 0;
+        double mean = rets.stream().mapToDouble(Double::doubleValue).average().orElse(0);
+        double var = rets.stream().mapToDouble(v -> (v - mean) * (v - mean)).average().orElse(0);
+        return Math.sqrt(var);
+    }
+
+    /**
+     * 计算区间最大回撤（百分比）
+     */
+    public static double maxDrawdown(java.util.List<Double> close, int period) {
+        if (close == null || close.size() < 2) return 0;
+        int from = Math.max(0, close.size() - period);
+        double peak = close.get(from);
+        double mdd = 0;
+        for (int i = from; i < close.size(); i++) {
+            peak = Math.max(peak, close.get(i));
+            if (peak <= 0) continue;
+            double dd = (peak - close.get(i)) / peak * 100;
+            mdd = Math.max(mdd, dd);
+        }
+        return mdd;
+    }
 }

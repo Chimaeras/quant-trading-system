@@ -8,6 +8,7 @@ import com.quant.entity.StockTrendScore;
 import com.quant.repository.MarketDataRepository;
 import com.quant.repository.StockInfoRepository;
 import com.quant.repository.StockTrendScoreRepository;
+import com.quant.service.scoring.DataQuality;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +45,7 @@ public class ComprehensiveScoringService {
     private final StockInfoRepository stockInfoRepository;
     private final StockTrendScoreRepository stockTrendScoreRepository;
     private final EnhancedMarketSentimentService enhancedMarketSentimentService;
+    private final FinancialSnapshotLoader financialSnapshotLoader;
     private final ObjectMapper objectMapper;
     private final PlatformTransactionManager transactionManager;
 
@@ -341,6 +343,8 @@ public class ComprehensiveScoringService {
         for (StockInfo s : stockInfoRepository.findAll()) {
             infoMap.put(s.getStockCode() + "|" + s.getExchangeType(), s);
         }
+        Map<String, com.quant.entity.StockFinancialSnapshot> snapshotMap =
+                financialSnapshotLoader.loadLatestByStockKey();
 
         List<StockTrendScore> rows = Collections.synchronizedList(new ArrayList<>());
         AtomicInteger skipped = new AtomicInteger(0);
@@ -354,7 +358,7 @@ public class ComprehensiveScoringService {
         if (threads <= 1) {
             for (String key : keys) {
                 processStock(key, grouped.getOrDefault(key, List.of()), infoMap.get(key),
-                        tradeDate, rows, skipped);
+                        snapshotMap.get(key), tradeDate, rows, skipped);
             }
         } else {
             ExecutorService pool = Executors.newFixedThreadPool(threads, r -> {
@@ -367,7 +371,7 @@ public class ComprehensiveScoringService {
             for (String key : keys) {
                 cs.submit(() -> {
                     processStock(key, grouped.getOrDefault(key, List.of()), infoMap.get(key),
-                            tradeDate, rows, skipped);
+                            snapshotMap.get(key), tradeDate, rows, skipped);
                     return null;
                 });
             }
@@ -378,7 +382,7 @@ public class ComprehensiveScoringService {
                     skipped.incrementAndGet();
                 }
             }
-            pool.shutdown();
+            ExecutorLifecycle.shutdownGracefully(pool);
         }
 
         rows.sort((a, b) -> Double.compare(b.getTotalScore(), a.getTotalScore()));
@@ -417,6 +421,7 @@ public class ComprehensiveScoringService {
     }
 
     private void processStock(String key, List<MarketData> bars, StockInfo info,
+                               com.quant.entity.StockFinancialSnapshot snapshot,
                                LocalDate tradeDate, List<StockTrendScore> rows, AtomicInteger skipped) {
         if (bars.size() < ScoringConstants.MIN_BARS_COMPREHENSIVE) {
             skipped.incrementAndGet();
@@ -435,9 +440,29 @@ public class ComprehensiveScoringService {
 
         MarketData todayBar = bars.get(bars.size() - 1);
         Double pe = todayBar.getPeRatio() != null ? todayBar.getPeRatio().doubleValue() : null;
+        Double pb = todayBar.getPbRatio() != null ? todayBar.getPbRatio().doubleValue() : null;
+        Double roe = null;
+        Double debtRatio = null;
+        Double currentRatio = null;
+        if (snapshot != null) {
+            roe = FinancialSnapshotLoader.toDouble(snapshot.getRoe());
+            debtRatio = FinancialSnapshotLoader.toDouble(snapshot.getDebtRatio());
+            currentRatio = FinancialSnapshotLoader.toDouble(snapshot.getCurrentRatio());
+            if (pb == null) {
+                pb = FinancialSnapshotLoader.toDouble(snapshot.getPbRatio());
+            }
+        }
         String industry = info != null ? info.getIndustry() : null;
 
-        ComprehensiveResult result = scoreStock(bars, info, pe, null, null, null, null, industry);
+        ComprehensiveResult result = scoreStock(bars, info, pe, pb, roe, debtRatio, currentRatio, industry);
+
+        int nullFundCount = 0;
+        if (pb == null) nullFundCount++;
+        if (roe == null) nullFundCount++;
+        if (debtRatio == null) nullFundCount++;
+        if (currentRatio == null) nullFundCount++;
+        DataQuality quality = nullFundCount == 0 ? DataQuality.FULL
+                : nullFundCount >= 2 ? DataQuality.PARTIAL_FUNDAMENTALS : DataQuality.TECHNICAL_ONLY;
 
         StockTrendScore e = new StockTrendScore();
         e.setStockCode(stockCode);
@@ -460,6 +485,7 @@ public class ComprehensiveScoringService {
 
         try {
             Map<String, Object> reasons = new LinkedHashMap<>();
+            reasons.put("data_quality", quality.name());
             reasons.put("technical_score", result.technicalScore());
             reasons.put("fundamental_score", result.fundamentalScore());
             reasons.put("sentiment_score", result.sentimentScore());

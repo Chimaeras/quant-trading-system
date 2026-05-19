@@ -80,6 +80,18 @@ public class SelectorResult {
     @Column(columnDefinition = "json")
     private Map<String, Object> factorSnapshot;
 
+    /** 因子信息系数（Spearman IC） */
+    @Column(precision = 10, scale = 6)
+    private Double icValue;
+
+    /** 因子信息比率 */
+    @Column(precision = 10, scale = 6)
+    private Double irValue;
+
+    /** 夏普贡献度（预留） */
+    @Column(precision = 10, scale = 6)
+    private Double sharpeContribution;
+
     @Column(updatable = false)
     private LocalDateTime createdAt;
 

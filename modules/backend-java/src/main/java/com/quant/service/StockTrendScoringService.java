@@ -6,6 +6,7 @@ import com.quant.entity.StockTrendScore;
 import com.quant.repository.MarketDataRepository;
 import com.quant.repository.StockInfoRepository;
 import com.quant.repository.StockTrendScoreRepository;
+import com.quant.service.scoring.ExecutorLifecycle;
 import com.quant.service.scoring.ScoringConstants;
 import com.quant.service.scoring.ScoringRules;
 import com.quant.service.scoring.ScoringUtils;
@@ -179,7 +180,7 @@ public class StockTrendScoringService {
                         k++;
                     }
                 }
-                pool.shutdown();
+                ExecutorLifecycle.shutdownGracefully(pool);
                 skipped = k;
             }
         } else if (threads <= 1) {
@@ -247,7 +248,7 @@ public class StockTrendScoringService {
                     k++;
                 }
             }
-            pool.shutdown();
+            ExecutorLifecycle.shutdownGracefully(pool);
             scanned = s;
             skipped = k;
         }

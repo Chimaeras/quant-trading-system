@@ -9,7 +9,7 @@ import com.quant.repository.MarketDataRepository;
 import com.quant.repository.StockInfoRepository;
 import com.quant.repository.StockMultiDimScoreRepository;
 import com.quant.service.scoring.FundamentalDocScoring;
-import com.quant.service.scoring.MarketSentimentScoring;
+import com.quant.service.scoring.ExecutorLifecycle;
 import com.quant.service.scoring.RotationDocScoring;
 import com.quant.service.scoring.TechnicalDocScoring;
 import com.quant.service.scoring.DynamicWeightingService;
@@ -182,7 +182,7 @@ public class MultiDimScoringService {
                     skipped.incrementAndGet();
                 }
             }
-            pool.shutdown();
+            ExecutorLifecycle.shutdownGracefully(pool);
         }
 
         List<StockMultiDimScore> toSave = dedupe(rows);
@@ -296,32 +296,34 @@ public class MultiDimScoringService {
         DynamicWeightingService.DynamicWeights dynamicWeights =
                 DynamicWeightingService.calculateDynamicWeights(marketWeights, stockWeights, 0.6, 0.4);
 
-        // 计算综合得分
-        double technicalScore = techW;
-        double fundamentalScore = fr.weightedTotal() * 4; // 放大到40分制
+        // 各维度归一化到 0-100 分制后再加权
+        double technicalNorm100 = normTechTo10(techW) * 10.0;
+        double fundamentalNorm100 = Math.min(100, fr.weightedTotal() * 10.0);
+        double sentimentNorm100 = sentimentScore / 30.0 * 100.0;
+        double rotationNorm100 = normSectorRotTo10(rotSec, totalSec) * 10.0;
+        double industryNorm100 = normIndCompareTo10(indCmp) * 10.0;
+
+        double techWeight = Math.max(0.1, dynamicWeights.technicalWeight() - 0.10);
+        double rotationWeight = 0.05;
+        double industryWeight = 0.05;
 
         // 行业适配修正
         double industryAdjustment = CompositeScoringService.getIndustryAdjustment(industry);
 
-        // 计算最终综合得分
-        double composite = CompositeScoringService.calculateCompositeScore(
-                technicalScore,
-                fundamentalScore,
-                sentimentScore,
-                dynamicWeights.technicalWeight(),
-                dynamicWeights.fundamentalWeight(),
-                dynamicWeights.sentimentWeight()
-        ) + industryAdjustment;
+        double composite = technicalNorm100 * techWeight
+                + fundamentalNorm100 * dynamicWeights.fundamentalWeight()
+                + sentimentNorm100 * dynamicWeights.sentimentWeight()
+                + rotationNorm100 * rotationWeight
+                + industryNorm100 * industryWeight
+                + industryAdjustment;
 
-        // 投资建议和风险控制
-        // 计算财务健康度得分（基于PE和负债率估算）
         double financialHealthScore = estimateFinancialHealthScore(todayBar, info);
         CompositeScoringService.CompositeScoreResult compositeResult = CompositeScoringService.scoreComposite(
-                technicalScore,
-                fundamentalScore,
-                sentimentScore,
+                technicalNorm100,
+                fundamentalNorm100,
+                sentimentNorm100,
                 financialHealthScore,
-                dynamicWeights.technicalWeight(),
+                techWeight,
                 dynamicWeights.fundamentalWeight(),
                 dynamicWeights.sentimentWeight()
         );
@@ -333,11 +335,11 @@ public class MultiDimScoringService {
         e.setTradeDate(tradeDate);
         e.setFactorVersion(FV);
         e.setScoreTechnical(round2(techW));
-        e.setScoreFundamental(fundamentalScore);
+        e.setScoreFundamental(fundamentalNorm100);
         e.setScorePolicy(0.0);
         e.setScoreRotation(round2(rotSec));
         e.setScoreIndustryCompare((double) indCmp);
-        e.setScoreSentiment(round2(sentimentScore));
+        e.setScoreSentiment(round2(sentimentNorm100));
         e.setCompositeScore(composite);
         e.setSuggestion(compositeResult.investmentAdvice());
         e.setTechMacd(tech.macdScore());
@@ -356,8 +358,11 @@ public class MultiDimScoringService {
             reasons.put("technical_raw_weighted", techW);
             reasons.put("technical_ma_score", tech.maScore());
             reasons.put("technical_ma_status", tech.maStatus());
-            reasons.put("fundamental_score", fundamentalScore);
-            reasons.put("sentiment_score", sentimentScore);
+            reasons.put("fundamental_score", fundamentalNorm100);
+            reasons.put("sentiment_score", sentimentNorm100);
+            reasons.put("technical_norm100", technicalNorm100);
+            reasons.put("rotation_norm100", rotationNorm100);
+            reasons.put("industry_compare_norm100", industryNorm100);
             reasons.put("sentiment_level", sentimentResult.sentimentLevel());
             reasons.put("sentiment_news_score", sentimentResult.newsSentimentScore());
             reasons.put("sentiment_news_status", sentimentResult.newsStatus());

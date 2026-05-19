@@ -99,6 +99,8 @@ public class DataController {
         private BigDecimal netProfitYoY;
         private BigDecimal roe;
         private BigDecimal debtRatio;
+        private BigDecimal pbRatio;
+        private BigDecimal currentRatio;
     }
 
     @Data
@@ -130,6 +132,8 @@ public class DataController {
             f.setNetProfitYoY(it.getNetProfitYoY());
             f.setRoe(it.getRoe());
             f.setDebtRatio(it.getDebtRatio());
+            f.setPbRatio(it.getPbRatio());
+            f.setCurrentRatio(it.getCurrentRatio());
             rows.add(f);
         }
         stockFinancialSnapshotRepository.saveAll(rows);

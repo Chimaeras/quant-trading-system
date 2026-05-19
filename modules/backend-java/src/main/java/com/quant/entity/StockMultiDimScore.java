@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 public class StockMultiDimScore {
 
     /** 第一版：仅使用库内 K 线 + 日线 PE + 行业/板块聚合可计算因子（不依赖外部行情/API） */
-    public static final String FACTOR_VERSION = "multi_dim_compute_v1";
+    public static final String FACTOR_VERSION = "multi_dim_v2_normalized";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

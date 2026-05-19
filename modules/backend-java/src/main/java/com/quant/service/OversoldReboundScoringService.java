@@ -10,7 +10,9 @@ import com.quant.repository.SelectorResultItemRepository;
 import com.quant.repository.SelectorResultRepository;
 import com.quant.repository.SelectorTemplateRepository;
 import com.quant.repository.StockInfoRepository;
+import com.quant.service.scoring.ExecutorLifecycle;
 import com.quant.service.scoring.ProgressiveResultWriter;
+import com.quant.service.scoring.ReboundConfirmationScorer;
 import com.quant.service.scoring.ScoringConstants;
 import com.quant.service.scoring.ScoringRules;
 import com.quant.service.scoring.ScoringUtils;
@@ -182,7 +184,7 @@ public class OversoldReboundScoringService {
                 }
             }
         } finally {
-            pool.shutdownNow();
+            ExecutorLifecycle.shutdownGracefully(pool);
         }
 
         List<ScoreResult> top = pickTopN(allScored, topN, minTotalScore);
@@ -426,6 +428,7 @@ public class OversoldReboundScoringService {
         reasons.put("trend_score_40", r.trendScore40);
         reasons.put("volume_score_30", r.volumeScore30);
         reasons.put("oversold_score_30", r.oversoldScore30);
+        reasons.put("confirmation_score", r.detail != null ? r.detail.get("confirmation_score") : 0);
         reasons.put("weighted_score", r.weightedScore);
         reasons.put("detail", r.detail != null ? r.detail : Map.of());
         item.setReasons(reasons);
@@ -526,10 +529,19 @@ public class OversoldReboundScoringService {
         oversoldScore += ScoringRules.scoreBollingerOversold(lastClose, bollLower, bollLowerExtreme);
         oversoldScore += ScoringRules.scorePercentile(percentile);
 
-        double totalScore = trendScore + volumeScore + oversoldScore;
-        double weightedScore = (trendScore / 40.0) * 100 * 0.4
-                + (volumeScore / 30.0) * 100 * 0.3
-                + (oversoldScore / 30.0) * 100 * 0.3;
+        ReboundConfirmationScorer.ConfirmationResult confirm = ReboundConfirmationScorer.score(bars);
+        int confirmScore = confirm.score();
+
+        double totalScore = trendScore * 35.0 / 40.0 + volumeScore * 25.0 / 30.0
+                + oversoldScore * 25.0 / 30.0 + confirmScore;
+        double weightedScore = (trendScore / 40.0) * 100 * 0.35
+                + (volumeScore / 30.0) * 100 * 0.25
+                + (oversoldScore / 30.0) * 100 * 0.25
+                + (confirmScore / 15.0) * 100 * 0.15;
+        if (!confirm.hasSignal()) {
+            weightedScore = Math.min(weightedScore, 70.0);
+            totalScore = Math.min(totalScore, 70.0);
+        }
 
         Map<String, Object> detail = new LinkedHashMap<>();
         detail.put("ret20_pct", ScoringUtils.round2(ret20));
@@ -547,6 +559,9 @@ public class OversoldReboundScoringService {
         detail.put("boll_lower", ScoringUtils.round2(bollLower));
         detail.put("boll_lower_extreme", ScoringUtils.round2(bollLowerExtreme));
         detail.put("percentile_1y", ScoringUtils.round4(percentile));
+        detail.put("confirmation_score", confirmScore);
+        detail.put("confirmation_summary", confirm.summary());
+        detail.put("confirmation_has_signal", confirm.hasSignal());
 
         ScoreResult r = new ScoreResult();
         r.stockCode = stockCode;

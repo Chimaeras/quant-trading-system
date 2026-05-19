@@ -5,7 +5,10 @@ import java.math.RoundingMode;
 
 /**
  * 《打分系统说明》市场情绪分析维度：新闻舆情、社交媒体讨论热度、机构观点。
+ *
+ * @deprecated 已由 {@link com.quant.service.EnhancedMarketSentimentService} 替代，将在后续版本移除。
  */
+@Deprecated(forRemoval = true)
 public final class MarketSentimentScoring {
 
     private MarketSentimentScoring() {}

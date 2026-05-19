@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import jakarta.annotation.PreDestroy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -63,6 +64,11 @@ public class UnifiedScoringService {
     private final ExecutorService taskExecutor = Executors.newSingleThreadExecutor();
     private final Set<String> queuedOrRunningTaskIds = ConcurrentHashMap.newKeySet();
     private final Map<String, Future<?>> taskFutures = new ConcurrentHashMap<>();
+
+    @PreDestroy
+    void shutdownTaskExecutor() {
+        ExecutorLifecycle.shutdownGracefully(taskExecutor);
+    }
 
     @Transactional
     public Map<String, Object> run(Map<String, Object> request) {

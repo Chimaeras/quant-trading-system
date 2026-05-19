@@ -57,9 +57,43 @@ historical:
 scoring:
   trend:
     bias-threshold: 5.0
-  # 多维度第一版：仅用库内 K 线+PE+行业聚合计算，不拉取外部 API（因子版本 multi_dim_compute_v1）
+  cross-section:
+    enabled: false
+  # 多维度：仅用库内 K 线+PE+行业聚合计算，不拉取外部 API
   multi-dim:
     compute-only-v1: true
+
+quant:
+  scoring:
+    cross-section:
+      enabled: false
+      min-std: 0.000001
+    advice:
+      strong-buy: 85
+      buy: 70
+      hold: 55
+      watch: 30
+    industry-adjustments:
+      银行: 5.0
+      保险: 3.0
+      房地产: -2.0
+      新能源: 4.0
+      科技: 3.0
+    gdelt:
+      risk-red: 0.4
+      risk-yellow: 0.2
+      lambda: 0.1
+      event-weights:
+        "01": 0.6
+        "04": 0.4
+        "12": 0.3
+        default: 0.1
+    news:
+      preferred-boost: 1.5
+    decay:
+      technical-half-life-days: 5
+      news-half-life-days: 2
+      fundamental-half-life-days: 90
 
 backtest:
   cost:

@@ -14,6 +14,12 @@ public interface MarketDataRepository extends JpaRepository<MarketData, Long> {
     List<MarketData> findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
             String stockCode, String exchangeType, LocalDate startDate, LocalDate endDate);
 
+    Optional<MarketData> findByStockCodeAndExchangeTypeAndTradeDate(
+            String stockCode, String exchangeType, LocalDate tradeDate);
+
+    Optional<MarketData> findFirstByStockCodeAndExchangeTypeAndTradeDateGreaterThanEqualOrderByTradeDateAsc(
+            String stockCode, String exchangeType, LocalDate tradeDate);
+
     Optional<MarketData> findFirstByStockCodeAndExchangeTypeOrderByTradeDateDesc(
             String stockCode, String exchangeType);
 

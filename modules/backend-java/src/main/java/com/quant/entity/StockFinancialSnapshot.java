@@ -47,6 +47,14 @@ public class StockFinancialSnapshot {
     @Column(precision = 12, scale = 4)
     private BigDecimal debtRatio;
 
+    /** 市净率 */
+    @Column(precision = 12, scale = 4)
+    private BigDecimal pbRatio;
+
+    /** 流动比率 */
+    @Column(precision = 12, scale = 4)
+    private BigDecimal currentRatio;
+
     @Column(updatable = false)
     private LocalDateTime createdAt;
 

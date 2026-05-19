@@ -40,9 +40,9 @@ public final class ScoringConstants {
 
     // ==================== 因子版本 ====================
     public static final String VERSION_TREND = "trend_signal_v1";
-    public static final String VERSION_OVERSOLD = "oversold_rebound_v1";
-    public static final String VERSION_COMPREHENSIVE = "comprehensive_v1";
-    public static final String VERSION_MULTI_DIM = "multi_dim_v1";
+    public static final String VERSION_OVERSOLD = "oversold_rebound_v2_confirm";
+    public static final String VERSION_COMPREHENSIVE = "comprehensive_v2_fundamentals";
+    public static final String VERSION_MULTI_DIM = "multi_dim_v2_normalized";
 
     // ==================== 默认回溯天数 ====================
     public static final int DEFAULT_LOOKBACK_DAYS = 520;

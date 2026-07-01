@@ -1,6 +1,7 @@
 package com.quant.service;
 
 import com.quant.config.AuthProperties;
+import com.quant.entity.MarketData;
 import com.quant.entity.PositionInfo;
 import com.quant.entity.UserAccount;
 import com.quant.exception.BusinessException;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Map;
 import java.util.Optional;
 
@@ -129,6 +131,29 @@ class SimAccountServiceTest {
         assertThat(position.getVolume()).isEqualTo(200);
         assertThat(position.getAvailableVolume()).isEqualTo(100);
         verify(tradingLogRepository).save(any());
+    }
+
+    @Test
+    void blocksBuyAtLimitUpPrice() {
+        UserAccount account = accountWithCash(100_000);
+        MarketData bar = new MarketData();
+        bar.setTradeDate(LocalDate.now());
+        bar.setPreClose(BigDecimal.valueOf(10));
+        bar.setClosePrice(BigDecimal.valueOf(11));
+
+        when(userAccountRepository.findFirstByUserIdAndStatus(1L, 1)).thenReturn(Optional.of(account));
+        when(marketDataRepository.findFirstByStockCodeAndExchangeTypeOrderByTradeDateDesc("000001", "SZSE"))
+                .thenReturn(Optional.of(bar));
+        when(stockInfoRepository.findByStockCodeAndExchangeType("000001", "SZSE")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.placeOrder(1L, Map.of(
+                "stockCode", "000001",
+                "exchangeType", "SZSE",
+                "action", "buy",
+                "volume", 100,
+                "price", 11
+        ))).isInstanceOf(BusinessException.class)
+                .hasMessageContaining("涨停");
     }
 
     private static UserAccount accountWithCash(double cash) {

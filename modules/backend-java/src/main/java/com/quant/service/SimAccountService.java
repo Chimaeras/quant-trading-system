@@ -5,6 +5,8 @@ import com.quant.entity.*;
 import com.quant.exception.BusinessException;
 import com.quant.repository.*;
 import com.quant.security.AuthContext;
+import com.quant.service.backtest.StrategyBacktestEngine;
+import com.quant.service.backtest.TradingLimitRules;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -85,6 +87,7 @@ public class SimAccountService {
         String stockName = stockInfoRepository.findByStockCodeAndExchangeType(stockCode, exchange)
                 .map(StockInfo::getStockName)
                 .orElse(stockCode);
+        ensureTradableAtPrice(stockCode, exchange, stockName, action, price);
         BigDecimal amount = price.multiply(BigDecimal.valueOf(volume));
         BigDecimal commission = amount.multiply(COMMISSION_RATE).setScale(4, RoundingMode.HALF_UP);
 
@@ -154,6 +157,36 @@ public class SimAccountService {
             return explicitUserId;
         }
         return 1L;
+    }
+
+    /** 按最新行情前收校验委托价是否处于涨跌停不可成交区间。 */
+    private void ensureTradableAtPrice(
+            String stockCode,
+            String exchange,
+            String stockName,
+            String action,
+            BigDecimal price
+    ) {
+        marketDataRepository.findFirstByStockCodeAndExchangeTypeOrderByTradeDateDesc(stockCode, exchange)
+                .ifPresent(bar -> {
+                    double preClose = bar.getPreClose() != null
+                            ? bar.getPreClose().doubleValue()
+                            : StrategyBacktestEngine.resolvePreClose(bar, bar);
+                    if (preClose <= 0) {
+                        return;
+                    }
+                    MarketData execBar = new MarketData();
+                    execBar.setOpenPrice(price);
+                    double limitPct = TradingLimitRules.resolveLimitPct(stockCode, exchange, stockName);
+                    if ("buy".equals(action)
+                            && StrategyBacktestEngine.isLimitUpAtOpen(execBar, preClose, limitPct)) {
+                        throw new BusinessException("委托价处于涨停区间，无法买入");
+                    }
+                    if ("sell".equals(action)
+                            && StrategyBacktestEngine.isLimitDownAtOpen(execBar, preClose, limitPct)) {
+                        throw new BusinessException("委托价处于跌停区间，无法卖出");
+                    }
+                });
     }
 
     private UserAccount resolveAccount(Long userId) {

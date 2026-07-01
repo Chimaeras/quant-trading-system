@@ -42,6 +42,13 @@ class CrossSectionFactorMathTest {
     }
 
     @Test
+    void robustZScoresOnResidualsReturnsZeroWhenConstant() {
+        List<Double> flat = List.of(1.0, 1.0, 1.0, 1.0);
+        List<Double> z = CrossSectionFactorMath.robustZScoresOnResiduals(flat);
+        assertThat(z).containsExactly(0.0, 0.0, 0.0, 0.0);
+    }
+
+    @Test
     void robustZScoresByGroupUsesIndustryWhenLargeEnough() {
         List<Double> values = List.of(1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 11.0, 12.0, 13.0, 14.0);
         List<String> groups = List.of("A", "A", "A", "A", "A", "B", "B", "B", "B", "B");

@@ -72,6 +72,7 @@ public final class StrategyFormulaRegistry {
                         List.of(
                                 "预处理：2.5/97.5%缩尾 → ε=OLS(x~1+lnMV+Industry) → Z(MAD)",
                                 "ER：市值加权行业指数收益（§5.1）",
+                                "G：exp(lnMV) 加权 er20m5/maAlign/vol20 估计市场状态",
                                 "T=0.28Z(ER20−ER5)+0.20Z(ER5)−0.15Z(ER1)+0.17Z(MAAlign)+0.10Z(RSIShape)+0.10Z(VolConfirm)",
                                 "F=0.75Quality+0.25Value; R=−0.35Z(Vol20)−0.25Z(DownVol)−0.25Z(Illiq)−0.15Z(MaxGap)",
                                 "硬过滤：F>−0.5 且 R>−1.0；建议 Score≥90 入选"

@@ -548,6 +548,8 @@ class ScoringBacktestServiceTest {
         Map<String, Object> v = ScoringBacktestService.buildShortHorizonValidation(map, null);
         assertThat(v.get("t3_effective")).isEqualTo(true);
         assertThat(v.get("t5_effective")).isEqualTo(true);
+        assertThat(v.get("codex_g_weighting")).isNotNull();
+        assertThat(v.get("neutralization_pipeline")).isNotNull();
     }
 
     @Test

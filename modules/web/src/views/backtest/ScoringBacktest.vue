@@ -116,6 +116,9 @@
       >
         <div class="formula-audit">
           <p>{{ response.shortHorizonValidation.verdict }}</p>
+          <p v-if="response.executionAssumptions?.codex_neutralization">
+            中性化：{{ response.executionAssumptions.codex_neutralization }}
+          </p>
           <p>
             T+3 IC：{{ formatIcMean(response.shortHorizonValidation.t3_rank_ic_mean) }}
             · T+5 IC：{{ formatIcMean(response.shortHorizonValidation.t5_rank_ic_mean) }}

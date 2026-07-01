@@ -314,6 +314,7 @@
         <el-descriptions-item label="G 市场">{{ formatCodexFactor(detailRow, 'G_market') }}</el-descriptions-item>
         <el-descriptions-item label="S_raw">{{ formatCodexFactor(detailRow, 'S_raw') }}</el-descriptions-item>
         <el-descriptions-item label="百分位分">{{ formatCodexFactor(detailRow, 'score_percentile') }}</el-descriptions-item>
+        <el-descriptions-item label="中性化">{{ formatCodexFactor(detailRow, 'neutralization_mode') }}</el-descriptions-item>
       </template>
       <template v-else>
         <el-descriptions-item label="趋势分">{{ detailRow.trend_score }}</el-descriptions-item>

@@ -40,6 +40,12 @@ public final class CrossSectionNeutralizer {
 
     public record Result(List<Double> residuals, String mode, int industryCount) {}
 
+    public record LogMvEstimate(double logMv, String source) {}
+
+    public static final String LOG_MV_FROM_TURNOVER = "turnover_amount";
+    public static final String LOG_MV_FROM_NOTIONAL = "close_x_volume";
+    public static final String LOG_MV_FROM_AVG_AMOUNT = "avg_amount20_fallback";
+
     public static Context buildContext(List<String> industries, List<Double> logMarketCap) {
         int n = industries != null ? industries.size() : 0;
         if (n == 0) {
@@ -50,8 +56,11 @@ public final class CrossSectionNeutralizer {
         Set<String> uniqueInd = new LinkedHashSet<>(inds);
         int industryCount = uniqueInd.size();
 
-        if (n < MIN_SAMPLE_FOR_FULL_REGRESSION || industryCount < MIN_INDUSTRIES_FOR_REGRESSION) {
+        if (n < MIN_SAMPLE_FOR_FULL_REGRESSION) {
             return new Context(n, MODE_INDUSTRY_DEMEAN, industryCount, null, logMv, inds, Map.of());
+        }
+        if (industryCount < MIN_INDUSTRIES_FOR_REGRESSION) {
+            return buildLogMvOnlyContext(n, industryCount, logMv, inds);
         }
 
         List<String> dummyIndustries = pickDummyIndustries(uniqueInd);
@@ -77,6 +86,24 @@ public final class CrossSectionNeutralizer {
         return new Context(n, MODE_FULL, industryCount, xTx, logMv, inds, indToCol);
     }
 
+    private static Context buildLogMvOnlyContext(int n, int industryCount, List<Double> logMv, List<String> inds) {
+        int p = 2; // intercept + logMv
+        double[][] xTx = new double[p][p];
+        for (int i = 0; i < n; i++) {
+            double[] row = {1.0, logMv.get(i)};
+            for (int a = 0; a < p; a++) {
+                for (int b = a; b < p; b++) {
+                    xTx[a][b] += row[a] * row[b];
+                }
+            }
+        }
+        symmetrize(xTx);
+        for (int i = 0; i < p; i++) {
+            xTx[i][i] += RIDGE_LAMBDA;
+        }
+        return new Context(n, MODE_LOG_MV_ONLY, industryCount, xTx, logMv, inds, Map.of());
+    }
+
     public static Result neutralize(List<Double> values, Context ctx) {
         if (values == null || values.isEmpty() || ctx == null || ctx.n() == 0) {
             return new Result(values != null ? values : List.of(), MODE_PASSTHROUGH, 0);
@@ -88,7 +115,7 @@ public final class CrossSectionNeutralizer {
         List<Double> winsorized = CrossSectionFactorMath.winsorize(values, 2.5, 97.5);
 
         if (MODE_INDUSTRY_DEMEAN.equals(ctx.mode())) {
-            return new Result(industryDemean(winsorized, ctx.industries()), ctx.mode(), ctx.industryCount());
+            return new Result(industryDemean(winsorized, ctx.industries(), ctx.logMv()), ctx.mode(), ctx.industryCount());
         }
         if (MODE_PASSTHROUGH.equals(ctx.mode())) {
             return new Result(winsorized, ctx.mode(), ctx.industryCount());
@@ -106,7 +133,7 @@ public final class CrossSectionNeutralizer {
 
         double[] beta = solveSymmetric(ctx.xTx(), xTy);
         if (beta == null) {
-            return new Result(industryDemean(winsorized, ctx.industries()), MODE_INDUSTRY_DEMEAN, ctx.industryCount());
+            return new Result(industryDemean(winsorized, ctx.industries(), ctx.logMv()), MODE_INDUSTRY_DEMEAN, ctx.industryCount());
         }
 
         List<Double> residuals = new ArrayList<>(n);
@@ -141,25 +168,29 @@ public final class CrossSectionNeutralizer {
     ) {
         Context ctx = buildContext(industries, logMarketCap);
         Result res = neutralize(values, ctx);
-        return CrossSectionFactorMath.robustZScores(res.residuals());
+        return CrossSectionFactorMath.robustZScoresOnResiduals(res.residuals());
     }
 
-    public static double logMarketCapProxy(MarketData lastBar, double avgAmount20) {
+    public static LogMvEstimate estimateLogMarketCap(MarketData lastBar, double avgAmount20) {
         if (lastBar != null && lastBar.getTurnoverRate() != null && lastBar.getAmount() != null) {
             double tr = lastBar.getTurnoverRate().doubleValue();
             double amt = lastBar.getAmount().doubleValue();
             if (tr > 1e-8 && amt > 0) {
                 double trFrac = tr > 1.0 ? tr / 100.0 : tr;
                 double mv = amt / Math.max(trFrac, 1e-9);
-                return Math.log(Math.max(mv, 1.0));
+                return new LogMvEstimate(Math.log(Math.max(mv, 1.0)), LOG_MV_FROM_TURNOVER);
             }
         }
         if (lastBar != null && lastBar.getClosePrice() != null && lastBar.getVolume() != null
                 && lastBar.getVolume() > 0) {
             double notional = lastBar.getClosePrice().doubleValue() * lastBar.getVolume();
-            return Math.log(Math.max(notional, 1.0));
+            return new LogMvEstimate(Math.log(Math.max(notional, 1.0)), LOG_MV_FROM_NOTIONAL);
         }
-        return Math.log(Math.max(avgAmount20, 1.0));
+        return new LogMvEstimate(Math.log(Math.max(avgAmount20, 1.0)), LOG_MV_FROM_AVG_AMOUNT);
+    }
+
+    public static double logMarketCapProxy(MarketData lastBar, double avgAmount20) {
+        return estimateLogMarketCap(lastBar, avgAmount20).logMv();
     }
 
     private static List<String> normalizeIndustries(List<String> industries) {
@@ -213,18 +244,19 @@ public final class CrossSectionNeutralizer {
         }
     }
 
-    private static List<Double> industryDemean(List<Double> values, List<String> industries) {
-        Map<String, List<Integer>> byInd = new LinkedHashMap<>();
+    private static List<Double> industryDemean(List<Double> values, List<String> industries, List<Double> logMv) {
+        Map<String, Double> wSum = new LinkedHashMap<>();
+        Map<String, Double> wVal = new LinkedHashMap<>();
         for (int i = 0; i < values.size(); i++) {
-            byInd.computeIfAbsent(industries.get(i), k -> new ArrayList<>()).add(i);
+            String ind = industries.get(i);
+            double w = logMv != null && i < logMv.size() ? Math.exp(logMv.get(i)) : 1.0;
+            wSum.merge(ind, w, Double::sum);
+            wVal.merge(ind, w * values.get(i), Double::sum);
         }
         Map<String, Double> means = new LinkedHashMap<>();
-        for (Map.Entry<String, List<Integer>> e : byInd.entrySet()) {
-            double sum = 0;
-            for (int idx : e.getValue()) {
-                sum += values.get(idx);
-            }
-            means.put(e.getKey(), sum / e.getValue().size());
+        for (String ind : wSum.keySet()) {
+            double ws = wSum.get(ind);
+            means.put(ind, ws > 0 ? wVal.get(ind) / ws : 0.0);
         }
         List<Double> out = new ArrayList<>(values.size());
         for (int i = 0; i < values.size(); i++) {

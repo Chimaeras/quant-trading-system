@@ -34,6 +34,14 @@ class CrossSectionFactorMathTest {
     }
 
     @Test
+    void robustZScoresOnResidualsDoesNotShrinkOutliersLikeDoubleWinsorize() {
+        List<Double> residuals = List.of(-2.0, -0.5, 0.0, 0.5, 2.0);
+        List<Double> z = CrossSectionFactorMath.robustZScoresOnResiduals(residuals);
+        assertThat(z.get(0)).isLessThan(-1.0);
+        assertThat(z.get(4)).isGreaterThan(1.0);
+    }
+
+    @Test
     void robustZScoresByGroupUsesIndustryWhenLargeEnough() {
         List<Double> values = List.of(1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 11.0, 12.0, 13.0, 14.0);
         List<String> groups = List.of("A", "A", "A", "A", "A", "B", "B", "B", "B", "B");

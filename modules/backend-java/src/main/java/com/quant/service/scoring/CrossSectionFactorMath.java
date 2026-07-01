@@ -47,6 +47,24 @@ public final class CrossSectionFactorMath {
     }
 
     /**
+     * 对已中性化残差做稳健 Z（不再缩尾，避免 §4.1 管道双重 winsorize）。
+     */
+    public static List<Double> robustZScoresOnResiduals(List<Double> residuals) {
+        if (residuals == null || residuals.isEmpty()) {
+            return List.of();
+        }
+        double[] arr = residuals.stream().mapToDouble(Double::doubleValue).toArray();
+        double med = median(arr);
+        double mad = mad(arr, med);
+        double denom = 1.4826 * mad + 1e-6;
+        List<Double> z = new ArrayList<>(arr.length);
+        for (double v : arr) {
+            z.add(Math.max(-3, Math.min(3, (v - med) / denom)));
+        }
+        return z;
+    }
+
+    /**
      * 按行业分组做稳健 Z；组内样本 &lt; 5 时回退到全截面 Z（对应设计文档 §4.1 行业内标准化）。
      */
     public static List<Double> robustZScoresByGroup(List<Double> values, List<String> groupKeys) {

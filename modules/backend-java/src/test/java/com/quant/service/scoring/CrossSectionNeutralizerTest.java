@@ -30,6 +30,18 @@ class CrossSectionNeutralizerTest {
     }
 
     @Test
+    void mediumSampleWithFewIndustriesUsesLogMvOnlyMode() {
+        List<String> industries = new ArrayList<>();
+        List<Double> logMv = new ArrayList<>();
+        for (int i = 0; i < 35; i++) {
+            industries.add("A");
+            logMv.add(20.0 + i * 0.02);
+        }
+        CrossSectionNeutralizer.Context ctx = CrossSectionNeutralizer.buildContext(industries, logMv);
+        assertThat(ctx.mode()).isEqualTo(CrossSectionNeutralizer.MODE_LOG_MV_ONLY);
+    }
+
+    @Test
     void smallSampleFallsBackToIndustryDemean() {
         List<String> industries = List.of("A", "A", "B", "B");
         List<Double> logMv = List.of(20.0, 21.0, 20.5, 21.5);
@@ -56,6 +68,22 @@ class CrossSectionNeutralizerTest {
         Map<String, CrossSectionNeutralizer.Result> batch = CrossSectionNeutralizer.neutralizeBatch(cols, ctx);
         assertThat(batch).containsKeys("f1", "f2");
         assertThat(batch.get("f1").residuals()).hasSize(35);
+    }
+
+    @Test
+    void estimateLogMarketCapReportsTurnoverSource() {
+        MarketData bar = new MarketData();
+        bar.setAmount(java.math.BigDecimal.valueOf(50_000_000));
+        bar.setTurnoverRate(java.math.BigDecimal.valueOf(2.0));
+        CrossSectionNeutralizer.LogMvEstimate est = CrossSectionNeutralizer.estimateLogMarketCap(bar, 1e6);
+        assertThat(est.source()).isEqualTo(CrossSectionNeutralizer.LOG_MV_FROM_TURNOVER);
+    }
+
+    @Test
+    void estimateLogMarketCapFallsBackToAvgAmount() {
+        CrossSectionNeutralizer.LogMvEstimate est =
+                CrossSectionNeutralizer.estimateLogMarketCap(null, 5_000_000);
+        assertThat(est.source()).isEqualTo(CrossSectionNeutralizer.LOG_MV_FROM_AVG_AMOUNT);
     }
 
     @Test

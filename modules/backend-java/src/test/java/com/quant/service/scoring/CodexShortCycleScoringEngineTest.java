@@ -97,8 +97,8 @@ class CodexShortCycleScoringEngineTest {
     @Test
     void countImputedFinancialFieldsDetectsDebtImputation() {
         List<CodexShortCycleScoringEngine.RawFeatures> raws = List.of(
-                raw("000001", "SZSE", "A", "银行", 0, 0, 0, 0, 0, 0, 0.1, 0, 50, 1.5, 0, 0, 0, 0, 0, 0, 1, 0, 22),
-                raw("000002", "SZSE", "B", "银行", 0, 0, 0, 0, 0, 0, 0.2, 0, 35, 1.8, 0, 0, 0, 0, 0, 0, 1, 0, 22)
+                raw("000001", "SZSE", "A", "银行", 0, 0, 0, 0, 0, 0, 0.1, 0, 50, 1.5, 0, 0, 0, 0, 0, 0, 1, 0, 22, "test"),
+                raw("000002", "SZSE", "B", "银行", 0, 0, 0, 0, 0, 0, 0.2, 0, 35, 1.8, 0, 0, 0, 0, 0, 0, 1, 0, 22, "test")
         );
         List<CodexShortCycleScoringEngine.RawFeatures> imputed = CodexShortCycleScoringEngine.imputeFinancialByIndustry(raws);
         assertThat(CodexShortCycleScoringEngine.countImputedFinancialFields(raws.get(0), imputed.get(0))).isGreaterThan(0);
@@ -115,7 +115,7 @@ class CodexShortCycleScoringEngineTest {
             double roe, double rev, double debt, double curr, double ey, double bm,
             double vol20, double downVol, double illiq, double maxGap, double avgAmt) {
         return raw(code, ex, name, industry, er1, er5, er20m5, maAlign, rsiShape, volConfirm,
-                roe, rev, debt, curr, ey, bm, vol20, downVol, illiq, maxGap, avgAmt, er5 + er20m5, 22.0);
+                roe, rev, debt, curr, ey, bm, vol20, downVol, illiq, maxGap, avgAmt, er5 + er20m5, 22.0, "test");
     }
 
     private static CodexShortCycleScoringEngine.RawFeatures raw(
@@ -123,12 +123,12 @@ class CodexShortCycleScoringEngineTest {
             double er1, double er5, double er20m5, double maAlign, double rsiShape, double volConfirm,
             double roe, double rev, double debt, double curr, double ey, double bm,
             double vol20, double downVol, double illiq, double maxGap, double avgAmt,
-            double ret20, double logMarketCap) {
+            double ret20, double logMarketCap, String logMvSource) {
         return new CodexShortCycleScoringEngine.RawFeatures(
                 code + "|" + ex, code, ex, name, industry,
                 er1, er5, er20m5, maAlign, rsiShape, volConfirm,
                 roe, rev, debt, curr, ey, bm,
-                vol20, downVol, illiq, maxGap, avgAmt, ret20, logMarketCap
+                vol20, downVol, illiq, maxGap, avgAmt, ret20, logMarketCap, logMvSource
         );
     }
 

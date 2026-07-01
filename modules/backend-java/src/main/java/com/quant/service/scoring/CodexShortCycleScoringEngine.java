@@ -62,7 +62,8 @@ public class CodexShortCycleScoringEngine {
             double maxGap20,
             double avgAmount20,
             double ret20,
-            double logMarketCap
+            double logMarketCap,
+            String logMvSource
     ) {}
 
     record ScoredRow(
@@ -109,7 +110,14 @@ public class CodexShortCycleScoringEngine {
         }
 
         List<RawFeatures> adjusted = applyIndustryRelativeReturns(raws);
+        List<RawFeatures> preImpute = adjusted;
         adjusted = imputeFinancialByIndustry(adjusted);
+        Map<String, Integer> financialImputedByKey = new HashMap<>();
+        for (int i = 0; i < preImpute.size() && i < adjusted.size(); i++) {
+            financialImputedByKey.put(
+                    preImpute.get(i).key(),
+                    countImputedFinancialFields(preImpute.get(i), adjusted.get(i)));
+        }
 
         double g = estimateMarketState(adjusted);
         CrossSectionNeutralizer.Context neutCtx = buildNeutralizationContext(adjusted);
@@ -123,7 +131,7 @@ public class CodexShortCycleScoringEngine {
             if (minCodexScore > 0 && row.score() < minCodexScore) {
                 continue;
             }
-            out.add(toCandidate(row, minCodexScore));
+            out.add(toCandidate(row, minCodexScore, financialImputedByKey.getOrDefault(row.raw().key(), 0)));
         }
         out.sort((a, b) -> Double.compare(b.getFinalScore(), a.getFinalScore()));
         return out;
@@ -181,7 +189,7 @@ public class CodexShortCycleScoringEngine {
                 rf.roe, rf.revenueYoY, rf.debtRatio, rf.currentRatio,
                 rf.earningsYield, rf.bookToMarket,
                 rf.vol20, rf.downVol20, rf.illiq20, rf.maxGap20,
-                rf.avgAmount20, rf.ret20, rf.logMarketCap
+                rf.avgAmount20, rf.ret20, rf.logMarketCap, rf.logMvSource
         );
     }
 
@@ -229,7 +237,7 @@ public class CodexShortCycleScoringEngine {
                     rf.er1, rf.er5, rf.er20Minus5, rf.maAlign, rf.rsiShape, rf.volConfirm,
                     roe, rev, debt, curr, ey, bm,
                     rf.vol20, rf.downVol20, rf.illiq20, rf.maxGap20,
-                    rf.avgAmount20, rf.ret20, rf.logMarketCap
+                    rf.avgAmount20, rf.ret20, rf.logMarketCap, rf.logMvSource
             ));
         }
         return out;
@@ -270,24 +278,41 @@ public class CodexShortCycleScoringEngine {
     }
 
     static List<ScoredRow> scoreCrossSection(List<RawFeatures> raws, double g, CrossSectionNeutralizer.Context neutCtx) {
-        List<Double> zEr20m5 = zNeutralized(raws, RawFeatures::er20Minus5, neutCtx);
-        List<Double> zEr5 = zNeutralized(raws, RawFeatures::er5, neutCtx);
-        List<Double> zEr1 = zNeutralized(raws, RawFeatures::er1, neutCtx);
-        List<Double> zMa = zNeutralized(raws, RawFeatures::maAlign, neutCtx);
-        List<Double> zRsi = zNeutralized(raws, RawFeatures::rsiShape, neutCtx);
-        List<Double> zVolC = zNeutralized(raws, RawFeatures::volConfirm, neutCtx);
+        Map<String, List<Double>> factorCols = new LinkedHashMap<>();
+        factorCols.put("er20m5", raws.stream().mapToDouble(RawFeatures::er20Minus5).boxed().toList());
+        factorCols.put("er5", raws.stream().mapToDouble(RawFeatures::er5).boxed().toList());
+        factorCols.put("er1", raws.stream().mapToDouble(RawFeatures::er1).boxed().toList());
+        factorCols.put("maAlign", raws.stream().mapToDouble(RawFeatures::maAlign).boxed().toList());
+        factorCols.put("rsiShape", raws.stream().mapToDouble(RawFeatures::rsiShape).boxed().toList());
+        factorCols.put("volConfirm", raws.stream().mapToDouble(RawFeatures::volConfirm).boxed().toList());
+        factorCols.put("roe", raws.stream().mapToDouble(RawFeatures::roe).boxed().toList());
+        factorCols.put("revenueYoY", raws.stream().mapToDouble(RawFeatures::revenueYoY).boxed().toList());
+        factorCols.put("debtRatio", raws.stream().mapToDouble(RawFeatures::debtRatio).boxed().toList());
+        factorCols.put("currentRatio", raws.stream().mapToDouble(RawFeatures::currentRatio).boxed().toList());
+        factorCols.put("earningsYield", raws.stream().mapToDouble(RawFeatures::earningsYield).boxed().toList());
+        factorCols.put("bookToMarket", raws.stream().mapToDouble(RawFeatures::bookToMarket).boxed().toList());
+        factorCols.put("vol20", raws.stream().mapToDouble(RawFeatures::vol20).boxed().toList());
+        factorCols.put("downVol20", raws.stream().mapToDouble(RawFeatures::downVol20).boxed().toList());
+        factorCols.put("illiq20", raws.stream().mapToDouble(RawFeatures::illiq20).boxed().toList());
+        factorCols.put("maxGap20", raws.stream().mapToDouble(RawFeatures::maxGap20).boxed().toList());
 
-        List<Double> zRoe = zNeutralized(raws, RawFeatures::roe, neutCtx);
-        List<Double> zRev = zNeutralized(raws, RawFeatures::revenueYoY, neutCtx);
-        List<Double> zDebt = zNeutralized(raws, RawFeatures::debtRatio, neutCtx);
-        List<Double> zCurr = zNeutralized(raws, RawFeatures::currentRatio, neutCtx);
-        List<Double> zEy = zNeutralized(raws, RawFeatures::earningsYield, neutCtx);
-        List<Double> zBm = zNeutralized(raws, RawFeatures::bookToMarket, neutCtx);
-
-        List<Double> zVol20 = zNeutralized(raws, RawFeatures::vol20, neutCtx);
-        List<Double> zDown = zNeutralized(raws, RawFeatures::downVol20, neutCtx);
-        List<Double> zIlliq = zNeutralized(raws, RawFeatures::illiq20, neutCtx);
-        List<Double> zGap = zNeutralized(raws, RawFeatures::maxGap20, neutCtx);
+        Map<String, List<Double>> zByFactor = zNeutralizedBatch(factorCols, neutCtx);
+        List<Double> zEr20m5 = zByFactor.get("er20m5");
+        List<Double> zEr5 = zByFactor.get("er5");
+        List<Double> zEr1 = zByFactor.get("er1");
+        List<Double> zMa = zByFactor.get("maAlign");
+        List<Double> zRsi = zByFactor.get("rsiShape");
+        List<Double> zVolC = zByFactor.get("volConfirm");
+        List<Double> zRoe = zByFactor.get("roe");
+        List<Double> zRev = zByFactor.get("revenueYoY");
+        List<Double> zDebt = zByFactor.get("debtRatio");
+        List<Double> zCurr = zByFactor.get("currentRatio");
+        List<Double> zEy = zByFactor.get("earningsYield");
+        List<Double> zBm = zByFactor.get("bookToMarket");
+        List<Double> zVol20 = zByFactor.get("vol20");
+        List<Double> zDown = zByFactor.get("downVol20");
+        List<Double> zIlliq = zByFactor.get("illiq20");
+        List<Double> zGap = zByFactor.get("maxGap20");
 
         List<ScoredRow> rows = new ArrayList<>(raws.size());
         for (int i = 0; i < raws.size(); i++) {
@@ -302,7 +327,7 @@ public class CodexShortCycleScoringEngine {
             bd.put("formula_version", FORMULA_VERSION);
             bd.put("neutralization_mode", neutCtx != null ? neutCtx.mode() : CrossSectionNeutralizer.MODE_PASSTHROUGH);
             bd.put("neutralization_industries", neutCtx != null ? neutCtx.industryCount() : 0);
-            bd.put("preprocessing", "winsorize→ln(MV)+industry OLS→robustZ(MAD)");
+            bd.put("preprocessing", "winsorize→OLS(lnMV+industry)→robustZ(MAD,no二次winsorize)");
             bd.put("G_market", ScoringUtils.round4(g));
             bd.put("T", ScoringUtils.round4(t));
             bd.put("F", ScoringUtils.round4(f));
@@ -323,6 +348,19 @@ public class CodexShortCycleScoringEngine {
         return finalRows;
     }
 
+    private static Map<String, List<Double>> zNeutralizedBatch(
+            Map<String, List<Double>> factorCols,
+            CrossSectionNeutralizer.Context neutCtx
+    ) {
+        Map<String, CrossSectionNeutralizer.Result> neutralized =
+                CrossSectionNeutralizer.neutralizeBatch(factorCols, neutCtx);
+        Map<String, List<Double>> z = new LinkedHashMap<>();
+        for (Map.Entry<String, CrossSectionNeutralizer.Result> e : neutralized.entrySet()) {
+            z.put(e.getKey(), CrossSectionFactorMath.robustZScoresOnResiduals(e.getValue().residuals()));
+        }
+        return z;
+    }
+
     private static List<Double> zNeutralized(
             List<RawFeatures> raws,
             java.util.function.ToDoubleFunction<RawFeatures> fn,
@@ -330,7 +368,7 @@ public class CodexShortCycleScoringEngine {
     ) {
         List<Double> vals = raws.stream().mapToDouble(fn).boxed().toList();
         CrossSectionNeutralizer.Result res = CrossSectionNeutralizer.neutralize(vals, neutCtx);
-        return CrossSectionFactorMath.robustZScores(res.residuals());
+        return CrossSectionFactorMath.robustZScoresOnResiduals(res.residuals());
     }
 
     static double estimateMarketState(List<RawFeatures> raws) {
@@ -380,7 +418,9 @@ public class CodexShortCycleScoringEngine {
         double ret5 = logRet(close, 5);
         double ret20 = logRet(close, 20);
         MarketData last = bars.get(bars.size() - 1);
-        double logMv = CrossSectionNeutralizer.logMarketCapProxy(last, avgAmount20);
+        CrossSectionNeutralizer.LogMvEstimate logMvEst =
+                CrossSectionNeutralizer.estimateLogMarketCap(last, avgAmount20);
+        double logMv = logMvEst.logMv();
 
         double ma5 = TechnicalIndicators.avg(close, n - 5, n - 1);
         double ma10 = TechnicalIndicators.avg(close, n - 10, n - 1);
@@ -423,11 +463,11 @@ public class CodexShortCycleScoringEngine {
                 key, ctx.stockCode(), ctx.exchangeType(), ctx.stockName(), industry,
                 ret1, ret5, 0, maAlign, rsiShape, volConfirm,
                 roe, revenueYoY, debtRatio, currentRatio, earningsYield, bookToMarket,
-                vol20, downVol20, illiq20, maxGap20, avgAmount20, ret20, logMv
+                vol20, downVol20, illiq20, maxGap20, avgAmount20, ret20, logMv, logMvEst.source()
         ));
     }
 
-    private static CandidateScore toCandidate(ScoredRow row, double minCodexScoreApplied) {
+    private static CandidateScore toCandidate(ScoredRow row, double minCodexScoreApplied, int financialImputedCount) {
         CandidateScore c = new CandidateScore();
         c.setStockCode(row.raw().stockCode());
         c.setExchangeType(row.raw().exchangeType());
@@ -446,6 +486,11 @@ public class CodexShortCycleScoringEngine {
         reasons.put("horizon_profile", StrategyFormulaRegistry.HORIZON_SHORT_3_5D);
         reasons.put("scoring_model", FORMULA_VERSION);
         reasons.put("doc_ref", "Codex/短周期选股评分公式设计文档.md v1.0");
+        reasons.put("log_mv_source", row.raw().logMvSource());
+        reasons.put("log_market_cap", ScoringUtils.round4(row.raw().logMarketCap()));
+        if (financialImputedCount > 0) {
+            reasons.put("financial_imputed_count", financialImputedCount);
+        }
         if (minCodexScoreApplied > 0) {
             reasons.put("min_codex_score_applied", ScoringUtils.round2(minCodexScoreApplied));
         }

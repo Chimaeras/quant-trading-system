@@ -203,7 +203,18 @@ public final class CrossSectionNeutralizer {
 
     private static List<Double> normalizeLogMv(List<Double> logMarketCap, int n) {
         List<Double> out = new ArrayList<>(n);
-        double fallback = Math.log(1e8);
+        List<Double> finite = new ArrayList<>();
+        if (logMarketCap != null) {
+            for (Double v : logMarketCap) {
+                if (v != null && Double.isFinite(v)) {
+                    finite.add(v);
+                }
+            }
+        }
+        finite.sort(Double::compare);
+        double fallback = finite.isEmpty()
+                ? Math.log(1e8)
+                : finite.get(finite.size() / 2);
         for (int i = 0; i < n; i++) {
             if (logMarketCap != null && i < logMarketCap.size() && logMarketCap.get(i) != null
                     && Double.isFinite(logMarketCap.get(i))) {

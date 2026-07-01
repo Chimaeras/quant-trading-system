@@ -71,6 +71,14 @@ class CrossSectionNeutralizerTest {
     }
 
     @Test
+    void normalizeLogMvUsesCrossSectionMedianForMissing() {
+        List<String> industries = List.of("A", "B");
+        List<Double> logMv = List.of(20.0, null);
+        CrossSectionNeutralizer.Context ctx = CrossSectionNeutralizer.buildContext(industries, logMv);
+        assertThat(ctx.logMv().get(1)).isEqualTo(20.0);
+    }
+
+    @Test
     void estimateLogMarketCapReportsTurnoverSource() {
         MarketData bar = new MarketData();
         bar.setAmount(java.math.BigDecimal.valueOf(50_000_000));

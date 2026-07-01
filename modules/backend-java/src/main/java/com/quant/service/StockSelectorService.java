@@ -495,6 +495,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
             preprocessing.put("log_mv_source", "turnover/amount proxy or avgAmount20 fallback");
             preprocessing.put("industry_er", "value-weighted industry index (§5.1)");
             preprocessing.put("fallback_mode", CrossSectionNeutralizer.MODE_INDUSTRY_DEMEAN);
+            preprocessing.put("log_mv_only_mode", CrossSectionNeutralizer.MODE_LOG_MV_ONLY);
+            preprocessing.put("full_regression_mode", CrossSectionNeutralizer.MODE_FULL);
             snap.put("preprocessing", preprocessing);
         }
         String auditFactorVersion = codexProfile

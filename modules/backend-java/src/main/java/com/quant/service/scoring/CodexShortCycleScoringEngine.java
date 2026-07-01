@@ -361,16 +361,6 @@ public class CodexShortCycleScoringEngine {
         return z;
     }
 
-    private static List<Double> zNeutralized(
-            List<RawFeatures> raws,
-            java.util.function.ToDoubleFunction<RawFeatures> fn,
-            CrossSectionNeutralizer.Context neutCtx
-    ) {
-        List<Double> vals = raws.stream().mapToDouble(fn).boxed().toList();
-        CrossSectionNeutralizer.Result res = CrossSectionNeutralizer.neutralize(vals, neutCtx);
-        return CrossSectionFactorMath.robustZScoresOnResiduals(res.residuals());
-    }
-
     static double estimateMarketState(List<RawFeatures> raws) {
         double avgEr20m5 = raws.stream().mapToDouble(r -> r.er20Minus5).average().orElse(0);
         double avgMa = raws.stream().mapToDouble(r -> r.maAlign).average().orElse(0);

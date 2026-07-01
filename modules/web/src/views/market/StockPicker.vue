@@ -315,6 +315,10 @@
         <el-descriptions-item label="S_raw">{{ formatCodexFactor(detailRow, 'S_raw') }}</el-descriptions-item>
         <el-descriptions-item label="百分位分">{{ formatCodexFactor(detailRow, 'score_percentile') }}</el-descriptions-item>
         <el-descriptions-item label="中性化">{{ formatCodexFactor(detailRow, 'neutralization_mode') }}</el-descriptions-item>
+        <el-descriptions-item label="ln(MV)来源">{{ formatLogMvSource(detailRow) }}</el-descriptions-item>
+        <el-descriptions-item v-if="formatCodexFactor(detailRow, 'financial_imputed_count') !== '—'" label="财报填充项">
+          {{ formatCodexFactor(detailRow, 'financial_imputed_count') }}
+        </el-descriptions-item>
       </template>
       <template v-else>
         <el-descriptions-item label="趋势分">{{ detailRow.trend_score }}</el-descriptions-item>
@@ -603,6 +607,17 @@ function formatCodexFactor(row: Record<string, any>, key: string) {
   if (v == null || v === '') return '—'
   const n = Number(v)
   return Number.isFinite(n) ? n.toFixed(2) : String(v)
+}
+
+function formatLogMvSource(row: Record<string, any>) {
+  const src = formatCodexFactor(row, 'log_mv_source')
+  if (src === '—') return src
+  const labels: Record<string, string> = {
+    turnover_amount: '换手率×成交额',
+    close_x_volume: '收盘价×成交量',
+    avg_amount20_fallback: '20日均额(回退)'
+  }
+  return labels[src] ?? src
 }
 
 function sentimentMeta(row: Record<string, any> | null) {

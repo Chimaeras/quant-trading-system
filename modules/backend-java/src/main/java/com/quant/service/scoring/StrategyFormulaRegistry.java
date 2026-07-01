@@ -82,7 +82,7 @@ public final class StrategyFormulaRegistry {
                                 : "与《短周期选股评分公式设计文档》v1.0 对齐，适合 T+3/T+5 横截面排序",
                         List.of(
                                 neutralV2 ? "ln(MV) 来自 turnover/amount 或 avgAmount20 代理" : "G 使用全市场代理而非真实指数 MA/ATR",
-                                neutralV2 ? "样本<30 或行业<3 时回退行业 demean" : "行业中性化为同行业 ER5 均值调整",
+                                neutralV2 ? "样本<30→行业demean；行业<3→仅ln(MV)回归" : "行业中性化为同行业 ER5 均值调整",
                                 "Score 为百分位分，高分=相对更强而非绝对上涨"
                         ),
                         List.of(

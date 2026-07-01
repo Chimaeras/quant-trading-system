@@ -56,6 +56,7 @@ public class OversoldReboundScoringService {
         int topN = ScoringUtils.parseInt(req.get("topN"), 50, 1, 500);
         double minTotalScore = ScoringUtils.parseDouble(req.get("minTotalScore"), 60, 0, 100);
         boolean excludeST = ScoringUtils.parseBool(req.get("excludeST"), true);
+        int minListingDays = ScoringUtils.parseInt(req.get("minListingDays"), 60, 0, 3650);
         boolean persist = ScoringUtils.parseBool(req.get("persist"), true);
         boolean progressivePersist = ScoringUtils.parseBool(req.get("progressivePersist"), false);
         String fixedResultId = ScoringUtils.parseString(req.get("resultId"), "");
@@ -93,6 +94,31 @@ public class OversoldReboundScoringService {
             empty.put("factor_version", FACTOR_VERSION);
             empty.put("items", List.of());
             return empty;
+        }
+
+        if (minListingDays > 0) {
+            Map<String, LocalDate> listDateByKey = new HashMap<>();
+            for (StockInfo info : stockInfoRepository.findAll()) {
+                if (info.getStockCode() == null || info.getExchangeType() == null) {
+                    continue;
+                }
+                listDateByKey.put(info.getStockCode() + "|" + info.getExchangeType(), info.getListDate());
+            }
+            pairs = pairs.stream()
+                    .filter(p -> p != null && p.length >= 2
+                            && ScoringUtils.hasMinListingTenure(
+                            listDateByKey.get(String.valueOf(p[0]) + "|" + String.valueOf(p[1])),
+                            tradeDate,
+                            minListingDays))
+                    .toList();
+            if (pairs.isEmpty()) {
+                return Map.of(
+                        "message", "过滤上市时长后无可用标的",
+                        "trade_date", tradeDate.toString(),
+                        "factor_version", FACTOR_VERSION,
+                        "min_listing_days", minListingDays,
+                        "items", List.of());
+            }
         }
 
         Map<String, List<MarketData>> bulkByKey = null;
@@ -265,6 +291,7 @@ public class OversoldReboundScoringService {
         );
         double minTotalScore = ScoringUtils.parseDouble(req.get("minTotalScore"), 60, 0, 100);
         boolean excludeST = ScoringUtils.parseBool(req.get("excludeST"), true);
+        int minListingDays = ScoringUtils.parseInt(req.get("minListingDays"), 60, 0, 3650);
 
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("factor", FACTOR_VERSION);
@@ -274,7 +301,7 @@ public class OversoldReboundScoringService {
         snapshot.put("minOversoldScore30", 15);
         snapshot.put("excludeST", excludeST);
         snapshot.put("weights", Map.of("trend", 0.35, "volume", 0.25, "oversold", 0.25, "confirm", 0.15));
-        snapshot.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, false));
+        snapshot.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, false, minListingDays));
         snapshot.put("effective_lookback_days", effectiveLookbackDays);
         snapshot.put("ranking", "strict_quality_then_weighted_score");
 

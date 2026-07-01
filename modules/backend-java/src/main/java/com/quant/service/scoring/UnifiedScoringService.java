@@ -125,7 +125,8 @@ public class UnifiedScoringService {
         out.put("items", slicedItems);
         out.put("source_summary", extractSummary(rawResult));
         boolean excludeST = parseBool(req.get("excludeST"), true);
-        out.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, strategy != UnifiedScoringStrategy.OVERSOLD_REBOUND));
+        int minListingDays = resolveMinListingDays(req, strategy);
+        out.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, strategy != UnifiedScoringStrategy.OVERSOLD_REBOUND, minListingDays));
         return out;
     }
 
@@ -634,6 +635,13 @@ public class UnifiedScoringService {
         };
     }
 
+    private static int resolveMinListingDays(Map<String, Object> strategyReq, UnifiedScoringStrategy strategy) {
+        int defaultDays = switch (strategy) {
+            case CLASSIC_SELECTOR, TREND, COMPREHENSIVE, MULTI_DIM, OVERSOLD_REBOUND -> 60;
+        };
+        return parseInt(strategyReq.get("minListingDays"), defaultDays, 0, 3650);
+    }
+
     private static Map<String, Object> buildQualityGateSnapshot(
             UnifiedScoringStrategy strategy,
             Map<String, Object> strategyReq,
@@ -760,7 +768,8 @@ public class UnifiedScoringService {
                         "raw_summary", extractSummary(rawResult)
                 ));
                 boolean excludeST = parseBool(strategyReq.get("excludeST"), true);
-                snap.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, strategy != UnifiedScoringStrategy.OVERSOLD_REBOUND));
+                int minListingDays = resolveMinListingDays(strategyReq, strategy);
+                snap.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, strategy != UnifiedScoringStrategy.OVERSOLD_REBOUND, minListingDays));
                 snap.put("quality_gate", buildQualityGateSnapshot(strategy, strategyReq, rawResult, items.size()));
                 existing.setFactorSnapshot(snap);
                 existing.setRunStatus("SUCCESS");
@@ -796,7 +805,8 @@ public class UnifiedScoringService {
         snapshot.put("quality_gate", buildQualityGateSnapshot(strategy, strategyReq, rawResult, items.size()));
         boolean excludeST = parseBool(strategyReq.get("excludeST"), true);
         boolean excludeLimitDown = strategy != UnifiedScoringStrategy.OVERSOLD_REBOUND;
-        snapshot.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, excludeLimitDown));
+        int minListingDays = resolveMinListingDays(strategyReq, strategy);
+        snapshot.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, excludeLimitDown, minListingDays));
         sr.setFactorSnapshot(snapshot);
         selectorResultRepository.save(sr);
 

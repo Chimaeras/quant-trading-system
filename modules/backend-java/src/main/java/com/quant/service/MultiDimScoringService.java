@@ -107,6 +107,7 @@ public class MultiDimScoringService {
         boolean bulkFetch = parseBool(req.get("bulkFetch"), true);
         boolean includeItems = parseBool(req.get("includeItems"), false);
         boolean excludeST = parseBool(req.get("excludeST"), true);
+        int minListingDays = ScoringUtils.parseInt(req.get("minListingDays"), 60, 0, 3650);
 
         if (!bulkFetch) {
             return emptyResult(tradeDate, "multi_dim 当前仅支持 bulkFetch=true");
@@ -157,7 +158,7 @@ public class MultiDimScoringService {
                 String stockCode = p > 0 ? key.substring(0, p) : key;
                 String exchangeType = p > 0 ? key.substring(p + 1) : "";
                 scoreAndAdd(key, stockCode, exchangeType, tradeDate, grouped.getOrDefault(key, List.of()),
-                        mdToday.get(key), infoByKey.get(key), indAvgs, sim, rows, skipped, excludeST);
+                        mdToday.get(key), infoByKey.get(key), indAvgs, sim, rows, skipped, excludeST, minListingDays);
             }
         } else {
             ExecutorService pool = Executors.newFixedThreadPool(threads, r -> {
@@ -168,13 +169,14 @@ public class MultiDimScoringService {
             });
             CompletionService<Void> cs = new ExecutorCompletionService<>(pool);
             final boolean finalExcludeST = excludeST;
+            final int finalMinListingDays = minListingDays;
             for (String key : keys) {
                 cs.submit(() -> {
                     int p = key.indexOf('|');
                     String stockCode = p > 0 ? key.substring(0, p) : key;
                     String exchangeType = p > 0 ? key.substring(p + 1) : "";
                     scoreAndAdd(key, stockCode, exchangeType, tradeDate, grouped.getOrDefault(key, List.of()),
-                            mdToday.get(key), infoByKey.get(key), indAvgs, sim, rows, skipped, finalExcludeST);
+                            mdToday.get(key), infoByKey.get(key), indAvgs, sim, rows, skipped, finalExcludeST, finalMinListingDays);
                     return null;
                 });
             }
@@ -228,7 +230,8 @@ public class MultiDimScoringService {
             SectorIndustryMaps sim,
             List<StockMultiDimScore> rows,
             AtomicInteger skipped,
-            boolean excludeST) {
+            boolean excludeST,
+            int minListingDays) {
 
         if (bars == null || bars.size() < MIN_BARS) {
             skipped.incrementAndGet();
@@ -241,6 +244,10 @@ public class MultiDimScoringService {
         }
 
         String stockName = info != null && info.getStockName() != null ? info.getStockName() : "";
+        if (!ScoringUtils.hasMinListingTenure(info != null ? info.getListDate() : null, tradeDate, minListingDays)) {
+            skipped.incrementAndGet();
+            return;
+        }
         if (!ScoringUtils.isTradableForScoring(bars, stockCode, exchangeType, stockName, excludeST, true, true)) {
             skipped.incrementAndGet();
             return;

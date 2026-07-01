@@ -6,6 +6,7 @@ import com.quant.service.backtest.TradingLimitRules;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -132,14 +133,39 @@ public final class ScoringUtils {
     }
 
     /**
+     * 上市满 N 个自然日才可纳入候选；listDate 缺失时不据此过滤（保守放行并依赖 min_listing_days 披露）。
+     */
+    public static boolean hasMinListingTenure(LocalDate listDate, LocalDate tradeDate, int minListingDays) {
+        if (minListingDays <= 0 || tradeDate == null) {
+            return true;
+        }
+        if (listDate == null) {
+            return true;
+        }
+        if (listDate.isAfter(tradeDate)) {
+            return false;
+        }
+        return ChronoUnit.DAYS.between(listDate, tradeDate) >= minListingDays;
+    }
+
+    /**
      * 选股可交易性过滤假设，写入 factor_snapshot 供前端与审计追溯。
      */
     public static Map<String, Object> tradabilitySnapshot(boolean excludeST, boolean excludeLimitDownAtClose) {
+        return tradabilitySnapshot(excludeST, excludeLimitDownAtClose, 0);
+    }
+
+    public static Map<String, Object> tradabilitySnapshot(
+            boolean excludeST,
+            boolean excludeLimitDownAtClose,
+            int minListingDays) {
         Map<String, Object> t = new LinkedHashMap<>();
         t.put("exclude_st", excludeST);
         t.put("exclude_zero_volume", true);
         t.put("exclude_limit_up_at_close", true);
         t.put("exclude_limit_down_at_close", excludeLimitDownAtClose);
+        t.put("min_listing_days", Math.max(0, minListingDays));
+        t.put("listing_tenure_basis", "CALENDAR_DAYS_FROM_LIST_DATE");
         t.put("limit_pct_source", "BY_BOARD_AND_ST");
         t.put("limit_price_basis", "PREV_CLOSE_TO_SIGNAL_CLOSE");
         return t;

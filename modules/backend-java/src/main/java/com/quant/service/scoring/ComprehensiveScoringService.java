@@ -422,6 +422,7 @@ public class ComprehensiveScoringService {
                 Math.max(1, Runtime.getRuntime().availableProcessors()), 1, 64);
         boolean includeItems = ScoringUtils.parseBool(req.get("includeItems"), false);
         boolean excludeST = ScoringUtils.parseBool(req.get("excludeST"), true);
+        int minListingDays = ScoringUtils.parseInt(req.get("minListingDays"), 60, 0, 3650);
 
         LocalDate rangeStart = tradeDate.minusDays(lookbackDays);
         List<Object[]> pairs = marketDataRepository.findDistinctStockPairsInRange(rangeStart, tradeDate);
@@ -462,11 +463,12 @@ public class ComprehensiveScoringService {
         if (threads <= 1) {
             for (String key : keys) {
                 processStock(key, grouped.getOrDefault(key, List.of()), infoMap.get(key),
-                        snapshotMap.get(key), tradeDate, rows, skipped, marketEnv, excludeST);
+                        snapshotMap.get(key), tradeDate, rows, skipped, marketEnv, excludeST, minListingDays);
             }
         } else {
             final String finalMarketEnv = marketEnv;
             final boolean finalExcludeST = excludeST;
+            final int finalMinListingDays = minListingDays;
             ExecutorService pool = Executors.newFixedThreadPool(threads, r -> {
                 Thread t = new Thread(r);
                 t.setName("comprehensive-score-" + t.getId());
@@ -477,7 +479,7 @@ public class ComprehensiveScoringService {
             for (String key : keys) {
                 cs.submit(() -> {
                     processStock(key, grouped.getOrDefault(key, List.of()), infoMap.get(key),
-                            snapshotMap.get(key), tradeDate, rows, skipped, finalMarketEnv, finalExcludeST);
+                            snapshotMap.get(key), tradeDate, rows, skipped, finalMarketEnv, finalExcludeST, finalMinListingDays);
                     return null;
                 });
             }
@@ -530,7 +532,7 @@ public class ComprehensiveScoringService {
     private void processStock(String key, List<MarketData> bars, StockInfo info,
                                com.quant.entity.StockFinancialSnapshot snapshot,
                                LocalDate tradeDate, List<StockTrendScore> rows, AtomicInteger skipped,
-                               String marketEnv, boolean excludeST) {
+                               String marketEnv, boolean excludeST, int minListingDays) {
         if (bars.size() < ScoringConstants.MIN_BARS_COMPREHENSIVE) {
             skipped.incrementAndGet();
             return;
@@ -547,6 +549,10 @@ public class ComprehensiveScoringService {
         String exchangeType = p > 0 ? key.substring(p + 1) : "";
 
         String stockName = info != null && info.getStockName() != null ? info.getStockName() : "";
+        if (!ScoringUtils.hasMinListingTenure(info != null ? info.getListDate() : null, tradeDate, minListingDays)) {
+            skipped.incrementAndGet();
+            return;
+        }
         if (!ScoringUtils.isTradableForScoring(bars, stockCode, exchangeType, stockName, excludeST, true, true)) {
             skipped.incrementAndGet();
             return;

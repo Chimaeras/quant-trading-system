@@ -92,6 +92,7 @@ export interface UnifiedScoringRunResult {
   qualified_items?: number
   min_total_score?: number
   total_scored_pool?: number
+  tradability?: Record<string, unknown>
   items: Record<string, unknown>[]
   source_summary?: Record<string, unknown>
 }

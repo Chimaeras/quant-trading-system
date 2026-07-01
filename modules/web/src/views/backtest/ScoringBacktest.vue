@@ -80,7 +80,7 @@
       >
         <div class="assumptions">
           <span v-for="(value, key) in response.executionAssumptions" :key="String(key)">
-            {{ formatAssumptionKey(String(key)) }}：{{ formatAssumptionValue(value) }}
+            {{ formatAssumptionKey(String(key)) }}：{{ formatAssumptionValue(value, String(key)) }}
           </span>
         </div>
       </el-alert>
@@ -242,14 +242,31 @@ const assumptionLabels: Record<string, string> = {
   limit_up_entry_blocked: '涨停开盘不买',
   limit_down_exit_blocked: '跌停收盘不卖',
   limit_pct_source: '涨跌停幅度来源',
-  skip_reason_codes: '跳过原因码'
+  skip_reason_codes: '跳过原因码',
+  selector_tradability: '选股可交易性假设'
+}
+
+const tradabilityAssumptionLabels: Record<string, string> = {
+  exclude_st: '排除 ST',
+  exclude_zero_volume: '排除零成交量',
+  exclude_limit_up_at_close: '排除涨停收盘',
+  exclude_limit_down_at_close: '排除跌停收盘',
+  min_listing_days: '最短上市天数',
+  listing_tenure_basis: '上市时长口径',
+  limit_pct_source: '涨跌停幅度来源',
+  limit_price_basis: '涨跌停价基准'
 }
 
 function formatAssumptionKey(key: string) {
   return assumptionLabels[key] ?? key
 }
 
-function formatAssumptionValue(value: unknown) {
+function formatAssumptionValue(value: unknown, key?: string): string {
+  if (key === 'selector_tradability' && value && typeof value === 'object' && !Array.isArray(value)) {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([k, v]) => `${tradabilityAssumptionLabels[k] || k}=${formatAssumptionValue(v)}`)
+      .join('；')
+  }
   if (Array.isArray(value)) return value.join(', ')
   if (typeof value === 'boolean') return value ? '是' : '否'
   if (typeof value === 'number' && value > 0 && value < 1) return `${(value * 100).toFixed(2)}%`

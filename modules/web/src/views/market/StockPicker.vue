@@ -33,6 +33,9 @@
       <el-form-item label="最小趋势分">
         <el-input-number v-model="form.minTrendScore" :min="0" :max="100" />
       </el-form-item>
+      <el-form-item label="最短上市(天)">
+        <el-input-number v-model="form.minListingDays" :min="0" :max="3650" :step="30" />
+      </el-form-item>
       <el-form-item label="模板">
         <el-select v-model="form.templateId" clearable placeholder="可选模板" style="width: 180px">
           <el-option v-for="t in templates" :key="String(t.template_id)" :label="String(t.name)" :value="String(t.template_id)" />
@@ -91,6 +94,9 @@
       </el-form-item>
       <el-form-item label="排除 ST">
         <el-switch v-model="commonForm.excludeST" />
+      </el-form-item>
+      <el-form-item label="最短上市(天)">
+        <el-input-number v-model="commonForm.minListingDays" :min="0" :max="3650" :step="30" />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" :loading="running" @click="runGeneric">执行打分</el-button>
@@ -379,6 +385,7 @@ const form = reactive({
   scoreTopN: 500,
   minAvgAmount: 0,
   minTrendScore: 40,
+  minListingDays: 60,
   templateId: ''
 })
 
@@ -397,7 +404,8 @@ const commonForm = reactive({
   lookbackDays: 120,
   biasThreshold: 5.0,
   minTotalScore: 45,
-  excludeST: true
+  excludeST: true,
+  minListingDays: 60
 })
 
 const isGenericMode = computed(() => ['trend', 'comprehensive', 'multi_dim'].includes(mode.value))
@@ -446,6 +454,8 @@ const TRADABILITY_LABELS: Record<string, string> = {
   exclude_zero_volume: '排除零成交量(停牌代理)',
   exclude_limit_up_at_close: '排除信号日涨停收盘',
   exclude_limit_down_at_close: '排除信号日跌停收盘',
+  min_listing_days: '最短上市自然日',
+  listing_tenure_basis: '上市时长口径',
   limit_pct_source: '涨跌停幅度来源',
   limit_price_basis: '涨跌停价基准'
 }
@@ -460,13 +470,19 @@ const factorSnapshotEntries = computed(() => flattenSnapshotEntries(resultMeta.f
 const tradabilitySummary = computed(() => {
   const snap = resultMeta.factor_snapshot
   const t = snap?.tradability
-  if (!t || typeof t !== 'object') return ''
-  const trad = t as Record<string, unknown>
-  const parts: string[] = []
-  if (trad.exclude_limit_up_at_close === true) parts.push('过滤涨停')
-  if (trad.exclude_limit_down_at_close === true) parts.push('过滤跌停')
-  if (trad.exclude_st === true) parts.push('排除ST')
-  return parts.length ? `可交易性: ${parts.join(' / ')}` : ''
+  if (t && typeof t === 'object') {
+    const trad = t as Record<string, unknown>
+    const parts: string[] = []
+    if (trad.exclude_limit_up_at_close === true) parts.push('过滤涨停')
+    if (trad.exclude_limit_down_at_close === true) parts.push('过滤跌停')
+    if (trad.exclude_st === true) parts.push('排除ST')
+    const minDays = trad.min_listing_days
+    if (typeof minDays === 'number' && minDays > 0) parts.push(`上市≥${minDays}天`)
+    if (parts.length) return `可交易性: ${parts.join(' / ')}`
+  }
+  if (mode.value === 'oversold') return '可交易性: 过滤涨停 / 排除ST / 上市≥60天（缺 snapshot 时默认）'
+  if (isGenericMode.value || mode.value === 'classic') return '可交易性: 过滤涨跌停 / 排除ST / 上市≥60天（缺 snapshot 时默认）'
+  return ''
 })
 
 const detailReasonEntries = computed(() => {
@@ -846,6 +862,7 @@ function buildGenericPayload(): Record<string, unknown> {
     topN: commonForm.scoreTopN,
     minTotalScore: commonForm.minTotalScore,
     excludeST: commonForm.excludeST,
+    minListingDays: commonForm.minListingDays,
     persist: true
   }
   if (mode.value === 'comprehensive') {
@@ -877,6 +894,7 @@ async function runSelection() {
       topN: form.scoreTopN,
       minAvgAmount: form.minAvgAmount,
       minTrendScore: form.minTrendScore,
+      minListingDays: form.minListingDays,
       templateId: form.templateId || undefined
     })
     const data = done.result_id
@@ -903,6 +921,7 @@ async function runOversold() {
       topN: oversoldForm.scoreTopN,
       minTotalScore: oversoldForm.minTotalScore,
       excludeST: oversoldForm.excludeST,
+      minListingDays: 60,
       persist: oversoldForm.persist,
       templateId: oversoldForm.templateId || undefined
     })
@@ -1128,7 +1147,12 @@ function exportCsv() {
   const rows = displayedResults.value
   if (!rows.length) return
   const headers = ['rank_no', 'stock_code', 'stock_name', 'final_score', 'trend_score', 'momentum_score', 'volume_score', 'ret20', 'ret60']
-  const lines = [headers.join(',')]
+  const lines = [
+    `# trade_date=${resultMeta.trade_date || ''}`,
+    `# factor_version=${resultMeta.factor_version || ''}`,
+    `# tradability=${tradabilitySummary.value || ''}`,
+    headers.join(',')
+  ]
   for (const r of rows) {
     const row: Record<string, unknown> = {
       ...r,

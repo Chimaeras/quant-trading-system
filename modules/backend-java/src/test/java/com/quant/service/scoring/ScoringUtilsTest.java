@@ -3,6 +3,7 @@ package com.quant.service.scoring;
 import com.quant.entity.MarketData;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -67,12 +68,21 @@ class ScoringUtilsTest {
     }
 
     @Test
-    void tradabilitySnapshotReflectsOversoldLimitDownException() {
-        Map<String, Object> normal = ScoringUtils.tradabilitySnapshot(true, true);
-        assertThat(normal.get("exclude_limit_down_at_close")).isEqualTo(true);
-        assertThat(normal.get("exclude_limit_up_at_close")).isEqualTo(true);
+    void hasMinListingTenureHonorsThresholdAndMissingListDate() {
+        LocalDate trade = LocalDate.of(2026, 6, 30);
+        assertThat(ScoringUtils.hasMinListingTenure(null, trade, 60)).isTrue();
+        assertThat(ScoringUtils.hasMinListingTenure(trade.minusDays(30), trade, 60)).isFalse();
+        assertThat(ScoringUtils.hasMinListingTenure(trade.minusDays(90), trade, 60)).isTrue();
+        assertThat(ScoringUtils.hasMinListingTenure(trade.plusDays(1), trade, 60)).isFalse();
+    }
 
-        Map<String, Object> oversold = ScoringUtils.tradabilitySnapshot(true, false);
+    @Test
+    void tradabilitySnapshotReflectsOversoldLimitDownException() {
+        Map<String, Object> normal = ScoringUtils.tradabilitySnapshot(true, true, 60);
+        assertThat(normal.get("exclude_limit_down_at_close")).isEqualTo(true);
+        assertThat(normal.get("min_listing_days")).isEqualTo(60);
+
+        Map<String, Object> oversold = ScoringUtils.tradabilitySnapshot(true, false, 60);
         assertThat(oversold.get("exclude_limit_down_at_close")).isEqualTo(false);
     }
 

@@ -50,6 +50,7 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         String templateId = String.valueOf(request.getOrDefault("templateId", "")).trim();
         String factorVersion = String.valueOf(request.getOrDefault("factorVersion", "v1")).trim();
         boolean excludeST = parseBool(request.get("excludeST"), true);
+        int minListingDays = parseInt(request.get("minListingDays"), 60, 0, 3650);
         boolean progressivePersist = parseBool(request.get("progressivePersist"), false);
         String fixedResultId = String.valueOf(request.getOrDefault("resultId", "")).trim();
         boolean resumeMode = parseBool(request.get("resumeMode"), false);
@@ -85,6 +86,31 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
             return Map.of("message", "无可用行情数据", "trade_date", tradeDate.toString(), "items", List.of());
         }
 
+        if (minListingDays > 0) {
+            Map<String, LocalDate> listDateByKey = new HashMap<>();
+            for (StockInfo info : stockInfoRepository.findAll()) {
+                if (info.getStockCode() == null || info.getExchangeType() == null) {
+                    continue;
+                }
+                listDateByKey.put(info.getStockCode() + "|" + info.getExchangeType(), info.getListDate());
+            }
+            LocalDate signalDate = tradeDate;
+            pairs = pairs.stream()
+                    .filter(p -> p != null && p.length >= 2
+                            && ScoringUtils.hasMinListingTenure(
+                            listDateByKey.get(String.valueOf(p[0]) + "|" + String.valueOf(p[1])),
+                            signalDate,
+                            minListingDays))
+                    .toList();
+            if (pairs.isEmpty()) {
+                return Map.of(
+                        "message", "过滤上市时长后无可用标的",
+                        "trade_date", tradeDate.toString(),
+                        "min_listing_days", minListingDays,
+                        "items", List.of());
+            }
+        }
+
         Map<String, List<MarketData>> bulkByKey = null;
         if (bulkFetch && !pairs.isEmpty()) {
             List<MarketData> allBars = marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(rangeStart, tradeDate);
@@ -115,7 +141,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                     factorVersion,
                     bulkFetch,
                     resumeMode,
-                    excludeST
+                    excludeST,
+                    minListingDays
             );
         }
 
@@ -220,7 +247,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                 factorVersion,
                 bulkFetch,
                 false,
-                excludeST
+                excludeST,
+                minListingDays
         );
         List<SelectorResultItem> topItems = new ArrayList<>(selected.size());
         int rk = 1;
@@ -363,7 +391,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
             int lookbackDaysRequested,
             LocalDate rangeStart,
             boolean bulkFetch,
-            boolean excludeST
+            boolean excludeST,
+            int minListingDays
     ) {
         Map<String, Object> weights = Map.of(
                 "trend", 0.4,
@@ -380,11 +409,12 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         thresholds.put("range_start", rangeStart != null ? rangeStart.toString() : "");
         thresholds.put("bulk_fetch", bulkFetch);
         thresholds.put("exclude_st", excludeST);
+        thresholds.put("min_listing_days", minListingDays);
         thresholds.put("ranking", "all_stocks_by_final_score_then_top_n");
         Map<String, Object> snap = new LinkedHashMap<>();
         snap.put("weights", weights);
         snap.put("thresholds", thresholds);
-        snap.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, true));
+        snap.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, true, minListingDays));
         return snap;
     }
 
@@ -414,7 +444,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
             String factorVersion,
             boolean bulkFetch,
             boolean resumeMode,
-            boolean excludeST
+            boolean excludeST,
+            int minListingDays
     ) {
         String rid = (resultId != null && !resultId.isBlank()) ? resultId : genResultId();
         SelectorResult result = selectorResultRepository.findByResultId(rid).orElse(new SelectorResult());
@@ -434,7 +465,7 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         result.setFailedCandidates(0);
         result.setLastProcessedKey("");
         result.setFactorSnapshot(buildFactorSnapshot(
-                minAvgAmount, minTrendScore, fullHistory, lookbackDaysRequested, rangeStart, bulkFetch, excludeST));
+                minAvgAmount, minTrendScore, fullHistory, lookbackDaysRequested, rangeStart, bulkFetch, excludeST, minListingDays));
         progressiveResultWriter.upsertRunningResult(
                 rid,
                 result,

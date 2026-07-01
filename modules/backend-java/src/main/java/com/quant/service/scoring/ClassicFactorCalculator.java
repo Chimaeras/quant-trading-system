@@ -60,11 +60,7 @@ public class ClassicFactorCalculator {
 
         String cacheKey = stockCode + ":" + exchangeType;
         String name = nameResolver != null ? nameResolver.apply(cacheKey) : stockCode;
-        if (excludeST && name != null && name.toUpperCase().contains("ST")) {
-            return Optional.empty();
-        }
-        MarketData signalBar = bars.get(bars.size() - 1);
-        if (ScoringUtils.isExplicitZeroVolume(signalBar)) {
+        if (!ScoringUtils.isTradableForScoring(bars, stockCode, exchangeType, name, excludeST, true, true)) {
             return Optional.empty();
         }
 

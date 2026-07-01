@@ -37,6 +37,36 @@ class ScoringUtilsTest {
     }
 
     @Test
+    void tradableForScoringRejectsLimitUpAtCloseAndHonorsOversoldLimitDownException() {
+        MarketData prev = bar("000001", "SZSE", 10.0);
+        MarketData limitUpClose = bar("000001", "SZSE", 11.0);
+        MarketData limitDownClose = bar("000001", "SZSE", 9.0);
+        MarketData normalClose = bar("000001", "SZSE", 10.5);
+
+        assertThat(ScoringUtils.isTradableForScoring(
+                List.of(prev, limitUpClose), "000001", "SZSE", "测试股份", true, true, true))
+                .isFalse();
+        assertThat(ScoringUtils.isTradableForScoring(
+                List.of(prev, limitDownClose), "000001", "SZSE", "测试股份", true, true, true))
+                .isFalse();
+        assertThat(ScoringUtils.isTradableForScoring(
+                List.of(prev, limitDownClose), "000001", "SZSE", "测试股份", true, true, false))
+                .isTrue();
+        assertThat(ScoringUtils.isTradableForScoring(
+                List.of(prev, normalClose), "000001", "SZSE", "测试股份", true, true, true))
+                .isTrue();
+    }
+
+    private static MarketData bar(String code, String exchange, double close) {
+        MarketData signal = new MarketData();
+        signal.setStockCode(code);
+        signal.setExchangeType(exchange);
+        signal.setClosePrice(java.math.BigDecimal.valueOf(close));
+        signal.setVolume(1000L);
+        return signal;
+    }
+
+    @Test
     void pickTopNByMinScoreAllowsFewerThanTopNWhenQualityGateFails() {
         List<Map<String, Object>> items = List.of(
                 Map.of("stock_code", "A", "total_score", 80),

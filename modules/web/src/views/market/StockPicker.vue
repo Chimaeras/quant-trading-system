@@ -179,6 +179,7 @@
       <span v-if="resultMeta.min_total_score != null">质量闸 ≥ {{ resultMeta.min_total_score }}</span>
       <span v-if="resultMeta.qualified_items != null">合格 {{ resultMeta.qualified_items }} 只</span>
       <span v-if="resultMeta.total_scored_pool != null">评分池 {{ resultMeta.total_scored_pool }} 只</span>
+      <el-button v-if="hasFactorSnapshot" link type="primary" @click="snapshotVisible = true">策略参数快照</el-button>
     </div>
 
     <el-empty
@@ -260,10 +261,12 @@
     <p v-else class="tip">逻辑：纯库内 K 线 + PE + 行业聚合的多维度打分 v1；默认质量闸55分。</p>
   </el-card>
 
-  <el-dialog v-model="detailVisible" title="选股详情" width="640px">
+  <el-dialog v-model="detailVisible" title="选股详情" width="720px">
     <el-descriptions :column="2" border v-if="detailRow">
       <el-descriptions-item label="股票">{{ detailRow.stock_code }} {{ detailRow.stock_name }}</el-descriptions-item>
-      <el-descriptions-item label="综合分">{{ detailRow.final_score }}</el-descriptions-item>
+      <el-descriptions-item label="综合分">{{ detailRow.final_score ?? detailRow.total_score }}</el-descriptions-item>
+      <el-descriptions-item label="数据日期">{{ resultMeta.trade_date || '--' }}</el-descriptions-item>
+      <el-descriptions-item label="因子版本">{{ resultMeta.factor_version || 'v1' }}</el-descriptions-item>
       <template v-if="mode === 'oversold'">
         <el-descriptions-item label="趋势(40)">{{ detailRow.trend_score }}</el-descriptions-item>
         <el-descriptions-item label="量能(30)">{{ detailRow.volume_score }}</el-descriptions-item>
@@ -288,10 +291,26 @@
       <el-descriptions-item label="20日收益">{{ detailRow.ret20 }}%</el-descriptions-item>
       <el-descriptions-item label="60日收益">{{ detailRow.ret60 }}%</el-descriptions-item>
       <el-descriptions-item label="日均成交额" :span="2">{{ detailRow.avg_amount20 }}</el-descriptions-item>
-      <el-descriptions-item label="明细/原因" :span="2">
-        <pre class="json-box">{{ JSON.stringify(detailRow.reasons || detailRow.detail || {}, null, 2) }}</pre>
+      <el-descriptions-item label="触发原因" :span="2">
+        <el-table v-if="detailReasonEntries.length" :data="detailReasonEntries" size="small" stripe class="reason-table">
+          <el-table-column prop="label" label="指标" min-width="140" />
+          <el-table-column prop="value" label="取值" min-width="180" />
+        </el-table>
+        <span v-else class="empty-reason">暂无结构化原因，见下方原始数据。</span>
+      </el-descriptions-item>
+      <el-descriptions-item label="原始明细" :span="2">
+        <pre class="json-box">{{ JSON.stringify(parseItemReasons(detailRow), null, 2) }}</pre>
       </el-descriptions-item>
     </el-descriptions>
+  </el-dialog>
+
+  <el-dialog v-model="snapshotVisible" title="策略参数快照（factor_snapshot）" width="680px">
+    <el-table v-if="factorSnapshotEntries.length" :data="factorSnapshotEntries" size="small" stripe>
+      <el-table-column prop="label" label="参数" min-width="180" />
+      <el-table-column prop="value" label="取值" min-width="320" show-overflow-tooltip />
+    </el-table>
+    <el-empty v-else description="当前结果无 factor_snapshot" />
+    <pre v-if="hasFactorSnapshot" class="json-box snapshot-json">{{ JSON.stringify(resultMeta.factor_snapshot, null, 2) }}</pre>
   </el-dialog>
 </template>
 
@@ -312,6 +331,7 @@ const mode = ref<ModeType>('classic')
 const results = ref<Record<string, any>[]>([])
 const focusResults = ref<Record<string, any>[]>([])
 const detailVisible = ref(false)
+const snapshotVisible = ref(false)
 const detailRow = ref<Record<string, any> | null>(null)
 const taskId = ref('')
 const taskStatus = ref<TaskStatusType>('')
@@ -346,7 +366,8 @@ const resultMeta = reactive({
   total_candidates: 0,
   min_total_score: null as number | null,
   qualified_items: null as number | null,
-  total_scored_pool: null as number | null
+  total_scored_pool: null as number | null,
+  factor_snapshot: null as Record<string, unknown> | null
 })
 const templates = ref<Array<Record<string, unknown>>>([])
 
@@ -400,6 +421,71 @@ const focusForm = reactive({
 })
 
 const displayedResults = computed(() => (focusForm.view === 'focus' ? focusResults.value : results.value))
+
+const REASON_LABELS: Record<string, string> = {
+  trend: '趋势判断',
+  ret20: '20日收益',
+  ret60: '60日收益',
+  rsi14: 'RSI14',
+  volume_ratio: '量比',
+  pass_min_avg_amount: '最低成交额',
+  pass_min_trend_score: '最低趋势分',
+  pass_ma20_gt_ma60: 'MA20>MA60',
+  pass_ret20_floor: '20日收益下限',
+  buy_signal: '买入信号',
+  sentiment_data_source: '情绪数据来源',
+  sentiment_discount_factor: '情绪折扣系数',
+  oversold_level: '超跌程度',
+  volume_price_type: '量价形态',
+  quality_gate: '质量闸'
+}
+
+const hasFactorSnapshot = computed(() => {
+  const snap = resultMeta.factor_snapshot
+  return !!snap && typeof snap === 'object' && Object.keys(snap).length > 0
+})
+
+const factorSnapshotEntries = computed(() => flattenSnapshotEntries(resultMeta.factor_snapshot))
+
+const detailReasonEntries = computed(() => {
+  if (!detailRow.value) return []
+  return reasonEntries(detailRow.value)
+})
+
+function formatReasonValue(value: unknown): string {
+  if (typeof value === 'boolean') return value ? '通过' : '未通过'
+  if (value === null || value === undefined) return '--'
+  if (typeof value === 'object') return JSON.stringify(value)
+  return String(value)
+}
+
+function reasonEntries(row: Record<string, any>) {
+  const parsed = parseItemReasons(row)
+  return Object.entries(parsed)
+    .filter(([key]) => !['reasons_json', 'raw_item'].includes(key))
+    .map(([key, value]) => ({
+      key,
+      label: REASON_LABELS[key] || key,
+      value: formatReasonValue(value)
+    }))
+}
+
+function flattenSnapshotEntries(
+  snap: Record<string, unknown> | null,
+  prefix = ''
+): Array<{ label: string; value: string }> {
+  if (!snap || typeof snap !== 'object') return []
+  const rows: Array<{ label: string; value: string }> = []
+  for (const [key, value] of Object.entries(snap)) {
+    const label = prefix ? `${prefix}.${key}` : key
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      rows.push(...flattenSnapshotEntries(value as Record<string, unknown>, label))
+    } else {
+      rows.push({ label, value: formatReasonValue(value) })
+    }
+  }
+  return rows
+}
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -521,6 +607,9 @@ function applyResult(data: Record<string, any>) {
   resultMeta.run_status = String(data.run_status ?? '')
   resultMeta.processed_candidates = Number(data.processed_candidates || 0)
   resultMeta.total_candidates = Number(data.total_candidates || 0)
+  const snap = data.factor_snapshot
+  resultMeta.factor_snapshot =
+    snap && typeof snap === 'object' && !Array.isArray(snap) ? (snap as Record<string, unknown>) : null
   applyQualityMeta(data)
   const incoming = Array.isArray(data.items) ? data.items : Array.isArray(data.list) ? data.list : []
   const merged = new Map<string, Record<string, any>>()
@@ -1120,6 +1209,16 @@ onBeforeUnmount(() => {
   margin: 0;
   max-width: 420px;
   text-align: center;
+}
+.empty-reason {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.reason-table {
+  width: 100%;
+}
+.snapshot-json {
+  margin-top: 12px;
 }
 .json-box {
   margin: 0;

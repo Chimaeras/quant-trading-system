@@ -139,6 +139,22 @@ class StrategyBacktestEngineTest {
     }
 
     @Test
+    void detectsLimitUpAndLimitDownAtClose() {
+        MarketData bar = new MarketData();
+        bar.setClosePrice(BigDecimal.valueOf(11.0));
+        assertThat(StrategyBacktestEngine.isLimitUpAtClose(bar, 10.0, 0.10)).isTrue();
+        assertThat(StrategyBacktestEngine.isLimitDownAtClose(bar, 10.0, 0.10)).isFalse();
+
+        bar.setClosePrice(BigDecimal.valueOf(9.0));
+        assertThat(StrategyBacktestEngine.isLimitDownAtClose(bar, 10.0, 0.10)).isTrue();
+        assertThat(StrategyBacktestEngine.isLimitUpAtClose(bar, 10.0, 0.10)).isFalse();
+
+        bar.setClosePrice(BigDecimal.valueOf(10.5));
+        assertThat(StrategyBacktestEngine.isLimitUpAtClose(bar, 10.0, 0.10)).isFalse();
+        assertThat(StrategyBacktestEngine.isLimitDownAtClose(bar, 10.0, 0.10)).isFalse();
+    }
+
+    @Test
     void skipsBuyWhenLimitUpAtOpen() {
         List<MarketData> bars = maCrossGoldenCrossSeries();
         long normalBuys = StrategyBacktestEngine.run(

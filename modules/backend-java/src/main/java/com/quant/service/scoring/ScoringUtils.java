@@ -1,5 +1,8 @@
 package com.quant.service.scoring;
 
+import com.quant.service.backtest.StrategyBacktestEngine;
+import com.quant.service.backtest.TradingLimitRules;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -52,12 +55,79 @@ public final class ScoringUtils {
         return bar != null && bar.getVolume() != null && bar.getVolume() <= 0;
     }
 
-    /** 信号日可交易性：零成交量（停牌代理）与 ST 过滤（与经典/超跌选股口径一致）。 */
+    /** 信号日可交易性：零成交量、ST、信号日涨跌停（默认均过滤）。 */
     public static boolean isTradableForScoring(com.quant.entity.MarketData signalBar, String stockName, boolean excludeST) {
+        return isTradableForScoring(signalBar, null, null, null, stockName, excludeST, true, true);
+    }
+
+    /**
+     * 基于 K 线序列判断信号日（最后一根）是否可纳入选股候选。
+     *
+     * @param excludeLimitUpAtClose   信号日涨停收盘时排除（买入难以成交）
+     * @param excludeLimitDownAtClose 信号日跌停收盘时排除；超跌策略可设为 false
+     */
+    public static boolean isTradableForScoring(
+            List<com.quant.entity.MarketData> bars,
+            String stockCode,
+            String exchangeType,
+            String stockName,
+            boolean excludeST,
+            boolean excludeLimitUpAtClose,
+            boolean excludeLimitDownAtClose) {
+        if (bars == null || bars.isEmpty()) {
+            return false;
+        }
+        return isTradableForScoring(
+                bars.get(bars.size() - 1),
+                resolvePreClose(bars),
+                stockCode,
+                exchangeType,
+                stockName,
+                excludeST,
+                excludeLimitUpAtClose,
+                excludeLimitDownAtClose);
+    }
+
+    public static Double resolvePreClose(List<com.quant.entity.MarketData> bars) {
+        if (bars == null || bars.size() < 2) {
+            return null;
+        }
+        com.quant.entity.MarketData prev = bars.get(bars.size() - 2);
+        if (prev.getClosePrice() == null) {
+            return null;
+        }
+        double v = prev.getClosePrice().doubleValue();
+        return v > 0 ? v : null;
+    }
+
+    public static boolean isTradableForScoring(
+            com.quant.entity.MarketData signalBar,
+            Double preClose,
+            String stockCode,
+            String exchangeType,
+            String stockName,
+            boolean excludeST,
+            boolean excludeLimitUpAtClose,
+            boolean excludeLimitDownAtClose) {
         if (isExplicitZeroVolume(signalBar)) {
             return false;
         }
-        return !(excludeST && stockName != null && stockName.toUpperCase().contains("ST"));
+        if (excludeST && stockName != null && stockName.toUpperCase().contains("ST")) {
+            return false;
+        }
+        if (preClose == null || preClose <= 0 || stockCode == null || stockCode.isBlank()) {
+            return true;
+        }
+        double limitPct = TradingLimitRules.resolveLimitPct(stockCode, exchangeType, stockName);
+        if (excludeLimitUpAtClose
+                && StrategyBacktestEngine.isLimitUpAtClose(signalBar, preClose, limitPct)) {
+            return false;
+        }
+        if (excludeLimitDownAtClose
+                && StrategyBacktestEngine.isLimitDownAtClose(signalBar, preClose, limitPct)) {
+            return false;
+        }
+        return true;
     }
 
     /**

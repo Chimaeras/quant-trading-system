@@ -309,6 +309,22 @@ public final class StrategyBacktestEngine {
     }
 
     /**
+     * 涨停收盘：收盘价落在涨停价容差带内，信号日视为封板，次日买入难以成交。
+     */
+    public static boolean isLimitUpAtClose(MarketData bar, double preClose, double limitPct) {
+        if (preClose <= 0 || bar.getClosePrice() == null) {
+            return false;
+        }
+        double close = bar.getClosePrice().doubleValue();
+        if (close <= 0) {
+            return false;
+        }
+        double limitUpPrice = preClose * (1 + limitPct);
+        return close >= limitUpPrice * (1 - LIMIT_PRICE_TOLERANCE)
+                && close <= limitUpPrice * (1 + LIMIT_PRICE_TOLERANCE);
+    }
+
+    /**
      * 跌停收盘：收盘价落在跌停价容差带内，卖单无法按收盘价成交。
      */
     public static boolean isLimitDownAtClose(MarketData bar, double preClose, double limitPct) {

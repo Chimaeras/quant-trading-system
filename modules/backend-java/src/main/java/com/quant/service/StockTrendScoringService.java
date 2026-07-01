@@ -364,7 +364,7 @@ public class StockTrendScoringService {
             }
             return nameValue == null ? "" : nameValue;
         });
-        if (!ScoringUtils.isTradableForScoring(bars.get(bars.size() - 1), stockName, excludeST)) {
+        if (!ScoringUtils.isTradableForScoring(bars, stockCode, exchangeType, stockName, excludeST, true, true)) {
             return Optional.empty();
         }
 

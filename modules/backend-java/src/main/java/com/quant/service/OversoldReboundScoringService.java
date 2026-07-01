@@ -452,8 +452,9 @@ public class OversoldReboundScoringService {
         double lastClose = close[n - 1];
 
         String stockName = nameCache.computeIfAbsent(stockCode + ":" + exchangeType, k -> getStockName(stockCode, exchangeType));
-        if (excludeST && stockName != null && stockName.toUpperCase().contains("ST")) return null;
-        if (ScoringUtils.isExplicitZeroVolume(bars.get(bars.size() - 1))) return null;
+        if (!ScoringUtils.isTradableForScoring(bars, stockCode, exchangeType, stockName, excludeST, true, false)) {
+            return null;
+        }
 
         // 收益率计算
         double ret60 = (n >= 61) ? ScoringUtils.pct(lastClose, close[n - 61]) : 0;

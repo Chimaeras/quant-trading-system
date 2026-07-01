@@ -46,3 +46,6 @@ yarn-error.log*
 
 ### Mac OS ###
 .DS_Store
+
+### Local dev tools (JDK/Maven downloads, not for commit) ###
+.local-tools/

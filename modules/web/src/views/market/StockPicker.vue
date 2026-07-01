@@ -226,6 +226,9 @@
       <el-table-column v-if="form.horizonProfile === 'SHORT_3_5D'" label="R" min-width="72">
         <template #default="{ row }">{{ formatCodexFactor(row, 'R') }}</template>
       </el-table-column>
+      <el-table-column v-if="form.horizonProfile === 'SHORT_3_5D'" label="中性化" min-width="100">
+        <template #default="{ row }">{{ formatCodexFactor(row, 'neutralization_mode') }}</template>
+      </el-table-column>
       <el-table-column prop="trend_score" label="趋势分" min-width="90" />
       <el-table-column prop="momentum_score" label="动量分" min-width="90" />
       <el-table-column prop="ret20" label="20日收益(%)" min-width="110" />

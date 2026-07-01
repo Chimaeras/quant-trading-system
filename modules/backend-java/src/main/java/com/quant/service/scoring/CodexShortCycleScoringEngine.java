@@ -329,6 +329,7 @@ public class CodexShortCycleScoringEngine {
             bd.put("neutralization_industries", neutCtx != null ? neutCtx.industryCount() : 0);
             bd.put("preprocessing", "winsorize→OLS(lnMV+industry)→robustZ(MAD,no二次winsorize)");
             bd.put("G_market", ScoringUtils.round4(g));
+            bd.put("G_weighting", "value_weighted_by_exp_logMv");
             bd.put("T", ScoringUtils.round4(t));
             bd.put("F", ScoringUtils.round4(f));
             bd.put("R", ScoringUtils.round4(r));
@@ -362,8 +363,20 @@ public class CodexShortCycleScoringEngine {
     }
 
     static double estimateMarketState(List<RawFeatures> raws) {
-        double avgEr20m5 = raws.stream().mapToDouble(r -> r.er20Minus5).average().orElse(0);
-        double avgMa = raws.stream().mapToDouble(r -> r.maAlign).average().orElse(0);
+        double wSum = 0;
+        double wEr20m5 = 0;
+        double wMa = 0;
+        for (RawFeatures r : raws) {
+            double w = Math.exp(r.logMarketCap);
+            wSum += w;
+            wEr20m5 += w * r.er20Minus5;
+            wMa += w * r.maAlign;
+        }
+        if (wSum <= 0) {
+            return 0;
+        }
+        double avgEr20m5 = wEr20m5 / wSum;
+        double avgMa = wMa / wSum;
         double avgVol = raws.stream().mapToDouble(r -> r.vol20).average().orElse(0.2);
         double atrProxy = Math.max(0.05, avgVol);
         return 0.5 * Math.tanh(avgEr20m5 / atrProxy) + 0.5 * Math.tanh(avgMa / 0.05);

@@ -459,6 +459,7 @@ public class ScoringBacktestService {
             v.put("confidence", "未知");
         }
         v.put("disclaimer", "IC>0.02 且截面日≥5 仅作启发式阈值，非投资建议");
+        v.put("neutralization_pipeline", "winsorize→OLS(lnMV+industry)→robustZ(residual,MAD)");
         return v;
     }
 

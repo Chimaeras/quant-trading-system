@@ -82,6 +82,18 @@ class CodexShortCycleScoringEngineTest {
     }
 
     @Test
+    void estimateMarketStateUsesValueWeighting() {
+        List<CodexShortCycleScoringEngine.RawFeatures> raws = List.of(
+                raw("000001", "SZSE", "A", "银行", 0, 0.10, 0.10, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0.10, 25.0, "test"),
+                raw("000002", "SZSE", "B", "银行", 0, 0.01, 0.01, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0.01, 18.0, "test")
+        );
+        double g = CodexShortCycleScoringEngine.estimateMarketState(raws);
+        assertThat(g).isFinite();
+    }
+
+    @Test
     void applyIndustryRelativeReturnsSubtractsIndustryMeans() {
         List<CodexShortCycleScoringEngine.RawFeatures> raws = List.of(
                 raw("000001", "SZSE", "A", "银行", 0.10, 0.05, 0, 0, 0, 0,
@@ -102,6 +114,24 @@ class CodexShortCycleScoringEngineTest {
         );
         List<CodexShortCycleScoringEngine.RawFeatures> imputed = CodexShortCycleScoringEngine.imputeFinancialByIndustry(raws);
         assertThat(CodexShortCycleScoringEngine.countImputedFinancialFields(raws.get(0), imputed.get(0))).isGreaterThan(0);
+    }
+
+    @Test
+    void scoreUniverseRecordsTurnoverLogMvSource() {
+        List<CodexShortCycleScoringEngine.StockBarContext> contexts = List.of(
+                context("000001", "SZSE", "测试", sampleBars(80, 10, 50_000_000, 0.02))
+        );
+        // 单票无法截面打分，至少验证 extract 路径在多样本场景
+        List<CodexShortCycleScoringEngine.StockBarContext> multi = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            multi.add(new CodexShortCycleScoringEngine.StockBarContext(
+                    String.format("%06d", i + 1), "SZSE", "测试" + i, "银行",
+                    sampleBars(80, 10 + i * 0.1, 50_000_000, 0.01), null));
+        }
+        List<CandidateScore> scored = engine.scoreUniverse(multi, 1_000_000, true, 60, 0);
+        assertThat(scored).isNotEmpty();
+        assertThat(scored.get(0).getReasons().get("log_mv_source"))
+                .isEqualTo(CrossSectionNeutralizer.LOG_MV_FROM_TURNOVER);
     }
 
     private static CodexShortCycleScoringEngine.StockBarContext context(
@@ -145,6 +175,7 @@ class CodexShortCycleScoringEngineTest {
             bar.setOpenPrice(BigDecimal.valueOf(c * 0.995));
             bar.setAmount(BigDecimal.valueOf(amount));
             bar.setVolume(1_000_000L);
+            bar.setTurnoverRate(BigDecimal.valueOf(2.5));
             bars.add(bar);
         }
         return bars;

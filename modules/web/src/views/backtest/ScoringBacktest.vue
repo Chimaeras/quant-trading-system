@@ -119,6 +119,9 @@
           <p v-if="response.executionAssumptions?.codex_neutralization">
             中性化：{{ response.executionAssumptions.codex_neutralization }}
           </p>
+          <p v-if="response.shortHorizonValidation.neutralization_pipeline">
+            中性化管道：{{ response.shortHorizonValidation.neutralization_pipeline }}
+          </p>
           <p>
             T+3 IC：{{ formatIcMean(response.shortHorizonValidation.t3_rank_ic_mean) }}
             · T+5 IC：{{ formatIcMean(response.shortHorizonValidation.t5_rank_ic_mean) }}

@@ -13,6 +13,7 @@ import com.quant.repository.SelectorTemplateRepository;
 import com.quant.repository.StockInfoRepository;
 import com.quant.service.scoring.ClassicFactorCalculator;
 import com.quant.service.scoring.CodexShortCycleScoringEngine;
+import com.quant.service.scoring.CrossSectionNeutralizer;
 import com.quant.service.scoring.ExecutorLifecycle;
 import com.quant.service.scoring.FactorCollinearityChecker;
 import com.quant.service.scoring.FinancialSnapshotLoader;
@@ -487,6 +488,15 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         snap.put("weights", weights);
         snap.put("thresholds", thresholds);
         snap.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, true, minListingDays));
+        if (codexProfile) {
+            Map<String, Object> preprocessing = new LinkedHashMap<>();
+            preprocessing.put("pipeline", "winsorize(2.5/97.5) → OLS(lnMV+industry) → robustZ(MAD)");
+            preprocessing.put("formula_version", CodexShortCycleScoringEngine.FORMULA_VERSION);
+            preprocessing.put("log_mv_source", "turnover/amount proxy or avgAmount20 fallback");
+            preprocessing.put("industry_er", "value-weighted industry index (§5.1)");
+            preprocessing.put("fallback_mode", CrossSectionNeutralizer.MODE_INDUSTRY_DEMEAN);
+            snap.put("preprocessing", preprocessing);
+        }
         String auditFactorVersion = codexProfile
                 ? CodexShortCycleScoringEngine.FORMULA_VERSION
                 : ClassicFactorCalculator.FACTOR_VERSION;

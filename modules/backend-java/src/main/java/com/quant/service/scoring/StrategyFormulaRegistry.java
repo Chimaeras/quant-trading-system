@@ -58,32 +58,37 @@ public final class StrategyFormulaRegistry {
     private static FormulaAudit auditClassic(String fv, String horizonProfile) {
         boolean shortProfile = HORIZON_SHORT_3_5D.equals(horizonProfile);
         boolean codex = shortProfile && (fv == null || fv.contains("codex") || fv.contains("short_cycle"));
+        boolean neutralV2 = codex && fv != null && fv.contains("v2_neutral");
         if (shortProfile) {
             if (codex) {
                 return new FormulaAudit(
                         "CLASSIC_SELECTOR",
                         fv,
                         HORIZON_SHORT_3_5D,
-                        "Codex 短周期 T/F/R/G：趋势反转 + 质量估值 + 风险惩罚，市场状态 G 动态加权",
+                        neutralV2
+                                ? "Codex v2：完整 ln(MV)+行业 OLS 中性化后 T/F/R/G 合成"
+                                : "Codex 短周期 T/F/R/G：趋势反转 + 质量估值 + 风险惩罚，市场状态 G 动态加权",
                         "S_raw=(0.55+0.10G)T+0.20F+(0.25-0.05G)R+0.05·T·tanh(F); Score=100×PercentileRank(S_raw)",
                         List.of(
+                                "预处理：2.5/97.5%缩尾 → ε=OLS(x~1+lnMV+Industry) → Z(MAD)",
+                                "ER：市值加权行业指数收益（§5.1）",
                                 "T=0.28Z(ER20−ER5)+0.20Z(ER5)−0.15Z(ER1)+0.17Z(MAAlign)+0.10Z(RSIShape)+0.10Z(VolConfirm)",
-                                "F=0.75Quality+0.25Value; Quality=0.40Z(ROE)+0.25Z(RevYoY)−0.20Z(Debt)+0.15Z(CurrentRatio)",
-                                "R=−0.35Z(Vol20)−0.25Z(DownVol)−0.25Z(Illiq)−0.15Z(MaxGap)",
-                                "G=全市场代理(ER20−5/MAAlign/Vol20); 预处理=2.5/97.5%缩尾+稳健Z(MAD)",
+                                "F=0.75Quality+0.25Value; R=−0.35Z(Vol20)−0.25Z(DownVol)−0.25Z(Illiq)−0.15Z(MaxGap)",
                                 "硬过滤：F>−0.5 且 R>−1.0；建议 Score≥90 入选"
                         ),
-                        92,
-                        "与《短周期选股评分公式设计文档》v1.0 对齐，适合 T+3/T+5 横截面排序",
+                        neutralV2 ? 95 : 92,
+                        neutralV2
+                                ? "§4.1 完整横截面回归中性化已实现；MV 无字段时用成交额/换手率代理 ln(MV)"
+                                : "与《短周期选股评分公式设计文档》v1.0 对齐，适合 T+3/T+5 横截面排序",
                         List.of(
-                                "G 使用全市场代理而非真实指数 MA/ATR",
-                                "行业中性化为同行业 ER5 均值调整，非完整回归中性化",
+                                neutralV2 ? "ln(MV) 来自 turnover/amount 或 avgAmount20 代理" : "G 使用全市场代理而非真实指数 MA/ATR",
+                                neutralV2 ? "样本<30 或行业<3 时回退行业 demean" : "行业中性化为同行业 ER5 均值调整",
                                 "Score 为百分位分，高分=相对更强而非绝对上涨"
                         ),
                         List.of(
-                                "选股设置 horizonProfile=SHORT_3_5D（自动使用 codex_short_cycle_v1）",
+                                "选股设置 horizonProfile=SHORT_3_5D（自动使用 " + CodexShortCycleScoringEngine.FORMULA_VERSION + "）",
                                 "回测重点看 T+3/T+5 Rank IC 与 G5-G1 spread",
-                                "结合 formula_audit 与 reasons 中的 T/F/R/G 拆解"
+                                "查看 reasons.neutralization_mode 确认回归模式"
                         )
                 );
             }

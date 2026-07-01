@@ -501,6 +501,7 @@ public class ScoringBacktestService {
         assumptions.put("limit_pct_source", "BY_BOARD_AND_ST");
         assumptions.put("selector_tradability", ScoringUtils.tradabilitySnapshot(true, true, 60));
         assumptions.put("short_horizon_research_focus", "T+3/T+5 Rank IC 与分组 spread 用于验证 3～5 日预测有效性");
+        assumptions.put("codex_neutralization", "v2: winsorize → OLS(lnMV+industry dummies) → robust Z on residuals");
         assumptions.put("skip_reason_codes", List.of(
                 SKIP_NO_QUOTE_ON_ENTRY,
                 SKIP_INVALID_ENTRY_OPEN,

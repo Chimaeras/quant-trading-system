@@ -21,7 +21,7 @@ import java.util.Optional;
 @Component
 public class CodexShortCycleScoringEngine {
 
-    public static final String FORMULA_VERSION = "codex_short_cycle_v1";
+    public static final String FORMULA_VERSION = "codex_short_cycle_v2_neutral";
     public static final int MIN_BARS = 70;
     public static final int MIN_LISTING_DAYS_DEFAULT = 120;
     /** 文档建议入选阈值；可通过请求 minCodexScore=0 关闭 */
@@ -60,7 +60,9 @@ public class CodexShortCycleScoringEngine {
             double downVol20,
             double illiq20,
             double maxGap20,
-            double avgAmount20
+            double avgAmount20,
+            double ret20,
+            double logMarketCap
     ) {}
 
     record ScoredRow(
@@ -94,8 +96,6 @@ public class CodexShortCycleScoringEngine {
         }
         int minListing = Math.max(minListingDays, MIN_LISTING_DAYS_DEFAULT);
         List<RawFeatures> raws = new ArrayList<>();
-        Map<String, List<Double>> industryRet5 = new HashMap<>();
-
         for (StockBarContext ctx : contexts) {
             Optional<RawFeatures> opt = extractRaw(ctx, minAvgAmount, excludeST, minListing);
             if (opt.isEmpty()) {
@@ -103,28 +103,17 @@ public class CodexShortCycleScoringEngine {
             }
             RawFeatures rf = opt.get();
             raws.add(rf);
-            String ind = rf.industry() != null && !rf.industry().isBlank() ? rf.industry() : "_none_";
-            industryRet5.computeIfAbsent(ind, k -> new ArrayList<>()).add(rf.er5);
         }
         if (raws.isEmpty()) {
             return List.of();
         }
 
-        Map<String, Double> industryAvgRet5 = new HashMap<>();
-        for (Map.Entry<String, List<Double>> e : industryRet5.entrySet()) {
-            industryAvgRet5.put(e.getKey(), e.getValue().stream().mapToDouble(Double::doubleValue).average().orElse(0));
-        }
-
-        List<RawFeatures> adjusted = new ArrayList<>(raws.size());
-        for (RawFeatures rf : raws) {
-            String ind = rf.industry() != null && !rf.industry().isBlank() ? rf.industry() : "_none_";
-            double indAvg = industryAvgRet5.getOrDefault(ind, 0.0);
-            adjusted.add(reindustryAdjust(rf, indAvg));
-        }
+        List<RawFeatures> adjusted = applyIndustryRelativeReturns(raws);
         adjusted = imputeFinancialByIndustry(adjusted);
 
         double g = estimateMarketState(adjusted);
-        List<ScoredRow> scored = scoreCrossSection(adjusted, g);
+        CrossSectionNeutralizer.Context neutCtx = buildNeutralizationContext(adjusted);
+        List<ScoredRow> scored = scoreCrossSection(adjusted, g, neutCtx);
 
         List<CandidateScore> out = new ArrayList<>();
         for (ScoredRow row : scored) {
@@ -140,18 +129,68 @@ public class CodexShortCycleScoringEngine {
         return out;
     }
 
-    private static RawFeatures reindustryAdjust(RawFeatures rf, double industryRet5Avg) {
+    static List<RawFeatures> applyIndustryRelativeReturns(List<RawFeatures> raws) {
+        if (raws == null || raws.isEmpty()) {
+            return List.of();
+        }
+        Map<String, List<RawFeatures>> byInd = new HashMap<>();
+        for (RawFeatures rf : raws) {
+            String ind = rf.industry() != null && !rf.industry().isBlank() ? rf.industry() : "_none_";
+            byInd.computeIfAbsent(ind, k -> new ArrayList<>()).add(rf);
+        }
+        Map<String, double[]> indMeans = new HashMap<>();
+        for (Map.Entry<String, List<RawFeatures>> e : byInd.entrySet()) {
+            List<RawFeatures> group = e.getValue();
+            double wSum = 0;
+            double s1 = 0;
+            double s5 = 0;
+            double s20 = 0;
+            for (RawFeatures rf : group) {
+                double w = Math.exp(rf.logMarketCap);
+                wSum += w;
+                s1 += w * rf.er1;
+                s5 += w * rf.er5;
+                s20 += w * rf.ret20;
+            }
+            if (wSum <= 0) {
+                indMeans.put(e.getKey(), new double[]{
+                        group.stream().mapToDouble(RawFeatures::er1).average().orElse(0),
+                        group.stream().mapToDouble(RawFeatures::er5).average().orElse(0),
+                        group.stream().mapToDouble(RawFeatures::ret20).average().orElse(0)
+                });
+            } else {
+                indMeans.put(e.getKey(), new double[]{s1 / wSum, s5 / wSum, s20 / wSum});
+            }
+        }
+        List<RawFeatures> out = new ArrayList<>(raws.size());
+        for (RawFeatures rf : raws) {
+            String ind = rf.industry() != null && !rf.industry().isBlank() ? rf.industry() : "_none_";
+            double[] m = indMeans.getOrDefault(ind, new double[3]);
+            double er1 = rf.er1 - m[0];
+            double er5 = rf.er5 - m[1];
+            double er20m5 = (rf.ret20 - m[2]) - (rf.er5 - m[1]);
+            out.add(copyRaw(rf, er1, er5, er20m5));
+        }
+        return out;
+    }
+
+    private static RawFeatures copyRaw(RawFeatures rf, double er1, double er5, double er20Minus5) {
         return new RawFeatures(
                 rf.key, rf.stockCode, rf.exchangeType, rf.stockName, rf.industry(),
-                rf.er1 - industryRet5Avg * 0.2,
-                rf.er5 - industryRet5Avg,
-                rf.er20Minus5,
-                rf.maAlign, rf.rsiShape, rf.volConfirm,
+                er1, er5, er20Minus5, rf.maAlign, rf.rsiShape, rf.volConfirm,
                 rf.roe, rf.revenueYoY, rf.debtRatio, rf.currentRatio,
                 rf.earningsYield, rf.bookToMarket,
                 rf.vol20, rf.downVol20, rf.illiq20, rf.maxGap20,
-                rf.avgAmount20
+                rf.avgAmount20, rf.ret20, rf.logMarketCap
         );
+    }
+
+    static CrossSectionNeutralizer.Context buildNeutralizationContext(List<RawFeatures> raws) {
+        List<String> industries = raws.stream()
+                .map(r -> r.industry() != null && !r.industry().isBlank() ? r.industry() : "_none_")
+                .toList();
+        List<Double> logMv = raws.stream().map(RawFeatures::logMarketCap).toList();
+        return CrossSectionNeutralizer.buildContext(industries, logMv);
     }
 
     static List<RawFeatures> imputeFinancialByIndustry(List<RawFeatures> raws) {
@@ -189,7 +228,7 @@ public class CodexShortCycleScoringEngine {
                     imputeFin(rf.earningsYield, med[4], 0),
                     imputeFin(rf.bookToMarket, med[5], 0),
                     rf.vol20, rf.downVol20, rf.illiq20, rf.maxGap20,
-                    rf.avgAmount20
+                    rf.avgAmount20, rf.ret20, rf.logMarketCap
             ));
         }
         return out;
@@ -218,28 +257,25 @@ public class CodexShortCycleScoringEngine {
         return n % 2 == 1 ? vals.get(n / 2) : (vals.get(n / 2 - 1) + vals.get(n / 2)) / 2.0;
     }
 
-    static List<ScoredRow> scoreCrossSection(List<RawFeatures> raws, double g) {
-        List<String> industries = raws.stream()
-                .map(r -> r.industry() != null && !r.industry().isBlank() ? r.industry() : "_none_")
-                .toList();
-        List<Double> zEr20m5 = zByGroup(raws, RawFeatures::er20Minus5, industries);
-        List<Double> zEr5 = zByGroup(raws, RawFeatures::er5, industries);
-        List<Double> zEr1 = zByGroup(raws, RawFeatures::er1, industries);
-        List<Double> zMa = zByGroup(raws, RawFeatures::maAlign, industries);
-        List<Double> zRsi = zByGroup(raws, RawFeatures::rsiShape, industries);
-        List<Double> zVolC = zByGroup(raws, RawFeatures::volConfirm, industries);
+    static List<ScoredRow> scoreCrossSection(List<RawFeatures> raws, double g, CrossSectionNeutralizer.Context neutCtx) {
+        List<Double> zEr20m5 = zNeutralized(raws, RawFeatures::er20Minus5, neutCtx);
+        List<Double> zEr5 = zNeutralized(raws, RawFeatures::er5, neutCtx);
+        List<Double> zEr1 = zNeutralized(raws, RawFeatures::er1, neutCtx);
+        List<Double> zMa = zNeutralized(raws, RawFeatures::maAlign, neutCtx);
+        List<Double> zRsi = zNeutralized(raws, RawFeatures::rsiShape, neutCtx);
+        List<Double> zVolC = zNeutralized(raws, RawFeatures::volConfirm, neutCtx);
 
-        List<Double> zRoe = zByGroup(raws, RawFeatures::roe, industries);
-        List<Double> zRev = zByGroup(raws, RawFeatures::revenueYoY, industries);
-        List<Double> zDebt = zByGroup(raws, RawFeatures::debtRatio, industries);
-        List<Double> zCurr = zByGroup(raws, RawFeatures::currentRatio, industries);
-        List<Double> zEy = zByGroup(raws, RawFeatures::earningsYield, industries);
-        List<Double> zBm = zByGroup(raws, RawFeatures::bookToMarket, industries);
+        List<Double> zRoe = zNeutralized(raws, RawFeatures::roe, neutCtx);
+        List<Double> zRev = zNeutralized(raws, RawFeatures::revenueYoY, neutCtx);
+        List<Double> zDebt = zNeutralized(raws, RawFeatures::debtRatio, neutCtx);
+        List<Double> zCurr = zNeutralized(raws, RawFeatures::currentRatio, neutCtx);
+        List<Double> zEy = zNeutralized(raws, RawFeatures::earningsYield, neutCtx);
+        List<Double> zBm = zNeutralized(raws, RawFeatures::bookToMarket, neutCtx);
 
-        List<Double> zVol20 = zByGroup(raws, RawFeatures::vol20, industries);
-        List<Double> zDown = zByGroup(raws, RawFeatures::downVol20, industries);
-        List<Double> zIlliq = zByGroup(raws, RawFeatures::illiq20, industries);
-        List<Double> zGap = zByGroup(raws, RawFeatures::maxGap20, industries);
+        List<Double> zVol20 = zNeutralized(raws, RawFeatures::vol20, neutCtx);
+        List<Double> zDown = zNeutralized(raws, RawFeatures::downVol20, neutCtx);
+        List<Double> zIlliq = zNeutralized(raws, RawFeatures::illiq20, neutCtx);
+        List<Double> zGap = zNeutralized(raws, RawFeatures::maxGap20, neutCtx);
 
         List<ScoredRow> rows = new ArrayList<>(raws.size());
         for (int i = 0; i < raws.size(); i++) {
@@ -252,6 +288,9 @@ public class CodexShortCycleScoringEngine {
             double sRaw = (0.55 + 0.10 * g) * t + 0.20 * f + (0.25 - 0.05 * g) * r + 0.05 * t * Math.tanh(f);
             Map<String, Object> bd = new LinkedHashMap<>();
             bd.put("formula_version", FORMULA_VERSION);
+            bd.put("neutralization_mode", neutCtx != null ? neutCtx.mode() : CrossSectionNeutralizer.MODE_PASSTHROUGH);
+            bd.put("neutralization_industries", neutCtx != null ? neutCtx.industryCount() : 0);
+            bd.put("preprocessing", "winsorize→ln(MV)+industry OLS→robustZ(MAD)");
             bd.put("G_market", ScoringUtils.round4(g));
             bd.put("T", ScoringUtils.round4(t));
             bd.put("F", ScoringUtils.round4(f));
@@ -272,15 +311,14 @@ public class CodexShortCycleScoringEngine {
         return finalRows;
     }
 
-    private static List<Double> zByGroup(
+    private static List<Double> zNeutralized(
             List<RawFeatures> raws,
             java.util.function.ToDoubleFunction<RawFeatures> fn,
-            List<String> industries
+            CrossSectionNeutralizer.Context neutCtx
     ) {
-        return CrossSectionFactorMath.robustZScoresByGroup(
-                raws.stream().mapToDouble(fn).boxed().toList(),
-                industries
-        );
+        List<Double> vals = raws.stream().mapToDouble(fn).boxed().toList();
+        CrossSectionNeutralizer.Result res = CrossSectionNeutralizer.neutralize(vals, neutCtx);
+        return CrossSectionFactorMath.robustZScores(res.residuals());
     }
 
     static double estimateMarketState(List<RawFeatures> raws) {
@@ -329,7 +367,8 @@ public class CodexShortCycleScoringEngine {
         double ret1 = logRet(close, 1);
         double ret5 = logRet(close, 5);
         double ret20 = logRet(close, 20);
-        double er20Minus5 = ret20 - ret5;
+        MarketData last = bars.get(bars.size() - 1);
+        double logMv = CrossSectionNeutralizer.logMarketCapProxy(last, avgAmount20);
 
         double ma5 = TechnicalIndicators.avg(close, n - 5, n - 1);
         double ma10 = TechnicalIndicators.avg(close, n - 10, n - 1);
@@ -346,7 +385,6 @@ public class CodexShortCycleScoringEngine {
         double volShock = medAmt > 0 ? Math.log(Math.max(1e-9, amount.get(n - 1) / medAmt)) : 0;
         double volConfirm = Math.signum(ret5) * volShock;
 
-        MarketData last = bars.get(bars.size() - 1);
         Double pe = last.getPeRatio() != null ? last.getPeRatio().doubleValue() : null;
         Double pb = last.getPbRatio() != null ? last.getPbRatio().doubleValue() : null;
         StockFinancialSnapshot fin = ctx.financialSnapshot();
@@ -371,9 +409,9 @@ public class CodexShortCycleScoringEngine {
         String industry = ctx.industry() != null ? ctx.industry() : "";
         return Optional.of(new RawFeatures(
                 key, ctx.stockCode(), ctx.exchangeType(), ctx.stockName(), industry,
-                ret1, ret5, er20Minus5, maAlign, rsiShape, volConfirm,
+                ret1, ret5, 0, maAlign, rsiShape, volConfirm,
                 roe, revenueYoY, debtRatio, currentRatio, earningsYield, bookToMarket,
-                vol20, downVol20, illiq20, maxGap20, avgAmount20
+                vol20, downVol20, illiq20, maxGap20, avgAmount20, ret20, logMv
         ));
     }
 

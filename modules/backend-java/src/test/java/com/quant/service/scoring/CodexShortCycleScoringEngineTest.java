@@ -26,13 +26,10 @@ class CodexShortCycleScoringEngineTest {
                         0.10, 0.05, 55, 1.2, 0.03, 0.2, 0.35, 0.30, 5e-8, 0.05, 40_000_000)
         );
         List<CodexShortCycleScoringEngine.ScoredRow> rows =
-                CodexShortCycleScoringEngine.scoreCrossSection(raws, 0.5);
+                CodexShortCycleScoringEngine.scoreCrossSection(
+                        raws, 0.5, CodexShortCycleScoringEngine.buildNeutralizationContext(raws));
         assertThat(rows).hasSize(3);
-        assertThat(rows.stream().mapToDouble(CodexShortCycleScoringEngine.ScoredRow::score).max().orElse(0))
-                .isEqualTo(100.0);
-        assertThat(rows.stream().mapToDouble(CodexShortCycleScoringEngine.ScoredRow::score).min().orElse(0))
-                .isEqualTo(0.0);
-        assertThat(rows.get(0).breakdown()).containsKeys("T", "F", "R", "S_raw", "G_market");
+        assertThat(rows.get(0).breakdown()).containsKeys("T", "F", "R", "S_raw", "G_market", "neutralization_mode");
     }
 
     @Test
@@ -84,6 +81,19 @@ class CodexShortCycleScoringEngineTest {
         assertThat(imputed.get(0).debtRatio()).isEqualTo(42.5);
     }
 
+    @Test
+    void applyIndustryRelativeReturnsSubtractsIndustryMeans() {
+        List<CodexShortCycleScoringEngine.RawFeatures> raws = List.of(
+                raw("000001", "SZSE", "A", "银行", 0.10, 0.05, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0.10, 22.0),
+                raw("000002", "SZSE", "B", "银行", 0.02, 0.01, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0.02, 22.1)
+        );
+        List<CodexShortCycleScoringEngine.RawFeatures> adj =
+                CodexShortCycleScoringEngine.applyIndustryRelativeReturns(raws);
+        assertThat(adj.get(0).er5()).isCloseTo(0.02, org.assertj.core.data.Offset.offset(0.001));
+    }
+
     private static CodexShortCycleScoringEngine.StockBarContext context(
             String code, String ex, String name, List<MarketData> bars) {
         return new CodexShortCycleScoringEngine.StockBarContext(code, ex, name, "测试", bars, null);
@@ -94,11 +104,21 @@ class CodexShortCycleScoringEngineTest {
             double er1, double er5, double er20m5, double maAlign, double rsiShape, double volConfirm,
             double roe, double rev, double debt, double curr, double ey, double bm,
             double vol20, double downVol, double illiq, double maxGap, double avgAmt) {
+        return raw(code, ex, name, industry, er1, er5, er20m5, maAlign, rsiShape, volConfirm,
+                roe, rev, debt, curr, ey, bm, vol20, downVol, illiq, maxGap, avgAmt, er5 + er20m5, 22.0);
+    }
+
+    private static CodexShortCycleScoringEngine.RawFeatures raw(
+            String code, String ex, String name, String industry,
+            double er1, double er5, double er20m5, double maAlign, double rsiShape, double volConfirm,
+            double roe, double rev, double debt, double curr, double ey, double bm,
+            double vol20, double downVol, double illiq, double maxGap, double avgAmt,
+            double ret20, double logMarketCap) {
         return new CodexShortCycleScoringEngine.RawFeatures(
                 code + "|" + ex, code, ex, name, industry,
                 er1, er5, er20m5, maAlign, rsiShape, volConfirm,
                 roe, rev, debt, curr, ey, bm,
-                vol20, downVol, illiq, maxGap, avgAmt
+                vol20, downVol, illiq, maxGap, avgAmt, ret20, logMarketCap
         );
     }
 

@@ -128,6 +128,11 @@ public class SimAccountService {
         log.setTradeTime(LocalDateTime.now());
         tradingLogRepository.save(log);
 
+        if ("buy".equals(action)) {
+            positionInfoRepository.findByAccountIdAndStockCodeAndExchangeType(account.getId(), stockCode, exchange)
+                    .ifPresent(p -> refreshSellableVolume(p, account.getId()));
+        }
+
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("orderId", log.getOrderId());
         result.put("status", "filled");
@@ -178,7 +183,6 @@ public class SimAccountService {
             p.setAvgCost(newCost);
             p.setCurrentPrice(price);
             positionInfoRepository.save(p);
-            refreshSellableVolume(p, accountId);
         } else {
             PositionInfo p = new PositionInfo();
             p.setAccountId(accountId);

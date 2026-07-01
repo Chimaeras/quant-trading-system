@@ -96,6 +96,41 @@ class SimAccountServiceTest {
         verify(positionInfoRepository).save(position);
     }
 
+    @Test
+    void refreshesSellableVolumeAfterBuyLogIsPersisted() {
+        UserAccount account = accountWithCash(100_000);
+        PositionInfo position = new PositionInfo();
+        position.setId(1L);
+        position.setAccountId(10L);
+        position.setStockCode("000001");
+        position.setExchangeType("SZSE");
+        position.setVolume(100);
+        position.setAvailableVolume(100);
+        position.setAvgCost(BigDecimal.TEN);
+
+        when(userAccountRepository.findFirstByUserIdAndStatus(1L, 1)).thenReturn(Optional.of(account));
+        when(userAccountRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(positionInfoRepository.findByAccountIdAndStockCodeAndExchangeType(10L, "000001", "SZSE"))
+                .thenReturn(Optional.of(position));
+        when(positionInfoRepository.findByAccountIdOrderByStockCodeAsc(10L)).thenReturn(java.util.List.of(position));
+        when(positionInfoRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(stockInfoRepository.findByStockCodeAndExchangeType("000001", "SZSE")).thenReturn(Optional.empty());
+        when(tradingLogRepository.sumBuyVolumeBetween(eq(10L), eq("000001"), eq("SZSE"), any(), any()))
+                .thenReturn(100);
+
+        service.placeOrder(1L, Map.of(
+                "stockCode", "000001",
+                "exchangeType", "SZSE",
+                "action", "buy",
+                "volume", 100,
+                "price", 10
+        ));
+
+        assertThat(position.getVolume()).isEqualTo(200);
+        assertThat(position.getAvailableVolume()).isEqualTo(100);
+        verify(tradingLogRepository).save(any());
+    }
+
     private static UserAccount accountWithCash(double cash) {
         UserAccount account = new UserAccount();
         account.setId(10L);

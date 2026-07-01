@@ -11,6 +11,7 @@ import com.quant.entity.SelectorResultItem;
 import com.quant.repository.MarketDataRepository;
 import com.quant.repository.SelectorResultItemRepository;
 import com.quant.repository.SelectorResultRepository;
+import com.quant.service.backtest.StrategyBacktestEngine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,8 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ScoringBacktestService {
+
+    private static final double MAIN_BOARD_LIMIT_PCT = 0.10;
 
     private final SelectorResultRepository resultRepo;
     private final SelectorResultItemRepository itemRepo;
@@ -141,8 +144,21 @@ public class ScoringBacktestService {
                 if (entryIdx >= tradingDays.size()) continue;
                 LocalDate entryDate = tradingDays.get(entryIdx);
                 MarketData entryBar = marketDataMap.get(priceKey(item.getStockCode(), item.getExchangeType(), entryDate));
-                BigDecimal rawEntryPrice = entryBar != null ? entryBar.getOpenPrice() : null;
-                if (rawEntryPrice == null || rawEntryPrice.compareTo(BigDecimal.ZERO) <= 0) continue;
+                if (entryBar == null) {
+                    continue;
+                }
+                BigDecimal rawEntryPrice = entryBar.getOpenPrice();
+                if (rawEntryPrice == null || rawEntryPrice.compareTo(BigDecimal.ZERO) <= 0) {
+                    continue;
+                }
+                LocalDate prevTradeDate = tradingDays.get(entryIdx - 1);
+                MarketData prevBar = marketDataMap.get(
+                        priceKey(item.getStockCode(), item.getExchangeType(), prevTradeDate));
+                double preClose = StrategyBacktestEngine.resolvePreClose(entryBar, prevBar);
+                if (StrategyBacktestEngine.isLimitUpAtOpen(entryBar, preClose, MAIN_BOARD_LIMIT_PCT)) {
+                    log.debug("入场日 {} {} 涨停开盘，跳过", entryDate, item.getStockCode());
+                    continue;
+                }
                 double entryPrice = rawEntryPrice.doubleValue() * (1 + slippageRate);
                 double entryCost = entryPrice * (1 + commissionRate);
 
@@ -268,6 +284,8 @@ public class ScoringBacktestService {
         assumptions.put("sell_tax_rate", sellTaxRate);
         assumptions.put("slippage_rate_each_side", slippageRate);
         assumptions.put("return_type", "NET_AFTER_MODELED_COSTS");
+        assumptions.put("limit_up_entry_blocked", true);
+        assumptions.put("limit_pct_main_board", MAIN_BOARD_LIMIT_PCT);
         return assumptions;
     }
 }

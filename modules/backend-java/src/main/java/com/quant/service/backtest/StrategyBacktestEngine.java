@@ -226,7 +226,7 @@ public final class StrategyBacktestEngine {
   /**
      * 解析前收盘价：优先使用行情字段，否则取上一根 K 线收盘价。
      */
-    static double resolvePreClose(MarketData bar, MarketData prevBar) {
+    public static double resolvePreClose(MarketData bar, MarketData prevBar) {
         if (bar.getPreClose() != null && bar.getPreClose().doubleValue() > 0) {
             return bar.getPreClose().doubleValue();
         }
@@ -240,7 +240,7 @@ public final class StrategyBacktestEngine {
      * 涨停开盘：开盘价落在涨停价容差带内，买单无法成交（A 股封板买入排队）。
      * 口径：涨停价 = 前收 × (1 + limitPct)；仅当开盘价贴近涨停价时视为封板，避免把异常跳空误判为涨停。
      */
-    static boolean isLimitUpAtOpen(MarketData bar, double preClose, double limitPct) {
+    public static boolean isLimitUpAtOpen(MarketData bar, double preClose, double limitPct) {
         if (preClose <= 0 || bar.getOpenPrice() == null) {
             return false;
         }
@@ -256,7 +256,7 @@ public final class StrategyBacktestEngine {
     /**
      * 跌停开盘：开盘价落在跌停价容差带内，卖单无法成交（A 股封板卖出排队）。
      */
-    static boolean isLimitDownAtOpen(MarketData bar, double preClose, double limitPct) {
+    public static boolean isLimitDownAtOpen(MarketData bar, double preClose, double limitPct) {
         if (preClose <= 0 || bar.getOpenPrice() == null) {
             return false;
         }

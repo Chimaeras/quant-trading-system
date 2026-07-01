@@ -65,7 +65,7 @@ class CodexShortCycleScoringEngineTest {
     @Test
     void excludesLowLiquidityBars() {
         List<CodexShortCycleScoringEngine.StockBarContext> contexts = List.of(
-                context("000001", "SZSE", "低流动性", sampleBars(80, 10, 100_000))
+                context("000001", "SZSE", "低流动性", sampleBars(80, 10, 100_000, 0))
         );
         List<CandidateScore> scored = engine.scoreUniverse(contexts, 1_000_000, true, 60);
         assertThat(scored).isEmpty();
@@ -109,9 +109,9 @@ class CodexShortCycleScoringEngineTest {
     void applyIndustryRelativeReturnsSubtractsIndustryMeans() {
         List<CodexShortCycleScoringEngine.RawFeatures> raws = List.of(
                 raw("000001", "SZSE", "A", "银行", 0.10, 0.05, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0.10, 22.0),
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0.10, 22.0, "test"),
                 raw("000002", "SZSE", "B", "银行", 0.02, 0.01, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0.02, 22.1)
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0.02, 22.1, "test")
         );
         List<CodexShortCycleScoringEngine.RawFeatures> adj =
                 CodexShortCycleScoringEngine.applyIndustryRelativeReturns(raws);

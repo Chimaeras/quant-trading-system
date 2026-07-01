@@ -557,24 +557,6 @@ class ScoringBacktestServiceTest {
         assertThat(ScoringBacktestService.extractReasonNumber(Map.of("T", 0.42), "T")).isEqualTo(0.42);
         assertThat(ScoringBacktestService.extractReasonNumber(Map.of("F", "0.15"), "F")).isEqualTo(0.15);
         assertThat(ScoringBacktestService.extractReasonNumber(Map.of(), "R")).isNull();
-    }
-
-    @Test
-    void mergeCodexFactorValidationAddsSubFactorIc() {
-        Map<String, Object> v = new LinkedHashMap<>();
-        Map<Integer, Map<String, ScoringBacktestResponse.FactorIcSummary>> codex = Map.of(
-                3, Map.of("T", ScoringBacktestResponse.FactorIcSummary.builder().rankIcMean(0.06).build()),
-                5, Map.of("T", ScoringBacktestResponse.FactorIcSummary.builder().rankIcMean(0.04).build())
-        );
-        ScoringBacktestService.mergeCodexFactorValidation(v, codex);
-        assertThat(v.get("codex_sub_factors_available")).isEqualTo(true);
-        assertThat(v.get("codex_t_dominates")).isEqualTo(true);
-    }
-
-    @Test
-    void extractReasonNumberParsesNumericReasons() {
-        assertThat(ScoringBacktestService.extractReasonNumber(Map.of("T", 0.42), "T")).isEqualTo(0.42);
-        assertThat(ScoringBacktestService.extractReasonNumber(Map.of("F", "0.15"), "F")).isEqualTo(0.15);
         assertThat(ScoringBacktestService.extractReasonNumber(null, "T")).isNull();
     }
 
@@ -583,7 +565,7 @@ class ScoringBacktestServiceTest {
         Map<String, Object> v = new LinkedHashMap<>();
         Map<Integer, Map<String, ScoringBacktestResponse.FactorIcSummary>> codex = Map.of(
                 3, Map.of("T", ScoringBacktestResponse.FactorIcSummary.builder().rankIcMean(0.06).build()),
-                5, Map.of("F", ScoringBacktestResponse.FactorIcSummary.builder().rankIcMean(0.03).build())
+                5, Map.of("T", ScoringBacktestResponse.FactorIcSummary.builder().rankIcMean(0.04).build())
         );
         ScoringBacktestService.mergeCodexFactorValidation(v, codex);
         assertThat(v.get("codex_sub_factors_available")).isEqualTo(true);

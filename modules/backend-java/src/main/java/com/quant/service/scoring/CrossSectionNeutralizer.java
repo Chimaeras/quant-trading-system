@@ -33,7 +33,7 @@ public final class CrossSectionNeutralizer {
             String mode,
             int industryCount,
             double[][] xTx,
-            double[] logMv,
+            List<Double> logMv,
             List<String> industries,
             Map<String, Integer> industryToCol
     ) {}

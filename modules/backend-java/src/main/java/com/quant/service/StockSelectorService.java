@@ -103,6 +103,7 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         }
 
         if (minListingDays > 0) {
+            final int listingDaysThreshold = minListingDays;
             Map<String, LocalDate> listDateByKey = new HashMap<>();
             for (StockInfo info : stockInfoRepository.findAll()) {
                 if (info.getStockCode() == null || info.getExchangeType() == null) {
@@ -116,7 +117,7 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                             && ScoringUtils.hasMinListingTenure(
                             listDateByKey.get(String.valueOf(p[0]) + "|" + String.valueOf(p[1])),
                             signalDate,
-                            minListingDays))
+                            listingDaysThreshold))
                     .toList();
             if (pairs.isEmpty()) {
                 return Map.of(

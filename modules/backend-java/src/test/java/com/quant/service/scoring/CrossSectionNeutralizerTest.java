@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -73,7 +74,9 @@ class CrossSectionNeutralizerTest {
     @Test
     void normalizeLogMvUsesCrossSectionMedianForMissing() {
         List<String> industries = List.of("A", "B");
-        List<Double> logMv = List.of(20.0, null);
+        List<Double> logMv = new ArrayList<>();
+        logMv.add(20.0);
+        logMv.add(null);
         CrossSectionNeutralizer.Context ctx = CrossSectionNeutralizer.buildContext(industries, logMv);
         assertThat(ctx.logMv().get(1)).isEqualTo(20.0);
     }

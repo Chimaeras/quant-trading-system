@@ -6,7 +6,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
@@ -46,7 +45,7 @@ public class AsyncExecutorConfig {
      * 用于股票打分、选股、回测等计算密集型任务
      */
     @Bean(name = "scoringTaskExecutor")
-    public Executor scoringTaskExecutor() {
+    public ThreadPoolTaskExecutor scoringTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(corePoolSize);
         executor.setMaxPoolSize(maxPoolSize);
@@ -70,7 +69,7 @@ public class AsyncExecutorConfig {
      * 用于历史数据更新、数据同步等IO密集型任务
      */
     @Bean(name = "dataUpdateExecutor")
-    public Executor dataUpdateExecutor() {
+    public ThreadPoolTaskExecutor dataUpdateExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(Math.max(2, corePoolSize / 2));
         executor.setMaxPoolSize(Math.max(4, maxPoolSize / 2));
@@ -89,7 +88,7 @@ public class AsyncExecutorConfig {
      * 用于需要顺序执行的任务队列
      */
     @Bean(name = "singleThreadExecutor")
-    public Executor singleThreadExecutor() {
+    public ThreadPoolTaskExecutor singleThreadExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(1);
         executor.setMaxPoolSize(1);

@@ -122,7 +122,8 @@ const assumptionLabels: Record<string, string> = {
   t_plus_one_sell: 'T+1 卖出约束',
   limit_up_entry_blocked: '涨停开盘不买',
   limit_down_exit_blocked: '跌停开盘不卖',
-  limit_pct_main_board: '主板涨跌停幅度',
+  limit_pct: '涨跌停幅度',
+  limit_pct_source: '幅度来源',
   return_type: '收益口径'
 }
 

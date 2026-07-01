@@ -8,6 +8,7 @@ import com.quant.repository.MarketDataRepository;
 import com.quant.repository.StockInfoRepository;
 import com.quant.service.backtest.StrategyBacktestEngine;
 import com.quant.service.backtest.StrategySignalType;
+import com.quant.service.backtest.TradingLimitRules;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -52,13 +53,14 @@ public class StrategyBacktestService {
         int bollP = req.getBollPeriod() != null ? req.getBollPeriod() : 20;
         double bollStd = req.getBollStdDev() != null ? req.getBollStdDev() : 2.0;
 
-        StrategyBacktestEngine.BacktestMetrics metrics = StrategyBacktestEngine.run(
-                bars, strategy, initial, shortP, longP, bollP, bollStd
-        );
-
         String stockName = stockInfoRepository.findByStockCodeAndExchangeType(code, exchange)
                 .map(StockInfo::getStockName)
                 .orElse(code);
+        double limitPct = TradingLimitRules.resolveLimitPct(code, exchange, stockName);
+
+        StrategyBacktestEngine.BacktestMetrics metrics = StrategyBacktestEngine.run(
+                bars, strategy, initial, shortP, longP, bollP, bollStd, limitPct
+        );
 
         List<Map<String, Object>> trades = metrics.trades().stream().map(t -> {
             Map<String, Object> m = new LinkedHashMap<>();
@@ -100,7 +102,7 @@ public class StrategyBacktestService {
                 .winRate(round(metrics.winRate()))
                 .trades(trades)
                 .equityCurve(curve)
-                .executionAssumptions(StrategyBacktestEngine.executionAssumptions())
+                .executionAssumptions(StrategyBacktestEngine.executionAssumptions(limitPct))
                 .build();
     }
 

@@ -12,6 +12,7 @@ import com.quant.repository.MarketDataRepository;
 import com.quant.repository.SelectorResultItemRepository;
 import com.quant.repository.SelectorResultRepository;
 import com.quant.service.backtest.StrategyBacktestEngine;
+import com.quant.service.backtest.TradingLimitRules;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,8 +26,6 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ScoringBacktestService {
-
-    private static final double MAIN_BOARD_LIMIT_PCT = 0.10;
 
     static final String SKIP_NO_QUOTE_ON_ENTRY = "NO_QUOTE_ON_ENTRY_DAY";
     static final String SKIP_INVALID_ENTRY_OPEN = "INVALID_ENTRY_OPEN";
@@ -165,7 +164,9 @@ public class ScoringBacktestService {
                 MarketData prevBar = marketDataMap.get(
                         priceKey(item.getStockCode(), item.getExchangeType(), prevTradeDate));
                 double preClose = StrategyBacktestEngine.resolvePreClose(entryBar, prevBar);
-                if (StrategyBacktestEngine.isLimitUpAtOpen(entryBar, preClose, MAIN_BOARD_LIMIT_PCT)) {
+                double limitPct = TradingLimitRules.resolveLimitPct(
+                        item.getStockCode(), item.getExchangeType(), item.getStockName());
+                if (StrategyBacktestEngine.isLimitUpAtOpen(entryBar, preClose, limitPct)) {
                     log.debug("入场日 {} {} 涨停开盘，跳过", entryDate, item.getStockCode());
                     addSkippedStock(stockReturns, item, entryDate, SKIP_LIMIT_UP_AT_OPEN);
                     continue;
@@ -199,7 +200,7 @@ public class ScoringBacktestService {
                                 priceKey(item.getStockCode(), item.getExchangeType(), prevFwdDate));
                         double exitPreClose = StrategyBacktestEngine.resolvePreClose(exitBar, prevExitBar);
                         if (StrategyBacktestEngine.isLimitDownAtClose(
-                                exitBar, exitPreClose, MAIN_BOARD_LIMIT_PCT)) {
+                                exitBar, exitPreClose, limitPct)) {
                             log.debug("出场日 {} {} 跌停收盘，跳过收益计算", fwdDate, item.getStockCode());
                             forwardReturns.put(h, null);
                             continue;
@@ -313,7 +314,7 @@ public class ScoringBacktestService {
         assumptions.put("return_type", "NET_AFTER_MODELED_COSTS");
         assumptions.put("limit_up_entry_blocked", true);
         assumptions.put("limit_down_exit_blocked", true);
-        assumptions.put("limit_pct_main_board", MAIN_BOARD_LIMIT_PCT);
+        assumptions.put("limit_pct_source", "BY_BOARD_AND_ST");
         assumptions.put("skip_reason_codes", List.of(
                 SKIP_NO_QUOTE_ON_ENTRY,
                 SKIP_INVALID_ENTRY_OPEN,

@@ -25,6 +25,10 @@ public final class StrategyBacktestEngine {
 
     /** 回测成交与费用假设，供 API 与前端展示。 */
     public static Map<String, Object> executionAssumptions() {
+        return executionAssumptions(DEFAULT_LIMIT_PCT);
+    }
+
+    public static Map<String, Object> executionAssumptions(double limitPct) {
         Map<String, Object> assumptions = new LinkedHashMap<>();
         assumptions.put("signal_timing", "PREVIOUS_DAY_CLOSE");
         assumptions.put("entry", "SAME_DAY_OPEN");
@@ -35,7 +39,8 @@ public final class StrategyBacktestEngine {
         assumptions.put("t_plus_one_sell", true);
         assumptions.put("limit_up_entry_blocked", true);
         assumptions.put("limit_down_exit_blocked", true);
-        assumptions.put("limit_pct_main_board", DEFAULT_LIMIT_PCT);
+        assumptions.put("limit_pct", limitPct);
+        assumptions.put("limit_pct_source", "BY_BOARD_AND_ST");
         assumptions.put("return_type", "NET_AFTER_MODELED_COSTS");
         return assumptions;
     }
@@ -75,6 +80,19 @@ public final class StrategyBacktestEngine {
             int bollPeriod,
             double bollStdDev
     ) {
+        return run(bars, strategy, initialCapital, shortPeriod, longPeriod, bollPeriod, bollStdDev, DEFAULT_LIMIT_PCT);
+    }
+
+    public static BacktestMetrics run(
+            List<MarketData> bars,
+            StrategySignalType strategy,
+            double initialCapital,
+            int shortPeriod,
+            int longPeriod,
+            int bollPeriod,
+            double bollStdDev,
+            double limitPct
+    ) {
         if (bars == null || bars.size() < 30) {
             throw new IllegalArgumentException("K 线数据不足，至少需要 30 根");
         }
@@ -108,7 +126,7 @@ public final class StrategyBacktestEngine {
             double preClose = resolvePreClose(bar, prevBar);
 
             if ("buy".equals(signal) && position == 0 && cash > 0
-                    && !isLimitUpAtOpen(bar, preClose, DEFAULT_LIMIT_PCT)) {
+                    && !isLimitUpAtOpen(bar, preClose, limitPct)) {
                 double buyPrice = execPrice * (1 + SLIPPAGE);
                 int volume = (int) (cash / buyPrice / 100) * 100;
                 if (volume >= 100) {
@@ -123,7 +141,7 @@ public final class StrategyBacktestEngine {
                     lastBuyBarIndex = i;
                 }
             } else if ("sell".equals(signal) && position > 0 && i > lastBuyBarIndex
-                    && !isLimitDownAtOpen(bar, preClose, DEFAULT_LIMIT_PCT)) {
+                    && !isLimitDownAtOpen(bar, preClose, limitPct)) {
                 double sellPrice = execPrice * (1 - SLIPPAGE);
                 double amount = sellPrice * position;
                 double commission = amount * COMMISSION;

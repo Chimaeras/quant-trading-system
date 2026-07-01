@@ -28,8 +28,26 @@ public class ScoringBacktestResponse {
     /** 每日明细（按 tradeDate 升序） */
     private List<DailyDetail> dailyDetails;
 
-    /** 截面 Rank IC 与分组收益研究摘要 */
+    /** 截面 Rank IC 与分组收益研究摘要（主研究持有期，含每日 IC 与分组明细） */
     private FactorAnalysis factorAnalysis;
+
+    /** 各持有期 Rank IC 摘要，用于 IC 衰减/多周期对比 */
+    private Map<Integer, FactorIcSummary> factorIcByHolding;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FactorIcSummary {
+        private int holdingDays;
+        private int crossSectionDays;
+        private int totalObservations;
+        private double rankIcMean;
+        private double rankIcStd;
+        private double rankIcIr;
+        private double rankIcPositiveRate;
+        private double longShortSpread;
+    }
 
     @Data
     @Builder

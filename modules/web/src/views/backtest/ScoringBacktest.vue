@@ -33,6 +33,9 @@
       <el-form-item label="每日选取TopN">
         <el-input-number v-model="form.topN" :min="1" :max="100" :step="1" />
       </el-form-item>
+      <el-form-item label="因子分组数">
+        <el-input-number v-model="form.factorGroupCount" :min="2" :max="10" :step="1" />
+      </el-form-item>
     </el-form>
     <el-form inline class="holding-form">
       <el-form-item label="持仓周期(交易日)">
@@ -197,6 +200,35 @@
           </el-table-column>
           <el-table-column prop="observations" label="截面日观测" />
         </el-table>
+
+        <template v-if="icByHoldingRows.length">
+          <div class="section-title">多持有期 IC 对比</div>
+          <div ref="icByHoldingChartRef" class="chart-box"></div>
+          <el-table :data="icByHoldingRows" stripe size="small" class="data-table" max-height="220">
+            <el-table-column prop="label" label="持有期" width="90" />
+            <el-table-column label="IC Mean" width="100">
+              <template #default="{ row }">
+                <span :class="row.rankIcMean >= 0 ? 'text-success' : 'text-danger'">{{ row.rankIcMean.toFixed(4) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="ICIR" width="90">
+              <template #default="{ row }">{{ row.rankIcIr.toFixed(3) }}</template>
+            </el-table-column>
+            <el-table-column label="多空 Spread" width="110">
+              <template #default="{ row }">
+                <span :class="row.longShortSpread >= 0 ? 'text-success' : 'text-danger'">
+                  {{ (row.longShortSpread * 100).toFixed(2) }}%
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="crossSectionDays" label="截面日" width="80" />
+          </el-table>
+        </template>
+
+        <template v-if="response.factorAnalysis.dailyRankIc?.length">
+          <div class="section-title">每日 Rank IC 时序</div>
+          <div ref="icSeriesChartRef" class="chart-box"></div>
+        </template>
       </template>
 
       <!-- 胜率柱状图 -->
@@ -284,7 +316,21 @@ const form = reactive({
   startDate: dayjs().subtract(6, 'month').format('YYYY-MM-DD'),
   endDate: dayjs().format('YYYY-MM-DD'),
   topN: 10,
-  holdingDays: [1, 3, 5, 10, 20]
+  holdingDays: [1, 3, 5, 10, 20],
+  factorGroupCount: 5
+})
+
+const icByHoldingRows = computed(() => {
+  const map = response.value?.factorIcByHolding
+  if (!map) return []
+  return Object.keys(map)
+    .map(Number)
+    .sort((a, b) => a - b)
+    .map((d) => ({
+      holdingDays: d,
+      label: 'T+' + d,
+      ...map[d]
+    }))
 })
 
 const skipReasonLabels: Record<string, string> = {
@@ -350,8 +396,12 @@ function formatAssumptionValue(value: unknown, key?: string): string {
 // 图表
 const chartRef = ref<HTMLElement>()
 const factorChartRef = ref<HTMLElement>()
+const icByHoldingChartRef = ref<HTMLElement>()
+const icSeriesChartRef = ref<HTMLElement>()
 let chart: echarts.ECharts | null = null
 let factorChart: echarts.ECharts | null = null
+let icByHoldingChart: echarts.ECharts | null = null
+let icSeriesChart: echarts.ECharts | null = null
 
 function renderFactorChart() {
   if (!factorChartRef.value || !response.value?.factorAnalysis) return
@@ -396,6 +446,94 @@ function renderFactorChart() {
           position: 'top',
           color: '#e9f1ff',
           formatter: '{c}%'
+        }
+      }
+    ]
+  })
+}
+
+function renderIcByHoldingChart() {
+  if (!icByHoldingChartRef.value || !icByHoldingRows.value.length) return
+  const rows = icByHoldingRows.value
+  if (!icByHoldingChart) icByHoldingChart = echarts.init(icByHoldingChartRef.value)
+  icByHoldingChart.setOption({
+    tooltip: { trigger: 'axis' },
+    grid: { left: '8%', right: '8%', top: '10%', bottom: '10%' },
+    xAxis: {
+      type: 'category',
+      data: rows.map((r) => r.label),
+      axisLabel: { color: '#9db1cc' }
+    },
+    yAxis: [
+      {
+        type: 'value',
+        name: 'IC Mean',
+        axisLabel: { color: '#9db1cc' },
+        splitLine: { lineStyle: { color: 'rgba(145,196,255,0.08)' } }
+      },
+      {
+        type: 'value',
+        name: 'Spread %',
+        axisLabel: { color: '#9db1cc', formatter: '{value}%' },
+        splitLine: { show: false }
+      }
+    ],
+    series: [
+      {
+        name: 'IC Mean',
+        type: 'bar',
+        data: rows.map((r) => +r.rankIcMean.toFixed(4)),
+        itemStyle: { color: '#58b9ff' },
+        barWidth: '35%'
+      },
+      {
+        name: '多空 Spread',
+        type: 'line',
+        yAxisIndex: 1,
+        data: rows.map((r) => +(r.longShortSpread * 100).toFixed(2)),
+        lineStyle: { color: '#f0b95a', width: 2 },
+        itemStyle: { color: '#f0b95a' }
+      }
+    ]
+  })
+}
+
+function renderIcSeriesChart() {
+  const series = response.value?.factorAnalysis?.dailyRankIc
+  if (!icSeriesChartRef.value || !series?.length) return
+  if (!icSeriesChart) icSeriesChart = echarts.init(icSeriesChartRef.value)
+  icSeriesChart.setOption({
+    tooltip: {
+      trigger: 'axis',
+      formatter: (params: any[]) => {
+        const p = params[0]
+        const row = series[p.dataIndex]
+        return [`<b>${row.tradeDate}</b>`, `Rank IC：${row.rankIc.toFixed(4)}`, `样本：${row.sampleSize}`].join('<br/>')
+      }
+    },
+    grid: { left: '8%', right: '8%', top: '10%', bottom: '14%' },
+    xAxis: {
+      type: 'category',
+      data: series.map((d) => d.tradeDate),
+      axisLabel: { color: '#9db1cc', rotate: 35, fontSize: 10 }
+    },
+    yAxis: {
+      type: 'value',
+      name: 'Rank IC',
+      axisLabel: { color: '#9db1cc' },
+      splitLine: { lineStyle: { color: 'rgba(145,196,255,0.08)' } }
+    },
+    series: [
+      {
+        name: 'Rank IC',
+        type: 'line',
+        data: series.map((d) => +d.rankIc.toFixed(4)),
+        lineStyle: { color: '#1cd6a6', width: 2 },
+        itemStyle: { color: '#1cd6a6' },
+        areaStyle: { color: 'rgba(28,214,166,0.08)' },
+        markLine: {
+          silent: true,
+          data: [{ yAxis: 0, lineStyle: { color: 'rgba(145,196,255,0.35)' } }]
         }
       }
     ]
@@ -491,6 +629,8 @@ watch(response, () => {
   nextTick(() => {
     renderChart()
     renderFactorChart()
+    renderIcByHoldingChart()
+    renderIcSeriesChart()
   })
 })
 
@@ -538,6 +678,7 @@ async function runBacktest() {
       endDate: form.endDate,
       topN: form.topN,
       holdingDays: form.holdingDays,
+      factorGroupCount: form.factorGroupCount,
       commissionRate: 0.0003,
       sellTaxRate: 0.0005,
       slippageRate: 0.0002
@@ -589,6 +730,8 @@ function exportCsv() {
 function onResize() {
   chart?.resize()
   factorChart?.resize()
+  icByHoldingChart?.resize()
+  icSeriesChart?.resize()
 }
 
 onMounted(() => {
@@ -600,6 +743,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize)
   chart?.dispose()
   factorChart?.dispose()
+  icByHoldingChart?.dispose()
+  icSeriesChart?.dispose()
 })
 </script>
 

@@ -5,6 +5,7 @@ import com.quant.dto.ScoringBacktestResponse;
 import com.quant.dto.ScoringBacktestResponse.DailyDetail;
 import com.quant.dto.ScoringBacktestResponse.DailyRankIc;
 import com.quant.dto.ScoringBacktestResponse.FactorAnalysis;
+import com.quant.dto.ScoringBacktestResponse.FactorIcSummary;
 import com.quant.dto.ScoringBacktestResponse.GroupReturnStat;
 import com.quant.dto.ScoringBacktestResponse.PeriodStat;
 import com.quant.dto.ScoringBacktestResponse.StockReturn;
@@ -100,6 +101,7 @@ public class ScoringBacktestService {
                     .holdingPeriodStats(Map.of())
                     .dailyDetails(List.of())
                     .factorAnalysis(null)
+                    .factorIcByHolding(Map.of())
                     .build();
         }
 
@@ -134,7 +136,10 @@ public class ScoringBacktestService {
 
         // 5. 逐日计算 forward returns
         List<DailyDetail> dailyDetails = new ArrayList<>();
-        Map<String, List<CrossSectionObservation>> factorObservationsByDate = new LinkedHashMap<>();
+        Map<Integer, Map<String, List<CrossSectionObservation>>> factorObservationsByHolding = new LinkedHashMap<>();
+        for (int h : holdingDays) {
+            factorObservationsByHolding.put(h, new LinkedHashMap<>());
+        }
         // 按持仓天数汇总所有收益率，用于最终统计
         Map<Integer, List<Double>> periodReturns = new LinkedHashMap<>();
         for (int h : holdingDays) {
@@ -251,17 +256,25 @@ public class ScoringBacktestService {
                     .dailyWinRate(dailyWinRate)
                     .build());
 
-            List<CrossSectionObservation> dayFactorObs = new ArrayList<>();
             for (SelectorResultItem item : factorItems) {
-                Double factorRet = computeNetForwardReturn(
-                        item, baseIdx, factorHoldingDay, tradingDays, marketDataMap,
-                        commissionRate, sellTaxRate, slippageRate);
-                if (factorRet != null) {
-                    dayFactorObs.add(new CrossSectionObservation(item.getFinalScore(), factorRet));
+                EntryContext entry = resolveEntryContext(
+                        item, baseIdx, tradingDays, marketDataMap,
+                        commissionRate, slippageRate);
+                if (entry == null) {
+                    continue;
                 }
-            }
-            if (!dayFactorObs.isEmpty()) {
-                factorObservationsByDate.put(tradeDate.toString(), dayFactorObs);
+                for (int h : holdingDays) {
+                    PeriodReturnResult periodResult = computePeriodReturn(
+                            item, entry.entryIdx(), h, tradingDays, marketDataMap,
+                            entry.entryCost(), commissionRate, sellTaxRate, slippageRate);
+                    if (periodResult.ret() == null) {
+                        continue;
+                    }
+                    String dateKey = tradeDate.toString();
+                    factorObservationsByHolding.get(h)
+                            .computeIfAbsent(dateKey, k -> new ArrayList<>())
+                            .add(new CrossSectionObservation(item.getFinalScore(), periodResult.ret()));
+                }
             }
         }
 
@@ -296,13 +309,23 @@ public class ScoringBacktestService {
 
         log.info("打分回测完成: {} 个交易日, {} 个周期统计完毕", dailyDetails.size(), holdingPeriodStats.size());
 
-        FactorResearchSummary factorSummary = FactorResearchEngine.summarize(
-                factorObservationsByDate,
-                factorHoldingDay,
-                factorGroupCount,
-                FACTOR_MIN_CROSS_SECTION_SIZE,
-                FACTOR_UNIVERSE_NOTE
-        );
+        Map<Integer, FactorIcSummary> factorIcByHolding = new LinkedHashMap<>();
+        FactorResearchSummary factorSummary = null;
+        for (int h : holdingDays) {
+            FactorResearchSummary summary = FactorResearchEngine.summarize(
+                    factorObservationsByHolding.getOrDefault(h, Map.of()),
+                    h,
+                    factorGroupCount,
+                    FACTOR_MIN_CROSS_SECTION_SIZE,
+                    FACTOR_UNIVERSE_NOTE
+            );
+            if (summary.crossSectionDays() > 0) {
+                factorIcByHolding.put(h, toFactorIcSummaryDto(summary));
+            }
+            if (h == factorHoldingDay) {
+                factorSummary = summary;
+            }
+        }
 
         return ScoringBacktestResponse.builder()
                 .strategyType(req.getStrategyType())
@@ -314,6 +337,7 @@ public class ScoringBacktestService {
                 .holdingPeriodStats(holdingPeriodStats)
                 .dailyDetails(dailyDetails)
                 .factorAnalysis(toFactorAnalysisDto(factorSummary))
+                .factorIcByHolding(factorIcByHolding)
                 .build();
     }
 
@@ -391,6 +415,8 @@ public class ScoringBacktestService {
 
     private record PeriodReturnResult(Double ret, String skipReason) {}
 
+    private record EntryContext(int entryIdx, double entryCost) {}
+
     private static int resolveFactorAnalysisHoldingDay(List<Integer> holdingDays, Integer requested) {
         if (requested != null && holdingDays.contains(requested)) {
             return requested;
@@ -401,14 +427,12 @@ public class ScoringBacktestService {
         return holdingDays.getFirst();
     }
 
-    private Double computeNetForwardReturn(
+    private static EntryContext resolveEntryContext(
             SelectorResultItem item,
             int baseIdx,
-            int holdingDay,
             List<LocalDate> tradingDays,
             Map<String, MarketData> marketDataMap,
             double commissionRate,
-            double sellTaxRate,
             double slippageRate
     ) {
         int entryIdx = baseIdx + 1;
@@ -438,10 +462,7 @@ public class ScoringBacktestService {
         }
         double entryPrice = rawEntryPrice.doubleValue() * (1 + slippageRate);
         double entryCost = entryPrice * (1 + commissionRate);
-        PeriodReturnResult result = computePeriodReturn(
-                item, entryIdx, holdingDay, tradingDays, marketDataMap,
-                entryCost, commissionRate, sellTaxRate, slippageRate);
-        return result.ret();
+        return new EntryContext(entryIdx, entryCost);
     }
 
     private static PeriodReturnResult computePeriodReturn(
@@ -518,6 +539,22 @@ public class ScoringBacktestService {
                         .toList())
                 .longShortSpread(summary.longShortSpread())
                 .universeNote(summary.universeNote())
+                .build();
+    }
+
+    private static FactorIcSummary toFactorIcSummaryDto(FactorResearchSummary summary) {
+        if (summary == null || summary.crossSectionDays() == 0) {
+            return null;
+        }
+        return FactorIcSummary.builder()
+                .holdingDays(summary.holdingDays())
+                .crossSectionDays(summary.crossSectionDays())
+                .totalObservations(summary.totalObservations())
+                .rankIcMean(summary.rankIcMean())
+                .rankIcStd(summary.rankIcStd())
+                .rankIcIr(summary.rankIcIr())
+                .rankIcPositiveRate(summary.rankIcPositiveRate())
+                .longShortSpread(summary.longShortSpread())
                 .build();
     }
 }

@@ -56,6 +56,17 @@ export interface FactorAnalysis {
   universeNote: string
 }
 
+export interface FactorIcSummary {
+  holdingDays: number
+  crossSectionDays: number
+  totalObservations: number
+  rankIcMean: number
+  rankIcStd: number
+  rankIcIr: number
+  rankIcPositiveRate: number
+  longShortSpread: number
+}
+
 export interface ScoringBacktestResponse {
   strategyType: string
   startDate: string
@@ -66,6 +77,7 @@ export interface ScoringBacktestResponse {
   holdingPeriodStats: Record<number, PeriodStat>
   dailyDetails: DailyDetail[]
   factorAnalysis?: FactorAnalysis | null
+  factorIcByHolding?: Record<number, FactorIcSummary>
 }
 
 export const backtestApi = {

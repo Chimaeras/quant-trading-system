@@ -530,6 +530,8 @@ class ScoringBacktestServiceTest {
         assertThat(response.getFactorAnalysis().getRankIcMean()).isGreaterThan(0);
         assertThat(response.getFactorAnalysis().getGroupedReturns()).hasSize(5);
         assertThat(response.getFactorAnalysis().getLongShortSpread()).isGreaterThan(0);
+        assertThat(response.getFactorIcByHolding()).containsKey(5);
+        assertThat(response.getFactorIcByHolding().get(5).getRankIcMean()).isGreaterThan(0);
     }
 
     private MarketData bar(LocalDate date, double open, double close) {

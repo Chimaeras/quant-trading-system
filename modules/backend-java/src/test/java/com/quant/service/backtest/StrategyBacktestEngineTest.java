@@ -13,6 +13,33 @@ import static org.assertj.core.api.Assertions.assertThat;
 class StrategyBacktestEngineTest {
 
     @Test
+    void enforcesTPlusOneBeforeSell() {
+        List<StrategyBacktestEngine.TradeRecord> trades = StrategyBacktestEngine.run(
+                macdOscillationSeries(),
+                StrategySignalType.MACD,
+                100_000,
+                2,
+                5,
+                20,
+                2.0
+        ).trades();
+
+        for (int i = 0; i < trades.size(); i++) {
+            if (!"buy".equals(trades.get(i).action())) {
+                continue;
+            }
+            LocalDate buyDate = LocalDate.parse(trades.get(i).tradeDate());
+            for (int j = i + 1; j < trades.size(); j++) {
+                if ("sell".equals(trades.get(j).action())) {
+                    LocalDate sellDate = LocalDate.parse(trades.get(j).tradeDate());
+                    assertThat(sellDate).isAfter(buyDate);
+                    break;
+                }
+            }
+        }
+    }
+
+    @Test
     void buyPriceMatchesExecutionDayOpenNotClose() {
         List<MarketData> bars = macdOscillationSeries();
         for (int i = 0; i < bars.size(); i++) {

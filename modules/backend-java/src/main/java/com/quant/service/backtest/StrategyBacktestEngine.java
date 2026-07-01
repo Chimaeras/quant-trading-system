@@ -71,6 +71,7 @@ public final class StrategyBacktestEngine {
         List<Double> dailyReturns = new ArrayList<>();
         double prevEquity = initialCapital;
         int winningTrades = 0;
+        int lastBuyBarIndex = -1;
 
         for (int i = 1; i < bars.size(); i++) {
             MarketData bar = bars.get(i);
@@ -93,8 +94,9 @@ public final class StrategyBacktestEngine {
                     trades.add(new TradeRecord(
                             bar.getTradeDate().toString(), "buy", buyPrice, volume, amount, commission, cash, cash + position * markPrice
                     ));
+                    lastBuyBarIndex = i;
                 }
-            } else if ("sell".equals(signal) && position > 0) {
+            } else if ("sell".equals(signal) && position > 0 && i > lastBuyBarIndex) {
                 double sellPrice = execPrice * (1 - SLIPPAGE);
                 double amount = sellPrice * position;
                 double commission = amount * COMMISSION;
@@ -109,6 +111,7 @@ public final class StrategyBacktestEngine {
                 ));
                 position = 0;
                 avgCost = 0;
+                lastBuyBarIndex = -1;
             }
 
             double equity = cash + position * markPrice;

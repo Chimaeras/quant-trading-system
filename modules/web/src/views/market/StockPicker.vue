@@ -241,7 +241,7 @@
     <el-descriptions :column="2" border v-if="detailRow">
       <el-descriptions-item label="股票">{{ detailRow.stock_code }} {{ detailRow.stock_name }}</el-descriptions-item>
       <el-descriptions-item label="综合分">{{ detailRow.final_score }}</el-descriptions-item>
-      <template v-else-if="mode === 'oversold'">
+      <template v-if="mode === 'oversold'">
         <el-descriptions-item label="趋势(40)">{{ detailRow.trend_score }}</el-descriptions-item>
         <el-descriptions-item label="量能(30)">{{ detailRow.volume_score }}</el-descriptions-item>
         <el-descriptions-item label="超跌(30)">{{ detailRow.momentum_score }}</el-descriptions-item>

@@ -126,32 +126,13 @@ public final class TechnicalIndicators {
     // ==================== RSI 计算 ====================
 
     /**
-     * 计算指定位置的RSI值，使用标准 Wilder 平滑算法。
-     * 先以 SMA 计算首个 avgGain/avgLoss，之后用指数平滑递推。
+     * 计算指定位置的 RSI 值，与 {@link #rsi(double[], int)} 使用同一 Wilder 递推口径。
      */
     public static double rsiAt(double[] close, int index, int period) {
-        if (index < period || close == null) {
+        if (close == null || index < period || index >= close.length) {
             return 50.0;
         }
-        // 首个 avgGain/avgLoss：period 根 K 线的 SMA
-        double avgGain = 0;
-        double avgLoss = 0;
-        int start = index - period + 1;
-        for (int i = start; i <= index; i++) {
-            double delta = close[i] - close[i - 1];
-            if (delta > 0) avgGain += delta;
-            else avgLoss += -delta;
-        }
-        avgGain /= period;
-        avgLoss /= period;
-
-        if (avgLoss < 1e-12) return 100.0;
-        if (avgGain < 1e-12) return 0.0;
-
-        // 从 index 往后用 Wilder 递推（用于计算整条 RSI 线时保持平滑连续性）
-        // 单点查询时直接返回
-        double rs = avgGain / avgLoss;
-        return 100.0 - 100.0 / (1.0 + rs);
+        return rsi(close, period)[index];
     }
 
     /**

@@ -22,4 +22,17 @@ class TechnicalIndicatorsTest {
 
         assertThat(TechnicalIndicators.rsiAt(close, close.length - 1, 14)).isGreaterThan(90);
     }
+
+    @Test
+    void rsiAtMatchesWilderRsiLine() {
+        double[] close = new double[40];
+        for (int i = 0; i < close.length; i++) {
+            close[i] = 100 + Math.sin(i / 4.0) * 8 + i * 0.1;
+        }
+        int period = 14;
+        double[] rsiLine = TechnicalIndicators.rsi(close, period);
+        int index = close.length - 1;
+
+        assertThat(TechnicalIndicators.rsiAt(close, index, period)).isEqualTo(rsiLine[index]);
+    }
 }

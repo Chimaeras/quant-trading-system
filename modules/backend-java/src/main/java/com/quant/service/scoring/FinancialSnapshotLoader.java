@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.time.LocalDate;
 
@@ -20,7 +21,10 @@ public class FinancialSnapshotLoader {
 
     public Map<String, StockFinancialSnapshot> loadLatestByStockKey(LocalDate asOfDate) {
         Map<String, StockFinancialSnapshot> latest = new HashMap<>();
-        for (StockFinancialSnapshot s : snapshotRepository.findAll()) {
+        List<StockFinancialSnapshot> candidates = asOfDate == null
+                ? snapshotRepository.findAll()
+                : snapshotRepository.findByAnnouncementDateLessThanEqualOrAnnouncementDateIsNull(asOfDate);
+        for (StockFinancialSnapshot s : candidates) {
             if (s.getStockCode() == null || s.getExchangeType() == null || s.getReportPeriod() == null) {
                 continue;
             }

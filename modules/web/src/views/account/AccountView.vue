@@ -37,7 +37,15 @@
     <el-table v-loading="loading" :data="positions" stripe>
       <el-table-column prop="symbol" label="代码" width="100" />
       <el-table-column prop="name" label="名称" min-width="120" />
-      <el-table-column prop="volume" label="数量" width="90" />
+      <el-table-column prop="volume" label="持仓" width="90" />
+      <el-table-column label="可卖" width="90">
+        <template #default="{ row }">
+          <span>{{ row.availableVolume ?? row.volume }}</span>
+          <el-tooltip v-if="frozenVolume(row) > 0" :content="`T+1 冻结 ${frozenVolume(row)} 股`">
+            <span class="frozen-hint">（冻{{ frozenVolume(row) }}）</span>
+          </el-tooltip>
+        </template>
+      </el-table-column>
       <el-table-column prop="avgPrice" label="成本" />
       <el-table-column prop="currentPrice" label="现价" />
       <el-table-column prop="marketValue" label="市值" />
@@ -83,6 +91,12 @@ function pnlClass(v?: number) {
   return v != null && Number(v) >= 0 ? 'text-success' : 'text-danger'
 }
 
+function frozenVolume(row: PositionRow) {
+  const total = Number(row.volume ?? 0)
+  const available = Number(row.availableVolume ?? row.volume ?? 0)
+  return Math.max(0, total - available)
+}
+
 async function loadAll() {
   loading.value = true
   try {
@@ -123,6 +137,7 @@ onMounted(loadAll)
 .stat-card { padding: 12px; border-radius: 8px; background: rgba(9, 18, 34, 0.55); border: 1px solid rgba(145, 196, 255, 0.15); }
 .stat-card .label { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
 .section-title { margin: 12px 0 8px; font-weight: 600; }
+.frozen-hint { margin-left: 4px; font-size: 12px; color: var(--text-secondary); }
 .text-success { color: #ef5350; }
 .text-danger { color: #26a69a; }
 </style>

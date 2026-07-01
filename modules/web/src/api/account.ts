@@ -15,6 +15,7 @@ export interface PositionRow {
   name: string
   exchangeType: string
   volume: number
+  availableVolume?: number
   avgPrice: number
   currentPrice: number
   marketValue: number

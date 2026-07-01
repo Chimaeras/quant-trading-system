@@ -122,6 +122,8 @@ export interface UnifiedScoringResultPage {
   failed_candidates?: number
   last_processed_key?: string
   list: UnifiedScoringResultItem[]
+  /** 兼容任务阶段结果接口 */
+  items?: UnifiedScoringResultItem[]
   total: number
   page: number
   size: number

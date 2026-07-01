@@ -197,7 +197,6 @@ const maColors: Record<number, string> = { 5: '#f5a623', 10: '#2e7d32', 20: '#19
 const maList = computed(() => {
   const data = klineData.value
   if (data.length === 0) return []
-  const last = data[data.length - 1]
   return maPeriods.map(period => {
     const slice = data.slice(-period)
     const sum = slice.reduce((a, b) => a + (b.close ?? 0), 0)

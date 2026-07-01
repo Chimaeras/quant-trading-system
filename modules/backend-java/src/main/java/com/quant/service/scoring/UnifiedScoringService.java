@@ -9,13 +9,13 @@ import com.quant.service.MultiDimScoringService;
 import com.quant.service.OversoldReboundScoringService;
 import com.quant.service.StockSelectorService;
 import com.quant.service.StockTrendScoringService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import jakarta.annotation.PreDestroy;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -33,8 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.Set;
@@ -44,7 +42,6 @@ import java.util.Set;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class UnifiedScoringService {
 
     private static final int MAX_ITEMS = 500;
@@ -59,13 +56,31 @@ public class UnifiedScoringService {
     private final SelectorResultItemRepository selectorResultItemRepository;
     private final UnifiedScoringTaskRepository unifiedScoringTaskRepository;
     private final ObjectMapper objectMapper;
-    private final ExecutorService taskExecutor = Executors.newSingleThreadExecutor();
+    private final ThreadPoolTaskExecutor unifiedTaskExecutor;
     private final Set<String> queuedOrRunningTaskIds = ConcurrentHashMap.newKeySet();
     private final Map<String, Future<?>> taskFutures = new ConcurrentHashMap<>();
 
-    @PreDestroy
-    void shutdownTaskExecutor() {
-        ExecutorLifecycle.shutdownGracefully(taskExecutor);
+    public UnifiedScoringService(
+            StockTrendScoringService trendScoringService,
+            ComprehensiveScoringService comprehensiveScoringService,
+            MultiDimScoringService multiDimScoringService,
+            StockSelectorService stockSelectorService,
+            OversoldReboundScoringService oversoldReboundScoringService,
+            SelectorResultRepository selectorResultRepository,
+            SelectorResultItemRepository selectorResultItemRepository,
+            UnifiedScoringTaskRepository unifiedScoringTaskRepository,
+            ObjectMapper objectMapper,
+            @Qualifier("singleThreadExecutor") ThreadPoolTaskExecutor unifiedTaskExecutor) {
+        this.trendScoringService = trendScoringService;
+        this.comprehensiveScoringService = comprehensiveScoringService;
+        this.multiDimScoringService = multiDimScoringService;
+        this.stockSelectorService = stockSelectorService;
+        this.oversoldReboundScoringService = oversoldReboundScoringService;
+        this.selectorResultRepository = selectorResultRepository;
+        this.selectorResultItemRepository = selectorResultItemRepository;
+        this.unifiedScoringTaskRepository = unifiedScoringTaskRepository;
+        this.objectMapper = objectMapper;
+        this.unifiedTaskExecutor = unifiedTaskExecutor;
     }
 
     @Transactional
@@ -520,7 +535,7 @@ public class UnifiedScoringService {
         if (!queuedOrRunningTaskIds.add(taskId)) {
             return;
         }
-        Future<?> future = taskExecutor.submit(() -> runTask(taskId, request));
+        Future<?> future = unifiedTaskExecutor.submit(() -> runTask(taskId, request));
         taskFutures.put(taskId, future);
     }
 

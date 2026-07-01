@@ -37,6 +37,10 @@ public class ScoringBacktestService {
         List<Integer> holdingDays = req.getHoldingDays() != null ? req.getHoldingDays() : List.of(1, 3, 5, 10, 20);
         int maxHolding = holdingDays.stream().max(Integer::compareTo).orElse(20);
         int topN = req.getTopN() != null ? req.getTopN() : 10;
+        double commissionRate = boundedRate(req.getCommissionRate(), 0.0003);
+        double sellTaxRate = boundedRate(req.getSellTaxRate(), 0.0005);
+        double slippageRate = boundedRate(req.getSlippageRate(), 0.0002);
+        Map<String, Object> assumptions = executionAssumptions(commissionRate, sellTaxRate, slippageRate);
 
         // 1. 查询日期范围内的选股结果，按日期取最新的一条
         List<SelectorResult> results = resultRepo
@@ -66,6 +70,7 @@ public class ScoringBacktestService {
                     .endDate(req.getEndDate())
                     .topN(topN)
                     .totalTradingDays(0)
+                    .executionAssumptions(assumptions)
                     .holdingPeriodStats(Map.of())
                     .dailyDetails(List.of())
                     .build();
@@ -93,10 +98,10 @@ public class ScoringBacktestService {
         List<MarketData> allMarketData = marketDataRepo
                 .findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(calStart, calEnd);
         // key = stockCode|exchangeType|tradeDate
-        Map<String, BigDecimal> priceMap = new HashMap<>();
+        Map<String, MarketData> marketDataMap = new HashMap<>();
         for (MarketData md : allMarketData) {
             String key = priceKey(md.getStockCode(), md.getExchangeType(), md.getTradeDate());
-            priceMap.put(key, md.getClosePrice());
+            marketDataMap.put(key, md);
         }
         log.info("预加载 {} 条行情数据, {} 个交易日", allMarketData.size(), tradingDays.size());
 
@@ -132,27 +137,34 @@ public class ScoringBacktestService {
             }
 
             for (SelectorResultItem item : topItems) {
-                String baseKey = priceKey(item.getStockCode(), item.getExchangeType(), tradeDate);
-                BigDecimal basePrice = priceMap.get(baseKey);
-                if (basePrice == null || basePrice.compareTo(BigDecimal.ZERO) == 0) continue;
+                int entryIdx = baseIdx + 1;
+                if (entryIdx >= tradingDays.size()) continue;
+                LocalDate entryDate = tradingDays.get(entryIdx);
+                MarketData entryBar = marketDataMap.get(priceKey(item.getStockCode(), item.getExchangeType(), entryDate));
+                BigDecimal rawEntryPrice = entryBar != null ? entryBar.getOpenPrice() : null;
+                if (rawEntryPrice == null || rawEntryPrice.compareTo(BigDecimal.ZERO) <= 0) continue;
+                double entryPrice = rawEntryPrice.doubleValue() * (1 + slippageRate);
+                double entryCost = entryPrice * (1 + commissionRate);
 
                 Map<Integer, Double> forwardReturns = new LinkedHashMap<>();
                 for (int h : holdingDays) {
-                    int fwdIdx = baseIdx + h;
+                    // 持有1日表示下一交易日开盘买入、当日收盘卖出
+                    int fwdIdx = entryIdx + h - 1;
                     if (fwdIdx >= tradingDays.size()) {
                         forwardReturns.put(h, null);
                         continue;
                     }
                     LocalDate fwdDate = tradingDays.get(fwdIdx);
                     String fwdKey = priceKey(item.getStockCode(), item.getExchangeType(), fwdDate);
-                    BigDecimal fwdPrice = priceMap.get(fwdKey);
-                    if (fwdPrice == null || fwdPrice.compareTo(BigDecimal.ZERO) == 0) {
+                    MarketData exitBar = marketDataMap.get(fwdKey);
+                    BigDecimal rawExitPrice = exitBar != null ? exitBar.getClosePrice() : null;
+                    if (rawExitPrice == null || rawExitPrice.compareTo(BigDecimal.ZERO) <= 0) {
                         forwardReturns.put(h, null);
                         continue;
                     }
-                    double ret = fwdPrice.subtract(basePrice)
-                            .divide(basePrice, 6, java.math.RoundingMode.HALF_UP)
-                            .doubleValue();
+                    double exitPrice = rawExitPrice.doubleValue() * (1 - slippageRate);
+                    double exitProceeds = exitPrice * (1 - commissionRate - sellTaxRate);
+                    double ret = exitProceeds / entryCost - 1;
                     forwardReturns.put(h, ret);
                     periodReturns.get(h).add(ret);
                     dailyReturns.get(h).add(ret);
@@ -164,6 +176,8 @@ public class ScoringBacktestService {
                         .stockName(item.getStockName())
                         .finalScore(item.getFinalScore())
                         .rankNo(item.getRankNo())
+                        .entryDate(entryDate)
+                        .entryPrice(entryPrice)
                         .forwardReturns(forwardReturns)
                         .build());
             }
@@ -223,6 +237,7 @@ public class ScoringBacktestService {
                 .endDate(req.getEndDate())
                 .topN(topN)
                 .totalTradingDays(dailyDetails.size())
+                .executionAssumptions(assumptions)
                 .holdingPeriodStats(holdingPeriodStats)
                 .dailyDetails(dailyDetails)
                 .build();
@@ -234,5 +249,25 @@ public class ScoringBacktestService {
 
     private String priceKey(String stockCode, String exchangeType, LocalDate date) {
         return stockCode + "|" + exchangeType + "|" + date;
+    }
+
+    private double boundedRate(Double value, double defaultValue) {
+        if (value == null || !Double.isFinite(value)) return defaultValue;
+        return Math.max(0, Math.min(value, 0.05));
+    }
+
+    private Map<String, Object> executionAssumptions(
+            double commissionRate,
+            double sellTaxRate,
+            double slippageRate
+    ) {
+        Map<String, Object> assumptions = new LinkedHashMap<>();
+        assumptions.put("entry", "NEXT_TRADING_DAY_OPEN");
+        assumptions.put("exit", "HOLDING_PERIOD_CLOSE");
+        assumptions.put("commission_rate", commissionRate);
+        assumptions.put("sell_tax_rate", sellTaxRate);
+        assumptions.put("slippage_rate_each_side", slippageRate);
+        assumptions.put("return_type", "NET_AFTER_MODELED_COSTS");
+        return assumptions;
     }
 }

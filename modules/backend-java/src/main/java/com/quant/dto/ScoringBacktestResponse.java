@@ -19,6 +19,8 @@ public class ScoringBacktestResponse {
     private LocalDate endDate;
     private int topN;
     private int totalTradingDays;
+    /** 本次收益计算使用的成交与费用假设 */
+    private Map<String, Object> executionAssumptions;
 
     /** key = 持仓天数，value = 该周期下的汇总统计 */
     private Map<Integer, PeriodStat> holdingPeriodStats;
@@ -50,6 +52,7 @@ public class ScoringBacktestResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class DailyDetail {
+        /** 信号生成日 */
         private LocalDate tradeDate;
         private List<StockReturn> topStocks;
         /** key = 持仓天数，value = 当日胜率 */
@@ -66,6 +69,10 @@ public class ScoringBacktestResponse {
         private String stockName;
         private double finalScore;
         private int rankNo;
+        /** 实际模拟买入日：信号日后的下一交易日 */
+        private LocalDate entryDate;
+        /** 含买入侧滑点、不含佣金的模拟成交价 */
+        private Double entryPrice;
         /** key = 持仓天数，value = 该周期的 forward return；若缺失则为 null */
         private Map<Integer, Double> forwardReturns;
     }

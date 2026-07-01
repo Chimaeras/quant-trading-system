@@ -438,7 +438,7 @@ public class ComprehensiveScoringService {
             infoMap.put(s.getStockCode() + "|" + s.getExchangeType(), s);
         }
         Map<String, com.quant.entity.StockFinancialSnapshot> snapshotMap =
-                financialSnapshotLoader.loadLatestByStockKey();
+                financialSnapshotLoader.loadLatestByStockKey(tradeDate);
 
         // 使用 MarketEnvironmentAnalyzer 统一计算市场环境（避免每只股票重复计算）
         MarketEnvironmentAnalyzer.MarketIndicators marketIndicators =

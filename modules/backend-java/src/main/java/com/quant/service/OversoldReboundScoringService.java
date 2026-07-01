@@ -275,7 +275,7 @@ public class OversoldReboundScoringService {
         snapshot.put("excludeST", excludeST);
         snapshot.put("weights", Map.of("trend", 0.4, "volume", 0.3, "oversold", 0.3));
         snapshot.put("effective_lookback_days", effectiveLookbackDays);
-        snapshot.put("ranking", "weighted_score_primary_then_fill_top_n");
+        snapshot.put("ranking", "strict_quality_then_weighted_score");
 
         SelectorResult result = selectorResultRepository.findByResultId(resultId).orElse(new SelectorResult());
         result.setResultId(resultId);
@@ -364,9 +364,7 @@ public class OversoldReboundScoringService {
         return r.totalScore >= minTotal && r.trendScore40 > 25 && r.volumeScore30 > 15 && r.oversoldScore30 > 15;
     }
 
-    /**
-     * 先在「全市场有有效分数」的集合上按加权分排序，优先取通过质量闸的结果；不足 TopN 时用次优分补足，避免闸值过严导致返回条数过少。
-     */
+    /** 只返回通过质量闸的候选；没有机会时允许结果少于 TopN 或为空。 */
     private static List<ScoreResult> pickTopN(List<ScoreResult> allScored, int topN, double minTotalScore) {
         if (allScored == null || allScored.isEmpty()) {
             return List.of();
@@ -388,17 +386,6 @@ public class OversoldReboundScoringService {
             if (used.add(k)) {
                 out.add(r);
             }
-        }
-        for (ScoreResult r : sorted) {
-            if (out.size() >= topN) {
-                break;
-            }
-            String k = r.stockCode + "|" + r.exchangeType;
-            if (used.contains(k)) {
-                continue;
-            }
-            used.add(k);
-            out.add(r);
         }
         return out;
     }

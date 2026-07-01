@@ -95,6 +95,8 @@ public class DataController {
         private String exchangeType;
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
         private LocalDate reportPeriod;
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+        private LocalDate announcementDate;
         private BigDecimal revenueYoY;
         private BigDecimal netProfitYoY;
         private BigDecimal roe;
@@ -128,6 +130,7 @@ public class DataController {
             f.setStockCode(it.getStockCode().trim());
             f.setExchangeType(it.getExchangeType().trim());
             f.setReportPeriod(it.getReportPeriod());
+            f.setAnnouncementDate(it.getAnnouncementDate());
             f.setRevenueYoY(it.getRevenueYoY());
             f.setNetProfitYoY(it.getNetProfitYoY());
             f.setRoe(it.getRoe());

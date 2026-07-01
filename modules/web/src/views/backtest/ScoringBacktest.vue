@@ -40,6 +40,14 @@
       </el-form-item>
     </el-form>
 
+    <el-alert
+      type="info"
+      :closable="false"
+      show-icon
+      class="run-alert"
+      title="收益按信号后下一交易日开盘买入、持有期末收盘卖出计算，并扣除双边佣金、卖出税费和双边滑点。"
+    />
+
     <el-alert v-if="errorMsg" type="error" show-icon :closable="true" class="run-alert" @close="errorMsg = ''">
       {{ errorMsg }}
     </el-alert>
@@ -192,10 +200,10 @@ function renderChart() {
         const stat = stats[parseInt(day.replace('T+', ''))]
         return [
           `<b>${day}</b>`,
-          `胜率：${stat.winRate.toFixed(1)}%`,
-          `平均收益：${stat.avgReturn.toFixed(2)}%`,
-          `中位数：${stat.medianReturn.toFixed(2)}%`,
-          `最大：${stat.maxReturn.toFixed(2)}%  /  最小：${stat.minReturn.toFixed(2)}%`,
+          `胜率：${(stat.winRate * 100).toFixed(1)}%`,
+          `平均收益：${(stat.avgReturn * 100).toFixed(2)}%`,
+          `中位数：${(stat.medianReturn * 100).toFixed(2)}%`,
+          `最大：${(stat.maxReturn * 100).toFixed(2)}%  /  最小：${(stat.minReturn * 100).toFixed(2)}%`,
           `观测数：${stat.totalObservations}`
         ].join('<br/>')
       }
@@ -308,7 +316,10 @@ async function runBacktest() {
       startDate: form.startDate,
       endDate: form.endDate,
       topN: form.topN,
-      holdingDays: form.holdingDays
+      holdingDays: form.holdingDays,
+      commissionRate: 0.0003,
+      sellTaxRate: 0.0005,
+      slippageRate: 0.0002
     })
     if (!data.totalTradingDays) {
       toast.info('该条件下无回测数据')

@@ -22,8 +22,8 @@ services:
 
   backend:
     build:
-      context: ../modules/backend-java
-      dockerfile: ../docker/Dockerfile.backend
+      context: ..
+      dockerfile: docker/Dockerfile.backend
     container_name: quant-backend
     ports:
       - "8080:8080"

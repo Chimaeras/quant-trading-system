@@ -46,8 +46,21 @@ const navGroups = computed(() => [
     items: [
       { path: "/market/stock", label: "股票详情" },
       { path: "/market/kline", label: "K线图" },
-      { path: "/market/stock-picker", label: "选股打分" },
-      { path: "/backtest/scoring", label: "打分回测" }
+      { path: "/market/stock-picker", label: "选股打分" }
+    ]
+  },
+  {
+    title: "回测",
+    items: [
+      { path: "/backtest/scoring", label: "打分回测" },
+      { path: "/backtest/strategy", label: "策略回测" }
+    ]
+  },
+  {
+    title: "账户",
+    items: [
+      { path: "/account/overview", label: "模拟账户" },
+      { path: "/login", label: "登录" }
     ]
   }
 ])

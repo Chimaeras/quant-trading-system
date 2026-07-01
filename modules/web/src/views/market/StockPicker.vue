@@ -6,6 +6,9 @@
         <el-radio-group v-model="mode" size="small" @change="onModeChange">
           <el-radio-button value="classic">经典多因子</el-radio-button>
           <el-radio-button value="oversold">超跌反弹</el-radio-button>
+          <el-radio-button value="trend">趋势打分</el-radio-button>
+          <el-radio-button value="comprehensive">综合三维度</el-radio-button>
+          <el-radio-button value="multi_dim">多维度v1</el-radio-button>
         </el-radio-group>
       </div>
     </template>
@@ -42,7 +45,7 @@
       </el-form-item>
     </el-form>
 
-    <el-form v-else inline>
+    <el-form v-else-if="mode === 'oversold'" inline>
       <el-form-item label="交易日">
         <el-date-picker v-model="oversoldForm.tradeDate" type="date" value-format="YYYY-MM-DD" />
       </el-form-item>
@@ -67,6 +70,25 @@
         <el-button type="primary" :loading="running" @click="runOversold">执行打分</el-button>
         <el-button :disabled="running" @click="loadLatest">加载最新</el-button>
         <el-button :disabled="running" @click="saveOversoldTemplate">保存模板</el-button>
+      </el-form-item>
+    </el-form>
+
+    <el-form v-else inline>
+      <el-form-item label="交易日">
+        <el-date-picker v-model="commonForm.tradeDate" type="date" value-format="YYYY-MM-DD" />
+      </el-form-item>
+      <el-form-item label="打分池数量">
+        <el-input-number v-model="commonForm.scoreTopN" :min="10" :max="500" :step="10" />
+      </el-form-item>
+      <el-form-item v-if="mode === 'comprehensive'" label="回看天数">
+        <el-input-number v-model="commonForm.lookbackDays" :min="20" :max="3650" :step="5" />
+      </el-form-item>
+      <el-form-item v-if="mode === 'trend'" label="乖离阈值">
+        <el-input-number v-model="commonForm.biasThreshold" :min="1" :max="20" :step="0.5" :precision="1" />
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" :loading="running" @click="runGeneric">执行打分</el-button>
+        <el-button :disabled="running" @click="loadLatest">加载最新</el-button>
       </el-form-item>
     </el-form>
 
@@ -167,7 +189,7 @@
       </el-table-column>
     </el-table>
 
-    <el-table v-else v-loading="loading" :data="displayedResults" stripe>
+    <el-table v-else-if="mode === 'oversold'" v-loading="loading" :data="displayedResults" stripe>
       <el-table-column label="排名" width="70">
         <template #default="{ row, $index }">{{ resolveRank(row, $index) }}</template>
       </el-table-column>
@@ -187,19 +209,49 @@
       </el-table-column>
     </el-table>
 
+    <el-table v-else v-loading="loading" :data="displayedResults" stripe>
+      <el-table-column label="排名" width="70">
+        <template #default="{ row, $index }">{{ resolveRank(row, $index) }}</template>
+      </el-table-column>
+      <el-table-column prop="stock_code" label="代码" min-width="95" />
+      <el-table-column prop="stock_name" label="名称" min-width="120" />
+      <el-table-column prop="final_score" label="综合分" min-width="90" />
+      <el-table-column prop="trend_score" :label="dimensionLabels.dim1" min-width="90" />
+      <el-table-column prop="momentum_score" :label="dimensionLabels.dim2" min-width="90" />
+      <el-table-column prop="volume_score" :label="dimensionLabels.dim3" min-width="90" />
+      <el-table-column v-if="mode === 'comprehensive'" prop="investment_advice" label="投资建议" min-width="100" />
+      <el-table-column v-if="mode === 'trend'" prop="buy_signal" label="信号" min-width="90">
+        <template #default="{ row }">{{ row.buy_signal || row.extra_metrics?.buy_signal || '--' }}</template>
+      </el-table-column>
+      <el-table-column label="操作" min-width="90" fixed="right">
+        <template #default="{ row }">
+          <el-button link type="primary" @click="showDetail(row)">详情</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+
     <p v-if="mode === 'classic'" class="tip">流程：先执行打分拿到评分池，再按 TopN 和最低分生成关注清单。</p>
-    <p v-else class="tip">逻辑：趋势确认(40) + 成交量验证(30) + 超跌程度(30)；关注清单支持二次阈值筛选。</p>
+    <p v-else-if="mode === 'oversold'" class="tip">逻辑：趋势确认(40) + 成交量验证(30) + 超跌程度(30)；关注清单支持二次阈值筛选。</p>
+    <p v-else-if="mode === 'trend'" class="tip">逻辑：趋势/乖离/量能/支撑/MACD/RSI 六维综合评分。</p>
+    <p v-else-if="mode === 'comprehensive'" class="tip">逻辑：技术面30 + 基本面40 + 情绪面30 三维度综合评分。</p>
+    <p v-else class="tip">逻辑：纯库内 K 线 + PE + 行业聚合的多维度打分 v1。</p>
   </el-card>
 
   <el-dialog v-model="detailVisible" title="选股详情" width="640px">
     <el-descriptions :column="2" border v-if="detailRow">
       <el-descriptions-item label="股票">{{ detailRow.stock_code }} {{ detailRow.stock_name }}</el-descriptions-item>
       <el-descriptions-item label="综合分">{{ detailRow.final_score }}</el-descriptions-item>
-      <template v-if="mode === 'oversold'">
+      <template v-else-if="mode === 'oversold'">
         <el-descriptions-item label="趋势(40)">{{ detailRow.trend_score }}</el-descriptions-item>
         <el-descriptions-item label="量能(30)">{{ detailRow.volume_score }}</el-descriptions-item>
         <el-descriptions-item label="超跌(30)">{{ detailRow.momentum_score }}</el-descriptions-item>
         <el-descriptions-item label="加权分">{{ detailRow.volatility20 }}</el-descriptions-item>
+      </template>
+      <template v-else-if="isGenericMode">
+        <el-descriptions-item :label="dimensionLabels.dim1">{{ detailRow.trend_score }}</el-descriptions-item>
+        <el-descriptions-item :label="dimensionLabels.dim2">{{ detailRow.momentum_score }}</el-descriptions-item>
+        <el-descriptions-item :label="dimensionLabels.dim3">{{ detailRow.volume_score }}</el-descriptions-item>
+        <el-descriptions-item v-if="mode === 'comprehensive'" label="投资建议">{{ detailRow.investment_advice || detailRow.extra_metrics?.suggestion || '--' }}</el-descriptions-item>
       </template>
       <template v-else>
         <el-descriptions-item label="趋势分">{{ detailRow.trend_score }}</el-descriptions-item>
@@ -224,7 +276,7 @@ import { selectorApi } from '@/api/selector'
 import { scoringApi, type UnifiedScoringStrategy, type UnifiedScoringTaskStatus } from '@/api/scoring'
 import { useToast } from '@/composables/useToast'
 
-type ModeType = 'classic' | 'oversold'
+type ModeType = 'classic' | 'oversold' | 'trend' | 'comprehensive' | 'multi_dim'
 type TaskStatusType = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | ''
 
 const loading = ref(false)
@@ -284,6 +336,28 @@ const oversoldForm = reactive({
   excludeST: true,
   persist: true,
   templateId: ''
+})
+
+const commonForm = reactive({
+  tradeDate: dayjs().format('YYYY-MM-DD'),
+  scoreTopN: 500,
+  lookbackDays: 120,
+  biasThreshold: 5.0
+})
+
+const isGenericMode = computed(() => ['trend', 'comprehensive', 'multi_dim'].includes(mode.value))
+
+const dimensionLabels = computed(() => {
+  switch (mode.value) {
+    case 'trend':
+      return { dim1: '趋势', dim2: '乖离', dim3: '量能' }
+    case 'comprehensive':
+      return { dim1: '技术(30)', dim2: '基本(40)', dim3: '情绪(30)' }
+    case 'multi_dim':
+      return { dim1: '技术', dim2: '估值', dim3: '行业' }
+    default:
+      return { dim1: '维度1', dim2: '维度2', dim3: '维度3' }
+  }
 })
 
 const focusForm = reactive({
@@ -530,18 +604,42 @@ async function queryByResultId() {
 }
 
 function currentStrategy(): UnifiedScoringStrategy {
-  if (mode.value === 'classic') return 'CLASSIC_SELECTOR'
-  return 'OVERSOLD_REBOUND'
+  const map: Record<ModeType, UnifiedScoringStrategy> = {
+    classic: 'CLASSIC_SELECTOR',
+    oversold: 'OVERSOLD_REBOUND',
+    trend: 'TREND',
+    comprehensive: 'COMPREHENSIVE',
+    multi_dim: 'MULTI_DIM'
+  }
+  return map[mode.value]
 }
 
 function currentTradeDate() {
   if (mode.value === 'classic') return form.tradeDate
-  return oversoldForm.tradeDate
+  if (mode.value === 'oversold') return oversoldForm.tradeDate
+  return commonForm.tradeDate
 }
 
 function currentScorePoolSize() {
   if (mode.value === 'classic') return form.scoreTopN
-  return oversoldForm.scoreTopN
+  if (mode.value === 'oversold') return oversoldForm.scoreTopN
+  return commonForm.scoreTopN
+}
+
+function buildGenericPayload(): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    strategy: currentStrategy(),
+    tradeDate: commonForm.tradeDate,
+    topN: commonForm.scoreTopN,
+    persist: true
+  }
+  if (mode.value === 'comprehensive') {
+    payload.lookbackDays = commonForm.lookbackDays
+  }
+  if (mode.value === 'trend') {
+    payload.biasThreshold = commonForm.biasThreshold
+  }
+  return payload
 }
 
 async function runSelection() {
@@ -592,6 +690,27 @@ async function runOversold() {
     toast.success(`打分完成，共 ${results.value.length} 只`)
   } catch (e: any) {
     taskError.value = String(e?.message || '运行超跌筛选失败')
+    toast.error(taskError.value)
+  } finally {
+    running.value = false
+    loading.value = false
+  }
+}
+
+async function runGeneric() {
+  running.value = true
+  loading.value = true
+  const strategy = currentStrategy()
+  try {
+    const payload = buildGenericPayload()
+    const done = await runAndWaitTask(payload)
+    const data = done.result_id
+      ? await scoringApi.getUnifiedResult(done.result_id, { page: 1, size: commonForm.scoreTopN })
+      : await scoringApi.getUnifiedLatest({ strategy, tradeDate: commonForm.tradeDate, page: 1, size: commonForm.scoreTopN })
+    applyResult(data)
+    toast.success(`打分完成，共 ${results.value.length} 只`)
+  } catch (e: any) {
+    taskError.value = String(e?.message || '运行打分失败')
     toast.error(taskError.value)
   } finally {
     running.value = false
@@ -733,8 +852,10 @@ async function forceRestartCurrentTask() {
     }
     if (mode.value === 'classic') {
       await runSelection()
-    } else {
+    } else if (mode.value === 'oversold') {
       await runOversold()
+    } else {
+      await runGeneric()
     }
   } catch (e: any) {
     const msg = String(e?.message || '强制重跑失败')
@@ -786,7 +907,7 @@ function exportCsv() {
   const headers = ['rank_no', 'stock_code', 'stock_name', 'final_score', 'trend_score', 'momentum_score', 'volume_score', 'ret20', 'ret60']
   const lines = [headers.join(',')]
   for (const r of rows) {
-    const row = {
+    const row: Record<string, unknown> = {
       ...r,
       rank_no: focusForm.view === 'focus' ? r.local_rank : r.rank_no
     }

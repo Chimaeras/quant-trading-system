@@ -6,6 +6,9 @@ export interface ScoringBacktestRequest {
   endDate?: string
   topN?: number
   holdingDays?: number[]
+  commissionRate?: number
+  sellTaxRate?: number
+  slippageRate?: number
 }
 
 export interface PeriodStat {
@@ -23,6 +26,8 @@ export interface StockReturn {
   stockName: string
   finalScore: number
   rankNo: number
+  entryDate: string
+  entryPrice: number
   forwardReturns: Record<number, number | null>
 }
 
@@ -38,6 +43,7 @@ export interface ScoringBacktestResponse {
   endDate: string
   topN: number
   totalTradingDays: number
+  executionAssumptions: Record<string, unknown>
   holdingPeriodStats: Record<number, PeriodStat>
   dailyDetails: DailyDetail[]
 }
@@ -55,5 +61,51 @@ export const backtestApi = {
   async getStrategies() {
     const res = await request.get<{ data: string[] }>('/backtest/scoring/strategies')
     return (res as { data?: string[] })?.data ?? []
+  },
+
+  async runStrategyBacktest(body: StrategyBacktestRequest) {
+    const res = await request.post<{ data: StrategyBacktestResponse }>(
+      '/backtest/strategy/run',
+      body,
+      { timeout: 120000 }
+    )
+    return (res as { data?: StrategyBacktestResponse })?.data as StrategyBacktestResponse
+  },
+
+  async getStrategyTypes() {
+    const res = await request.get<{ data: string[] }>('/backtest/strategy/strategies')
+    return (res as { data?: string[] })?.data ?? []
   }
+}
+
+export interface StrategyBacktestRequest {
+  strategyType?: string
+  stockCode?: string
+  exchangeType?: string
+  startDate?: string
+  endDate?: string
+  initialCapital?: number
+  shortPeriod?: number
+  longPeriod?: number
+  bollPeriod?: number
+  bollStdDev?: number
+}
+
+export interface StrategyBacktestResponse {
+  strategyType: string
+  stockCode: string
+  exchangeType: string
+  stockName: string
+  startDate: string
+  endDate: string
+  initialCapital: number
+  finalCapital: number
+  totalReturn: number
+  maxDrawdown: number
+  sharpeRatio: number
+  totalTrades: number
+  winningTrades: number
+  winRate: number
+  trades: Array<Record<string, unknown>>
+  equityCurve: Array<Record<string, unknown>>
 }

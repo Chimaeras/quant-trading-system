@@ -32,6 +32,9 @@ public class StockFinancialSnapshot {
     @Column(nullable = false)
     private LocalDate reportPeriod;
 
+    /** 实际公告日期；历史回测只能使用不晚于信号日公告的数据 */
+    private LocalDate announcementDate;
+
     /** 营收同比增速 % */
     @Column(precision = 12, scale = 4)
     private BigDecimal revenueYoY;

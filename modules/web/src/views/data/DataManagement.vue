@@ -209,7 +209,18 @@ const detailPage = ref(1)
 const detailSize = ref(100)
 
 const _defaultRange = applyTradingDayPreset('y1')
-const taskForm = reactive({
+type UpdateMode = 'SINGLE' | 'ALL' | 'LIST' | 'MAIN_BOARD'
+
+const taskForm = reactive<{
+  mode: UpdateMode
+  stockCode: string
+  exchange: string
+  startDateInput: string
+  endDateInput: string
+  stockListText: string
+  delayMs: number
+  maxStocks: number
+}>({
   mode: 'SINGLE',
   stockCode: '',
   exchange: '',

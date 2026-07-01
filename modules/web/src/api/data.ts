@@ -7,6 +7,9 @@ import { generateMockStocks, generateMockKLine } from '@/utils/mock'
 import request from './request'
 import type { DataOverview } from '@/types'
 
+/** Mock 数据仅在开发环境显式设置 VITE_ENABLE_MOCK_DATA=true 时启用。 */
+const mockDataEnabled = import.meta.env.DEV && import.meta.env.VITE_ENABLE_MOCK_DATA === 'true'
+
 /** 计算两个日期之间的交易日数量（去除周末） */
 function tradingDaysBetween(start: string, end: string): number {
   let d = dayjs(start)
@@ -37,7 +40,7 @@ export const dataApi = {
         params: { _t: Date.now() },
         headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' }
       })
-      const d = (res as { data?: DataOverview })?.data ?? res
+      const d = res.data
       if (d && typeof d.stock_count === 'number') {
         return {
           stock_count: d.stock_count,
@@ -115,7 +118,7 @@ export const dataApi = {
       null,
       { params }
     )
-    const d = (res as { data?: { inserted: number; skipped: number; total: number; message?: string } })?.data ?? res
+    const d = res.data
     return {
       inserted: d?.inserted ?? 0,
       skipped: d?.skipped ?? 0,
@@ -166,6 +169,9 @@ export const dataApi = {
 
   /** 更新股票列表 */
   async updateStockList(): Promise<{ success: boolean; count: number }> {
+    if (!mockDataEnabled) {
+      throw new Error('未配置真实股票列表更新接口；Mock 数据默认关闭')
+    }
     const db = await getDB()
     const stocks = generateMockStocks(200)
     const tx = db.transaction('stocks', 'readwrite')
@@ -181,7 +187,7 @@ export const dataApi = {
     const { page = 1, size = 20, keyword, exchange_type } = params
     const db = await getDB()
     let stocks = await db.getAll('stocks')
-    if (stocks.length === 0) {
+    if (stocks.length === 0 && mockDataEnabled) {
       stocks = generateMockStocks(500)
       const tx = db.transaction('stocks', 'readwrite')
       for (const s of stocks) {
@@ -209,7 +215,7 @@ export const dataApi = {
   async getKLine(stockCode: string, _startDate?: string, _endDate?: string) {
     const db = await getDB()
     let data = await db.getAllFromIndex('market_data', 'by-stock', stockCode)
-    if (data.length === 0) {
+    if (data.length === 0 && mockDataEnabled) {
       const kline = generateMockKLine(stockCode, 250)
       const tx = db.transaction('market_data', 'readwrite')
       for (const k of kline) {
@@ -226,6 +232,7 @@ export const dataApi = {
       await tx.done
       return kline
     }
+    if (data.length === 0) return []
     return (data as Array<Record<string, unknown>>)
       .sort((a, b) => String(a.trade_date).localeCompare(String(b.trade_date)))
       .map((d) => ({
@@ -269,4 +276,3 @@ export const dataApi = {
     return { success: true, count }
   }
 }
-

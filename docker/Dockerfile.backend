@@ -1,15 +1,24 @@
-FROM eclipse-temurin:17-jdk-alpine AS build
+FROM eclipse-temurin:21-jdk-alpine AS build
 WORKDIR /app
 
-COPY pom.xml .
-RUN apk add --no-cache maven
-RUN mvn dependency:go-offline -B || true
+RUN apk add --no-cache maven nodejs npm
 
-COPY src ./src
+# 构建前端
+COPY modules/web/package.json modules/web/package-lock.json ./modules/web/
+WORKDIR /app/modules/web
+RUN npm ci || npm install
+COPY modules/web/ ./
+RUN npm run build
+
+# 构建后端（Maven 将 dist 复制到 static）
+WORKDIR /app/modules/backend-java
+COPY modules/backend-java/pom.xml ./
+RUN mvn dependency:go-offline -B || true
+COPY modules/backend-java/src ./src
 RUN mvn clean package -DskipTests -B
 
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-COPY --from=build /app/target/*.jar app.jar
+COPY --from=build /app/modules/backend-java/target/*.jar app.jar
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]

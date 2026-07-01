@@ -4,12 +4,13 @@ import com.quant.entity.DataUpdateTask;
 import com.quant.entity.DataUpdateTaskItem;
 import com.quant.repository.DataUpdateTaskItemRepository;
 import com.quant.repository.DataUpdateTaskRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
@@ -19,25 +20,32 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class HistoricalDataUpdateService {
     private static final String A_SHARE_UNIVERSE_RESOURCE = "universe/a_share_codes.txt";
 
     private final HistoricalDataService historicalDataService;
     private final DataUpdateTaskRepository dataUpdateTaskRepository;
     private final DataUpdateTaskItemRepository dataUpdateTaskItemRepository;
-
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final ThreadPoolTaskExecutor dataUpdateTaskExecutor;
     private final Map<String, Future<?>> taskFutures = new ConcurrentHashMap<>();
     private final Set<String> cancelRequestedTaskIds = ConcurrentHashMap.newKeySet();
     private static final Set<String> TERMINAL_STATUSES = Set.of("SUCCESS", "PARTIAL", "FAILED", "STOPPED");
+
+    public HistoricalDataUpdateService(
+            HistoricalDataService historicalDataService,
+            DataUpdateTaskRepository dataUpdateTaskRepository,
+            DataUpdateTaskItemRepository dataUpdateTaskItemRepository,
+            @Qualifier("dataUpdateExecutor") ThreadPoolTaskExecutor dataUpdateTaskExecutor) {
+        this.historicalDataService = historicalDataService;
+        this.dataUpdateTaskRepository = dataUpdateTaskRepository;
+        this.dataUpdateTaskItemRepository = dataUpdateTaskItemRepository;
+        this.dataUpdateTaskExecutor = dataUpdateTaskExecutor;
+    }
 
     public Map<String, Object> createTask(Map<String, Object> request) {
         String mode = normalizeMode(String.valueOf(request.getOrDefault("mode", "SINGLE")));
@@ -75,7 +83,7 @@ public class HistoricalDataUpdateService {
         final LocalDate e = endDate;
         final long delayBetween = delayMs;
         final boolean stockInfoStyleMainBoard = "MAIN_BOARD".equals(mode);
-        Future<?> future = executor.submit(() -> runTask(task.getTaskId(), targetsForRun, s, e, delayBetween, stockInfoStyleMainBoard));
+        Future<?> future = dataUpdateTaskExecutor.submit(() -> runTask(task.getTaskId(), targetsForRun, s, e, delayBetween, stockInfoStyleMainBoard));
         taskFutures.put(task.getTaskId(), future);
 
         Map<String, Object> res = new LinkedHashMap<>();
@@ -144,7 +152,7 @@ public class HistoricalDataUpdateService {
         retry.setTotalStocks(targets.size());
         dataUpdateTaskRepository.save(retry);
 
-        Future<?> future = executor.submit(() -> runTask(retry.getTaskId(), targets, retry.getStartDate(), retry.getEndDate(), 150L, false));
+        Future<?> future = dataUpdateTaskExecutor.submit(() -> runTask(retry.getTaskId(), targets, retry.getStartDate(), retry.getEndDate(), 150L, false));
         taskFutures.put(retry.getTaskId(), future);
         return Map.of("task_id", retry.getTaskId(), "status", retry.getStatus(), "total_stocks", retry.getTotalStocks());
     }

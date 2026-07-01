@@ -1,206 +1,147 @@
 # API 文档
 
-基础路径: `/api` (如部署在 8080 端口则为 `http://localhost:8080/api`)
+基础路径：`/api`（默认 `http://localhost:8080/api`）
 
-## 1. 用户认证
-
-### 1.1 登录
-
-```
-POST /auth/login
-Content-Type: application/json
-```
-
-**请求体**
+统一响应格式：
 
 ```json
-{
-  "username": "admin",
-  "password": "123456"
-}
+{ "code": 200, "message": "success", "data": { } }
 ```
 
-**响应**
+---
+
+## 1. 认证（JWT，可选）
+
+> 默认 `quant.auth.enabled=false`，账户/下单接口可直接访问（默认 userId=1）。  
+> 生产环境请设置 `quant.auth.enabled=true` 并修改 `jwt-secret`。
+
+### 登录
+`POST /auth/login`
 
 ```json
-{
-  "code": 200,
-  "message": "success",
-  "data": {
-    "token": "<JWT_FROM_LOGIN>",
-    "expiresIn": 86400
-  }
-}
+{ "username": "admin", "password": "admin123" }
 ```
 
-## 2. 账户接口
-
-### 2.1 获取账户信息
-
-```
-GET /account/info
-Authorization: Bearer {token}
-```
-
-**响应**
+### 注册
+`POST /auth/register`
 
 ```json
-{
-  "code": 200,
-  "data": {
-    "totalAsset": 500000,
-    "cash": 150000,
-    "positionValue": 350000,
-    "todayPnl": 12500,
-    "positionCount": 15
-  }
-}
+{ "username": "demo", "password": "123456" }
 ```
 
-## 3. 持仓接口
+响应 `data` 含 `token`、`expiresIn`、`userId`。
 
-### 3.1 获取持仓列表
+受保护接口需 Header：`Authorization: Bearer {token}`
 
-```
-GET /position/list
-Authorization: Bearer {token}
-```
+---
 
-**响应**
+## 2. 模拟账户
 
-```json
-{
-  "code": 200,
-  "data": [
-    {
-      "symbol": "000001",
-      "name": "平安银行",
-      "volume": 1000,
-      "avgPrice": 12.5,
-      "currentPrice": 12.8
-    }
-  ]
-}
-```
+### 账户概览
+`GET /account/info`
 
-## 4. 订单接口
+### 持仓列表
+`GET /position/list`
 
-### 4.1 下单
-
-```
-POST /order/place
-Authorization: Bearer {token}
-Content-Type: application/json
-```
-
-**请求体**
+### 下单
+`POST /order/place`
 
 ```json
 {
   "symbol": "000001",
+  "exchangeType": "SZSE",
   "action": "buy",
-  "volume": 1000,
-  "price": 12.5,
-  "type": "limit"
+  "volume": 100,
+  "price": 12.5
 }
 ```
 
-**响应**
+`price` 省略时使用库内最新收盘价。
+
+---
+
+## 3. 行情
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/market/stock/list` | 股票列表 |
+| GET | `/market/stock/detail` | 股票详情 |
+| GET | `/market/kline` | K 线 |
+| GET | `/market/realtime` | 实时行情 |
+
+---
+
+## 4. 数据管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/data/overview` | 数据概览 |
+| POST | `/data/update/run` | 创建更新任务 |
+| GET | `/data/update/tasks` | 任务列表 |
+
+---
+
+## 5. 选股打分
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/scoring/unified/tasks/run` | 异步统一打分 |
+| GET | `/scoring/unified/tasks/{taskId}` | 任务进度 |
+| GET | `/scoring/unified/result/latest` | 最新结果 |
+| POST | `/scoring/trend/run` | 趋势打分 |
+| POST | `/scoring/comprehensive/run` | 综合三维度 |
+| POST | `/selector/run` | 经典选股 |
+
+策略枚举：`TREND` / `COMPREHENSIVE` / `MULTI_DIM` / `CLASSIC_SELECTOR` / `OVERSOLD_REBOUND`
+
+---
+
+## 6. 回测
+
+### 打分结果回测
+`POST /backtest/scoring`
+
+基于历史选股 TopN 持有期收益统计。
+
+### 经典策略回测（单股）
+`POST /backtest/strategy/run`
 
 ```json
 {
-  "code": 200,
-  "data": {
-    "orderId": "ORD20260320001",
-    "status": "submitted"
-  }
+  "strategyType": "MA_CROSS",
+  "stockCode": "000001",
+  "exchangeType": "SZSE",
+  "startDate": "2024-01-01",
+  "endDate": "2025-01-01",
+  "initialCapital": 100000,
+  "shortPeriod": 5,
+  "longPeriod": 20
 }
 ```
 
-## 5. 策略接口
+策略类型：`MA_CROSS` / `BOLL` / `MACD`
 
-### 5.1 获取策略列表
+`GET /backtest/strategy/strategies` — 策略列表
 
-```
-GET /strategy/list
-Authorization: Bearer {token}
-```
+---
 
-**响应**
+## 7. 单股分析
 
-```json
-{
-  "code": 200,
-  "data": [
-    {
-      "id": 1,
-      "name": "MA_Cross",
-      "status": "running",
-      "pnl": 12500
-    }
-  ]
-}
-```
+`POST /analysis/stock` — 技术分析建议
 
-## 6. 回测接口
+---
 
-### 6.1 运行回测
+## 配置项
 
-```
-POST /backtest/run
-Authorization: Bearer {token}
-Content-Type: application/json
-```
+| 配置 | 说明 | 默认 |
+|------|------|------|
+| `quant.auth.enabled` | 是否启用 JWT | false |
+| `quant.auth.default-admin-username` | 默认管理员 | admin |
+| `quant.auth.default-sim-cash` | 模拟账户初始资金 | 1000000 |
+| `skip.frontend.build` | Maven 跳过前端构建 | false |
 
-**请求体**
+---
 
-```json
-{
-  "strategyId": 1,
-  "symbol": "000001",
-  "startDate": "2025-01-01",
-  "endDate": "2026-03-20",
-  "initialCash": 1000000
-}
-```
+## 默认账户
 
-**响应**
-
-```json
-{
-  "code": 200,
-  "data": {
-    "totalReturn": "15.3%",
-    "sharpeRatio": 1.85,
-    "maxDrawdown": "-8.2%",
-    "totalTrades": 42,
-    "winRate": 0.58
-  }
-}
-```
-
-## 7. 行情接口
-
-### 7.1 获取 K 线数据
-
-```
-GET /market/kline?symbol=000001&interval=1d&limit=100
-```
-
-**响应**
-
-```json
-{
-  "code": 200,
-  "data": [
-    {
-      "time": "2026-03-20",
-      "open": 12.3,
-      "high": 12.8,
-      "low": 12.2,
-      "close": 12.5,
-      "volume": 1000000
-    }
-  ]
-}
-```
+首次启动自动创建：`admin` / `admin123`，并分配 100 万模拟资金。

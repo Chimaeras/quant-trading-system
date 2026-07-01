@@ -134,6 +134,34 @@ class SimAccountServiceTest {
     }
 
     @Test
+    void blocksBuyAtLimitUpWhenPreCloseDerivedFromPreviousClose() {
+        UserAccount account = accountWithCash(100_000);
+        LocalDate today = LocalDate.of(2026, 6, 30);
+        MarketData bar = new MarketData();
+        bar.setTradeDate(today);
+        bar.setClosePrice(BigDecimal.valueOf(11));
+        MarketData prevBar = new MarketData();
+        prevBar.setTradeDate(today.minusDays(1));
+        prevBar.setClosePrice(BigDecimal.valueOf(10));
+
+        when(userAccountRepository.findFirstByUserIdAndStatus(1L, 1)).thenReturn(Optional.of(account));
+        when(marketDataRepository.findFirstByStockCodeAndExchangeTypeOrderByTradeDateDesc("000001", "SZSE"))
+                .thenReturn(Optional.of(bar));
+        when(marketDataRepository.findByStockCodeAndExchangeTypeAndTradeDate("000001", "SZSE", today.minusDays(1)))
+                .thenReturn(Optional.of(prevBar));
+        when(stockInfoRepository.findByStockCodeAndExchangeType("000001", "SZSE")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.placeOrder(1L, Map.of(
+                "stockCode", "000001",
+                "exchangeType", "SZSE",
+                "action", "buy",
+                "volume", 100,
+                "price", 11
+        ))).isInstanceOf(BusinessException.class)
+                .hasMessageContaining("涨停");
+    }
+
+    @Test
     void blocksBuyAtLimitUpPrice() {
         UserAccount account = accountWithCash(100_000);
         MarketData bar = new MarketData();

@@ -169,9 +169,12 @@ public class SimAccountService {
     ) {
         marketDataRepository.findFirstByStockCodeAndExchangeTypeOrderByTradeDateDesc(stockCode, exchange)
                 .ifPresent(bar -> {
-                    double preClose = bar.getPreClose() != null
-                            ? bar.getPreClose().doubleValue()
-                            : StrategyBacktestEngine.resolvePreClose(bar, bar);
+                    MarketData prevBar = marketDataRepository
+                            .findByStockCodeAndExchangeTypeAndTradeDate(
+                                    stockCode, exchange, bar.getTradeDate().minusDays(1))
+                            .orElse(null);
+                    double preClose = StrategyBacktestEngine.resolvePreClose(
+                            bar, prevBar != null ? prevBar : new MarketData());
                     if (preClose <= 0) {
                         return;
                     }

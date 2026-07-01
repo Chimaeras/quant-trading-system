@@ -34,6 +34,12 @@ public class ScoringBacktestResponse {
     /** 各持有期 Rank IC 摘要，用于 IC 衰减/多周期对比 */
     private Map<Integer, FactorIcSummary> factorIcByHolding;
 
+    /** 策略公式审计（短周期预测适配性说明） */
+    private Map<String, Object> formulaAudit;
+
+    /** 基于 T+3/T+5 Rank IC 的公式有效性验证摘要 */
+    private Map<String, Object> shortHorizonValidation;
+
     @Data
     @Builder
     @NoArgsConstructor

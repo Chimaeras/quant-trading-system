@@ -13,7 +13,9 @@ import java.util.function.Function;
 @Component
 public class ClassicFactorCalculator {
 
-    public static final String FACTOR_VERSION = "classic_v2_cross_section";
+    public static final String FACTOR_VERSION = "classic_v3_short_horizon";
+    public static final String HORIZON_MEDIUM = StrategyFormulaRegistry.HORIZON_MEDIUM_TREND;
+    public static final String HORIZON_SHORT = StrategyFormulaRegistry.HORIZON_SHORT_3_5D;
     private static final int MIN_BARS = 70;
 
     /** 权重优先从 YAML 读取，缺失时使用硬编码默认值 */
@@ -42,6 +44,20 @@ public class ClassicFactorCalculator {
             double minTrendScore,
             Function<String, String> nameResolver,
             boolean excludeST
+    ) {
+        return calculate(stockCode, exchangeType, bars, minAvgAmount, minTrendScore,
+                nameResolver, excludeST, HORIZON_MEDIUM);
+    }
+
+    public Optional<CandidateScore> calculate(
+            String stockCode,
+            String exchangeType,
+            List<MarketData> bars,
+            double minAvgAmount,
+            double minTrendScore,
+            Function<String, String> nameResolver,
+            boolean excludeST,
+            String horizonProfile
     ) {
         if (bars == null || bars.size() < MIN_BARS) {
             return Optional.empty();
@@ -80,6 +96,12 @@ public class ClassicFactorCalculator {
 
         double volumeRatio = amount.get(amount.size() - 1) / Math.max(1d, avgAmount20);
 
+        boolean shortProfile = HORIZON_SHORT.equals(horizonProfile);
+        ShortHorizonFactorScorer.ShortHorizonResult shortHorizon = shortProfile
+                ? ShortHorizonFactorScorer.score(close, amount, closeArr)
+                : null;
+        double shortHorizonScore = shortHorizon != null ? shortHorizon.score() : 0;
+
         double trend = 0;
         trend += ma20 > ma60 ? 35 : 0;
         trend += ScoringUtils.clamp(ret20, -10, 25);
@@ -96,13 +118,19 @@ public class ClassicFactorCalculator {
         double volumeScore = ScoringUtils.clamp(
                 (avgAmount20 / Math.max(1, minAvgAmount)) * 60 + volumeRatio * 20, 0, 100);
         double riskPenalty = ScoringUtils.clamp(vol20 * 1.5 + mdd60 * 1.2, 0, 100);
-        double finalScore = weightTrend() * trend + weightMomentum() * momentum
-                + weightVolume() * volumeScore - weightRiskPenalty() * riskPenalty;
+
+        double finalScore;
+        if (shortProfile) {
+            finalScore = 0.40 * shortHorizonScore + 0.25 * momentum + 0.20 * volumeScore - 0.25 * riskPenalty;
+        } else {
+            finalScore = weightTrend() * trend + weightMomentum() * momentum
+                    + weightVolume() * volumeScore - weightRiskPenalty() * riskPenalty;
+        }
 
         boolean passMinAvgAmount = avgAmount20 >= minAvgAmount;
-        boolean passMinTrendScore = trend >= minTrendScore;
-        boolean passMaTrend = ma20 > ma60;
-        boolean passRet20 = ret20 >= -5;
+        boolean passMinTrendScore = shortProfile ? shortHorizonScore >= 35 : trend >= minTrendScore;
+        boolean passMaTrend = shortProfile || ma20 > ma60;
+        boolean passRet20 = shortProfile || ret20 >= -5;
         if (!passMinAvgAmount || !passMinTrendScore || !passMaTrend || !passRet20) {
             return Optional.empty();
         }
@@ -127,6 +155,11 @@ public class ClassicFactorCalculator {
         c.setPassRet20(passRet20);
 
         Map<String, Object> reasons = new LinkedHashMap<>();
+        reasons.put("horizon_profile", shortProfile ? HORIZON_SHORT : HORIZON_MEDIUM);
+        if (shortProfile && shortHorizon != null) {
+            reasons.put("short_horizon_score", ScoringUtils.round2(shortHorizonScore));
+            reasons.putAll(shortHorizon.breakdown());
+        }
         reasons.put("trend", ma20 > ma60 ? "MA20 在 MA60 上方" : "趋势偏弱");
         reasons.put("ret20", ScoringUtils.round2(ret20) + "%");
         reasons.put("ret60", ScoringUtils.round2(ret60) + "%");
@@ -155,10 +188,21 @@ public class ClassicFactorCalculator {
         for (CandidateScore c : candidates) {
             double oldFinal = c.getFinalScore();
             double oldMacro = c.getMacroAdjustedFinal();
-            double fs = weightTrend() * c.getTrendScore()
-                    + weightMomentum() * c.getMomentumScore()
-                    + weightVolume() * c.getVolumeScore()
-                    - weightRiskPenalty() * c.getRiskPenalty();
+            String profile = c.getReasons() != null
+                    ? String.valueOf(c.getReasons().getOrDefault("horizon_profile", HORIZON_MEDIUM))
+                    : HORIZON_MEDIUM;
+            boolean shortProfile = HORIZON_SHORT.equals(profile);
+            double fs;
+            if (shortProfile) {
+                Object shObj = c.getReasons().get("short_horizon_score");
+                double sh = shObj instanceof Number num ? num.doubleValue() : c.getMomentumScore();
+                fs = 0.40 * sh + 0.25 * c.getMomentumScore() + 0.20 * c.getVolumeScore() - 0.25 * c.getRiskPenalty();
+            } else {
+                fs = weightTrend() * c.getTrendScore()
+                        + weightMomentum() * c.getMomentumScore()
+                        + weightVolume() * c.getVolumeScore()
+                        - weightRiskPenalty() * c.getRiskPenalty();
+            }
             c.setFinalScore(ScoringUtils.clamp(fs, 0, 100));
             if (oldMacro > 0 && oldFinal > 0) {
                 double ratio = c.getFinalScore() / oldFinal;

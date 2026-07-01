@@ -15,6 +15,7 @@ import com.quant.service.scoring.ExecutorLifecycle;
 import com.quant.service.scoring.FactorCollinearityChecker;
 import com.quant.service.scoring.ProgressiveResultWriter;
 import com.quant.service.scoring.ScoringUtils;
+import com.quant.service.scoring.StrategyFormulaRegistry;
 import com.quant.service.scoring.model.CandidateScore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +52,7 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         String factorVersion = String.valueOf(request.getOrDefault("factorVersion", "v1")).trim();
         boolean excludeST = parseBool(request.get("excludeST"), true);
         int minListingDays = parseInt(request.get("minListingDays"), 60, 0, 3650);
+        String horizonProfile = parseHorizonProfile(request.get("horizonProfile"));
         boolean progressivePersist = parseBool(request.get("progressivePersist"), false);
         String fixedResultId = String.valueOf(request.getOrDefault("resultId", "")).trim();
         boolean resumeMode = parseBool(request.get("resumeMode"), false);
@@ -142,7 +144,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                     bulkFetch,
                     resumeMode,
                     excludeST,
-                    minListingDays
+                    minListingDays,
+                    horizonProfile
             );
         }
 
@@ -156,6 +159,7 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         });
         CompletionService<Optional<CandidateScore>> cs = new ExecutorCompletionService<>(pool);
         final Map<String, List<MarketData>> bulkRef = bulkByKey;
+        final String horizonProfileFinal = horizonProfile;
         int submitted = 0;
         for (Object[] pair : pairs) {
             if (pair == null || pair.length < 2) continue;
@@ -174,7 +178,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                 return classicFactorCalculator.calculate(
                         stockCode, exchangeType, bars, minAvgAmount, minTrendScore,
                         k -> nameCache.computeIfAbsent(k, kk -> getStockName(stockCode, exchangeType)),
-                        excludeST);
+                        excludeST,
+                        horizonProfileFinal);
             });
         }
 
@@ -248,7 +253,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                 bulkFetch,
                 false,
                 excludeST,
-                minListingDays
+                minListingDays,
+                horizonProfile
         );
         List<SelectorResultItem> topItems = new ArrayList<>(selected.size());
         int rk = 1;
@@ -392,18 +398,19 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
             LocalDate rangeStart,
             boolean bulkFetch,
             boolean excludeST,
-            int minListingDays
+            int minListingDays,
+            String horizonProfile
     ) {
-        Map<String, Object> weights = Map.of(
-                "trend", 0.4,
-                "momentum", 0.25,
-                "volume", 0.2,
-                "risk", -0.15
-        );
+        boolean shortProfile = StrategyFormulaRegistry.HORIZON_SHORT_3_5D.equals(horizonProfile);
+        Map<String, Object> weights = shortProfile
+                ? Map.of("short_horizon", 0.40, "momentum", 0.25, "volume", 0.20, "risk", -0.15)
+                : Map.of("trend", 0.35, "momentum", 0.20, "volume", 0.20, "risk", -0.25);
         Map<String, Object> thresholds = new LinkedHashMap<>();
         thresholds.put("min_avg_amount", minAvgAmount);
         thresholds.put("min_trend_score", minTrendScore);
-        thresholds.put("must_ma20_gt_ma60", true);
+        thresholds.put("must_ma20_gt_ma60", !shortProfile);
+        thresholds.put("min_short_horizon_score", shortProfile ? 35 : null);
+        thresholds.put("horizon_profile", horizonProfile);
         thresholds.put("full_history", fullHistory);
         thresholds.put("lookback_days_requested", lookbackDaysRequested);
         thresholds.put("range_start", rangeStart != null ? rangeStart.toString() : "");
@@ -415,6 +422,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         snap.put("weights", weights);
         snap.put("thresholds", thresholds);
         snap.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, true, minListingDays));
+        snap.put("formula_audit", StrategyFormulaRegistry.toMap(
+                StrategyFormulaRegistry.audit("CLASSIC_SELECTOR", ClassicFactorCalculator.FACTOR_VERSION, horizonProfile)));
         return snap;
     }
 
@@ -445,7 +454,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
             boolean bulkFetch,
             boolean resumeMode,
             boolean excludeST,
-            int minListingDays
+            int minListingDays,
+            String horizonProfile
     ) {
         String rid = (resultId != null && !resultId.isBlank()) ? resultId : genResultId();
         SelectorResult result = selectorResultRepository.findByResultId(rid).orElse(new SelectorResult());
@@ -465,7 +475,7 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         result.setFailedCandidates(0);
         result.setLastProcessedKey("");
         result.setFactorSnapshot(buildFactorSnapshot(
-                minAvgAmount, minTrendScore, fullHistory, lookbackDaysRequested, rangeStart, bulkFetch, excludeST, minListingDays));
+                minAvgAmount, minTrendScore, fullHistory, lookbackDaysRequested, rangeStart, bulkFetch, excludeST, minListingDays, horizonProfile));
         progressiveResultWriter.upsertRunningResult(
                 rid,
                 result,
@@ -478,6 +488,17 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         Optional<StockInfo> exact = stockInfoRepository.findByStockCodeAndExchangeType(stockCode, exchangeType);
         if (exact.isPresent()) return exact.get().getStockName();
         return stockInfoRepository.findFirstByStockCode(stockCode).map(StockInfo::getStockName).orElse(stockCode);
+    }
+
+    private static String parseHorizonProfile(Object v) {
+        if (v == null) {
+            return StrategyFormulaRegistry.HORIZON_MEDIUM_TREND;
+        }
+        String s = String.valueOf(v).trim().toUpperCase(Locale.ROOT);
+        if ("SHORT_3_5D".equals(s) || "SHORT".equals(s) || "3_5D".equals(s)) {
+            return StrategyFormulaRegistry.HORIZON_SHORT_3_5D;
+        }
+        return StrategyFormulaRegistry.HORIZON_MEDIUM_TREND;
     }
 
     private LocalDate parseDate(Object v, LocalDate def) {

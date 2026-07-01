@@ -78,6 +78,8 @@ export interface ScoringBacktestResponse {
   dailyDetails: DailyDetail[]
   factorAnalysis?: FactorAnalysis | null
   factorIcByHolding?: Record<number, FactorIcSummary>
+  formulaAudit?: Record<string, unknown>
+  shortHorizonValidation?: Record<string, unknown>
 }
 
 export const backtestApi = {

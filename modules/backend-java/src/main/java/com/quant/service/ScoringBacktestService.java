@@ -20,6 +20,7 @@ import com.quant.service.backtest.FactorResearchEngine.CrossSectionObservation;
 import com.quant.service.backtest.FactorResearchEngine.FactorResearchSummary;
 import com.quant.service.backtest.StrategyBacktestEngine;
 import com.quant.service.backtest.TradingLimitRules;
+import com.quant.service.scoring.StrategyFormulaRegistry;
 import com.quant.service.scoring.ScoringUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -102,6 +103,8 @@ public class ScoringBacktestService {
                     .dailyDetails(List.of())
                     .factorAnalysis(null)
                     .factorIcByHolding(Map.of())
+                    .formulaAudit(resolveFormulaAudit(req, List.of()))
+                    .shortHorizonValidation(Map.of())
                     .build();
         }
 
@@ -338,7 +341,44 @@ public class ScoringBacktestService {
                 .dailyDetails(dailyDetails)
                 .factorAnalysis(toFactorAnalysisDto(factorSummary))
                 .factorIcByHolding(factorIcByHolding)
+                .formulaAudit(resolveFormulaAudit(req, dailyResults))
+                .shortHorizonValidation(buildShortHorizonValidation(factorIcByHolding, factorSummary))
                 .build();
+    }
+
+    static Map<String, Object> buildShortHorizonValidation(
+            Map<Integer, FactorIcSummary> factorIcByHolding,
+            FactorResearchSummary primarySummary
+    ) {
+        Map<String, Object> v = new LinkedHashMap<>();
+        FactorIcSummary ic3 = factorIcByHolding.get(3);
+        FactorIcSummary ic5 = factorIcByHolding.get(5);
+        double ic3Mean = ic3 != null ? ic3.getRankIcMean() : Double.NaN;
+        double ic5Mean = ic5 != null ? ic5.getRankIcMean() : Double.NaN;
+        boolean predictsT3 = ic3 != null && ic3.getRankIcMean() > 0.02 && ic3.getCrossSectionDays() >= 5;
+        boolean predictsT5 = ic5 != null && ic5.getRankIcMean() > 0.02 && ic5.getCrossSectionDays() >= 5;
+        v.put("t3_rank_ic_mean", finiteOrNull(ic3Mean));
+        v.put("t5_rank_ic_mean", finiteOrNull(ic5Mean));
+        v.put("t3_effective", predictsT3);
+        v.put("t5_effective", predictsT5);
+        v.put("primary_holding_day", primarySummary != null ? primarySummary.holdingDays() : null);
+        v.put("primary_long_short_spread", primarySummary != null ? primarySummary.longShortSpread() : null);
+        if (predictsT3 || predictsT5) {
+            v.put("verdict", "得分与 forward return 在 T+3/T+5 呈正相关，可用于相对排序；不等于单票必涨");
+            v.put("confidence", (predictsT3 && predictsT5) ? "中" : "低");
+        } else if (ic3 != null || ic5 != null) {
+            v.put("verdict", "当前样本下 T+3/T+5 Rank IC 不足，公式短周期预测力弱或样本不足");
+            v.put("confidence", "低");
+        } else {
+            v.put("verdict", "无足够截面数据，请先扩大日期范围或检查选股结果");
+            v.put("confidence", "未知");
+        }
+        v.put("disclaimer", "IC>0.02 且截面日≥5 仅作启发式阈值，非投资建议");
+        return v;
+    }
+
+    private static Double finiteOrNull(double v) {
+        return Double.isFinite(v) ? v : null;
     }
 
     public List<String> getAvailableStrategies() {
@@ -375,6 +415,7 @@ public class ScoringBacktestService {
         assumptions.put("limit_down_exit_blocked", true);
         assumptions.put("limit_pct_source", "BY_BOARD_AND_ST");
         assumptions.put("selector_tradability", ScoringUtils.tradabilitySnapshot(true, true, 60));
+        assumptions.put("short_horizon_research_focus", "T+3/T+5 Rank IC 与分组 spread 用于验证 3～5 日预测有效性");
         assumptions.put("skip_reason_codes", List.of(
                 SKIP_NO_QUOTE_ON_ENTRY,
                 SKIP_INVALID_ENTRY_OPEN,
@@ -421,10 +462,40 @@ public class ScoringBacktestService {
         if (requested != null && holdingDays.contains(requested)) {
             return requested;
         }
+        if (holdingDays.contains(3)) {
+            return 3;
+        }
         if (holdingDays.contains(5)) {
             return 5;
         }
         return holdingDays.getFirst();
+    }
+
+    private static Map<String, Object> resolveFormulaAudit(ScoringBacktestRequest req, List<SelectorResult> dailyResults) {
+        String strategyType = req.getStrategyType();
+        String factorVersion = "";
+        String horizonProfile = StrategyFormulaRegistry.HORIZON_MEDIUM_TREND;
+        if (dailyResults != null && !dailyResults.isEmpty()) {
+            SelectorResult sample = dailyResults.get(0);
+            if (strategyType == null || strategyType.isBlank()) {
+                strategyType = sample.getStrategyType();
+            }
+            if (sample.getFactorVersion() != null) {
+                factorVersion = sample.getFactorVersion();
+            }
+            Map<String, Object> snap = sample.getFactorSnapshot();
+            if (snap != null && snap.get("thresholds") instanceof Map<?, ?> th) {
+                Object hp = th.get("horizon_profile");
+                if (hp != null) {
+                    horizonProfile = String.valueOf(hp);
+                }
+            }
+        }
+        if (strategyType == null || strategyType.isBlank()) {
+            strategyType = "CLASSIC_SELECTOR";
+        }
+        return StrategyFormulaRegistry.toMap(
+                StrategyFormulaRegistry.audit(strategyType, factorVersion, horizonProfile));
     }
 
     private static EntryContext resolveEntryContext(

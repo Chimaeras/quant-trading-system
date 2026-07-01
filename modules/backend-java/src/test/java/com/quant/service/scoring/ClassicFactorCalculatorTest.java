@@ -83,7 +83,30 @@ class ClassicFactorCalculatorTest {
     }
 
     @Test
-    void excludesCandidateWithoutUptrend() {
+    void shortHorizonProfileAllowsNonMaUptrendWhenOversoldRepairStrong() {
+        List<MarketData> bars = sampleBars(75, 12, 50_000_000, -0.08);
+        for (int i = bars.size() - 5; i < bars.size(); i++) {
+            double c = 8.5 + (i - (bars.size() - 5)) * 0.15;
+            bars.get(i).setClosePrice(java.math.BigDecimal.valueOf(c));
+            bars.get(i).setAmount(java.math.BigDecimal.valueOf(80_000_000));
+        }
+
+        var medium = calculator.calculate(
+                "000001", "SZSE", bars, 1_000_000, 0, key -> "测试股份", true,
+                ClassicFactorCalculator.HORIZON_MEDIUM);
+        var shortP = calculator.calculate(
+                "000001", "SZSE", bars, 1_000_000, 0, key -> "测试股份", true,
+                ClassicFactorCalculator.HORIZON_SHORT);
+
+        assertThat(medium).isEmpty();
+        assertThat(shortP).isPresent();
+        assertThat(shortP.get().getReasons().get("horizon_profile"))
+                .isEqualTo(ClassicFactorCalculator.HORIZON_SHORT);
+        assertThat(shortP.get().getReasons()).containsKey("short_horizon_score");
+    }
+
+    @Test
+    void excludesCandidateWithoutUptrend_mediumOnly() {
         List<MarketData> bars = sampleBars(75, 20, 50_000_000, -0.10);
 
         var result = calculator.calculate(
@@ -93,7 +116,8 @@ class ClassicFactorCalculatorTest {
                 1_000_000,
                 0,
                 key -> "测试股份",
-                true
+                true,
+                ClassicFactorCalculator.HORIZON_MEDIUM
         );
 
         assertThat(result).isEmpty();

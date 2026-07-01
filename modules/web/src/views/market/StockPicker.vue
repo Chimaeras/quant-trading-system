@@ -36,6 +36,12 @@
       <el-form-item label="最短上市(天)">
         <el-input-number v-model="form.minListingDays" :min="0" :max="3650" :step="30" />
       </el-form-item>
+      <el-form-item label="预测周期">
+        <el-select v-model="form.horizonProfile" style="width: 200px">
+          <el-option label="中长期趋势（默认）" value="MEDIUM_TREND" />
+          <el-option label="短周期 3～5 日" value="SHORT_3_5D" />
+        </el-select>
+      </el-form-item>
       <el-form-item label="模板">
         <el-select v-model="form.templateId" clearable placeholder="可选模板" style="width: 180px">
           <el-option v-for="t in templates" :key="String(t.template_id)" :label="String(t.name)" :value="String(t.template_id)" />
@@ -386,6 +392,7 @@ const form = reactive({
   minAvgAmount: 0,
   minTrendScore: 40,
   minListingDays: 60,
+  horizonProfile: 'MEDIUM_TREND',
   templateId: ''
 })
 
@@ -895,6 +902,7 @@ async function runSelection() {
       minAvgAmount: form.minAvgAmount,
       minTrendScore: form.minTrendScore,
       minListingDays: form.minListingDays,
+      horizonProfile: form.horizonProfile,
       templateId: form.templateId || undefined
     })
     const data = done.result_id

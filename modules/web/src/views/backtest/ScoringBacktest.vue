@@ -88,6 +88,42 @@
         </div>
       </el-alert>
 
+      <el-alert
+        v-if="response.formulaAudit"
+        :type="formulaAuditAlertType"
+        :closable="false"
+        show-icon
+        class="run-alert formula-audit-alert"
+        title="策略公式审计（3～5 日预测适配）"
+      >
+        <div class="formula-audit">
+          <p><strong>公式：</strong>{{ response.formulaAudit.final_score_formula }}</p>
+          <p><strong>结论：</strong>{{ response.formulaAudit.short_horizon_verdict }}</p>
+          <p>短周期适配分：{{ response.formulaAudit.short_horizon_fit_score }}/100</p>
+          <ul v-if="formulaAuditTips.length" class="formula-tips">
+            <li v-for="(tip, idx) in formulaAuditTips" :key="idx">{{ tip }}</li>
+          </ul>
+        </div>
+      </el-alert>
+
+      <el-alert
+        v-if="response.shortHorizonValidation"
+        :type="shortHorizonValidationType"
+        :closable="false"
+        show-icon
+        class="run-alert"
+        title="3～5 日预测力验证（Rank IC）"
+      >
+        <div class="formula-audit">
+          <p>{{ response.shortHorizonValidation.verdict }}</p>
+          <p>
+            T+3 IC：{{ formatIcMean(response.shortHorizonValidation.t3_rank_ic_mean) }}
+            · T+5 IC：{{ formatIcMean(response.shortHorizonValidation.t5_rank_ic_mean) }}
+            · 置信：{{ response.shortHorizonValidation.confidence }}
+          </p>
+        </div>
+      </el-alert>
+
       <!-- 汇总统计卡片 -->
       <div class="section-title">各持仓周期汇总</div>
       <div class="stats-grid">
@@ -316,7 +352,7 @@ const form = reactive({
   startDate: dayjs().subtract(6, 'month').format('YYYY-MM-DD'),
   endDate: dayjs().format('YYYY-MM-DD'),
   topN: 10,
-  holdingDays: [1, 3, 5, 10, 20],
+  holdingDays: [3, 5, 10, 20],
   factorGroupCount: 5
 })
 
@@ -332,6 +368,32 @@ const icByHoldingRows = computed(() => {
       ...map[d]
     }))
 })
+
+const formulaAuditTips = computed(() => {
+  const tips = response.value?.formulaAudit?.usage_tips
+  return Array.isArray(tips) ? (tips as string[]) : []
+})
+
+const formulaAuditAlertType = computed(() => {
+  const score = Number(response.value?.formulaAudit?.short_horizon_fit_score ?? 0)
+  if (score >= 75) return 'success'
+  if (score >= 50) return 'warning'
+  return 'error'
+})
+
+const shortHorizonValidationType = computed(() => {
+  const v = response.value?.shortHorizonValidation
+  if (!v) return 'info'
+  if (v.t3_effective || v.t5_effective) return 'success'
+  if (v.t3_rank_ic_mean != null || v.t5_rank_ic_mean != null) return 'warning'
+  return 'info'
+})
+
+function formatIcMean(v: unknown) {
+  if (v == null || v === '') return '-'
+  const n = Number(v)
+  return Number.isFinite(n) ? n.toFixed(4) : '-'
+}
 
 const skipReasonLabels: Record<string, string> = {
   NO_QUOTE_ON_ENTRY_DAY: '入场日无行情（可能停牌）',
@@ -363,7 +425,8 @@ const assumptionLabels: Record<string, string> = {
   limit_down_exit_blocked: '跌停收盘不卖',
   limit_pct_source: '涨跌停幅度来源',
   skip_reason_codes: '跳过原因码',
-  selector_tradability: '选股可交易性假设'
+  selector_tradability: '选股可交易性假设',
+  short_horizon_research_focus: '短周期研究重点'
 }
 
 const tradabilityAssumptionLabels: Record<string, string> = {
@@ -860,6 +923,20 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   gap: 8px 16px;
   font-size: 12px;
+}
+
+.formula-audit {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.formula-audit p {
+  margin: 4px 0;
+}
+
+.formula-tips {
+  margin: 8px 0 0 18px;
+  padding: 0;
 }
 
 .assumptions-alert :deep(.el-alert__content) {

@@ -532,6 +532,21 @@ class ScoringBacktestServiceTest {
         assertThat(response.getFactorAnalysis().getLongShortSpread()).isGreaterThan(0);
         assertThat(response.getFactorIcByHolding()).containsKey(5);
         assertThat(response.getFactorIcByHolding().get(5).getRankIcMean()).isGreaterThan(0);
+        assertThat(response.getFormulaAudit()).isNotNull();
+        assertThat(response.getFormulaAudit().get("strategy_type")).isEqualTo("CLASSIC_SELECTOR");
+    }
+
+    @Test
+    void shortHorizonValidationMarksPositiveIcAsEffective() {
+        Map<Integer, ScoringBacktestResponse.FactorIcSummary> map = Map.of(
+                3, ScoringBacktestResponse.FactorIcSummary.builder()
+                        .holdingDays(3).crossSectionDays(10).rankIcMean(0.05).build(),
+                5, ScoringBacktestResponse.FactorIcSummary.builder()
+                        .holdingDays(5).crossSectionDays(10).rankIcMean(0.04).build()
+        );
+        Map<String, Object> v = ScoringBacktestService.buildShortHorizonValidation(map, null);
+        assertThat(v.get("t3_effective")).isEqualTo(true);
+        assertThat(v.get("t5_effective")).isEqualTo(true);
     }
 
     private MarketData bar(LocalDate date, double open, double close) {

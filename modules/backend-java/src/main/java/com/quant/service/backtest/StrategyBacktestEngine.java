@@ -14,6 +14,10 @@ public final class StrategyBacktestEngine {
     private static final double COMMISSION = 0.0003;
     private static final double SLIPPAGE = 0.001;
     private static final double STAMP_DUTY = 0.001;
+    /** 主板默认涨跌停幅度（10%），用于判断开盘是否封板不可成交 */
+    private static final double DEFAULT_LIMIT_PCT = 0.10;
+    /** 涨停/跌停价容差，覆盖四舍五入与最小报价单位 */
+    private static final double LIMIT_PRICE_TOLERANCE = 0.001;
 
     private StrategyBacktestEngine() {}
 
@@ -75,14 +79,17 @@ public final class StrategyBacktestEngine {
 
         for (int i = 1; i < bars.size(); i++) {
             MarketData bar = bars.get(i);
+            MarketData prevBar = bars.get(i - 1);
             double markPrice = close[i];
             // 信号基于前一交易日收盘数据，在当日开盘成交（避免同日收盘价成交的未来函数）
             String signal = detectSignal(strategy, close, macd, i - 1, shortPeriod, longPeriod, bollPeriod, bollStdDev);
             double execPrice = bar.getOpenPrice() != null
                     ? bar.getOpenPrice().doubleValue()
                     : markPrice;
+            double preClose = resolvePreClose(bar, prevBar);
 
-            if ("buy".equals(signal) && position == 0 && cash > 0) {
+            if ("buy".equals(signal) && position == 0 && cash > 0
+                    && !isLimitUpAtOpen(bar, preClose, DEFAULT_LIMIT_PCT)) {
                 double buyPrice = execPrice * (1 + SLIPPAGE);
                 int volume = (int) (cash / buyPrice / 100) * 100;
                 if (volume >= 100) {
@@ -96,7 +103,8 @@ public final class StrategyBacktestEngine {
                     ));
                     lastBuyBarIndex = i;
                 }
-            } else if ("sell".equals(signal) && position > 0 && i > lastBuyBarIndex) {
+            } else if ("sell".equals(signal) && position > 0 && i > lastBuyBarIndex
+                    && !isLimitDownAtOpen(bar, preClose, DEFAULT_LIMIT_PCT)) {
                 double sellPrice = execPrice * (1 - SLIPPAGE);
                 double amount = sellPrice * position;
                 double commission = amount * COMMISSION;
@@ -213,6 +221,52 @@ public final class StrategyBacktestEngine {
             return "sell";
         }
         return "hold";
+    }
+
+  /**
+     * 解析前收盘价：优先使用行情字段，否则取上一根 K 线收盘价。
+     */
+    static double resolvePreClose(MarketData bar, MarketData prevBar) {
+        if (bar.getPreClose() != null && bar.getPreClose().doubleValue() > 0) {
+            return bar.getPreClose().doubleValue();
+        }
+        if (prevBar.getClosePrice() != null && prevBar.getClosePrice().doubleValue() > 0) {
+            return prevBar.getClosePrice().doubleValue();
+        }
+        return 0;
+    }
+
+    /**
+     * 涨停开盘：开盘价落在涨停价容差带内，买单无法成交（A 股封板买入排队）。
+     * 口径：涨停价 = 前收 × (1 + limitPct)；仅当开盘价贴近涨停价时视为封板，避免把异常跳空误判为涨停。
+     */
+    static boolean isLimitUpAtOpen(MarketData bar, double preClose, double limitPct) {
+        if (preClose <= 0 || bar.getOpenPrice() == null) {
+            return false;
+        }
+        double open = bar.getOpenPrice().doubleValue();
+        if (open <= 0) {
+            return false;
+        }
+        double limitUpPrice = preClose * (1 + limitPct);
+        return open >= limitUpPrice * (1 - LIMIT_PRICE_TOLERANCE)
+                && open <= limitUpPrice * (1 + LIMIT_PRICE_TOLERANCE);
+    }
+
+    /**
+     * 跌停开盘：开盘价落在跌停价容差带内，卖单无法成交（A 股封板卖出排队）。
+     */
+    static boolean isLimitDownAtOpen(MarketData bar, double preClose, double limitPct) {
+        if (preClose <= 0 || bar.getOpenPrice() == null) {
+            return false;
+        }
+        double open = bar.getOpenPrice().doubleValue();
+        if (open <= 0) {
+            return false;
+        }
+        double limitDownPrice = preClose * (1 - limitPct);
+        return open <= limitDownPrice * (1 + LIMIT_PRICE_TOLERANCE)
+                && open >= limitDownPrice * (1 - LIMIT_PRICE_TOLERANCE);
     }
 
     private static double calcSharpe(List<Double> dailyReturns) {

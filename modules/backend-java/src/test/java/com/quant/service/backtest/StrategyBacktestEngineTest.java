@@ -112,21 +112,108 @@ class StrategyBacktestEngineTest {
         return bars;
     }
 
-    private static List<MarketData> maCrossTriggerSeries() {
+    @Test
+    void detectsLimitUpAndDownAtOpen() {
+        MarketData bar = new MarketData();
+        bar.setPreClose(BigDecimal.valueOf(10.0));
+
+        bar.setOpenPrice(BigDecimal.valueOf(11.0));
+        assertThat(StrategyBacktestEngine.isLimitUpAtOpen(bar, 10.0, 0.10)).isTrue();
+        assertThat(StrategyBacktestEngine.isLimitDownAtOpen(bar, 10.0, 0.10)).isFalse();
+
+        bar.setOpenPrice(BigDecimal.valueOf(9.0));
+        assertThat(StrategyBacktestEngine.isLimitDownAtOpen(bar, 10.0, 0.10)).isTrue();
+        assertThat(StrategyBacktestEngine.isLimitUpAtOpen(bar, 10.0, 0.10)).isFalse();
+
+        bar.setOpenPrice(BigDecimal.valueOf(10.5));
+        assertThat(StrategyBacktestEngine.isLimitUpAtOpen(bar, 10.0, 0.10)).isFalse();
+        assertThat(StrategyBacktestEngine.isLimitDownAtOpen(bar, 10.0, 0.10)).isFalse();
+    }
+
+    @Test
+    void skipsBuyWhenLimitUpAtOpen() {
+        List<MarketData> bars = maCrossGoldenCrossSeries();
+        long normalBuys = StrategyBacktestEngine.run(
+                copyBars(bars), StrategySignalType.MA_CROSS, 100_000, 5, 20, 20, 2.0
+        ).trades().stream().filter(t -> "buy".equals(t.action())).count();
+        assertThat(normalBuys).isGreaterThan(0);
+
+        List<MarketData> limited = copyBars(bars);
+        MarketData execBar = limited.get(31);
+        double preClose = limited.get(30).getClosePrice().doubleValue();
+        execBar.setPreClose(BigDecimal.valueOf(preClose));
+        execBar.setOpenPrice(BigDecimal.valueOf(preClose * 1.10));
+
+        long limitedBuys = StrategyBacktestEngine.run(
+                limited, StrategySignalType.MA_CROSS, 100_000, 5, 20, 20, 2.0
+        ).trades().stream().filter(t -> "buy".equals(t.action())).count();
+        assertThat(limitedBuys).isLessThan(normalBuys);
+    }
+
+    @Test
+    void skipsSellWhenLimitDownAtOpen() {
+        List<MarketData> bars = macdOscillationSeries();
+        var baseline = StrategyBacktestEngine.run(
+                copyBars(bars), StrategySignalType.MACD, 100_000, 2, 5, 20, 2.0
+        );
+        long normalSells = baseline.trades().stream().filter(t -> "sell".equals(t.action())).count();
+        assertThat(normalSells).isGreaterThan(0);
+
+        List<MarketData> limited = copyBars(bars);
+        for (StrategyBacktestEngine.TradeRecord trade : baseline.trades()) {
+            if (!"sell".equals(trade.action())) {
+                continue;
+            }
+            int idx = indexOf(limited, LocalDate.parse(trade.tradeDate()));
+            double preClose = limited.get(idx - 1).getClosePrice().doubleValue();
+            MarketData execBar = limited.get(idx);
+            execBar.setPreClose(BigDecimal.valueOf(preClose));
+            execBar.setOpenPrice(BigDecimal.valueOf(preClose * 0.90));
+            break;
+        }
+
+        long limitedSells = StrategyBacktestEngine.run(
+                limited, StrategySignalType.MACD, 100_000, 2, 5, 20, 2.0
+        ).trades().stream().filter(t -> "sell".equals(t.action())).count();
+        assertThat(limitedSells).isLessThan(normalSells);
+    }
+
+    private static List<MarketData> copyBars(List<MarketData> source) {
+        List<MarketData> copy = new ArrayList<>();
+        for (MarketData bar : source) {
+            MarketData c = new MarketData();
+            c.setTradeDate(bar.getTradeDate());
+            c.setOpenPrice(bar.getOpenPrice());
+            c.setClosePrice(bar.getClosePrice());
+            c.setHighPrice(bar.getHighPrice());
+            c.setLowPrice(bar.getLowPrice());
+            c.setPreClose(bar.getPreClose());
+            copy.add(c);
+        }
+        return copy;
+    }
+
+    private static int indexOf(List<MarketData> bars, LocalDate date) {
+        for (int i = 0; i < bars.size(); i++) {
+            if (bars.get(i).getTradeDate().equals(date)) {
+                return i;
+            }
+        }
+        throw new IllegalArgumentException("date not found: " + date);
+    }
+
+    /** 前 30 日横盘、第 31 日放量拉升触发 MA 金叉，第 32 日开盘买入 */
+    private static List<MarketData> maCrossGoldenCrossSeries() {
         List<MarketData> bars = new ArrayList<>();
         LocalDate start = LocalDate.of(2024, 1, 2);
-        double[] closes = new double[32];
-        java.util.Arrays.fill(closes, 0, 25, 10.0);
-        for (int i = 25; i < closes.length; i++) {
-            closes[i] = 10 + (i - 24) * 5.0;
-        }
-        for (int i = 0; i < closes.length; i++) {
+        for (int i = 0; i < 35; i++) {
+            double close = i < 30 ? 10.0 : 10.0 + (i - 29) * 40.0;
             MarketData bar = new MarketData();
             bar.setTradeDate(start.plusDays(i));
-            bar.setOpenPrice(BigDecimal.valueOf(closes[i]));
-            bar.setClosePrice(BigDecimal.valueOf(closes[i]));
-            bar.setHighPrice(BigDecimal.valueOf(closes[i]));
-            bar.setLowPrice(BigDecimal.valueOf(closes[i]));
+            bar.setOpenPrice(BigDecimal.valueOf(close));
+            bar.setClosePrice(BigDecimal.valueOf(close));
+            bar.setHighPrice(BigDecimal.valueOf(close));
+            bar.setLowPrice(BigDecimal.valueOf(close));
             bars.add(bar);
         }
         return bars;

@@ -41,6 +41,7 @@
     </el-form>
 
     <el-alert
+      v-if="!response"
       type="info"
       :closable="false"
       show-icon
@@ -60,6 +61,20 @@
         <span>覆盖交易日：{{ response.totalTradingDays }} 天</span>
         <span>每日前 {{ response.topN }} 只</span>
       </div>
+
+      <el-alert
+        v-if="response.executionAssumptions"
+        type="info"
+        :closable="false"
+        class="run-alert assumptions-alert"
+        title="成交假设"
+      >
+        <div class="assumptions">
+          <span v-for="(value, key) in response.executionAssumptions" :key="String(key)">
+            {{ formatAssumptionKey(String(key)) }}：{{ formatAssumptionValue(value) }}
+          </span>
+        </div>
+      </el-alert>
 
       <!-- 汇总统计卡片 -->
       <div class="section-title">各持仓周期汇总</div>
@@ -202,6 +217,30 @@ const skipReasonLabels: Record<string, string> = {
 
 function formatSkipReason(code: string) {
   return skipReasonLabels[code] ?? code
+}
+
+const assumptionLabels: Record<string, string> = {
+  entry: '买入成交',
+  exit: '卖出成交',
+  commission_rate: '佣金费率',
+  sell_tax_rate: '卖出税费',
+  slippage_rate_each_side: '单边滑点',
+  return_type: '收益口径',
+  limit_up_entry_blocked: '涨停开盘不买',
+  limit_down_exit_blocked: '跌停收盘不卖',
+  limit_pct_source: '涨跌停幅度来源',
+  skip_reason_codes: '跳过原因码'
+}
+
+function formatAssumptionKey(key: string) {
+  return assumptionLabels[key] ?? key
+}
+
+function formatAssumptionValue(value: unknown) {
+  if (Array.isArray(value)) return value.join(', ')
+  if (typeof value === 'boolean') return value ? '是' : '否'
+  if (typeof value === 'number' && value > 0 && value < 1) return `${(value * 100).toFixed(2)}%`
+  return String(value)
 }
 
 // 图表
@@ -497,5 +536,20 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: center;
   margin-top: 8px;
+}
+
+.run-alert {
+  margin-bottom: 12px;
+}
+
+.assumptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  font-size: 12px;
+}
+
+.assumptions-alert :deep(.el-alert__content) {
+  width: 100%;
 }
 </style>

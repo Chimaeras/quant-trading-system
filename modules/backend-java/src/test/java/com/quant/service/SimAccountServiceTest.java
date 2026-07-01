@@ -214,6 +214,29 @@ class SimAccountServiceTest {
                 .hasMessageContaining("涨停");
     }
 
+    @Test
+    void blocksOrderWhenLatestBarHasZeroVolume() {
+        UserAccount account = accountWithCash(100_000);
+        MarketData bar = new MarketData();
+        bar.setTradeDate(LocalDate.of(2026, 6, 30));
+        bar.setClosePrice(BigDecimal.TEN);
+        bar.setVolume(0L);
+
+        when(userAccountRepository.findFirstByUserIdAndStatus(1L, 1)).thenReturn(Optional.of(account));
+        when(marketDataRepository.findFirstByStockCodeAndExchangeTypeOrderByTradeDateDesc("000001", "SZSE"))
+                .thenReturn(Optional.of(bar));
+        when(stockInfoRepository.findByStockCodeAndExchangeType("000001", "SZSE")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.placeOrder(1L, Map.of(
+                "stockCode", "000001",
+                "exchangeType", "SZSE",
+                "action", "buy",
+                "volume", 100,
+                "price", 10
+        ))).isInstanceOf(BusinessException.class)
+                .hasMessageContaining("停牌");
+    }
+
     private static UserAccount accountWithCash(double cash) {
         UserAccount account = new UserAccount();
         account.setId(10L);

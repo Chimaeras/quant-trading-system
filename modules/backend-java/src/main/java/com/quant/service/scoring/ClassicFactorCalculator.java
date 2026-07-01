@@ -63,6 +63,10 @@ public class ClassicFactorCalculator {
         if (excludeST && name != null && name.toUpperCase().contains("ST")) {
             return Optional.empty();
         }
+        MarketData signalBar = bars.get(bars.size() - 1);
+        if (ScoringUtils.isExplicitZeroVolume(signalBar)) {
+            return Optional.empty();
+        }
 
         int n = close.size();
         double ret20 = ScoringUtils.pct(close.get(n - 1), close.get(n - 21));
@@ -103,6 +107,9 @@ public class ClassicFactorCalculator {
         boolean passMinTrendScore = trend >= minTrendScore;
         boolean passMaTrend = ma20 > ma60;
         boolean passRet20 = ret20 >= -5;
+        if (!passMinAvgAmount || !passMinTrendScore || !passMaTrend || !passRet20) {
+            return Optional.empty();
+        }
 
         CandidateScore c = new CandidateScore();
         c.setStockCode(stockCode);

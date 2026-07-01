@@ -6,6 +6,15 @@
       </div>
     </template>
 
+    <el-alert
+      type="warning"
+      :closable="false"
+      show-icon
+      class="disclaimer-alert"
+      title="回测说明"
+      description="本页统计基于历史选股结果与当前库内行情，未按历史时点股票池复现，存在幸存者偏差风险；收益为模型假设下的净收益，不代表未来表现或投资建议。"
+    />
+
     <!-- 参数配置 -->
     <div class="section-title">回测参数配置</div>
     <el-form inline>
@@ -207,11 +216,13 @@ const form = reactive({
 const skipReasonLabels: Record<string, string> = {
   NO_QUOTE_ON_ENTRY_DAY: '入场日无行情（可能停牌）',
   INVALID_ENTRY_OPEN: '入场开盘价无效',
+  ZERO_VOLUME_ON_ENTRY: '入场日无成交量（疑似停牌）',
   LIMIT_UP_AT_OPEN: '涨停开盘无法买入',
   NO_NEXT_TRADING_DAY: '无下一交易日',
   BEYOND_CALENDAR: '超出交易日历',
   NO_QUOTE_ON_EXIT_DAY: '出场日无行情（可能停牌）',
   INVALID_EXIT_CLOSE: '出场收盘价无效',
+  ZERO_VOLUME_ON_EXIT: '出场日无成交量（疑似停牌）',
   LIMIT_DOWN_AT_CLOSE: '跌停收盘无法卖出'
 }
 
@@ -222,6 +233,8 @@ function formatSkipReason(code: string) {
 const assumptionLabels: Record<string, string> = {
   entry: '买入成交',
   exit: '卖出成交',
+  t_plus_one_sell: 'T+1 卖出',
+  holding_period_semantics: '持有期语义',
   commission_rate: '佣金费率',
   sell_tax_rate: '卖出税费',
   slippage_rate_each_side: '单边滑点',
@@ -450,6 +463,10 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.disclaimer-alert {
+  margin-bottom: 16px;
 }
 
 .section-title {

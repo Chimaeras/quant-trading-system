@@ -408,7 +408,7 @@ public class HistoricalDataService {
                 continue;
             }
             MarketData m = parseSohuHqRow(code, exchangeType, row);
-            if (m == null) {
+            if (!isValidDailyBar(m)) {
                 continue;
             }
             if (m.getTradeDate().isBefore(rangeStart) || m.getTradeDate().isAfter(rangeEnd)) {
@@ -594,7 +594,38 @@ public class HistoricalDataService {
                 }
             } catch (Exception ignored) {}
         }
-        return m;
+        return isValidDailyBar(m) ? m : null;
+    }
+
+    /**
+     * 日 K 入库前的最低质量门槛。停牌日允许零成交量/额，但 OHLC 必须为正且满足
+     * low <= open/close <= high；负成交量或成交额属于源数据异常。
+     */
+    static boolean isValidDailyBar(MarketData bar) {
+        if (bar == null || bar.getTradeDate() == null
+                || !isPositive(bar.getOpenPrice())
+                || !isPositive(bar.getHighPrice())
+                || !isPositive(bar.getLowPrice())
+                || !isPositive(bar.getClosePrice())) {
+            return false;
+        }
+        BigDecimal high = bar.getHighPrice();
+        BigDecimal low = bar.getLowPrice();
+        if (high.compareTo(low) < 0
+                || high.compareTo(bar.getOpenPrice()) < 0
+                || high.compareTo(bar.getClosePrice()) < 0
+                || low.compareTo(bar.getOpenPrice()) > 0
+                || low.compareTo(bar.getClosePrice()) > 0) {
+            return false;
+        }
+        if (bar.getVolume() != null && bar.getVolume() < 0) {
+            return false;
+        }
+        return bar.getAmount() == null || bar.getAmount().compareTo(BigDecimal.ZERO) >= 0;
+    }
+
+    private static boolean isPositive(BigDecimal value) {
+        return value != null && value.compareTo(BigDecimal.ZERO) > 0;
     }
 
     private LocalDate parseDate(String s) {

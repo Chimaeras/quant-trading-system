@@ -164,10 +164,12 @@
 | `NO_NEXT_TRADING_DAY` | 信号日后无下一交易日 |
 | `NO_QUOTE_ON_ENTRY_DAY` | 入场日无行情 |
 | `INVALID_ENTRY_OPEN` | 入场日开盘价无效 |
+| `ZERO_VOLUME_ON_ENTRY` | 入场日成交量为 0（疑似停牌），无法买入 |
 | `LIMIT_UP_AT_OPEN` | 入场日涨停开盘，无法买入 |
 | `BEYOND_CALENDAR` | 出场日超出预加载交易日历 |
 | `NO_QUOTE_ON_EXIT_DAY` | 出场日无行情 |
 | `INVALID_EXIT_CLOSE` | 出场日收盘价无效 |
+| `ZERO_VOLUME_ON_EXIT` | 出场日成交量为 0（疑似停牌），无法按收盘价卖出 |
 | `LIMIT_DOWN_AT_CLOSE` | 出场日跌停收盘，无法按收盘价卖出 |
 
 ---

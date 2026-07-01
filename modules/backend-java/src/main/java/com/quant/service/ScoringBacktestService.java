@@ -13,6 +13,7 @@ import com.quant.repository.SelectorResultItemRepository;
 import com.quant.repository.SelectorResultRepository;
 import com.quant.service.backtest.StrategyBacktestEngine;
 import com.quant.service.backtest.TradingLimitRules;
+import com.quant.service.scoring.ScoringUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,11 +30,13 @@ public class ScoringBacktestService {
 
     static final String SKIP_NO_QUOTE_ON_ENTRY = "NO_QUOTE_ON_ENTRY_DAY";
     static final String SKIP_INVALID_ENTRY_OPEN = "INVALID_ENTRY_OPEN";
+    static final String SKIP_ZERO_VOLUME_ON_ENTRY = "ZERO_VOLUME_ON_ENTRY";
     static final String SKIP_LIMIT_UP_AT_OPEN = "LIMIT_UP_AT_OPEN";
     static final String SKIP_NO_NEXT_TRADING_DAY = "NO_NEXT_TRADING_DAY";
     static final String SKIP_BEYOND_CALENDAR = "BEYOND_CALENDAR";
     static final String SKIP_NO_QUOTE_ON_EXIT = "NO_QUOTE_ON_EXIT_DAY";
     static final String SKIP_INVALID_EXIT_CLOSE = "INVALID_EXIT_CLOSE";
+    static final String SKIP_ZERO_VOLUME_ON_EXIT = "ZERO_VOLUME_ON_EXIT";
     static final String SKIP_LIMIT_DOWN_AT_CLOSE = "LIMIT_DOWN_AT_CLOSE";
 
     private final SelectorResultRepository resultRepo;
@@ -164,6 +167,11 @@ public class ScoringBacktestService {
                     addSkippedStock(stockReturns, item, entryDate, SKIP_INVALID_ENTRY_OPEN);
                     continue;
                 }
+                if (isZeroVolume(entryBar)) {
+                    log.debug("入场日 {} {} 无成交量（疑似停牌），跳过", entryDate, item.getStockCode());
+                    addSkippedStock(stockReturns, item, entryDate, SKIP_ZERO_VOLUME_ON_ENTRY);
+                    continue;
+                }
                 LocalDate prevTradeDate = tradingDays.get(entryIdx - 1);
                 MarketData prevBar = marketDataMap.get(
                         priceKey(item.getStockCode(), item.getExchangeType(), prevTradeDate));
@@ -200,6 +208,12 @@ public class ScoringBacktestService {
                     if (rawExitPrice == null || rawExitPrice.compareTo(BigDecimal.ZERO) <= 0) {
                         forwardReturns.put(h, null);
                         periodSkipReasons.put(h, SKIP_INVALID_EXIT_CLOSE);
+                        continue;
+                    }
+                    if (isZeroVolume(exitBar)) {
+                        log.debug("出场日 {} {} 无成交量（疑似停牌），跳过收益计算", fwdDate, item.getStockCode());
+                        forwardReturns.put(h, null);
+                        periodSkipReasons.put(h, SKIP_ZERO_VOLUME_ON_EXIT);
                         continue;
                     }
                     if (fwdIdx > 0) {
@@ -333,14 +347,20 @@ public class ScoringBacktestService {
         assumptions.put("skip_reason_codes", List.of(
                 SKIP_NO_QUOTE_ON_ENTRY,
                 SKIP_INVALID_ENTRY_OPEN,
+                SKIP_ZERO_VOLUME_ON_ENTRY,
                 SKIP_LIMIT_UP_AT_OPEN,
                 SKIP_NO_NEXT_TRADING_DAY,
                 SKIP_BEYOND_CALENDAR,
                 SKIP_NO_QUOTE_ON_EXIT,
                 SKIP_INVALID_EXIT_CLOSE,
+                SKIP_ZERO_VOLUME_ON_EXIT,
                 SKIP_LIMIT_DOWN_AT_CLOSE
         ));
         return assumptions;
+    }
+
+    private static boolean isZeroVolume(MarketData bar) {
+        return ScoringUtils.isExplicitZeroVolume(bar);
     }
 
     private static void addSkippedStock(

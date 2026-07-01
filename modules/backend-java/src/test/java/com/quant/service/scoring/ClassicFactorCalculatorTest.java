@@ -48,7 +48,80 @@ class ClassicFactorCalculatorTest {
         assertThat(result).isPresent();
     }
 
+    @Test
+    void excludesCandidateBelowMinimumAverageAmount() {
+        List<MarketData> bars = sampleBars(75, 10, 500_000);
+
+        var result = calculator.calculate(
+                "000001",
+                "SZSE",
+                bars,
+                1_000_000,
+                0,
+                key -> "测试股份",
+                true
+        );
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void excludesCandidateBelowMinimumTrendScore() {
+        List<MarketData> bars = sampleBars(75, 10, 50_000_000);
+
+        var result = calculator.calculate(
+                "000001",
+                "SZSE",
+                bars,
+                1_000_000,
+                100,
+                key -> "测试股份",
+                true
+        );
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void excludesCandidateWithoutUptrend() {
+        List<MarketData> bars = sampleBars(75, 20, 50_000_000, -0.10);
+
+        var result = calculator.calculate(
+                "000001",
+                "SZSE",
+                bars,
+                1_000_000,
+                0,
+                key -> "测试股份",
+                true
+        );
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void excludesZeroVolumeOnSignalDay() {
+        List<MarketData> bars = sampleBars(75, 10, 50_000_000);
+        bars.get(bars.size() - 1).setVolume(0L);
+
+        var result = calculator.calculate(
+                "000001",
+                "SZSE",
+                bars,
+                1_000_000,
+                0,
+                key -> "测试股份",
+                true
+        );
+
+        assertThat(result).isEmpty();
+    }
+
     private static List<MarketData> sampleBars(int count, double close, double amount) {
+        return sampleBars(count, close, amount, 0.01);
+    }
+
+    private static List<MarketData> sampleBars(int count, double close, double amount, double dailyStep) {
         List<MarketData> bars = new ArrayList<>(count);
         LocalDate start = LocalDate.of(2024, 1, 1);
         for (int i = 0; i < count; i++) {
@@ -56,8 +129,9 @@ class ClassicFactorCalculatorTest {
             bar.setStockCode("000001");
             bar.setExchangeType("SZSE");
             bar.setTradeDate(start.plusDays(i));
-            bar.setClosePrice(BigDecimal.valueOf(close + i * 0.01));
+            bar.setClosePrice(BigDecimal.valueOf(close + i * dailyStep));
             bar.setAmount(BigDecimal.valueOf(amount));
+            bar.setVolume(1_000_000L);
             bars.add(bar);
         }
         return bars;

@@ -44,6 +44,13 @@ public final class ScoringUtils {
     }
 
     /**
+     * 信号日成交量为 0 时视为不可交易（停牌代理）；volume 为 null 时不据此过滤。
+     */
+    public static boolean isExplicitZeroVolume(com.quant.entity.MarketData bar) {
+        return bar != null && bar.getVolume() != null && bar.getVolume() <= 0;
+    }
+
+    /**
      * 判断两个double是否近似相等
      */
     public static boolean nearlyEqual(double a, double b, double epsilon) {

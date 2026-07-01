@@ -169,6 +169,9 @@ public class SimAccountService {
     ) {
         marketDataRepository.findFirstByStockCodeAndExchangeTypeOrderByTradeDateDesc(stockCode, exchange)
                 .ifPresent(bar -> {
+                    if (bar.getVolume() != null && bar.getVolume() <= 0) {
+                        throw new BusinessException("最新行情无成交量（疑似停牌），无法下单");
+                    }
                     MarketData prevBar = marketDataRepository
                             .findFirstByStockCodeAndExchangeTypeAndTradeDateLessThanOrderByTradeDateDesc(
                                     stockCode, exchange, bar.getTradeDate())

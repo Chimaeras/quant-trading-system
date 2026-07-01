@@ -156,6 +156,9 @@
             <span v-if="stock.forwardReturns[day] != null" :class="stock.forwardReturns[day] >= 0 ? 'text-success' : 'text-danger'">
               {{ (stock.forwardReturns[day] * 100).toFixed(2) }}%
             </span>
+            <span v-else-if="stock.periodSkipReasons?.[day]" class="text-muted skip-hint">
+              {{ formatSkipReason(stock.periodSkipReasons[day]) }}
+            </span>
             <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
@@ -190,7 +193,11 @@ const skipReasonLabels: Record<string, string> = {
   NO_QUOTE_ON_ENTRY_DAY: '入场日无行情（可能停牌）',
   INVALID_ENTRY_OPEN: '入场开盘价无效',
   LIMIT_UP_AT_OPEN: '涨停开盘无法买入',
-  NO_NEXT_TRADING_DAY: '无下一交易日'
+  NO_NEXT_TRADING_DAY: '无下一交易日',
+  BEYOND_CALENDAR: '超出交易日历',
+  NO_QUOTE_ON_EXIT_DAY: '出场日无行情（可能停牌）',
+  INVALID_EXIT_CLOSE: '出场收盘价无效',
+  LIMIT_DOWN_AT_CLOSE: '跌停收盘无法卖出'
 }
 
 function formatSkipReason(code: string) {

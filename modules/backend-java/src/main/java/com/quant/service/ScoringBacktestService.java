@@ -31,6 +31,10 @@ public class ScoringBacktestService {
     static final String SKIP_INVALID_ENTRY_OPEN = "INVALID_ENTRY_OPEN";
     static final String SKIP_LIMIT_UP_AT_OPEN = "LIMIT_UP_AT_OPEN";
     static final String SKIP_NO_NEXT_TRADING_DAY = "NO_NEXT_TRADING_DAY";
+    static final String SKIP_BEYOND_CALENDAR = "BEYOND_CALENDAR";
+    static final String SKIP_NO_QUOTE_ON_EXIT = "NO_QUOTE_ON_EXIT_DAY";
+    static final String SKIP_INVALID_EXIT_CLOSE = "INVALID_EXIT_CLOSE";
+    static final String SKIP_LIMIT_DOWN_AT_CLOSE = "LIMIT_DOWN_AT_CLOSE";
 
     private final SelectorResultRepository resultRepo;
     private final SelectorResultItemRepository itemRepo;
@@ -175,11 +179,13 @@ public class ScoringBacktestService {
                 double entryCost = entryPrice * (1 + commissionRate);
 
                 Map<Integer, Double> forwardReturns = new LinkedHashMap<>();
+                Map<Integer, String> periodSkipReasons = new LinkedHashMap<>();
                 for (int h : holdingDays) {
                     // 持有1日表示下一交易日开盘买入、当日收盘卖出
                     int fwdIdx = entryIdx + h - 1;
                     if (fwdIdx >= tradingDays.size()) {
                         forwardReturns.put(h, null);
+                        periodSkipReasons.put(h, SKIP_BEYOND_CALENDAR);
                         continue;
                     }
                     LocalDate fwdDate = tradingDays.get(fwdIdx);
@@ -187,11 +193,13 @@ public class ScoringBacktestService {
                     MarketData exitBar = marketDataMap.get(fwdKey);
                     if (exitBar == null) {
                         forwardReturns.put(h, null);
+                        periodSkipReasons.put(h, SKIP_NO_QUOTE_ON_EXIT);
                         continue;
                     }
                     BigDecimal rawExitPrice = exitBar.getClosePrice();
                     if (rawExitPrice == null || rawExitPrice.compareTo(BigDecimal.ZERO) <= 0) {
                         forwardReturns.put(h, null);
+                        periodSkipReasons.put(h, SKIP_INVALID_EXIT_CLOSE);
                         continue;
                     }
                     if (fwdIdx > 0) {
@@ -203,6 +211,7 @@ public class ScoringBacktestService {
                                 exitBar, exitPreClose, limitPct)) {
                             log.debug("出场日 {} {} 跌停收盘，跳过收益计算", fwdDate, item.getStockCode());
                             forwardReturns.put(h, null);
+                            periodSkipReasons.put(h, SKIP_LIMIT_DOWN_AT_CLOSE);
                             continue;
                         }
                     }
@@ -223,6 +232,7 @@ public class ScoringBacktestService {
                         .entryDate(entryDate)
                         .entryPrice(entryPrice)
                         .forwardReturns(forwardReturns)
+                        .periodSkipReasons(periodSkipReasons.isEmpty() ? null : periodSkipReasons)
                         .build());
             }
 
@@ -319,7 +329,11 @@ public class ScoringBacktestService {
                 SKIP_NO_QUOTE_ON_ENTRY,
                 SKIP_INVALID_ENTRY_OPEN,
                 SKIP_LIMIT_UP_AT_OPEN,
-                SKIP_NO_NEXT_TRADING_DAY
+                SKIP_NO_NEXT_TRADING_DAY,
+                SKIP_BEYOND_CALENDAR,
+                SKIP_NO_QUOTE_ON_EXIT,
+                SKIP_INVALID_EXIT_CLOSE,
+                SKIP_LIMIT_DOWN_AT_CLOSE
         ));
         return assumptions;
     }

@@ -77,5 +77,7 @@ public class ScoringBacktestResponse {
         private Map<Integer, Double> forwardReturns;
         /** 入场未成交原因；成功入场时为 null */
         private String skipReason;
+        /** key = 持仓天数，value = 该周期出场未成交原因 */
+        private Map<Integer, String> periodSkipReasons;
     }
 }

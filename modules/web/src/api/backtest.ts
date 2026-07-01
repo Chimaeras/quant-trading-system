@@ -30,6 +30,7 @@ export interface StockReturn {
   entryPrice: number
   forwardReturns: Record<number, number | null>
   skipReason?: string | null
+  periodSkipReasons?: Record<number, string | null>
 }
 
 export interface DailyDetail {

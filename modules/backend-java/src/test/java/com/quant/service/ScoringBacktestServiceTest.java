@@ -281,6 +281,8 @@ class ScoringBacktestServiceTest {
 
         assertThat(stock.getEntryPrice()).isEqualTo(80.0);
         assertThat(stock.getForwardReturns().get(1)).isNull();
+        assertThat(stock.getPeriodSkipReasons().get(1))
+                .isEqualTo(ScoringBacktestService.SKIP_LIMIT_DOWN_AT_CLOSE);
         assertThat(response.getHoldingPeriodStats().get(1).getTotalObservations()).isZero();
         assertThat(response.getExecutionAssumptions().get("limit_down_exit_blocked")).isEqualTo(true);
     }

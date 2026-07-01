@@ -96,6 +96,14 @@ class StrategyBacktestEngineTest {
         assertThat(foundCross).isTrue();
     }
 
+    @Test
+    void executionAssumptionsDocumentsTradingModel() {
+        var assumptions = StrategyBacktestEngine.executionAssumptions();
+        assertThat(assumptions.get("t_plus_one_sell")).isEqualTo(true);
+        assertThat(assumptions.get("limit_up_entry_blocked")).isEqualTo(true);
+        assertThat(assumptions.get("entry")).isEqualTo("SAME_DAY_OPEN");
+    }
+
     private static List<MarketData> macdOscillationSeries() {
         List<MarketData> bars = new ArrayList<>();
         LocalDate start = LocalDate.of(2024, 1, 2);

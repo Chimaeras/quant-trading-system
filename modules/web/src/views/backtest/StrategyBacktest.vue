@@ -43,6 +43,19 @@
         <span>策略：{{ result.strategyType }}</span>
         <span>区间：{{ result.startDate }} ~ {{ result.endDate }}</span>
       </div>
+      <el-alert
+        v-if="result.executionAssumptions"
+        type="info"
+        :closable="false"
+        class="run-alert assumptions-alert"
+        title="成交假设"
+      >
+        <div class="assumptions">
+          <span v-for="(value, key) in result.executionAssumptions" :key="String(key)">
+            {{ formatAssumptionKey(String(key)) }}：{{ formatAssumptionValue(value) }}
+          </span>
+        </div>
+      </el-alert>
       <div class="stats-grid">
         <div class="stat-card"><div class="label">总收益率</div><div :class="pctClass(result.totalReturn)">{{ fmtPct(result.totalReturn) }}</div></div>
         <div class="stat-card"><div class="label">最大回撤</div><div class="text-danger">{{ fmtPct(result.maxDrawdown) }}</div></div>
@@ -99,6 +112,30 @@ function pctClass(v?: number) {
   return v != null && v >= 0 ? 'text-success' : 'text-danger'
 }
 
+const assumptionLabels: Record<string, string> = {
+  signal_timing: '信号时点',
+  entry: '买入成交',
+  exit: '卖出成交',
+  commission_rate: '佣金费率',
+  stamp_duty_rate: '印花税率',
+  slippage_rate_each_side: '单边滑点',
+  t_plus_one_sell: 'T+1 卖出约束',
+  limit_up_entry_blocked: '涨停开盘不买',
+  limit_down_exit_blocked: '跌停开盘不卖',
+  limit_pct_main_board: '主板涨跌停幅度',
+  return_type: '收益口径'
+}
+
+function formatAssumptionKey(key: string) {
+  return assumptionLabels[key] ?? key
+}
+
+function formatAssumptionValue(value: unknown) {
+  if (typeof value === 'boolean') return value ? '是' : '否'
+  if (typeof value === 'number' && value > 0 && value < 1) return `${(value * 100).toFixed(2)}%`
+  return String(value)
+}
+
 async function run() {
   running.value = true
   errorMsg.value = ''
@@ -150,4 +187,6 @@ onBeforeUnmount(() => {
 .chart-box { height: 280px; margin-bottom: 16px; }
 .section-title { margin: 12px 0 8px; font-weight: 600; }
 .run-alert { margin-bottom: 12px; }
+.assumptions { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12px; }
+.assumptions-alert :deep(.el-alert__content) { width: 100%; }
 </style>

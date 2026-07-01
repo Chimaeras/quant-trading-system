@@ -108,4 +108,5 @@ export interface StrategyBacktestResponse {
   winRate: number
   trades: Array<Record<string, unknown>>
   equityCurve: Array<Record<string, unknown>>
+  executionAssumptions?: Record<string, unknown>
 }

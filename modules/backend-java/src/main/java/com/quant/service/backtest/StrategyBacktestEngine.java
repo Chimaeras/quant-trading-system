@@ -4,7 +4,9 @@ import com.quant.entity.MarketData;
 import com.quant.service.scoring.TechnicalIndicators;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 单股经典策略信号引擎（MA 交叉 / 布林带 / MACD）。
@@ -20,6 +22,23 @@ public final class StrategyBacktestEngine {
     private static final double LIMIT_PRICE_TOLERANCE = 0.001;
 
     private StrategyBacktestEngine() {}
+
+    /** 回测成交与费用假设，供 API 与前端展示。 */
+    public static Map<String, Object> executionAssumptions() {
+        Map<String, Object> assumptions = new LinkedHashMap<>();
+        assumptions.put("signal_timing", "PREVIOUS_DAY_CLOSE");
+        assumptions.put("entry", "SAME_DAY_OPEN");
+        assumptions.put("exit", "SAME_DAY_OPEN");
+        assumptions.put("commission_rate", COMMISSION);
+        assumptions.put("stamp_duty_rate", STAMP_DUTY);
+        assumptions.put("slippage_rate_each_side", SLIPPAGE);
+        assumptions.put("t_plus_one_sell", true);
+        assumptions.put("limit_up_entry_blocked", true);
+        assumptions.put("limit_down_exit_blocked", true);
+        assumptions.put("limit_pct_main_board", DEFAULT_LIMIT_PCT);
+        assumptions.put("return_type", "NET_AFTER_MODELED_COSTS");
+        return assumptions;
+    }
 
     public record TradeRecord(
             String tradeDate,

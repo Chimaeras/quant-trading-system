@@ -26,4 +26,5 @@ public class StrategyBacktestResponse {
     private Double winRate;
     private List<Map<String, Object>> trades;
     private List<Map<String, Object>> equityCurve;
+    private Map<String, Object> executionAssumptions;
 }

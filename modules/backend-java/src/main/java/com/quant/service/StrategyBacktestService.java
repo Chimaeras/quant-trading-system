@@ -100,6 +100,7 @@ public class StrategyBacktestService {
                 .winRate(round(metrics.winRate()))
                 .trades(trades)
                 .equityCurve(curve)
+                .executionAssumptions(StrategyBacktestEngine.executionAssumptions())
                 .build();
     }
 

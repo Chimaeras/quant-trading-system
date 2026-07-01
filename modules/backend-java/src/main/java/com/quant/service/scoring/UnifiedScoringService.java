@@ -725,7 +725,10 @@ public class UnifiedScoringService {
 
     private Map<String, Object> runClassicSelector(Map<String, Object> req) {
         Map<String, Object> p = new LinkedHashMap<>(req);
-        p.put("factorVersion", "unified_classic_v1");
+        String horizon = String.valueOf(p.getOrDefault("horizonProfile", "")).trim();
+        if (!StrategyFormulaRegistry.HORIZON_SHORT_3_5D.equals(horizon)) {
+            p.put("factorVersion", "unified_classic_v1");
+        }
         return stockSelectorService.runSelection(p);
     }
 

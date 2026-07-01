@@ -17,9 +17,11 @@ class StrategyFormulaRegistryTest {
     @Test
     void classicShortProfileBetterForThreeToFiveDays() {
         StrategyFormulaRegistry.FormulaAudit audit = StrategyFormulaRegistry.audit(
-                "CLASSIC_SELECTOR", "v1", StrategyFormulaRegistry.HORIZON_SHORT_3_5D);
-        assertThat(audit.shortHorizonFitScore()).isGreaterThan(75);
-        assertThat(audit.finalScoreFormula()).contains("shortHorizon");
+                "CLASSIC_SELECTOR", CodexShortCycleScoringEngine.FORMULA_VERSION,
+                StrategyFormulaRegistry.HORIZON_SHORT_3_5D);
+        assertThat(audit.shortHorizonFitScore()).isGreaterThan(85);
+        assertThat(audit.finalScoreFormula()).contains("S_raw");
+        assertThat(audit.subFormulas().get(0)).contains("T=");
     }
 
     @Test

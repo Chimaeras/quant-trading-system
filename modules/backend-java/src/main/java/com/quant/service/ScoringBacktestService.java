@@ -20,6 +20,7 @@ import com.quant.service.backtest.FactorResearchEngine.CrossSectionObservation;
 import com.quant.service.backtest.FactorResearchEngine.FactorResearchSummary;
 import com.quant.service.backtest.StrategyBacktestEngine;
 import com.quant.service.backtest.TradingLimitRules;
+import com.quant.service.scoring.CodexShortCycleScoringEngine;
 import com.quant.service.scoring.StrategyFormulaRegistry;
 import com.quant.service.scoring.ScoringUtils;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +49,7 @@ public class ScoringBacktestService {
     static final String SKIP_LIMIT_DOWN_AT_CLOSE = "LIMIT_DOWN_AT_CLOSE";
 
     private static final int FACTOR_MIN_CROSS_SECTION_SIZE = 10;
+    private static final List<String> CODEX_SUB_FACTOR_KEYS = List.of("T", "F", "R");
     private static final String FACTOR_UNIVERSE_NOTE =
             "基于 persisted 选股结果全截面；未复现历史时点股票池，存在幸存者偏差";
 
@@ -105,6 +107,7 @@ public class ScoringBacktestService {
                     .factorIcByHolding(Map.of())
                     .formulaAudit(resolveFormulaAudit(req, List.of()))
                     .shortHorizonValidation(Map.of())
+                    .codexFactorIcByHolding(Map.of())
                     .build();
         }
 
@@ -140,8 +143,13 @@ public class ScoringBacktestService {
         // 5. 逐日计算 forward returns
         List<DailyDetail> dailyDetails = new ArrayList<>();
         Map<Integer, Map<String, List<CrossSectionObservation>>> factorObservationsByHolding = new LinkedHashMap<>();
+        Map<Integer, Map<String, Map<String, List<CrossSectionObservation>>>> codexFactorObsByHolding = new LinkedHashMap<>();
         for (int h : holdingDays) {
             factorObservationsByHolding.put(h, new LinkedHashMap<>());
+            codexFactorObsByHolding.put(h, new LinkedHashMap<>());
+            for (String fk : CODEX_SUB_FACTOR_KEYS) {
+                codexFactorObsByHolding.get(h).put(fk, new LinkedHashMap<>());
+            }
         }
         // 按持仓天数汇总所有收益率，用于最终统计
         Map<Integer, List<Double>> periodReturns = new LinkedHashMap<>();
@@ -277,6 +285,15 @@ public class ScoringBacktestService {
                     factorObservationsByHolding.get(h)
                             .computeIfAbsent(dateKey, k -> new ArrayList<>())
                             .add(new CrossSectionObservation(item.getFinalScore(), periodResult.ret()));
+                    for (String factorKey : CODEX_SUB_FACTOR_KEYS) {
+                        Double subScore = extractReasonNumber(item.getReasons(), factorKey);
+                        if (subScore == null) {
+                            continue;
+                        }
+                        codexFactorObsByHolding.get(h).get(factorKey)
+                                .computeIfAbsent(dateKey, k -> new ArrayList<>())
+                                .add(new CrossSectionObservation(subScore, periodResult.ret()));
+                    }
                 }
             }
         }
@@ -313,6 +330,7 @@ public class ScoringBacktestService {
         log.info("打分回测完成: {} 个交易日, {} 个周期统计完毕", dailyDetails.size(), holdingPeriodStats.size());
 
         Map<Integer, FactorIcSummary> factorIcByHolding = new LinkedHashMap<>();
+        Map<Integer, Map<String, FactorIcSummary>> codexFactorIcByHolding = new LinkedHashMap<>();
         FactorResearchSummary factorSummary = null;
         for (int h : holdingDays) {
             FactorResearchSummary summary = FactorResearchEngine.summarize(
@@ -325,10 +343,29 @@ public class ScoringBacktestService {
             if (summary.crossSectionDays() > 0) {
                 factorIcByHolding.put(h, toFactorIcSummaryDto(summary));
             }
+            Map<String, FactorIcSummary> subMap = new LinkedHashMap<>();
+            for (String factorKey : CODEX_SUB_FACTOR_KEYS) {
+                FactorResearchSummary subSummary = FactorResearchEngine.summarize(
+                        codexFactorObsByHolding.getOrDefault(h, Map.of()).getOrDefault(factorKey, Map.of()),
+                        h,
+                        factorGroupCount,
+                        FACTOR_MIN_CROSS_SECTION_SIZE,
+                        "Codex 子因子 " + factorKey + "；" + FACTOR_UNIVERSE_NOTE
+                );
+                if (subSummary.crossSectionDays() > 0) {
+                    subMap.put(factorKey, toFactorIcSummaryDto(subSummary));
+                }
+            }
+            if (!subMap.isEmpty()) {
+                codexFactorIcByHolding.put(h, subMap);
+            }
             if (h == factorHoldingDay) {
                 factorSummary = summary;
             }
         }
+
+        Map<String, Object> shortValidation = buildShortHorizonValidation(factorIcByHolding, factorSummary);
+        mergeCodexFactorValidation(shortValidation, codexFactorIcByHolding);
 
         return ScoringBacktestResponse.builder()
                 .strategyType(req.getStrategyType())
@@ -342,8 +379,56 @@ public class ScoringBacktestService {
                 .factorAnalysis(toFactorAnalysisDto(factorSummary))
                 .factorIcByHolding(factorIcByHolding)
                 .formulaAudit(resolveFormulaAudit(req, dailyResults))
-                .shortHorizonValidation(buildShortHorizonValidation(factorIcByHolding, factorSummary))
+                .shortHorizonValidation(shortValidation)
+                .codexFactorIcByHolding(codexFactorIcByHolding)
                 .build();
+    }
+
+    static void mergeCodexFactorValidation(
+            Map<String, Object> validation,
+            Map<Integer, Map<String, FactorIcSummary>> codexFactorIcByHolding
+    ) {
+        if (codexFactorIcByHolding == null || codexFactorIcByHolding.isEmpty()) {
+            validation.put("codex_sub_factors_available", false);
+            return;
+        }
+        validation.put("codex_sub_factors_available", true);
+        Map<String, Object> t3 = new LinkedHashMap<>();
+        Map<String, FactorIcSummary> ic3 = codexFactorIcByHolding.get(3);
+        Map<String, FactorIcSummary> ic5 = codexFactorIcByHolding.get(5);
+        for (String key : CODEX_SUB_FACTOR_KEYS) {
+            if (ic3 != null && ic3.get(key) != null) {
+                t3.put(key + "_t3_ic", ic3.get(key).getRankIcMean());
+            }
+            if (ic5 != null && ic5.get(key) != null) {
+                t3.put(key + "_t5_ic", ic5.get(key).getRankIcMean());
+            }
+        }
+        validation.put("codex_sub_factor_ic", t3);
+        double t3T = ic3 != null && ic3.get("T") != null ? ic3.get("T").getRankIcMean() : Double.NaN;
+        validation.put("codex_t_dominates", Double.isFinite(t3T) && t3T > 0.02);
+    }
+
+    static Double extractReasonNumber(Map<String, Object> reasons, String key) {
+        if (reasons == null || key == null) {
+            return null;
+        }
+        Object v = reasons.get(key);
+        if (v instanceof Number n) {
+            return n.doubleValue();
+        }
+        if (v != null) {
+            try {
+                return Double.parseDouble(String.valueOf(v));
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    static boolean isCodexFactorVersion(String factorVersion) {
+        return factorVersion != null && factorVersion.contains(CodexShortCycleScoringEngine.FORMULA_VERSION);
     }
 
     static Map<String, Object> buildShortHorizonValidation(

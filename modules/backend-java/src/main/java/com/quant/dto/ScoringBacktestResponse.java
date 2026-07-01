@@ -40,6 +40,9 @@ public class ScoringBacktestResponse {
     /** 基于 T+3/T+5 Rank IC 的公式有效性验证摘要 */
     private Map<String, Object> shortHorizonValidation;
 
+    /** Codex T/F/R 子因子各持有期 Rank IC（key=持有期, inner key=T/F/R） */
+    private Map<Integer, Map<String, FactorIcSummary>> codexFactorIcByHolding;
+
     @Data
     @Builder
     @NoArgsConstructor

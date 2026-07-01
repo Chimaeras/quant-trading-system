@@ -121,8 +121,23 @@
             · T+5 IC：{{ formatIcMean(response.shortHorizonValidation.t5_rank_ic_mean) }}
             · 置信：{{ response.shortHorizonValidation.confidence }}
           </p>
+          <p v-if="response.shortHorizonValidation.codex_sub_factors_available">
+            Codex 子因子 IC（T+3/T+5）：
+            <span v-for="key in ['T', 'F', 'R']" :key="key" class="codex-ic-chip">
+              {{ key }}:
+              {{ formatIcMean(codexSubIc(key, 3)) }}/{{ formatIcMean(codexSubIc(key, 5)) }}
+            </span>
+          </p>
         </div>
       </el-alert>
+
+      <div v-if="codexFactorTableRows.length" class="section-title">Codex T/F/R 子因子 Rank IC</div>
+      <el-table v-if="codexFactorTableRows.length" :data="codexFactorTableRows" stripe size="small" class="codex-ic-table">
+        <el-table-column prop="factor" label="因子" width="80" />
+        <el-table-column prop="h3" label="T+3 IC" min-width="100" />
+        <el-table-column prop="h5" label="T+5 IC" min-width="100" />
+        <el-table-column prop="h10" label="T+10 IC" min-width="100" />
+      </el-table>
 
       <!-- 汇总统计卡片 -->
       <div class="section-title">各持仓周期汇总</div>
@@ -388,6 +403,23 @@ const shortHorizonValidationType = computed(() => {
   if (v.t3_rank_ic_mean != null || v.t5_rank_ic_mean != null) return 'warning'
   return 'info'
 })
+
+const codexFactorTableRows = computed(() => {
+  const map = response.value?.codexFactorIcByHolding
+  if (!map) return []
+  return ['T', 'F', 'R'].map((factor) => ({
+    factor,
+    h3: formatIcMean(map[3]?.[factor]?.rankIcMean),
+    h5: formatIcMean(map[5]?.[factor]?.rankIcMean),
+    h10: formatIcMean(map[10]?.[factor]?.rankIcMean)
+  }))
+})
+
+function codexSubIc(factor: string, holding: number) {
+  const v = response.value?.shortHorizonValidation?.codex_sub_factor_ic as Record<string, unknown> | undefined
+  if (!v) return null
+  return v[`${factor}_t${holding}_ic`]
+}
 
 function formatIcMean(v: unknown) {
   if (v == null || v === '') return '-'

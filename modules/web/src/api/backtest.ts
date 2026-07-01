@@ -80,6 +80,7 @@ export interface ScoringBacktestResponse {
   factorIcByHolding?: Record<number, FactorIcSummary>
   formulaAudit?: Record<string, unknown>
   shortHorizonValidation?: Record<string, unknown>
+  codexFactorIcByHolding?: Record<number, Record<string, FactorIcSummary>>
 }
 
 export const backtestApi = {

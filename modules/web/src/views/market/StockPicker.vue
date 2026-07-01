@@ -39,8 +39,11 @@
       <el-form-item label="预测周期">
         <el-select v-model="form.horizonProfile" style="width: 200px">
           <el-option label="中长期趋势（默认）" value="MEDIUM_TREND" />
-          <el-option label="短周期 3～5 日" value="SHORT_3_5D" />
+          <el-option label="短周期 3～5 日 (Codex)" value="SHORT_3_5D" />
         </el-select>
+      </el-form-item>
+      <el-form-item v-if="form.horizonProfile === 'SHORT_3_5D'" label="Codex最低分">
+        <el-input-number v-model="form.minCodexScore" :min="0" :max="100" :step="5" />
       </el-form-item>
       <el-form-item label="模板">
         <el-select v-model="form.templateId" clearable placeholder="可选模板" style="width: 180px">
@@ -214,6 +217,15 @@
       <el-table-column prop="stock_code" label="代码" min-width="95" />
       <el-table-column prop="stock_name" label="名称" min-width="120" />
       <el-table-column prop="final_score" label="综合分" min-width="90" />
+      <el-table-column v-if="form.horizonProfile === 'SHORT_3_5D'" label="T" min-width="72">
+        <template #default="{ row }">{{ formatCodexFactor(row, 'T') }}</template>
+      </el-table-column>
+      <el-table-column v-if="form.horizonProfile === 'SHORT_3_5D'" label="F" min-width="72">
+        <template #default="{ row }">{{ formatCodexFactor(row, 'F') }}</template>
+      </el-table-column>
+      <el-table-column v-if="form.horizonProfile === 'SHORT_3_5D'" label="R" min-width="72">
+        <template #default="{ row }">{{ formatCodexFactor(row, 'R') }}</template>
+      </el-table-column>
       <el-table-column prop="trend_score" label="趋势分" min-width="90" />
       <el-table-column prop="momentum_score" label="动量分" min-width="90" />
       <el-table-column prop="ret20" label="20日收益(%)" min-width="110" />
@@ -294,6 +306,14 @@
         <el-descriptions-item v-if="mode === 'comprehensive' && sentimentMeta(detailRow).source" label="情绪数据来源" :span="2">
           {{ sentimentMeta(detailRow).label }}
         </el-descriptions-item>
+      </template>
+      <template v-else-if="form.horizonProfile === 'SHORT_3_5D'">
+        <el-descriptions-item label="T 因子">{{ formatCodexFactor(detailRow, 'T') }}</el-descriptions-item>
+        <el-descriptions-item label="F 因子">{{ formatCodexFactor(detailRow, 'F') }}</el-descriptions-item>
+        <el-descriptions-item label="R 因子">{{ formatCodexFactor(detailRow, 'R') }}</el-descriptions-item>
+        <el-descriptions-item label="G 市场">{{ formatCodexFactor(detailRow, 'G_market') }}</el-descriptions-item>
+        <el-descriptions-item label="S_raw">{{ formatCodexFactor(detailRow, 'S_raw') }}</el-descriptions-item>
+        <el-descriptions-item label="百分位分">{{ formatCodexFactor(detailRow, 'score_percentile') }}</el-descriptions-item>
       </template>
       <template v-else>
         <el-descriptions-item label="趋势分">{{ detailRow.trend_score }}</el-descriptions-item>
@@ -393,6 +413,7 @@ const form = reactive({
   minTrendScore: 40,
   minListingDays: 60,
   horizonProfile: 'MEDIUM_TREND',
+  minCodexScore: 90,
   templateId: ''
 })
 
@@ -573,6 +594,14 @@ function parseItemReasons(row: Record<string, any>): Record<string, any> {
     }
   }
   return {}
+}
+
+function formatCodexFactor(row: Record<string, any>, key: string) {
+  const r = parseItemReasons(row)
+  const v = r[key]
+  if (v == null || v === '') return '—'
+  const n = Number(v)
+  return Number.isFinite(n) ? n.toFixed(2) : String(v)
 }
 
 function sentimentMeta(row: Record<string, any> | null) {
@@ -903,6 +932,7 @@ async function runSelection() {
       minTrendScore: form.minTrendScore,
       minListingDays: form.minListingDays,
       horizonProfile: form.horizonProfile,
+      minCodexScore: form.horizonProfile === 'SHORT_3_5D' ? form.minCodexScore : undefined,
       templateId: form.templateId || undefined
     })
     const data = done.result_id

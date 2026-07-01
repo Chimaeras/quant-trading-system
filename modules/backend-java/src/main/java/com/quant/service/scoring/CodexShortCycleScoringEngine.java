@@ -1,0 +1,495 @@
+package com.quant.service.scoring;
+
+import com.quant.entity.MarketData;
+import com.quant.entity.StockFinancialSnapshot;
+import com.quant.service.scoring.model.CandidateScore;
+import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * 《3—5 个交易日股票上涨概率评分公式设计文档》v1.0 基线实现。
+ * <p>
+ * S_raw = (0.55+0.10G)T + 0.20F + (0.25-0.05G)R + 0.05·T·tanh(F)<br>
+ * Score = 100 × PercentileRank(S_raw)
+ */
+@Component
+public class CodexShortCycleScoringEngine {
+
+    public static final String FORMULA_VERSION = "codex_short_cycle_v1";
+    public static final int MIN_BARS = 70;
+    public static final int MIN_LISTING_DAYS_DEFAULT = 120;
+    /** 文档建议入选阈值；可通过请求 minCodexScore=0 关闭 */
+    public static final double DEFAULT_MIN_CODEX_SCORE = 90.0;
+    public static final double MIN_F_FACTOR = -0.5;
+    public static final double MIN_R_FACTOR = -1.0;
+
+    public record StockBarContext(
+            String stockCode,
+            String exchangeType,
+            String stockName,
+            String industry,
+            List<MarketData> bars,
+            StockFinancialSnapshot financialSnapshot
+    ) {}
+
+    record RawFeatures(
+            String key,
+            String stockCode,
+            String exchangeType,
+            String stockName,
+            String industry,
+            double er1,
+            double er5,
+            double er20Minus5,
+            double maAlign,
+            double rsiShape,
+            double volConfirm,
+            double roe,
+            double revenueYoY,
+            double debtRatio,
+            double currentRatio,
+            double earningsYield,
+            double bookToMarket,
+            double vol20,
+            double downVol20,
+            double illiq20,
+            double maxGap20,
+            double avgAmount20
+    ) {}
+
+    record ScoredRow(
+            RawFeatures raw,
+            double tFactor,
+            double fFactor,
+            double rFactor,
+            double sRaw,
+            double score,
+            Map<String, Object> breakdown
+    ) {}
+
+    public List<CandidateScore> scoreUniverse(
+            List<StockBarContext> contexts,
+            double minAvgAmount,
+            boolean excludeST,
+            int minListingDays
+    ) {
+        return scoreUniverse(contexts, minAvgAmount, excludeST, minListingDays, DEFAULT_MIN_CODEX_SCORE);
+    }
+
+    public List<CandidateScore> scoreUniverse(
+            List<StockBarContext> contexts,
+            double minAvgAmount,
+            boolean excludeST,
+            int minListingDays,
+            double minCodexScore
+    ) {
+        if (contexts == null || contexts.isEmpty()) {
+            return List.of();
+        }
+        int minListing = Math.max(minListingDays, MIN_LISTING_DAYS_DEFAULT);
+        List<RawFeatures> raws = new ArrayList<>();
+        Map<String, List<Double>> industryRet5 = new HashMap<>();
+
+        for (StockBarContext ctx : contexts) {
+            Optional<RawFeatures> opt = extractRaw(ctx, minAvgAmount, excludeST, minListing);
+            if (opt.isEmpty()) {
+                continue;
+            }
+            RawFeatures rf = opt.get();
+            raws.add(rf);
+            String ind = rf.industry() != null && !rf.industry().isBlank() ? rf.industry() : "_none_";
+            industryRet5.computeIfAbsent(ind, k -> new ArrayList<>()).add(rf.er5);
+        }
+        if (raws.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, Double> industryAvgRet5 = new HashMap<>();
+        for (Map.Entry<String, List<Double>> e : industryRet5.entrySet()) {
+            industryAvgRet5.put(e.getKey(), e.getValue().stream().mapToDouble(Double::doubleValue).average().orElse(0));
+        }
+
+        List<RawFeatures> adjusted = new ArrayList<>(raws.size());
+        for (RawFeatures rf : raws) {
+            String ind = rf.industry() != null && !rf.industry().isBlank() ? rf.industry() : "_none_";
+            double indAvg = industryAvgRet5.getOrDefault(ind, 0.0);
+            adjusted.add(reindustryAdjust(rf, indAvg));
+        }
+        adjusted = imputeFinancialByIndustry(adjusted);
+
+        double g = estimateMarketState(adjusted);
+        List<ScoredRow> scored = scoreCrossSection(adjusted, g);
+
+        List<CandidateScore> out = new ArrayList<>();
+        for (ScoredRow row : scored) {
+            if (row.fFactor() <= MIN_F_FACTOR || row.rFactor() <= MIN_R_FACTOR) {
+                continue;
+            }
+            if (minCodexScore > 0 && row.score() < minCodexScore) {
+                continue;
+            }
+            out.add(toCandidate(row, minCodexScore));
+        }
+        out.sort((a, b) -> Double.compare(b.getFinalScore(), a.getFinalScore()));
+        return out;
+    }
+
+    private static RawFeatures reindustryAdjust(RawFeatures rf, double industryRet5Avg) {
+        return new RawFeatures(
+                rf.key, rf.stockCode, rf.exchangeType, rf.stockName, rf.industry(),
+                rf.er1 - industryRet5Avg * 0.2,
+                rf.er5 - industryRet5Avg,
+                rf.er20Minus5,
+                rf.maAlign, rf.rsiShape, rf.volConfirm,
+                rf.roe, rf.revenueYoY, rf.debtRatio, rf.currentRatio,
+                rf.earningsYield, rf.bookToMarket,
+                rf.vol20, rf.downVol20, rf.illiq20, rf.maxGap20,
+                rf.avgAmount20
+        );
+    }
+
+    static List<RawFeatures> imputeFinancialByIndustry(List<RawFeatures> raws) {
+        if (raws == null || raws.isEmpty()) {
+            return List.of();
+        }
+        Map<String, List<RawFeatures>> byInd = new HashMap<>();
+        for (RawFeatures rf : raws) {
+            String ind = rf.industry() != null && !rf.industry().isBlank() ? rf.industry() : "_none_";
+            byInd.computeIfAbsent(ind, k -> new ArrayList<>()).add(rf);
+        }
+        Map<String, double[]> medians = new HashMap<>();
+        for (Map.Entry<String, List<RawFeatures>> e : byInd.entrySet()) {
+            List<RawFeatures> group = e.getValue();
+            medians.put(e.getKey(), new double[]{
+                    medianField(group, RawFeatures::roe),
+                    medianField(group, RawFeatures::revenueYoY),
+                    medianField(group, RawFeatures::debtRatio),
+                    medianField(group, RawFeatures::currentRatio),
+                    medianField(group, RawFeatures::earningsYield),
+                    medianField(group, RawFeatures::bookToMarket)
+            });
+        }
+        List<RawFeatures> out = new ArrayList<>(raws.size());
+        for (RawFeatures rf : raws) {
+            String ind = rf.industry() != null && !rf.industry().isBlank() ? rf.industry() : "_none_";
+            double[] med = medians.getOrDefault(ind, new double[6]);
+            out.add(new RawFeatures(
+                    rf.key, rf.stockCode, rf.exchangeType, rf.stockName, rf.industry(),
+                    rf.er1, rf.er5, rf.er20Minus5, rf.maAlign, rf.rsiShape, rf.volConfirm,
+                    imputeFin(rf.roe, med[0], 0),
+                    imputeFin(rf.revenueYoY, med[1], 0),
+                    imputeFin(rf.debtRatio, med[2], 50),
+                    imputeFin(rf.currentRatio, med[3], 1.5),
+                    imputeFin(rf.earningsYield, med[4], 0),
+                    imputeFin(rf.bookToMarket, med[5], 0),
+                    rf.vol20, rf.downVol20, rf.illiq20, rf.maxGap20,
+                    rf.avgAmount20
+            ));
+        }
+        return out;
+    }
+
+    private static double imputeFin(double value, double industryMedian, double placeholder) {
+        if (Math.abs(value - placeholder) < 1e-9 && Math.abs(industryMedian) > 1e-9) {
+            return industryMedian;
+        }
+        if (Math.abs(value) < 1e-9 && Math.abs(industryMedian) > 1e-9) {
+            return industryMedian;
+        }
+        return value;
+    }
+
+    private static double medianField(List<RawFeatures> group, java.util.function.ToDoubleFunction<RawFeatures> fn) {
+        List<Double> vals = new ArrayList<>();
+        for (RawFeatures rf : group) {
+            vals.add(fn.applyAsDouble(rf));
+        }
+        vals.sort(Double::compare);
+        int n = vals.size();
+        if (n == 0) {
+            return 0;
+        }
+        return n % 2 == 1 ? vals.get(n / 2) : (vals.get(n / 2 - 1) + vals.get(n / 2)) / 2.0;
+    }
+
+    static List<ScoredRow> scoreCrossSection(List<RawFeatures> raws, double g) {
+        List<String> industries = raws.stream()
+                .map(r -> r.industry() != null && !r.industry().isBlank() ? r.industry() : "_none_")
+                .toList();
+        List<Double> zEr20m5 = zByGroup(raws, RawFeatures::er20Minus5, industries);
+        List<Double> zEr5 = zByGroup(raws, RawFeatures::er5, industries);
+        List<Double> zEr1 = zByGroup(raws, RawFeatures::er1, industries);
+        List<Double> zMa = zByGroup(raws, RawFeatures::maAlign, industries);
+        List<Double> zRsi = zByGroup(raws, RawFeatures::rsiShape, industries);
+        List<Double> zVolC = zByGroup(raws, RawFeatures::volConfirm, industries);
+
+        List<Double> zRoe = zByGroup(raws, RawFeatures::roe, industries);
+        List<Double> zRev = zByGroup(raws, RawFeatures::revenueYoY, industries);
+        List<Double> zDebt = zByGroup(raws, RawFeatures::debtRatio, industries);
+        List<Double> zCurr = zByGroup(raws, RawFeatures::currentRatio, industries);
+        List<Double> zEy = zByGroup(raws, RawFeatures::earningsYield, industries);
+        List<Double> zBm = zByGroup(raws, RawFeatures::bookToMarket, industries);
+
+        List<Double> zVol20 = zByGroup(raws, RawFeatures::vol20, industries);
+        List<Double> zDown = zByGroup(raws, RawFeatures::downVol20, industries);
+        List<Double> zIlliq = zByGroup(raws, RawFeatures::illiq20, industries);
+        List<Double> zGap = zByGroup(raws, RawFeatures::maxGap20, industries);
+
+        List<ScoredRow> rows = new ArrayList<>(raws.size());
+        for (int i = 0; i < raws.size(); i++) {
+            double t = 0.28 * zEr20m5.get(i) + 0.20 * zEr5.get(i) - 0.15 * zEr1.get(i)
+                    + 0.17 * zMa.get(i) + 0.10 * zRsi.get(i) + 0.10 * zVolC.get(i);
+            double quality = 0.40 * zRoe.get(i) + 0.25 * zRev.get(i) - 0.20 * zDebt.get(i) + 0.15 * zCurr.get(i);
+            double value = 0.60 * zEy.get(i) + 0.40 * zBm.get(i);
+            double f = 0.75 * quality + 0.25 * value;
+            double r = -0.35 * zVol20.get(i) - 0.25 * zDown.get(i) - 0.25 * zIlliq.get(i) - 0.15 * zGap.get(i);
+            double sRaw = (0.55 + 0.10 * g) * t + 0.20 * f + (0.25 - 0.05 * g) * r + 0.05 * t * Math.tanh(f);
+            Map<String, Object> bd = new LinkedHashMap<>();
+            bd.put("formula_version", FORMULA_VERSION);
+            bd.put("G_market", ScoringUtils.round4(g));
+            bd.put("T", ScoringUtils.round4(t));
+            bd.put("F", ScoringUtils.round4(f));
+            bd.put("R", ScoringUtils.round4(r));
+            bd.put("S_raw", ScoringUtils.round4(sRaw));
+            rows.add(new ScoredRow(raws.get(i), t, f, r, sRaw, 0, bd));
+        }
+
+        List<Double> sRaws = rows.stream().map(ScoredRow::sRaw).toList();
+        List<Double> pctScores = CrossSectionFactorMath.percentileScores(sRaws);
+        List<ScoredRow> finalRows = new ArrayList<>(rows.size());
+        for (int i = 0; i < rows.size(); i++) {
+            ScoredRow row = rows.get(i);
+            row.breakdown().put("score_percentile", ScoringUtils.round2(pctScores.get(i)));
+            finalRows.add(new ScoredRow(row.raw(), row.tFactor(), row.fFactor(), row.rFactor(), row.sRaw(),
+                    pctScores.get(i), row.breakdown()));
+        }
+        return finalRows;
+    }
+
+    private static List<Double> zByGroup(
+            List<RawFeatures> raws,
+            java.util.function.ToDoubleFunction<RawFeatures> fn,
+            List<String> industries
+    ) {
+        return CrossSectionFactorMath.robustZScoresByGroup(
+                raws.stream().mapToDouble(fn).boxed().toList(),
+                industries
+        );
+    }
+
+    static double estimateMarketState(List<RawFeatures> raws) {
+        double avgEr20m5 = raws.stream().mapToDouble(r -> r.er20Minus5).average().orElse(0);
+        double avgMa = raws.stream().mapToDouble(r -> r.maAlign).average().orElse(0);
+        double avgVol = raws.stream().mapToDouble(r -> r.vol20).average().orElse(0.2);
+        double atrProxy = Math.max(0.05, avgVol);
+        return 0.5 * Math.tanh(avgEr20m5 / atrProxy) + 0.5 * Math.tanh(avgMa / 0.05);
+    }
+
+    Optional<RawFeatures> extractRaw(
+            StockBarContext ctx,
+            double minAvgAmount,
+            boolean excludeST,
+            int minListingDays
+    ) {
+        List<MarketData> bars = ctx.bars();
+        if (bars == null || bars.size() < MIN_BARS) {
+            return Optional.empty();
+        }
+        if (!ScoringUtils.isTradableForScoring(
+                bars, ctx.stockCode(), ctx.exchangeType(), ctx.stockName(), excludeST, true, true)) {
+            return Optional.empty();
+        }
+
+        List<Double> close = new ArrayList<>();
+        List<Double> amount = new ArrayList<>();
+        List<Double> open = new ArrayList<>();
+        for (MarketData b : bars) {
+            if (b.getClosePrice() == null || b.getClosePrice().doubleValue() <= 0) {
+                continue;
+            }
+            close.add(b.getClosePrice().doubleValue());
+            amount.add(b.getAmount() != null ? b.getAmount().doubleValue() : 0);
+            open.add(b.getOpenPrice() != null ? b.getOpenPrice().doubleValue() : b.getClosePrice().doubleValue());
+        }
+        if (close.size() < MIN_BARS) {
+            return Optional.empty();
+        }
+        int n = close.size();
+        double avgAmount20 = TechnicalIndicators.avg(amount, n - 20, n - 1);
+        if (avgAmount20 < minAvgAmount) {
+            return Optional.empty();
+        }
+
+        double ret1 = logRet(close, 1);
+        double ret5 = logRet(close, 5);
+        double ret20 = logRet(close, 20);
+        double er20Minus5 = ret20 - ret5;
+
+        double ma5 = TechnicalIndicators.avg(close, n - 5, n - 1);
+        double ma10 = TechnicalIndicators.avg(close, n - 10, n - 1);
+        double ma20 = TechnicalIndicators.avg(close, n - 20, n - 1);
+        double price = close.get(n - 1);
+        double maAlign = safeRatio(price, ma5) - 1 + safeRatio(ma5, ma10) - 1 + safeRatio(ma10, ma20) - 1;
+
+        double[] closeArr = close.stream().mapToDouble(Double::doubleValue).toArray();
+        double rsi14 = TechnicalIndicators.rsiAt(closeArr, closeArr.length - 1, ScoringConstants.RSI_PERIOD);
+        double rsiShape = -Math.pow((rsi14 - 62) / 18.0, 2);
+
+        List<Double> amtHist = amount.subList(Math.max(0, n - 21), n - 1);
+        double medAmt = medianList(amtHist);
+        double volShock = medAmt > 0 ? Math.log(Math.max(1e-9, amount.get(n - 1) / medAmt)) : 0;
+        double volConfirm = Math.signum(ret5) * volShock;
+
+        MarketData last = bars.get(bars.size() - 1);
+        Double pe = last.getPeRatio() != null ? last.getPeRatio().doubleValue() : null;
+        Double pb = last.getPbRatio() != null ? last.getPbRatio().doubleValue() : null;
+        StockFinancialSnapshot fin = ctx.financialSnapshot();
+        if (fin != null) {
+            if (pb == null && fin.getPbRatio() != null) {
+                pb = fin.getPbRatio().doubleValue();
+            }
+        }
+        double roe = fin != null && fin.getRoe() != null ? fin.getRoe().doubleValue() : 0;
+        double revenueYoY = fin != null && fin.getRevenueYoY() != null ? fin.getRevenueYoY().doubleValue() : 0;
+        double debtRatio = fin != null && fin.getDebtRatio() != null ? fin.getDebtRatio().doubleValue() : 50;
+        double currentRatio = fin != null && fin.getCurrentRatio() != null ? fin.getCurrentRatio().doubleValue() : 1.5;
+        double earningsYield = pe != null && pe > 0 ? 1.0 / pe : 0;
+        double bookToMarket = pb != null && pb > 0 ? 1.0 / pb : 0;
+
+        double vol20 = annualizedVol(close, 20);
+        double downVol20 = downVol(close, 20);
+        double illiq20 = illiquidity(close, amount, 20);
+        double maxGap20 = maxGap(open, close, 20);
+
+        String key = ctx.stockCode() + "|" + ctx.exchangeType();
+        String industry = ctx.industry() != null ? ctx.industry() : "";
+        return Optional.of(new RawFeatures(
+                key, ctx.stockCode(), ctx.exchangeType(), ctx.stockName(), industry,
+                ret1, ret5, er20Minus5, maAlign, rsiShape, volConfirm,
+                roe, revenueYoY, debtRatio, currentRatio, earningsYield, bookToMarket,
+                vol20, downVol20, illiq20, maxGap20, avgAmount20
+        ));
+    }
+
+    private static CandidateScore toCandidate(ScoredRow row, double minCodexScoreApplied) {
+        CandidateScore c = new CandidateScore();
+        c.setStockCode(row.raw().stockCode());
+        c.setExchangeType(row.raw().exchangeType());
+        c.setStockName(row.raw().stockName());
+        c.setFinalScore(row.score());
+        c.setTrendScore(ScoringUtils.clamp(row.tFactor() * 10 + 50, 0, 100));
+        c.setMomentumScore(ScoringUtils.clamp(row.fFactor() * 10 + 50, 0, 100));
+        c.setVolumeScore(ScoringUtils.clamp(row.rFactor() * 10 + 50, 0, 100));
+        c.setRiskPenalty(ScoringUtils.clamp(-row.rFactor() * 10, 0, 100));
+        c.setAvgAmount20(row.raw().avgAmount20());
+        c.setPassMinAvgAmount(true);
+        c.setPassMinTrendScore(true);
+        c.setPassMaTrend(true);
+        c.setPassRet20(true);
+        Map<String, Object> reasons = new LinkedHashMap<>(row.breakdown());
+        reasons.put("horizon_profile", StrategyFormulaRegistry.HORIZON_SHORT_3_5D);
+        reasons.put("scoring_model", FORMULA_VERSION);
+        reasons.put("doc_ref", "Codex/短周期选股评分公式设计文档.md v1.0");
+        if (minCodexScoreApplied > 0) {
+            reasons.put("min_codex_score_applied", ScoringUtils.round2(minCodexScoreApplied));
+        }
+        c.setReasons(reasons);
+        return c;
+    }
+
+    private static double logRet(List<Double> close, int lag) {
+        int n = close.size();
+        if (n <= lag) {
+            return 0;
+        }
+        double prev = close.get(n - 1 - lag);
+        if (prev <= 0) {
+            return 0;
+        }
+        return Math.log(close.get(n - 1) / prev);
+    }
+
+    private static double safeRatio(double a, double b) {
+        return b != 0 ? a / b : 1;
+    }
+
+    private static double medianList(List<Double> values) {
+        if (values.isEmpty()) {
+            return 0;
+        }
+        List<Double> s = new ArrayList<>(values);
+        s.sort(Double::compare);
+        int n = s.size();
+        return n % 2 == 1 ? s.get(n / 2) : (s.get(n / 2 - 1) + s.get(n / 2)) / 2.0;
+    }
+
+    private static double annualizedVol(List<Double> close, int window) {
+        int n = close.size();
+        if (n <= window) {
+            return 0;
+        }
+        List<Double> rets = new ArrayList<>();
+        for (int i = n - window; i < n; i++) {
+            if (close.get(i - 1) > 0) {
+                rets.add(Math.log(close.get(i) / close.get(i - 1)));
+            }
+        }
+        if (rets.isEmpty()) {
+            return 0;
+        }
+        double mean = rets.stream().mapToDouble(Double::doubleValue).average().orElse(0);
+        double var = rets.stream().mapToDouble(v -> (v - mean) * (v - mean)).average().orElse(0);
+        return Math.sqrt(var) * Math.sqrt(252);
+    }
+
+    private static double downVol(List<Double> close, int window) {
+        int n = close.size();
+        List<Double> downs = new ArrayList<>();
+        for (int i = n - window; i < n; i++) {
+            if (i <= 0 || close.get(i - 1) <= 0) {
+                continue;
+            }
+            double r = Math.log(close.get(i) / close.get(i - 1));
+            downs.add(Math.min(r, 0));
+        }
+        if (downs.isEmpty()) {
+            return 0;
+        }
+        double mean = downs.stream().mapToDouble(Double::doubleValue).average().orElse(0);
+        return Math.sqrt(downs.stream().mapToDouble(v -> (v - mean) * (v - mean)).average().orElse(0));
+    }
+
+    private static double illiquidity(List<Double> close, List<Double> amount, int window) {
+        int n = close.size();
+        double sum = 0;
+        int cnt = 0;
+        for (int i = n - window; i < n; i++) {
+            if (i <= 0 || close.get(i - 1) <= 0) {
+                continue;
+            }
+            double r = Math.abs(Math.log(close.get(i) / close.get(i - 1)));
+            double amt = Math.max(1, amount.get(i));
+            sum += r / amt;
+            cnt++;
+        }
+        return cnt == 0 ? 0 : sum / cnt;
+    }
+
+    private static double maxGap(List<Double> open, List<Double> close, int window) {
+        int n = close.size();
+        double max = 0;
+        for (int i = n - window; i < n; i++) {
+            if (i <= 0 || close.get(i - 1) <= 0) {
+                continue;
+            }
+            max = Math.max(max, Math.abs(open.get(i) / close.get(i - 1) - 1));
+        }
+        return max;
+    }
+}

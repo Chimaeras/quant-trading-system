@@ -4,6 +4,7 @@ import com.quant.entity.MarketData;
 import com.quant.entity.SelectorResult;
 import com.quant.entity.SelectorResultItem;
 import com.quant.entity.SelectorTemplate;
+import com.quant.entity.StockFinancialSnapshot;
 import com.quant.entity.StockInfo;
 import com.quant.repository.MarketDataRepository;
 import com.quant.repository.SelectorResultItemRepository;
@@ -11,8 +12,10 @@ import com.quant.repository.SelectorResultRepository;
 import com.quant.repository.SelectorTemplateRepository;
 import com.quant.repository.StockInfoRepository;
 import com.quant.service.scoring.ClassicFactorCalculator;
+import com.quant.service.scoring.CodexShortCycleScoringEngine;
 import com.quant.service.scoring.ExecutorLifecycle;
 import com.quant.service.scoring.FactorCollinearityChecker;
+import com.quant.service.scoring.FinancialSnapshotLoader;
 import com.quant.service.scoring.ProgressiveResultWriter;
 import com.quant.service.scoring.ScoringUtils;
 import com.quant.service.scoring.StrategyFormulaRegistry;
@@ -39,6 +42,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
     private final SelectorTemplateRepository selectorTemplateRepository;
     private final ProgressiveResultWriter progressiveResultWriter;
     private final ClassicFactorCalculator classicFactorCalculator;
+    private final CodexShortCycleScoringEngine codexShortCycleScoringEngine;
+    private final FinancialSnapshotLoader financialSnapshotLoader;
 
     public Map<String, Object> runSelection(Map<String, Object> request) {
         LocalDate reqDate = parseDate(request.get("tradeDate"), LocalDate.now());
@@ -53,6 +58,14 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         boolean excludeST = parseBool(request.get("excludeST"), true);
         int minListingDays = parseInt(request.get("minListingDays"), 60, 0, 3650);
         String horizonProfile = parseHorizonProfile(request.get("horizonProfile"));
+        boolean useCodexEngine = StrategyFormulaRegistry.HORIZON_SHORT_3_5D.equals(horizonProfile);
+        if (useCodexEngine) {
+            minListingDays = Math.max(minListingDays, CodexShortCycleScoringEngine.MIN_LISTING_DAYS_DEFAULT);
+            factorVersion = CodexShortCycleScoringEngine.FORMULA_VERSION;
+        }
+        double minCodexScore = useCodexEngine
+                ? parseDouble(request.get("minCodexScore"), CodexShortCycleScoringEngine.DEFAULT_MIN_CODEX_SCORE, 0d, 100d)
+                : 0d;
         boolean progressivePersist = parseBool(request.get("progressivePersist"), false);
         String fixedResultId = String.valueOf(request.getOrDefault("resultId", "")).trim();
         boolean resumeMode = parseBool(request.get("resumeMode"), false);
@@ -124,6 +137,47 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         }
 
         Map<String, String> nameCache = new HashMap<>();
+        Map<String, String> industryCache = new HashMap<>();
+        for (StockInfo info : stockInfoRepository.findAll()) {
+            if (info.getStockCode() == null || info.getExchangeType() == null) {
+                continue;
+            }
+            String key = info.getStockCode() + "|" + info.getExchangeType();
+            if (info.getStockName() != null) {
+                nameCache.putIfAbsent(key, info.getStockName());
+            }
+            if (info.getIndustry() != null) {
+                industryCache.putIfAbsent(key, info.getIndustry());
+            }
+        }
+
+        if (useCodexEngine) {
+            return runCodexShortCycleSelection(
+                    tradeDate,
+                    effectiveLookbackDays,
+                    fullHistory,
+                    lookbackDaysRequested,
+                    rangeStart,
+                    topN,
+                    minAvgAmount,
+                    minTrendScore,
+                    templateId,
+                    factorVersion,
+                    bulkFetch,
+                    excludeST,
+                    minListingDays,
+                    horizonProfile,
+                    progressivePersist,
+                    fixedResultId,
+                    resumeMode,
+                    pairs,
+                    bulkByKey,
+                    nameCache,
+                    industryCache,
+                    minCodexScore
+            );
+        }
+
         boolean crossSectionEnabled = ScoringUtils.parseBool(request.get("crossSectionNormalize"), false);
         List<CandidateScore> candidates = new ArrayList<>();
         int scoredCount = 0;
@@ -402,14 +456,23 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
             String horizonProfile
     ) {
         boolean shortProfile = StrategyFormulaRegistry.HORIZON_SHORT_3_5D.equals(horizonProfile);
-        Map<String, Object> weights = shortProfile
-                ? Map.of("short_horizon", 0.40, "momentum", 0.25, "volume", 0.20, "risk", -0.15)
+        boolean codexProfile = shortProfile;
+        Map<String, Object> weights = codexProfile
+                ? Map.of(
+                "T_weight", "0.55+0.10G",
+                "F_weight", 0.20,
+                "R_weight", "0.25-0.05G",
+                "T_F_interaction", "0.05·T·tanh(F)")
                 : Map.of("trend", 0.35, "momentum", 0.20, "volume", 0.20, "risk", -0.25);
         Map<String, Object> thresholds = new LinkedHashMap<>();
         thresholds.put("min_avg_amount", minAvgAmount);
         thresholds.put("min_trend_score", minTrendScore);
         thresholds.put("must_ma20_gt_ma60", !shortProfile);
-        thresholds.put("min_short_horizon_score", shortProfile ? 35 : null);
+        thresholds.put("min_short_horizon_score", shortProfile && !codexProfile ? 35 : null);
+        thresholds.put("codex_min_score", codexProfile ? CodexShortCycleScoringEngine.DEFAULT_MIN_CODEX_SCORE : null);
+        thresholds.put("codex_min_f", codexProfile ? CodexShortCycleScoringEngine.MIN_F_FACTOR : null);
+        thresholds.put("codex_min_r", codexProfile ? CodexShortCycleScoringEngine.MIN_R_FACTOR : null);
+        thresholds.put("min_codex_score", codexProfile ? CodexShortCycleScoringEngine.DEFAULT_MIN_CODEX_SCORE : null);
         thresholds.put("horizon_profile", horizonProfile);
         thresholds.put("full_history", fullHistory);
         thresholds.put("lookback_days_requested", lookbackDaysRequested);
@@ -417,14 +480,144 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         thresholds.put("bulk_fetch", bulkFetch);
         thresholds.put("exclude_st", excludeST);
         thresholds.put("min_listing_days", minListingDays);
-        thresholds.put("ranking", "all_stocks_by_final_score_then_top_n");
+        thresholds.put("ranking", codexProfile
+                ? "percentile_rank_S_raw_then_F_R_hard_filter"
+                : "all_stocks_by_final_score_then_top_n");
         Map<String, Object> snap = new LinkedHashMap<>();
         snap.put("weights", weights);
         snap.put("thresholds", thresholds);
         snap.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, true, minListingDays));
+        String auditFactorVersion = codexProfile
+                ? CodexShortCycleScoringEngine.FORMULA_VERSION
+                : ClassicFactorCalculator.FACTOR_VERSION;
         snap.put("formula_audit", StrategyFormulaRegistry.toMap(
-                StrategyFormulaRegistry.audit("CLASSIC_SELECTOR", ClassicFactorCalculator.FACTOR_VERSION, horizonProfile)));
+                StrategyFormulaRegistry.audit("CLASSIC_SELECTOR", auditFactorVersion, horizonProfile)));
         return snap;
+    }
+
+    private Map<String, Object> runCodexShortCycleSelection(
+            LocalDate tradeDate,
+            int effectiveLookbackDays,
+            boolean fullHistory,
+            int lookbackDaysRequested,
+            LocalDate rangeStart,
+            int topN,
+            double minAvgAmount,
+            double minTrendScore,
+            String templateId,
+            String factorVersion,
+            boolean bulkFetch,
+            boolean excludeST,
+            int minListingDays,
+            String horizonProfile,
+            boolean progressivePersist,
+            String fixedResultId,
+            boolean resumeMode,
+            List<Object[]> pairs,
+            Map<String, List<MarketData>> bulkByKey,
+            Map<String, String> nameCache,
+            Map<String, String> industryCache,
+            double minCodexScore
+    ) {
+        Map<String, StockFinancialSnapshot> finByKey =
+                financialSnapshotLoader.loadLatestByStockKey(tradeDate);
+        List<CodexShortCycleScoringEngine.StockBarContext> contexts = new ArrayList<>(pairs.size());
+        for (Object[] pair : pairs) {
+            if (pair == null || pair.length < 2) {
+                continue;
+            }
+            String stockCode = String.valueOf(pair[0]);
+            String exchangeType = String.valueOf(pair[1]);
+            String key = stockCode + "|" + exchangeType;
+            List<MarketData> bars;
+            if (bulkByKey != null) {
+                bars = bulkByKey.getOrDefault(key, List.of());
+            } else {
+                bars = marketDataRepository
+                        .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
+                                stockCode, exchangeType, rangeStart, tradeDate);
+            }
+            contexts.add(new CodexShortCycleScoringEngine.StockBarContext(
+                    stockCode,
+                    exchangeType,
+                    nameCache.getOrDefault(key, getStockName(stockCode, exchangeType)),
+                    industryCache.getOrDefault(key, ""),
+                    bars,
+                    finByKey.get(key)
+            ));
+        }
+
+        String progressiveResultId = null;
+        if (progressivePersist) {
+            progressiveResultId = ensureResultSkeleton(
+                    fixedResultId,
+                    tradeDate,
+                    effectiveLookbackDays,
+                    fullHistory,
+                    lookbackDaysRequested,
+                    rangeStart,
+                    topN,
+                    minAvgAmount,
+                    minTrendScore,
+                    templateId,
+                    factorVersion,
+                    bulkFetch,
+                    resumeMode,
+                    excludeST,
+                    minListingDays,
+                    horizonProfile
+            );
+        }
+
+        List<CandidateScore> candidates = codexShortCycleScoringEngine.scoreUniverse(
+                contexts, minAvgAmount, excludeST, minListingDays, minCodexScore);
+        FactorCollinearityChecker.logVifReport(candidates);
+        List<CandidateScore> selected = candidates.stream().limit(topN).toList();
+
+        String finalResultId = progressiveResultId != null
+                ? progressiveResultId
+                : ensureResultSkeleton(
+                null,
+                tradeDate,
+                effectiveLookbackDays,
+                fullHistory,
+                lookbackDaysRequested,
+                rangeStart,
+                topN,
+                minAvgAmount,
+                minTrendScore,
+                templateId,
+                factorVersion,
+                bulkFetch,
+                false,
+                excludeST,
+                minListingDays,
+                horizonProfile
+        );
+        List<SelectorResultItem> topItems = new ArrayList<>(selected.size());
+        int rk = 1;
+        for (CandidateScore c : selected) {
+            topItems.add(c.toSelectorResultItem(finalResultId, rk++, "CLASSIC_SELECTOR"));
+        }
+        if (progressiveResultId != null) {
+            progressiveResultWriter.replaceResultItems(finalResultId, topItems);
+        } else {
+            selectorResultItemRepository.deleteByResultId(finalResultId);
+            for (SelectorResultItem item : topItems) {
+                selectorResultItemRepository.save(item);
+            }
+        }
+        int totalTargets = targetsSize(pairs);
+        int scoredCount = candidates.size();
+        progressiveResultWriter.finishResult(
+                finalResultId,
+                "SUCCESS",
+                totalTargets,
+                totalTargets,
+                scoredCount,
+                Math.max(0, totalTargets - scoredCount)
+        );
+        return getResultById(finalResultId);
     }
 
     private static int capCalendarDays(LocalDate start, LocalDate end) {

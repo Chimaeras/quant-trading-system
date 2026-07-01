@@ -267,7 +267,9 @@ public final class StrategyBacktestEngine {
         if (bar.getPreClose() != null && bar.getPreClose().doubleValue() > 0) {
             return bar.getPreClose().doubleValue();
         }
-        if (prevBar.getClosePrice() != null && prevBar.getClosePrice().doubleValue() > 0) {
+        if (prevBar != null
+                && prevBar.getClosePrice() != null
+                && prevBar.getClosePrice().doubleValue() > 0) {
             return prevBar.getClosePrice().doubleValue();
         }
         return 0;

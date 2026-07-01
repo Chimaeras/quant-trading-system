@@ -226,4 +226,11 @@ class StrategyBacktestEngineTest {
         }
         return bars;
     }
+
+    @Test
+    void resolvePreCloseReturnsZeroWhenPrevBarMissing() {
+        MarketData bar = new MarketData();
+        bar.setOpenPrice(BigDecimal.TEN);
+        assertThat(StrategyBacktestEngine.resolvePreClose(bar, null)).isZero();
+    }
 }

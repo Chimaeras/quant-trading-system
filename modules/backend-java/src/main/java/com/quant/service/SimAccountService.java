@@ -49,12 +49,14 @@ public class SimAccountService {
         List<PositionInfo> positions = positionInfoRepository.findByAccountIdOrderByStockCodeAsc(account.getId());
         List<Map<String, Object>> list = new ArrayList<>();
         for (PositionInfo p : positions) {
+            refreshSellableVolume(p, account.getId());
             refreshPositionPrice(p);
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("symbol", p.getStockCode());
             m.put("name", p.getStockName());
             m.put("exchangeType", p.getExchangeType());
             m.put("volume", p.getVolume());
+            m.put("availableVolume", p.getAvailableVolume());
             m.put("avgPrice", p.getAvgCost());
             m.put("currentPrice", p.getCurrentPrice());
             m.put("marketValue", p.getMarketValue());
@@ -96,12 +98,13 @@ public class SimAccountService {
         } else {
             PositionInfo pos = positionInfoRepository.findByAccountIdAndStockCodeAndExchangeType(account.getId(), stockCode, exchange)
                     .orElseThrow(() -> new BusinessException("无可用持仓"));
+            refreshSellableVolume(pos, account.getId());
             if (pos.getAvailableVolume() < volume) {
-                throw new BusinessException("可用持仓不足");
+                throw new BusinessException("可用持仓不足（A 股 T+1：当日买入不可卖出）");
             }
             BigDecimal stamp = amount.multiply(STAMP_DUTY_RATE).setScale(4, RoundingMode.HALF_UP);
             account.setAvailableCash(account.getAvailableCash().add(amount).subtract(commission).subtract(stamp));
-            upsertPositionSell(pos, volume);
+            upsertPositionSell(pos, volume, account.getId());
             commission = commission.add(stamp);
         }
 
@@ -172,10 +175,10 @@ public class SimAccountService {
                     .add(price.multiply(BigDecimal.valueOf(volume)))
                     .divide(BigDecimal.valueOf(newVol), 4, RoundingMode.HALF_UP);
             p.setVolume(newVol);
-            p.setAvailableVolume(newVol);
             p.setAvgCost(newCost);
             p.setCurrentPrice(price);
             positionInfoRepository.save(p);
+            refreshSellableVolume(p, accountId);
         } else {
             PositionInfo p = new PositionInfo();
             p.setAccountId(accountId);
@@ -183,7 +186,7 @@ public class SimAccountService {
             p.setStockName(name);
             p.setExchangeType(exchange);
             p.setVolume(volume);
-            p.setAvailableVolume(volume);
+            p.setAvailableVolume(0);
             p.setAvgCost(price);
             p.setCurrentPrice(price);
             p.setFirstBuyDate(LocalDate.now());
@@ -191,14 +194,29 @@ public class SimAccountService {
         }
     }
 
-    private void upsertPositionSell(PositionInfo p, int volume) {
+    private void upsertPositionSell(PositionInfo p, int volume, Long accountId) {
         int remain = p.getVolume() - volume;
         if (remain <= 0) {
             positionInfoRepository.delete(p);
             return;
         }
         p.setVolume(remain);
-        p.setAvailableVolume(remain);
+        positionInfoRepository.save(p);
+        refreshSellableVolume(p, accountId);
+    }
+
+    /** A 股 T+1：当日买入份额不计入可卖数量。 */
+    void refreshSellableVolume(PositionInfo p, Long accountId) {
+        LocalDate today = LocalDate.now();
+        int boughtToday = tradingLogRepository.sumBuyVolumeBetween(
+                accountId,
+                p.getStockCode(),
+                p.getExchangeType(),
+                today.atStartOfDay(),
+                today.plusDays(1).atStartOfDay()
+        );
+        int sellable = Math.max(0, p.getVolume() - boughtToday);
+        p.setAvailableVolume(sellable);
         positionInfoRepository.save(p);
     }
 

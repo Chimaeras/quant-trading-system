@@ -86,6 +86,12 @@
       <el-form-item v-if="mode === 'trend'" label="乖离阈值">
         <el-input-number v-model="commonForm.biasThreshold" :min="1" :max="20" :step="0.5" :precision="1" />
       </el-form-item>
+      <el-form-item label="最低综合分">
+        <el-input-number v-model="commonForm.minTotalScore" :min="0" :max="100" :step="1" />
+      </el-form-item>
+      <el-form-item label="排除 ST">
+        <el-switch v-model="commonForm.excludeST" />
+      </el-form-item>
       <el-form-item>
         <el-button type="primary" :loading="running" @click="runGeneric">执行打分</el-button>
         <el-button :disabled="running" @click="loadLatest">加载最新</el-button>
@@ -137,6 +143,8 @@
       <span>策略：{{ lastTaskSummary.strategy }}</span>
       <span>耗时：{{ lastTaskSummary.elapsedMs }} ms</span>
       <span>返回：{{ lastTaskSummary.returnedItems }} / {{ lastTaskSummary.totalItems }}</span>
+      <span v-if="lastTaskSummary.qualifiedItems != null">合格：{{ lastTaskSummary.qualifiedItems }}</span>
+      <span v-if="lastTaskSummary.minTotalScore != null">质量闸 ≥ {{ lastTaskSummary.minTotalScore }}</span>
       <span>完成时间：{{ lastTaskSummary.finishedAt }}</span>
     </div>
 
@@ -168,9 +176,24 @@
       <span>关注: {{ focusResults.length }} 只</span>
       <span>因子版本: {{ resultMeta.factor_version || 'v1' }}</span>
       <span v-if="resultMeta.run_status">状态: {{ resultMeta.run_status }}</span>
+      <span v-if="resultMeta.min_total_score != null">质量闸 ≥ {{ resultMeta.min_total_score }}</span>
+      <span v-if="resultMeta.qualified_items != null">合格 {{ resultMeta.qualified_items }} 只</span>
+      <span v-if="resultMeta.total_scored_pool != null">评分池 {{ resultMeta.total_scored_pool }} 只</span>
     </div>
 
-    <el-table v-if="mode === 'classic'" v-loading="loading" :data="displayedResults" stripe>
+    <el-empty
+      v-if="!loading && resultMeta.result_id && results.length === 0"
+      description="今日无符合质量闸的候选"
+    >
+      <template v-if="resultMeta.min_total_score != null">
+        <p class="empty-tip">
+          最低综合分 {{ resultMeta.min_total_score }}，评分池 {{ resultMeta.total_scored_pool ?? 0 }} 只，合格
+          {{ resultMeta.qualified_items ?? 0 }} 只。宁可空结果，也不凑满 TopN。
+        </p>
+      </template>
+    </el-empty>
+
+    <el-table v-if="mode === 'classic' && results.length" v-loading="loading" :data="displayedResults" stripe>
       <el-table-column label="排名" width="70">
         <template #default="{ row, $index }">{{ resolveRank(row, $index) }}</template>
       </el-table-column>
@@ -189,7 +212,7 @@
       </el-table-column>
     </el-table>
 
-    <el-table v-else-if="mode === 'oversold'" v-loading="loading" :data="displayedResults" stripe>
+    <el-table v-else-if="mode === 'oversold' && results.length" v-loading="loading" :data="displayedResults" stripe>
       <el-table-column label="排名" width="70">
         <template #default="{ row, $index }">{{ resolveRank(row, $index) }}</template>
       </el-table-column>
@@ -209,7 +232,7 @@
       </el-table-column>
     </el-table>
 
-    <el-table v-else v-loading="loading" :data="displayedResults" stripe>
+    <el-table v-else-if="results.length" v-loading="loading" :data="displayedResults" stripe>
       <el-table-column label="排名" width="70">
         <template #default="{ row, $index }">{{ resolveRank(row, $index) }}</template>
       </el-table-column>
@@ -232,9 +255,9 @@
 
     <p v-if="mode === 'classic'" class="tip">流程：先执行打分拿到评分池，再按 TopN 和最低分生成关注清单。</p>
     <p v-else-if="mode === 'oversold'" class="tip">逻辑：趋势确认(40) + 成交量验证(30) + 超跌程度(30)；关注清单支持二次阈值筛选。</p>
-    <p v-else-if="mode === 'trend'" class="tip">逻辑：趋势/乖离/量能/支撑/MACD/RSI 六维综合评分。</p>
-    <p v-else-if="mode === 'comprehensive'" class="tip">逻辑：技术面30 + 基本面40 + 情绪面30 三维度综合评分。情绪面若无外部舆情，将标注为「技术面推导」并已打折。</p>
-    <p v-else class="tip">逻辑：纯库内 K 线 + PE + 行业聚合的多维度打分 v1。</p>
+    <p v-else-if="mode === 'trend'" class="tip">逻辑：趋势/乖离/量能等六维评分；服务端按最低综合分（默认45）过滤，不足 TopN 时不凑数。</p>
+    <p v-else-if="mode === 'comprehensive'" class="tip">逻辑：技术面30 + 基本面40 + 情绪面30；默认质量闸55分。情绪面若无外部舆情，将标注为「技术面推导」并已打折。</p>
+    <p v-else class="tip">逻辑：纯库内 K 线 + PE + 行业聚合的多维度打分 v1；默认质量闸55分。</p>
   </el-card>
 
   <el-dialog v-model="detailVisible" title="选股详情" width="640px">
@@ -309,6 +332,8 @@ const lastTaskSummary = ref<{
   elapsedMs: number
   totalItems: number
   returnedItems: number
+  qualifiedItems?: number
+  minTotalScore?: number
   finishedAt: string
 } | null>(null)
 
@@ -318,7 +343,10 @@ const resultMeta = reactive({
   factor_version: 'v1',
   run_status: '',
   processed_candidates: 0,
-  total_candidates: 0
+  total_candidates: 0,
+  min_total_score: null as number | null,
+  qualified_items: null as number | null,
+  total_scored_pool: null as number | null
 })
 const templates = ref<Array<Record<string, unknown>>>([])
 
@@ -345,7 +373,9 @@ const commonForm = reactive({
   tradeDate: dayjs().format('YYYY-MM-DD'),
   scoreTopN: 500,
   lookbackDays: 120,
-  biasThreshold: 5.0
+  biasThreshold: 5.0,
+  minTotalScore: 45,
+  excludeST: true
 })
 
 const isGenericMode = computed(() => ['trend', 'comprehensive', 'multi_dim'].includes(mode.value))
@@ -463,8 +493,25 @@ function buildTaskSummary(t: UnifiedScoringTaskStatus) {
     elapsedMs,
     totalItems: Number(t.total_items || 0),
     returnedItems: Number(t.returned_items || 0),
+    qualifiedItems: resultMeta.qualified_items ?? undefined,
+    minTotalScore: resultMeta.min_total_score ?? undefined,
     finishedAt: t.finished_at || dayjs().format('YYYY-MM-DD HH:mm:ss')
   }
+}
+
+function defaultMinTotalScoreForMode(m: ModeType) {
+  if (m === 'trend') return 45
+  if (m === 'comprehensive' || m === 'multi_dim') return 55
+  return 0
+}
+
+function applyQualityMeta(data: Record<string, any>) {
+  const minScore = data.min_total_score
+  const qualified = data.qualified_items
+  const pool = data.total_scored_pool ?? data.total_items
+  resultMeta.min_total_score = minScore != null && minScore !== '' ? Number(minScore) : null
+  resultMeta.qualified_items = qualified != null && qualified !== '' ? Number(qualified) : null
+  resultMeta.total_scored_pool = pool != null && pool !== '' ? Number(pool) : null
 }
 
 function applyResult(data: Record<string, any>) {
@@ -474,6 +521,7 @@ function applyResult(data: Record<string, any>) {
   resultMeta.run_status = String(data.run_status ?? '')
   resultMeta.processed_candidates = Number(data.processed_candidates || 0)
   resultMeta.total_candidates = Number(data.total_candidates || 0)
+  applyQualityMeta(data)
   const incoming = Array.isArray(data.items) ? data.items : Array.isArray(data.list) ? data.list : []
   const merged = new Map<string, Record<string, any>>()
   for (const row of results.value) {
@@ -670,6 +718,8 @@ function buildGenericPayload(): Record<string, unknown> {
     strategy: currentStrategy(),
     tradeDate: commonForm.tradeDate,
     topN: commonForm.scoreTopN,
+    minTotalScore: commonForm.minTotalScore,
+    excludeST: commonForm.excludeST,
     persist: true
   }
   if (mode.value === 'comprehensive') {
@@ -679,6 +729,14 @@ function buildGenericPayload(): Record<string, unknown> {
     payload.biasThreshold = commonForm.biasThreshold
   }
   return payload
+}
+
+function scoringCompleteToast() {
+  if (results.value.length === 0 && resultMeta.min_total_score != null) {
+    toast.warning(`无符合质量闸（≥ ${resultMeta.min_total_score} 分）的候选`)
+    return
+  }
+  toast.success(`打分完成，共 ${results.value.length} 只`)
 }
 
 async function runSelection() {
@@ -699,7 +757,7 @@ async function runSelection() {
       ? await scoringApi.getUnifiedResult(done.result_id, { page: 1, size: form.scoreTopN })
       : await scoringApi.getUnifiedLatest({ strategy: 'CLASSIC_SELECTOR', tradeDate: form.tradeDate, page: 1, size: form.scoreTopN })
     applyResult(data)
-    toast.success(`打分完成，共 ${results.value.length} 只`)
+    scoringCompleteToast()
   } catch (e: any) {
     taskError.value = String(e?.message || '运行选股失败')
     toast.error(taskError.value)
@@ -726,7 +784,7 @@ async function runOversold() {
       ? await scoringApi.getUnifiedResult(done.result_id, { page: 1, size: oversoldForm.scoreTopN })
       : await scoringApi.getUnifiedLatest({ strategy: 'OVERSOLD_REBOUND', tradeDate: oversoldForm.tradeDate, page: 1, size: oversoldForm.scoreTopN })
     applyResult(data)
-    toast.success(`打分完成，共 ${results.value.length} 只`)
+    scoringCompleteToast()
   } catch (e: any) {
     taskError.value = String(e?.message || '运行超跌筛选失败')
     toast.error(taskError.value)
@@ -747,7 +805,7 @@ async function runGeneric() {
       ? await scoringApi.getUnifiedResult(done.result_id, { page: 1, size: commonForm.scoreTopN })
       : await scoringApi.getUnifiedLatest({ strategy, tradeDate: commonForm.tradeDate, page: 1, size: commonForm.scoreTopN })
     applyResult(data)
-    toast.success(`打分完成，共 ${results.value.length} 只`)
+    scoringCompleteToast()
   } catch (e: any) {
     taskError.value = String(e?.message || '运行打分失败')
     toast.error(taskError.value)
@@ -994,6 +1052,9 @@ function onModeChange() {
   resetTaskState()
   results.value = []
   focusResults.value = []
+  if (isGenericMode.value) {
+    commonForm.minTotalScore = defaultMinTotalScoreForMode(mode.value)
+  }
   loadLatest().catch(() => {})
 }
 
@@ -1052,6 +1113,13 @@ onBeforeUnmount(() => {
   color: var(--text-secondary);
   font-size: 12px;
   margin-top: 12px;
+}
+.empty-tip {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin: 0;
+  max-width: 420px;
+  text-align: center;
 }
 .json-box {
   margin: 0;

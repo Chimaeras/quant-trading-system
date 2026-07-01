@@ -97,9 +97,15 @@ public class UnifiedScoringService {
 
         Map<String, Object> rawResult = dispatch(strategy, strategyReq);
         List<Map<String, Object>> rawItems = readItems(rawResult);
-        List<Map<String, Object>> slicedItems = rawItems.stream().limit(topN).toList();
+        double minTotalScore = parseDouble(req.get("minTotalScore"), defaultMinTotalScore(strategy), 0, 100);
+        List<Map<String, Object>> slicedItems = sliceTopN(strategy, rawItems, minTotalScore, topN);
+        int qualifiedItems = countQualified(strategy, rawItems, minTotalScore);
         String tradeDate = String.valueOf(rawResult.getOrDefault("trade_date", strategyReq.getOrDefault("tradeDate", "")));
         String factorVersion = String.valueOf(rawResult.getOrDefault("factor_version", strategy.name().toLowerCase()));
+        rawResult.put("total_items", rawItems.size());
+        rawResult.put("qualified_items", qualifiedItems);
+        rawResult.put("min_total_score", minTotalScore);
+        rawResult.put("returned_items", slicedItems.size());
 
         String resultId = null;
         if (persist) {
@@ -113,6 +119,8 @@ public class UnifiedScoringService {
         out.put("trade_date", tradeDate);
         out.put("persisted", persist);
         out.put("total_items", rawItems.size());
+        out.put("qualified_items", qualifiedItems);
+        out.put("min_total_score", minTotalScore);
         out.put("returned_items", slicedItems.size());
         out.put("items", slicedItems);
         out.put("source_summary", extractSummary(rawResult));
@@ -421,6 +429,7 @@ public class UnifiedScoringService {
         out.put("success_candidates", nvl(result.getSuccessCandidates(), 0));
         out.put("failed_candidates", nvl(result.getFailedCandidates(), 0));
         out.put("last_processed_key", nvl(result.getLastProcessedKey(), ""));
+        putQualityGateFields(out, result.getFactorSnapshot());
         out.put("list", list);
         out.put("items", list);
         out.put("total", pg.getTotalElements());
@@ -615,6 +624,69 @@ public class UnifiedScoringService {
                 || strategy == UnifiedScoringStrategy.OVERSOLD_REBOUND;
     }
 
+    private static double defaultMinTotalScore(UnifiedScoringStrategy strategy) {
+        return switch (strategy) {
+            case TREND -> 45;
+            case COMPREHENSIVE, MULTI_DIM -> 55;
+            default -> 0;
+        };
+    }
+
+    private static Map<String, Object> buildQualityGateSnapshot(
+            UnifiedScoringStrategy strategy,
+            Map<String, Object> strategyReq,
+            Map<String, Object> rawResult,
+            int returnedItems) {
+        Map<String, Object> q = new LinkedHashMap<>();
+        q.put("min_total_score", parseDouble(strategyReq.get("minTotalScore"), defaultMinTotalScore(strategy), 0, 100));
+        q.put("qualified_items", parseInt(rawResult.get("qualified_items"), returnedItems, 0, Integer.MAX_VALUE));
+        q.put("returned_items", returnedItems);
+        q.put("total_scored_pool", parseInt(rawResult.get("total_items"), returnedItems, 0, Integer.MAX_VALUE));
+        return q;
+    }
+
+    private static void putQualityGateFields(Map<String, Object> out, Map<String, Object> snapshot) {
+        if (snapshot == null) {
+            return;
+        }
+        Object qg = snapshot.get("quality_gate");
+        if (!(qg instanceof Map<?, ?> gate)) {
+            return;
+        }
+        for (String key : List.of("min_total_score", "qualified_items", "returned_items", "total_scored_pool")) {
+            if (gate.containsKey(key)) {
+                out.put(key, gate.get(key));
+            }
+        }
+    }
+
+    private static List<Map<String, Object>> sliceTopN(
+            UnifiedScoringStrategy strategy,
+            List<Map<String, Object>> rawItems,
+            double minTotalScore,
+            int topN) {
+        return switch (strategy) {
+            case TREND, COMPREHENSIVE ->
+                    ScoringUtils.pickTopNByMinScore(rawItems, minTotalScore, topN, "total_score");
+            case MULTI_DIM ->
+                    ScoringUtils.pickTopNByMinScore(rawItems, minTotalScore, topN, "composite_score");
+            default -> rawItems.stream().limit(topN).toList();
+        };
+    }
+
+    private static int countQualified(
+            UnifiedScoringStrategy strategy,
+            List<Map<String, Object>> rawItems,
+            double minTotalScore) {
+        return switch (strategy) {
+            case TREND, COMPREHENSIVE ->
+                    ScoringUtils.countByMinScore(rawItems, minTotalScore, "total_score");
+            case MULTI_DIM ->
+                    ScoringUtils.countByMinScore(rawItems, minTotalScore, "composite_score");
+            default -> rawItems.size();
+        };
+    }
+
     private Map<String, Object> runTrend(Map<String, Object> req) {
         Map<String, Object> p = new LinkedHashMap<>(req);
         p.put("includeItems", true);
@@ -712,6 +784,7 @@ public class UnifiedScoringService {
         snapshot.put("strategy", strategy.name());
         snapshot.put("strategy_request", strategyReq);
         snapshot.put("raw_summary", extractSummary(rawResult));
+        snapshot.put("quality_gate", buildQualityGateSnapshot(strategy, strategyReq, rawResult, items.size()));
         sr.setFactorSnapshot(snapshot);
         selectorResultRepository.save(sr);
 

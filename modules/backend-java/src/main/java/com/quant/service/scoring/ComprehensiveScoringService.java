@@ -421,6 +421,7 @@ public class ComprehensiveScoringService {
         int threads = ScoringUtils.parseInt(req.get("threads"),
                 Math.max(1, Runtime.getRuntime().availableProcessors()), 1, 64);
         boolean includeItems = ScoringUtils.parseBool(req.get("includeItems"), false);
+        boolean excludeST = ScoringUtils.parseBool(req.get("excludeST"), true);
 
         LocalDate rangeStart = tradeDate.minusDays(lookbackDays);
         List<Object[]> pairs = marketDataRepository.findDistinctStockPairsInRange(rangeStart, tradeDate);
@@ -461,10 +462,11 @@ public class ComprehensiveScoringService {
         if (threads <= 1) {
             for (String key : keys) {
                 processStock(key, grouped.getOrDefault(key, List.of()), infoMap.get(key),
-                        snapshotMap.get(key), tradeDate, rows, skipped, marketEnv);
+                        snapshotMap.get(key), tradeDate, rows, skipped, marketEnv, excludeST);
             }
         } else {
             final String finalMarketEnv = marketEnv;
+            final boolean finalExcludeST = excludeST;
             ExecutorService pool = Executors.newFixedThreadPool(threads, r -> {
                 Thread t = new Thread(r);
                 t.setName("comprehensive-score-" + t.getId());
@@ -475,7 +477,7 @@ public class ComprehensiveScoringService {
             for (String key : keys) {
                 cs.submit(() -> {
                     processStock(key, grouped.getOrDefault(key, List.of()), infoMap.get(key),
-                            snapshotMap.get(key), tradeDate, rows, skipped, finalMarketEnv);
+                            snapshotMap.get(key), tradeDate, rows, skipped, finalMarketEnv, finalExcludeST);
                     return null;
                 });
             }
@@ -510,6 +512,7 @@ public class ComprehensiveScoringService {
         res.put("skipped", skipped.get());
         res.put("elapsed_ms", TimeUnit.NANOSECONDS.toMillis(t1 - t0));
         res.put("include_items", includeItems);
+        res.put("exclude_st", excludeST);
 
         if (includeItems) {
             List<Map<String, Object>> items = new ArrayList<>();
@@ -527,7 +530,7 @@ public class ComprehensiveScoringService {
     private void processStock(String key, List<MarketData> bars, StockInfo info,
                                com.quant.entity.StockFinancialSnapshot snapshot,
                                LocalDate tradeDate, List<StockTrendScore> rows, AtomicInteger skipped,
-                               String marketEnv) {
+                               String marketEnv, boolean excludeST) {
         if (bars.size() < ScoringConstants.MIN_BARS_COMPREHENSIVE) {
             skipped.incrementAndGet();
             return;
@@ -542,6 +545,12 @@ public class ComprehensiveScoringService {
         int p = key.indexOf('|');
         String stockCode = p > 0 ? key.substring(0, p) : key;
         String exchangeType = p > 0 ? key.substring(p + 1) : "";
+
+        String stockName = info != null && info.getStockName() != null ? info.getStockName() : "";
+        if (!ScoringUtils.isTradableForScoring(bars.get(bars.size() - 1), stockName, excludeST)) {
+            skipped.incrementAndGet();
+            return;
+        }
 
         MarketData todayBar = bars.get(bars.size() - 1);
         Double pe = todayBar.getPeRatio() != null ? todayBar.getPeRatio().doubleValue() : null;

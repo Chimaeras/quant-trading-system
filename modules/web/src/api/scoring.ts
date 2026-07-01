@@ -89,6 +89,9 @@ export interface UnifiedScoringRunResult {
   persisted: boolean
   total_items: number
   returned_items: number
+  qualified_items?: number
+  min_total_score?: number
+  total_scored_pool?: number
   items: Record<string, unknown>[]
   source_summary?: Record<string, unknown>
 }
@@ -121,6 +124,10 @@ export interface UnifiedScoringResultPage {
   success_candidates?: number
   failed_candidates?: number
   last_processed_key?: string
+  min_total_score?: number
+  qualified_items?: number
+  returned_items?: number
+  total_scored_pool?: number
   list: UnifiedScoringResultItem[]
   /** 兼容任务阶段结果接口 */
   items?: UnifiedScoringResultItem[]

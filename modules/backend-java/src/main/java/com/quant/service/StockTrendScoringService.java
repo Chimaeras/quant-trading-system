@@ -93,6 +93,7 @@ public class StockTrendScoringService {
         int lookbackDays = ScoringUtils.parseInt(req.get("lookbackDays"), ScoringConstants.DEFAULT_LOOKBACK_DAYS, 60, 2000);
         boolean bulkFetch = ScoringUtils.parseBool(req.get("bulkFetch"), true);
         boolean includeItems = ScoringUtils.parseBool(req.get("includeItems"), false);
+        boolean excludeST = ScoringUtils.parseBool(req.get("excludeST"), true);
 
         LocalDate rangeStart = tradeDate.minusDays(lookbackDays);
         List<Object[]> pairs = marketDataRepository.findDistinctStockPairsInRange(rangeStart, tradeDate);
@@ -143,7 +144,7 @@ public class StockTrendScoringService {
                     String exchangeType = p > 0 ? key.substring(p + 1) : "";
                     List<MarketData> bars = grouped.getOrDefault(key, List.of());
                     Optional<StockTrendScore> row = scoreOne(
-                            stockCode, exchangeType, tradeDate, bars, nameCache, biasThreshold, skippedNoBarOnTradeDate);
+                            stockCode, exchangeType, tradeDate, bars, nameCache, biasThreshold, excludeST, skippedNoBarOnTradeDate);
                     if (row.isPresent()) rows.add(row.get());
                     else k++;
                 }
@@ -163,7 +164,7 @@ public class StockTrendScoringService {
                         String stockCode = p > 0 ? key.substring(0, p) : key;
                         String exchangeType = p > 0 ? key.substring(p + 1) : "";
                         List<MarketData> bars = grouped.getOrDefault(key, List.of());
-                        return scoreOne(stockCode, exchangeType, tradeDate, bars, nameCache, biasThreshold, skippedNoBarOnTradeDate);
+                        return scoreOne(stockCode, exchangeType, tradeDate, bars, nameCache, biasThreshold, excludeST, skippedNoBarOnTradeDate);
                     });
                 }
 
@@ -198,7 +199,7 @@ public class StockTrendScoringService {
                                 stockCode, exchangeType, rangeStart, tradeDate);
                 barsFetched += bars.size();
                 Optional<StockTrendScore> row = scoreOne(
-                        stockCode, exchangeType, tradeDate, bars, nameCache, biasThreshold, skippedNoBarOnTradeDate);
+                        stockCode, exchangeType, tradeDate, bars, nameCache, biasThreshold, excludeST, skippedNoBarOnTradeDate);
                 if (row.isEmpty()) {
                     k++;
                     continue;
@@ -227,7 +228,7 @@ public class StockTrendScoringService {
                     List<MarketData> bars = marketDataRepository
                             .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
                                     stockCode, exchangeType, rangeStart, tradeDate);
-                    return scoreOne(stockCode, exchangeType, tradeDate, bars, nameCache, biasThreshold, skippedNoBarOnTradeDate);
+                    return scoreOne(stockCode, exchangeType, tradeDate, bars, nameCache, biasThreshold, excludeST, skippedNoBarOnTradeDate);
                 });
             }
 
@@ -307,6 +308,7 @@ public class StockTrendScoringService {
         res.put("persist_ms", persistMs);
         res.put("scored_per_sec", ScoringUtils.round2(scoredPerSec));
         res.put("include_items", includeItems);
+        res.put("exclude_st", excludeST);
         res.put("items", items);
         return res;
     }
@@ -337,7 +339,8 @@ public class StockTrendScoringService {
 
     private Optional<StockTrendScore> scoreOne(String stockCode, String exchangeType, LocalDate tradeDate,
                                                 List<MarketData> bars, Map<String, String> nameCache,
-                                                double biasThreshold, AtomicInteger skippedNoBarOnTradeDate) {
+                                                double biasThreshold, boolean excludeST,
+                                                AtomicInteger skippedNoBarOnTradeDate) {
         if (bars == null || bars.size() < ScoringConstants.MIN_BARS_TECHNICAL) {
             return Optional.empty();
         }
@@ -347,6 +350,21 @@ public class StockTrendScoringService {
             if (skippedNoBarOnTradeDate != null) {
                 skippedNoBarOnTradeDate.incrementAndGet();
             }
+            return Optional.empty();
+        }
+
+        String stockName = nameCache.computeIfAbsent(stockCode + "|" + exchangeType, k -> {
+            String nameValue = stockInfoRepository.findByStockCodeAndExchangeType(stockCode, exchangeType)
+                    .map(StockInfo::getStockName)
+                    .orElse("");
+            if (nameValue == null || nameValue.isBlank()) {
+                nameValue = stockInfoRepository.findFirstByStockCode(stockCode)
+                        .map(StockInfo::getStockName)
+                        .orElse("");
+            }
+            return nameValue == null ? "" : nameValue;
+        });
+        if (!ScoringUtils.isTradableForScoring(bars.get(bars.size() - 1), stockName, excludeST)) {
             return Optional.empty();
         }
 
@@ -469,22 +487,10 @@ public class StockTrendScoringService {
 
         String buySignal = ScoringRules.getBuySignal(total, trendStatus);
 
-        String name = nameCache.computeIfAbsent(stockCode + "|" + exchangeType, k -> {
-            String nameValue = stockInfoRepository.findByStockCodeAndExchangeType(stockCode, exchangeType)
-                    .map(StockInfo::getStockName)
-                    .orElse("");
-            if (nameValue == null || nameValue.isBlank()) {
-                nameValue = stockInfoRepository.findFirstByStockCode(stockCode)
-                        .map(StockInfo::getStockName)
-                        .orElse("");
-            }
-            return nameValue == null ? "" : nameValue;
-        });
-
         StockTrendScore e = new StockTrendScore();
         e.setStockCode(stockCode);
         e.setExchangeType(exchangeType);
-        e.setStockName(name);
+        e.setStockName(stockName);
         e.setTradeDate(tradeDate);
         e.setTotalScore(ScoringUtils.round2(total));
         e.setScoreTrend(ScoringUtils.round2(scoreTrend));

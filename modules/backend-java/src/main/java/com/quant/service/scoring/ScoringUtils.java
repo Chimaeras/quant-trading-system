@@ -3,6 +3,8 @@ package com.quant.service.scoring;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -48,6 +50,67 @@ public final class ScoringUtils {
      */
     public static boolean isExplicitZeroVolume(com.quant.entity.MarketData bar) {
         return bar != null && bar.getVolume() != null && bar.getVolume() <= 0;
+    }
+
+    /** 信号日可交易性：零成交量（停牌代理）与 ST 过滤（与经典/超跌选股口径一致）。 */
+    public static boolean isTradableForScoring(com.quant.entity.MarketData signalBar, String stockName, boolean excludeST) {
+        if (isExplicitZeroVolume(signalBar)) {
+            return false;
+        }
+        return !(excludeST && stockName != null && stockName.toUpperCase().contains("ST"));
+    }
+
+    /**
+     * 按得分降序列表取 TopN，仅保留分数不低于 minScore 的候选；不足 TopN 时允许更少或为空。
+     */
+    public static List<Map<String, Object>> pickTopNByMinScore(
+            List<Map<String, Object>> items,
+            double minScore,
+            int topN,
+            String... scoreKeys) {
+        if (items == null || items.isEmpty() || topN <= 0 || scoreKeys == null || scoreKeys.length == 0) {
+            return List.of();
+        }
+        List<Map<String, Object>> out = new ArrayList<>(Math.min(topN, items.size()));
+        for (Map<String, Object> item : items) {
+            if (out.size() >= topN) {
+                break;
+            }
+            if (scoreFromMap(item, scoreKeys) >= minScore) {
+                out.add(item);
+            }
+        }
+        return out;
+    }
+
+    public static int countByMinScore(List<Map<String, Object>> items, double minScore, String... scoreKeys) {
+        if (items == null || items.isEmpty() || scoreKeys == null || scoreKeys.length == 0) {
+            return 0;
+        }
+        int n = 0;
+        for (Map<String, Object> item : items) {
+            if (scoreFromMap(item, scoreKeys) >= minScore) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    private static double scoreFromMap(Map<String, Object> item, String... keys) {
+        for (String key : keys) {
+            Object v = item.get(key);
+            if (v == null) {
+                continue;
+            }
+            if (v instanceof Number n) {
+                return n.doubleValue();
+            }
+            try {
+                return Double.parseDouble(String.valueOf(v));
+            } catch (Exception ignored) {
+            }
+        }
+        return 0;
     }
 
     /**

@@ -181,8 +181,8 @@ public class ScoringBacktestService {
                 Map<Integer, Double> forwardReturns = new LinkedHashMap<>();
                 Map<Integer, String> periodSkipReasons = new LinkedHashMap<>();
                 for (int h : holdingDays) {
-                    // 持有1日表示下一交易日开盘买入、当日收盘卖出
-                    int fwdIdx = entryIdx + h - 1;
+                    // A 股 T+1：入场日开盘买入后，最早在 entryIdx+h 日收盘卖出（h=1 即持有 1 个交易日后出场）
+                    int fwdIdx = entryIdx + h;
                     if (fwdIdx >= tradingDays.size()) {
                         forwardReturns.put(h, null);
                         periodSkipReasons.put(h, SKIP_BEYOND_CALENDAR);
@@ -318,6 +318,11 @@ public class ScoringBacktestService {
         Map<String, Object> assumptions = new LinkedHashMap<>();
         assumptions.put("entry", "NEXT_TRADING_DAY_OPEN");
         assumptions.put("exit", "HOLDING_PERIOD_CLOSE");
+        assumptions.put("t_plus_one_sell", true);
+        assumptions.put(
+                "holding_period_semantics",
+                "h trading days after entry open; earliest exit close is entry day + h (A-share T+1)"
+        );
         assumptions.put("commission_rate", commissionRate);
         assumptions.put("sell_tax_rate", sellTaxRate);
         assumptions.put("slippage_rate_each_side", slippageRate);

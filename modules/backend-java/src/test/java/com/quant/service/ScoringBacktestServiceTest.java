@@ -31,6 +31,7 @@ class ScoringBacktestServiceTest {
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
         LocalDate entryDate = LocalDate.of(2025, 1, 3);
+        LocalDate exitDate = LocalDate.of(2025, 1, 6);
         SelectorResult result = new SelectorResult();
         result.setResultId("R1");
         result.setTradeDate(signalDate);
@@ -46,14 +47,15 @@ class ScoringBacktestServiceTest {
 
         MarketData signalBar = bar(signalDate, 100, 100);
         MarketData entryBar = bar(entryDate, 80, 88);
+        MarketData exitBar = bar(exitDate, 88, 88);
 
         when(resultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(any(), any()))
                 .thenReturn(List.of(result));
         when(itemRepository.findByResultIdInOrderByRankNo(any())).thenReturn(List.of(item));
         when(marketDataRepository.findDistinctTradeDatesBetween(any(), any()))
-                .thenReturn(List.of(signalDate, entryDate));
+                .thenReturn(List.of(signalDate, entryDate, exitDate));
         when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
-                .thenReturn(List.of(signalBar, entryBar));
+                .thenReturn(List.of(signalBar, entryBar, exitBar));
 
         ScoringBacktestRequest request = new ScoringBacktestRequest();
         request.setStrategyType("CLASSIC_SELECTOR");
@@ -71,6 +73,60 @@ class ScoringBacktestServiceTest {
 
         assertThat(stock.getEntryDate()).isEqualTo(entryDate);
         assertThat(stock.getEntryPrice()).isEqualTo(80.0);
+        assertThat(stock.getForwardReturns().get(1)).isCloseTo(0.10, within(1e-9));
+        assertThat(response.getExecutionAssumptions().get("t_plus_one_sell")).isEqualTo(true);
+    }
+
+    @Test
+    void holdingPeriodOneExitsOnNextTradingDayCloseNotSameDay() {
+        SelectorResultRepository resultRepository = mock(SelectorResultRepository.class);
+        SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
+        MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
+        ScoringBacktestService service =
+                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository);
+
+        LocalDate signalDate = LocalDate.of(2025, 1, 2);
+        LocalDate entryDate = LocalDate.of(2025, 1, 3);
+        LocalDate exitDate = LocalDate.of(2025, 1, 6);
+        SelectorResult result = new SelectorResult();
+        result.setResultId("R1");
+        result.setTradeDate(signalDate);
+        result.setStrategyType("CLASSIC_SELECTOR");
+
+        SelectorResultItem item = new SelectorResultItem();
+        item.setResultId("R1");
+        item.setRankNo(1);
+        item.setStockCode("000001");
+        item.setExchangeType("SZSE");
+        item.setStockName("测试股票");
+        item.setFinalScore(80.0);
+
+        MarketData signalBar = bar(signalDate, 100, 100);
+        MarketData entryBar = bar(entryDate, 80, 999);
+        MarketData exitBar = bar(exitDate, 88, 88);
+
+        when(resultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(any(), any()))
+                .thenReturn(List.of(result));
+        when(itemRepository.findByResultIdInOrderByRankNo(any())).thenReturn(List.of(item));
+        when(marketDataRepository.findDistinctTradeDatesBetween(any(), any()))
+                .thenReturn(List.of(signalDate, entryDate, exitDate));
+        when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
+                .thenReturn(List.of(signalBar, entryBar, exitBar));
+
+        ScoringBacktestRequest request = new ScoringBacktestRequest();
+        request.setStrategyType("CLASSIC_SELECTOR");
+        request.setStartDate(signalDate);
+        request.setEndDate(signalDate);
+        request.setTopN(1);
+        request.setHoldingDays(List.of(1));
+        request.setCommissionRate(0.0);
+        request.setSellTaxRate(0.0);
+        request.setSlippageRate(0.0);
+
+        ScoringBacktestResponse response = service.run(request);
+        ScoringBacktestResponse.StockReturn stock =
+                response.getDailyDetails().getFirst().getTopStocks().getFirst();
+
         assertThat(stock.getForwardReturns().get(1)).isCloseTo(0.10, within(1e-9));
     }
 
@@ -240,6 +296,7 @@ class ScoringBacktestServiceTest {
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
         LocalDate entryDate = LocalDate.of(2025, 1, 3);
+        LocalDate exitDate = LocalDate.of(2025, 1, 6);
         SelectorResult result = new SelectorResult();
         result.setResultId("R1");
         result.setTradeDate(signalDate);
@@ -256,14 +313,16 @@ class ScoringBacktestServiceTest {
         MarketData signalBar = bar(signalDate, 100, 100);
         MarketData entryBar = bar(entryDate, 80, 90);
         entryBar.setPreClose(BigDecimal.valueOf(100));
+        MarketData exitBar = bar(exitDate, 81, 81);
+        exitBar.setPreClose(BigDecimal.valueOf(90));
 
         when(resultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(any(), any()))
                 .thenReturn(List.of(result));
         when(itemRepository.findByResultIdInOrderByRankNo(any())).thenReturn(List.of(item));
         when(marketDataRepository.findDistinctTradeDatesBetween(any(), any()))
-                .thenReturn(List.of(signalDate, entryDate));
+                .thenReturn(List.of(signalDate, entryDate, exitDate));
         when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
-                .thenReturn(List.of(signalBar, entryBar));
+                .thenReturn(List.of(signalBar, entryBar, exitBar));
 
         ScoringBacktestRequest request = new ScoringBacktestRequest();
         request.setStrategyType("CLASSIC_SELECTOR");

@@ -233,7 +233,7 @@
     <p v-if="mode === 'classic'" class="tip">流程：先执行打分拿到评分池，再按 TopN 和最低分生成关注清单。</p>
     <p v-else-if="mode === 'oversold'" class="tip">逻辑：趋势确认(40) + 成交量验证(30) + 超跌程度(30)；关注清单支持二次阈值筛选。</p>
     <p v-else-if="mode === 'trend'" class="tip">逻辑：趋势/乖离/量能/支撑/MACD/RSI 六维综合评分。</p>
-    <p v-else-if="mode === 'comprehensive'" class="tip">逻辑：技术面30 + 基本面40 + 情绪面30 三维度综合评分。</p>
+    <p v-else-if="mode === 'comprehensive'" class="tip">逻辑：技术面30 + 基本面40 + 情绪面30 三维度综合评分。情绪面若无外部舆情，将标注为「技术面推导」并已打折。</p>
     <p v-else class="tip">逻辑：纯库内 K 线 + PE + 行业聚合的多维度打分 v1。</p>
   </el-card>
 
@@ -252,6 +252,9 @@
         <el-descriptions-item :label="dimensionLabels.dim2">{{ detailRow.momentum_score }}</el-descriptions-item>
         <el-descriptions-item :label="dimensionLabels.dim3">{{ detailRow.volume_score }}</el-descriptions-item>
         <el-descriptions-item v-if="mode === 'comprehensive'" label="投资建议">{{ detailRow.investment_advice || detailRow.extra_metrics?.suggestion || '--' }}</el-descriptions-item>
+        <el-descriptions-item v-if="mode === 'comprehensive' && sentimentMeta(detailRow).source" label="情绪数据来源" :span="2">
+          {{ sentimentMeta(detailRow).label }}
+        </el-descriptions-item>
       </template>
       <template v-else>
         <el-descriptions-item label="趋势分">{{ detailRow.trend_score }}</el-descriptions-item>
@@ -376,6 +379,42 @@ function scoreOf(row: Record<string, any>) {
   const v = row.final_score ?? row.total_score ?? 0
   const n = Number(v)
   return Number.isFinite(n) ? n : 0
+}
+
+function parseItemReasons(row: Record<string, any>): Record<string, any> {
+  const reasons = row.reasons
+  if (reasons && typeof reasons === 'object') {
+    const nested = (reasons as Record<string, any>).reasons_json ?? (reasons as Record<string, any>).raw_item?.reasons_json
+    if (nested && typeof nested === 'object') return nested as Record<string, any>
+    if (typeof nested === 'string') {
+      try {
+        return JSON.parse(nested) as Record<string, any>
+      } catch {
+        return reasons as Record<string, any>
+      }
+    }
+    return reasons as Record<string, any>
+  }
+  if (typeof row.reasons_json === 'string') {
+    try {
+      return JSON.parse(row.reasons_json) as Record<string, any>
+    } catch {
+      return {}
+    }
+  }
+  return {}
+}
+
+function sentimentMeta(row: Record<string, any> | null) {
+  if (!row) return { source: '', label: '' }
+  const r = parseItemReasons(row)
+  const source = String(r.sentiment_data_source || '')
+  if (!source) return { source: '', label: '' }
+  if (source === 'derived_from_technical') {
+    const discount = r.sentiment_discount_factor ?? 0.6
+    return { source, label: `技术面推导（可信度折扣 ${discount}，非真实舆情）` }
+  }
+  return { source, label: source }
 }
 
 function resolveRank(row: Record<string, any>, index: number) {

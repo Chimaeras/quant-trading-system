@@ -92,7 +92,9 @@ public class ComprehensiveScoringService {
             double institutionalScore,
             String newsStatus,
             String socialStatus,
-            String institutionalStatus
+            String institutionalStatus,
+            String dataSource,
+            double discountFactor
     ) {}
 
     /**
@@ -145,7 +147,9 @@ public class ComprehensiveScoringService {
                 sentimentResult.institutionalViewScore() * discount,
                 sentimentResult.newsStatus(),
                 sentimentResult.socialStatus(),
-                sentimentResult.institutionStatus()
+                sentimentResult.institutionStatus(),
+                sentimentResult.dataSource(),
+                sentimentResult.discountFactor()
         );
         double sentimentScore = sentimentResult.totalScore();
 
@@ -395,7 +399,7 @@ public class ComprehensiveScoringService {
                 0, 0, 0, 0, "观望", reason,
                 new TechnicalDetail(0, 0, 0, 4.0, "数据不足", "数据不足", "数据不足", "数据不足"),
                 new FundamentalDetail(0, 0, 0, "数据不足", "数据不足", "数据不足"),
-                new SentimentDetail(0, 0, 0, "数据不足", "数据不足", "数据不足"),
+                new SentimentDetail(0, 0, 0, "数据不足", "数据不足", "数据不足", "unavailable", 0.0),
                 DynamicWeightingService.getDefaultWeights()
         );
     }
@@ -608,6 +612,11 @@ public class ComprehensiveScoringService {
                     "social_score", result.sentimentDetail().socialScore(),
                     "institutional_score", result.sentimentDetail().institutionalScore()
             ));
+            reasons.put("sentiment_data_source", result.sentimentDetail().dataSource());
+            reasons.put("sentiment_discount_factor", result.sentimentDetail().discountFactor());
+            if ("derived_from_technical".equals(result.sentimentDetail().dataSource())) {
+                reasons.put("sentiment_disclaimer", "情绪面由技术指标推导，已应用可信度折扣，非真实舆情数据");
+            }
             reasons.put("weights", Map.of(
                     "technical", result.weights().technicalWeight(),
                     "fundamental", result.weights().fundamentalWeight(),

@@ -273,7 +273,7 @@ public class OversoldReboundScoringService {
         snapshot.put("minVolumeScore30", 15);
         snapshot.put("minOversoldScore30", 15);
         snapshot.put("excludeST", excludeST);
-        snapshot.put("weights", Map.of("trend", 0.4, "volume", 0.3, "oversold", 0.3));
+        snapshot.put("weights", Map.of("trend", 0.35, "volume", 0.25, "oversold", 0.25, "confirm", 0.15));
         snapshot.put("effective_lookback_days", effectiveLookbackDays);
         snapshot.put("ranking", "strict_quality_then_weighted_score");
 

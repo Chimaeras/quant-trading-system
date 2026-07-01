@@ -28,6 +28,49 @@ public class ScoringBacktestResponse {
     /** 每日明细（按 tradeDate 升序） */
     private List<DailyDetail> dailyDetails;
 
+    /** 截面 Rank IC 与分组收益研究摘要 */
+    private FactorAnalysis factorAnalysis;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FactorAnalysis {
+        private int holdingDays;
+        private int groupCount;
+        private int crossSectionDays;
+        private int totalObservations;
+        private double rankIcMean;
+        private double rankIcStd;
+        private double rankIcIr;
+        private double rankIcPositiveRate;
+        private List<DailyRankIc> dailyRankIc;
+        private List<GroupReturnStat> groupedReturns;
+        private double longShortSpread;
+        private String universeNote;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class DailyRankIc {
+        private String tradeDate;
+        private double rankIc;
+        private int sampleSize;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GroupReturnStat {
+        private int groupNo;
+        private String label;
+        private double avgReturn;
+        private int observations;
+    }
+
     @Data
     @Builder
     @NoArgsConstructor

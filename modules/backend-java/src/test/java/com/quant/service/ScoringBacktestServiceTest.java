@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -456,6 +457,79 @@ class ScoringBacktestServiceTest {
         assertThat(skipped.getEntryPrice()).isNull();
         assertThat(response.getExecutionAssumptions().get("skip_reason_codes"))
                 .asList().contains(ScoringBacktestService.SKIP_ZERO_VOLUME_ON_ENTRY);
+    }
+
+    @Test
+    void populatesFactorAnalysisFromFullCrossSection() {
+        SelectorResultRepository resultRepository = mock(SelectorResultRepository.class);
+        SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
+        MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
+        ScoringBacktestService service =
+                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository);
+
+        LocalDate signalDate = LocalDate.of(2025, 1, 2);
+        LocalDate entryDate = LocalDate.of(2025, 1, 3);
+        LocalDate exitDate = LocalDate.of(2025, 1, 8);
+        List<LocalDate> tradingDays = new ArrayList<>();
+        for (int d = 2; d <= 10; d++) {
+            tradingDays.add(LocalDate.of(2025, 1, d));
+        }
+        SelectorResult result = new SelectorResult();
+        result.setResultId("R1");
+        result.setTradeDate(signalDate);
+        result.setStrategyType("CLASSIC_SELECTOR");
+
+        List<SelectorResultItem> items = new ArrayList<>();
+        for (int i = 1; i <= 12; i++) {
+            SelectorResultItem item = new SelectorResultItem();
+            item.setResultId("R1");
+            item.setRankNo(i);
+            item.setStockCode(String.format("%06d", i));
+            item.setExchangeType("SZSE");
+            item.setStockName("测试" + i);
+            item.setFinalScore(i * 10.0);
+            items.add(item);
+        }
+
+        List<MarketData> bars = new ArrayList<>();
+        bars.add(bar(signalDate, 100, 100));
+        bars.add(bar(entryDate, 80, 88));
+        for (SelectorResultItem item : items) {
+            MarketData entry = bar(entryDate, 80, 88);
+            entry.setStockCode(item.getStockCode());
+            MarketData exit = bar(exitDate, 80 + item.getRankNo(), 80 + item.getRankNo());
+            exit.setStockCode(item.getStockCode());
+            bars.add(entry);
+            bars.add(exit);
+        }
+
+        when(resultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(any(), any()))
+                .thenReturn(List.of(result));
+        when(itemRepository.findByResultIdInOrderByRankNo(any())).thenReturn(items);
+        when(marketDataRepository.findDistinctTradeDatesBetween(any(), any()))
+                .thenReturn(tradingDays);
+        when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
+                .thenReturn(bars);
+
+        ScoringBacktestRequest request = new ScoringBacktestRequest();
+        request.setStrategyType("CLASSIC_SELECTOR");
+        request.setStartDate(signalDate);
+        request.setEndDate(signalDate);
+        request.setTopN(3);
+        request.setHoldingDays(List.of(5));
+        request.setCommissionRate(0.0);
+        request.setSellTaxRate(0.0);
+        request.setSlippageRate(0.0);
+        request.setFactorGroupCount(5);
+
+        ScoringBacktestResponse response = service.run(request);
+
+        assertThat(response.getFactorAnalysis()).isNotNull();
+        assertThat(response.getFactorAnalysis().getCrossSectionDays()).isEqualTo(1);
+        assertThat(response.getFactorAnalysis().getHoldingDays()).isEqualTo(5);
+        assertThat(response.getFactorAnalysis().getRankIcMean()).isGreaterThan(0);
+        assertThat(response.getFactorAnalysis().getGroupedReturns()).hasSize(5);
+        assertThat(response.getFactorAnalysis().getLongShortSpread()).isGreaterThan(0);
     }
 
     private MarketData bar(LocalDate date, double open, double close) {

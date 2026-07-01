@@ -125,6 +125,80 @@
         </div>
       </div>
 
+      <!-- 截面因子研究 -->
+      <template v-if="response.factorAnalysis">
+        <div class="section-title">截面因子研究（T+{{ response.factorAnalysis.holdingDays }}）</div>
+        <el-alert
+          type="warning"
+          :closable="false"
+          show-icon
+          class="run-alert"
+          :title="response.factorAnalysis.universeNote"
+        />
+        <div class="stats-grid factor-ic-grid">
+          <div class="stat-card glass">
+            <div class="stat-header">Rank IC 均值</div>
+            <div class="stat-body">
+              <div class="stat-item">
+                <span class="stat-label">IC Mean</span>
+                <span class="stat-value" :class="response.factorAnalysis.rankIcMean >= 0 ? 'text-success' : 'text-danger'">
+                  {{ response.factorAnalysis.rankIcMean.toFixed(4) }}
+                </span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">IC Std</span>
+                <span class="stat-value">{{ response.factorAnalysis.rankIcStd.toFixed(4) }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">ICIR</span>
+                <span class="stat-value">{{ response.factorAnalysis.rankIcIr.toFixed(3) }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">IC&gt;0 占比</span>
+                <span class="stat-value">{{ (response.factorAnalysis.rankIcPositiveRate * 100).toFixed(1) }}%</span>
+              </div>
+            </div>
+          </div>
+          <div class="stat-card glass">
+            <div class="stat-header">样本覆盖</div>
+            <div class="stat-body">
+              <div class="stat-item">
+                <span class="stat-label">截面日数</span>
+                <span class="stat-value">{{ response.factorAnalysis.crossSectionDays }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">总观测数</span>
+                <span class="stat-value">{{ response.factorAnalysis.totalObservations }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">分组数</span>
+                <span class="stat-value">{{ response.factorAnalysis.groupCount }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">多空 Spread</span>
+                <span class="stat-value" :class="response.factorAnalysis.longShortSpread >= 0 ? 'text-success' : 'text-danger'">
+                  {{ (response.factorAnalysis.longShortSpread * 100).toFixed(2) }}%
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-title">分组平均收益</div>
+        <div ref="factorChartRef" class="chart-box"></div>
+        <el-table :data="response.factorAnalysis.groupedReturns" stripe size="small" class="data-table" max-height="260">
+          <el-table-column prop="label" label="分组" width="120" />
+          <el-table-column label="平均收益" width="120">
+            <template #default="{ row }">
+              <span :class="row.avgReturn >= 0 ? 'text-success' : 'text-danger'">
+                {{ (row.avgReturn * 100).toFixed(2) }}%
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="observations" label="截面日观测" />
+        </el-table>
+      </template>
+
       <!-- 胜率柱状图 -->
       <div class="section-title">胜率对比</div>
       <div ref="chartRef" class="chart-box"></div>
@@ -275,7 +349,58 @@ function formatAssumptionValue(value: unknown, key?: string): string {
 
 // 图表
 const chartRef = ref<HTMLElement>()
+const factorChartRef = ref<HTMLElement>()
 let chart: echarts.ECharts | null = null
+let factorChart: echarts.ECharts | null = null
+
+function renderFactorChart() {
+  if (!factorChartRef.value || !response.value?.factorAnalysis) return
+  const groups = response.value.factorAnalysis.groupedReturns
+  if (!groups.length) return
+  if (!factorChart) factorChart = echarts.init(factorChartRef.value)
+  factorChart.setOption({
+    tooltip: {
+      trigger: 'axis',
+      formatter: (params: any[]) => {
+        const p = params[0]
+        const g = groups[p.dataIndex]
+        return [`<b>${g.label}</b>`, `平均收益：${(g.avgReturn * 100).toFixed(2)}%`, `截面日：${g.observations}`].join('<br/>')
+      }
+    },
+    grid: { left: '8%', right: '8%', top: '10%', bottom: '10%' },
+    xAxis: {
+      type: 'category',
+      data: groups.map((g) => g.label),
+      axisLabel: { color: '#9db1cc', interval: 0, rotate: groups.length > 5 ? 20 : 0 }
+    },
+    yAxis: {
+      type: 'value',
+      name: '收益 (%)',
+      axisLabel: { color: '#9db1cc', formatter: '{value}%' },
+      splitLine: { lineStyle: { color: 'rgba(145,196,255,0.08)' } }
+    },
+    series: [
+      {
+        name: '平均收益',
+        type: 'bar',
+        data: groups.map((g) => +(g.avgReturn * 100).toFixed(2)),
+        itemStyle: {
+          color: (params: { dataIndex: number }) => {
+            const v = groups[params.dataIndex].avgReturn
+            return v >= 0 ? '#1cd6a6' : '#ff6b6b'
+          }
+        },
+        barWidth: '50%',
+        label: {
+          show: true,
+          position: 'top',
+          color: '#e9f1ff',
+          formatter: '{c}%'
+        }
+      }
+    ]
+  })
+}
 
 function renderChart() {
   if (!chartRef.value || !response.value) return
@@ -363,7 +488,10 @@ function renderChart() {
 }
 
 watch(response, () => {
-  nextTick(() => renderChart())
+  nextTick(() => {
+    renderChart()
+    renderFactorChart()
+  })
 })
 
 // 分页
@@ -460,6 +588,7 @@ function exportCsv() {
 // resize
 function onResize() {
   chart?.resize()
+  factorChart?.resize()
 }
 
 onMounted(() => {
@@ -470,6 +599,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize)
   chart?.dispose()
+  factorChart?.dispose()
 })
 </script>
 
@@ -515,6 +645,10 @@ onBeforeUnmount(() => {
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 12px;
   margin-bottom: 16px;
+}
+
+.factor-ic-grid {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
 }
 
 .stat-card {

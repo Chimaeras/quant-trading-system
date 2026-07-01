@@ -9,6 +9,8 @@ export interface ScoringBacktestRequest {
   commissionRate?: number
   sellTaxRate?: number
   slippageRate?: number
+  factorGroupCount?: number
+  factorAnalysisHoldingDay?: number
 }
 
 export interface PeriodStat {
@@ -39,6 +41,21 @@ export interface DailyDetail {
   dailyWinRate: Record<number, number | null>
 }
 
+export interface FactorAnalysis {
+  holdingDays: number
+  groupCount: number
+  crossSectionDays: number
+  totalObservations: number
+  rankIcMean: number
+  rankIcStd: number
+  rankIcIr: number
+  rankIcPositiveRate: number
+  dailyRankIc: Array<{ tradeDate: string; rankIc: number; sampleSize: number }>
+  groupedReturns: Array<{ groupNo: number; label: string; avgReturn: number; observations: number }>
+  longShortSpread: number
+  universeNote: string
+}
+
 export interface ScoringBacktestResponse {
   strategyType: string
   startDate: string
@@ -48,6 +65,7 @@ export interface ScoringBacktestResponse {
   executionAssumptions: Record<string, unknown>
   holdingPeriodStats: Record<number, PeriodStat>
   dailyDetails: DailyDetail[]
+  factorAnalysis?: FactorAnalysis | null
 }
 
 export const backtestApi = {

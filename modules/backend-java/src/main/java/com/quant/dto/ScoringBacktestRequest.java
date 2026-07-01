@@ -33,4 +33,10 @@ public class ScoringBacktestRequest {
 
     /** 单边滑点率，默认万二 */
     private Double slippageRate = 0.0002;
+
+    /** 因子分组数（截面 IC / 分组收益研究），默认 5 */
+    private Integer factorGroupCount = 5;
+
+    /** 因子研究使用的持有期（交易日）；未指定时优先 T+5，否则取 holdingDays 首项 */
+    private Integer factorAnalysisHoldingDay;
 }

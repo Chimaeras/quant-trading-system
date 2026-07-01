@@ -3,6 +3,9 @@ package com.quant.service;
 import com.quant.dto.ScoringBacktestRequest;
 import com.quant.dto.ScoringBacktestResponse;
 import com.quant.dto.ScoringBacktestResponse.DailyDetail;
+import com.quant.dto.ScoringBacktestResponse.DailyRankIc;
+import com.quant.dto.ScoringBacktestResponse.FactorAnalysis;
+import com.quant.dto.ScoringBacktestResponse.GroupReturnStat;
 import com.quant.dto.ScoringBacktestResponse.PeriodStat;
 import com.quant.dto.ScoringBacktestResponse.StockReturn;
 import com.quant.entity.MarketData;
@@ -11,6 +14,9 @@ import com.quant.entity.SelectorResultItem;
 import com.quant.repository.MarketDataRepository;
 import com.quant.repository.SelectorResultItemRepository;
 import com.quant.repository.SelectorResultRepository;
+import com.quant.service.backtest.FactorResearchEngine;
+import com.quant.service.backtest.FactorResearchEngine.CrossSectionObservation;
+import com.quant.service.backtest.FactorResearchEngine.FactorResearchSummary;
 import com.quant.service.backtest.StrategyBacktestEngine;
 import com.quant.service.backtest.TradingLimitRules;
 import com.quant.service.scoring.ScoringUtils;
@@ -39,6 +45,10 @@ public class ScoringBacktestService {
     static final String SKIP_ZERO_VOLUME_ON_EXIT = "ZERO_VOLUME_ON_EXIT";
     static final String SKIP_LIMIT_DOWN_AT_CLOSE = "LIMIT_DOWN_AT_CLOSE";
 
+    private static final int FACTOR_MIN_CROSS_SECTION_SIZE = 10;
+    private static final String FACTOR_UNIVERSE_NOTE =
+            "基于 persisted 选股结果全截面；未复现历史时点股票池，存在幸存者偏差";
+
     private final SelectorResultRepository resultRepo;
     private final SelectorResultItemRepository itemRepo;
     private final MarketDataRepository marketDataRepo;
@@ -51,6 +61,8 @@ public class ScoringBacktestService {
         List<Integer> holdingDays = req.getHoldingDays() != null ? req.getHoldingDays() : List.of(1, 3, 5, 10, 20);
         int maxHolding = holdingDays.stream().max(Integer::compareTo).orElse(20);
         int topN = req.getTopN() != null ? req.getTopN() : 10;
+        int factorGroupCount = req.getFactorGroupCount() != null ? req.getFactorGroupCount() : 5;
+        int factorHoldingDay = resolveFactorAnalysisHoldingDay(holdingDays, req.getFactorAnalysisHoldingDay());
         double commissionRate = boundedRate(req.getCommissionRate(), 0.0003);
         double sellTaxRate = boundedRate(req.getSellTaxRate(), 0.0005);
         double slippageRate = boundedRate(req.getSlippageRate(), 0.0002);
@@ -87,6 +99,7 @@ public class ScoringBacktestService {
                     .executionAssumptions(assumptions)
                     .holdingPeriodStats(Map.of())
                     .dailyDetails(List.of())
+                    .factorAnalysis(null)
                     .build();
         }
 
@@ -121,6 +134,7 @@ public class ScoringBacktestService {
 
         // 5. 逐日计算 forward returns
         List<DailyDetail> dailyDetails = new ArrayList<>();
+        Map<String, List<CrossSectionObservation>> factorObservationsByDate = new LinkedHashMap<>();
         // 按持仓天数汇总所有收益率，用于最终统计
         Map<Integer, List<Double>> periodReturns = new LinkedHashMap<>();
         for (int h : holdingDays) {
@@ -133,6 +147,9 @@ public class ScoringBacktestService {
             List<SelectorResultItem> topItems = items.stream()
                     .sorted(Comparator.comparingInt(SelectorResultItem::getRankNo))
                     .limit(topN)
+                    .collect(Collectors.toList());
+            List<SelectorResultItem> factorItems = items.stream()
+                    .sorted(Comparator.comparingInt(SelectorResultItem::getRankNo))
                     .collect(Collectors.toList());
 
             if (topItems.isEmpty()) continue;
@@ -189,52 +206,19 @@ public class ScoringBacktestService {
                 Map<Integer, Double> forwardReturns = new LinkedHashMap<>();
                 Map<Integer, String> periodSkipReasons = new LinkedHashMap<>();
                 for (int h : holdingDays) {
-                    // A 股 T+1：入场日开盘买入后，最早在 entryIdx+h 日收盘卖出（h=1 即持有 1 个交易日后出场）
-                    int fwdIdx = entryIdx + h;
-                    if (fwdIdx >= tradingDays.size()) {
+                    PeriodReturnResult periodResult = computePeriodReturn(
+                            item, entryIdx, h, tradingDays, marketDataMap,
+                            entryCost, commissionRate, sellTaxRate, slippageRate);
+                    if (periodResult.ret() != null) {
+                        forwardReturns.put(h, periodResult.ret());
+                        periodReturns.get(h).add(periodResult.ret());
+                        dailyReturns.get(h).add(periodResult.ret());
+                    } else {
                         forwardReturns.put(h, null);
-                        periodSkipReasons.put(h, SKIP_BEYOND_CALENDAR);
-                        continue;
-                    }
-                    LocalDate fwdDate = tradingDays.get(fwdIdx);
-                    String fwdKey = priceKey(item.getStockCode(), item.getExchangeType(), fwdDate);
-                    MarketData exitBar = marketDataMap.get(fwdKey);
-                    if (exitBar == null) {
-                        forwardReturns.put(h, null);
-                        periodSkipReasons.put(h, SKIP_NO_QUOTE_ON_EXIT);
-                        continue;
-                    }
-                    BigDecimal rawExitPrice = exitBar.getClosePrice();
-                    if (rawExitPrice == null || rawExitPrice.compareTo(BigDecimal.ZERO) <= 0) {
-                        forwardReturns.put(h, null);
-                        periodSkipReasons.put(h, SKIP_INVALID_EXIT_CLOSE);
-                        continue;
-                    }
-                    if (isZeroVolume(exitBar)) {
-                        log.debug("出场日 {} {} 无成交量（疑似停牌），跳过收益计算", fwdDate, item.getStockCode());
-                        forwardReturns.put(h, null);
-                        periodSkipReasons.put(h, SKIP_ZERO_VOLUME_ON_EXIT);
-                        continue;
-                    }
-                    if (fwdIdx > 0) {
-                        LocalDate prevFwdDate = tradingDays.get(fwdIdx - 1);
-                        MarketData prevExitBar = marketDataMap.get(
-                                priceKey(item.getStockCode(), item.getExchangeType(), prevFwdDate));
-                        double exitPreClose = StrategyBacktestEngine.resolvePreClose(exitBar, prevExitBar);
-                        if (StrategyBacktestEngine.isLimitDownAtClose(
-                                exitBar, exitPreClose, limitPct)) {
-                            log.debug("出场日 {} {} 跌停收盘，跳过收益计算", fwdDate, item.getStockCode());
-                            forwardReturns.put(h, null);
-                            periodSkipReasons.put(h, SKIP_LIMIT_DOWN_AT_CLOSE);
-                            continue;
+                        if (periodResult.skipReason() != null) {
+                            periodSkipReasons.put(h, periodResult.skipReason());
                         }
                     }
-                    double exitPrice = rawExitPrice.doubleValue() * (1 - slippageRate);
-                    double exitProceeds = exitPrice * (1 - commissionRate - sellTaxRate);
-                    double ret = exitProceeds / entryCost - 1;
-                    forwardReturns.put(h, ret);
-                    periodReturns.get(h).add(ret);
-                    dailyReturns.get(h).add(ret);
                 }
 
                 stockReturns.add(StockReturn.builder()
@@ -266,6 +250,19 @@ public class ScoringBacktestService {
                     .topStocks(stockReturns)
                     .dailyWinRate(dailyWinRate)
                     .build());
+
+            List<CrossSectionObservation> dayFactorObs = new ArrayList<>();
+            for (SelectorResultItem item : factorItems) {
+                Double factorRet = computeNetForwardReturn(
+                        item, baseIdx, factorHoldingDay, tradingDays, marketDataMap,
+                        commissionRate, sellTaxRate, slippageRate);
+                if (factorRet != null) {
+                    dayFactorObs.add(new CrossSectionObservation(item.getFinalScore(), factorRet));
+                }
+            }
+            if (!dayFactorObs.isEmpty()) {
+                factorObservationsByDate.put(tradeDate.toString(), dayFactorObs);
+            }
         }
 
         // 6. 汇总各持仓周期的统计
@@ -299,6 +296,14 @@ public class ScoringBacktestService {
 
         log.info("打分回测完成: {} 个交易日, {} 个周期统计完毕", dailyDetails.size(), holdingPeriodStats.size());
 
+        FactorResearchSummary factorSummary = FactorResearchEngine.summarize(
+                factorObservationsByDate,
+                factorHoldingDay,
+                factorGroupCount,
+                FACTOR_MIN_CROSS_SECTION_SIZE,
+                FACTOR_UNIVERSE_NOTE
+        );
+
         return ScoringBacktestResponse.builder()
                 .strategyType(req.getStrategyType())
                 .startDate(req.getStartDate())
@@ -308,6 +313,7 @@ public class ScoringBacktestService {
                 .executionAssumptions(assumptions)
                 .holdingPeriodStats(holdingPeriodStats)
                 .dailyDetails(dailyDetails)
+                .factorAnalysis(toFactorAnalysisDto(factorSummary))
                 .build();
     }
 
@@ -315,7 +321,7 @@ public class ScoringBacktestService {
         return resultRepo.findDistinctStrategyTypes();
     }
 
-    private String priceKey(String stockCode, String exchangeType, LocalDate date) {
+    private static String priceKey(String stockCode, String exchangeType, LocalDate date) {
         return stockCode + "|" + exchangeType + "|" + date;
     }
 
@@ -381,5 +387,137 @@ public class ScoringBacktestService {
                 .forwardReturns(null)
                 .skipReason(skipReason)
                 .build());
+    }
+
+    private record PeriodReturnResult(Double ret, String skipReason) {}
+
+    private static int resolveFactorAnalysisHoldingDay(List<Integer> holdingDays, Integer requested) {
+        if (requested != null && holdingDays.contains(requested)) {
+            return requested;
+        }
+        if (holdingDays.contains(5)) {
+            return 5;
+        }
+        return holdingDays.getFirst();
+    }
+
+    private Double computeNetForwardReturn(
+            SelectorResultItem item,
+            int baseIdx,
+            int holdingDay,
+            List<LocalDate> tradingDays,
+            Map<String, MarketData> marketDataMap,
+            double commissionRate,
+            double sellTaxRate,
+            double slippageRate
+    ) {
+        int entryIdx = baseIdx + 1;
+        if (entryIdx >= tradingDays.size()) {
+            return null;
+        }
+        LocalDate entryDate = tradingDays.get(entryIdx);
+        MarketData entryBar = marketDataMap.get(priceKey(item.getStockCode(), item.getExchangeType(), entryDate));
+        if (entryBar == null) {
+            return null;
+        }
+        BigDecimal rawEntryPrice = entryBar.getOpenPrice();
+        if (rawEntryPrice == null || rawEntryPrice.compareTo(BigDecimal.ZERO) <= 0) {
+            return null;
+        }
+        if (isZeroVolume(entryBar)) {
+            return null;
+        }
+        LocalDate prevTradeDate = tradingDays.get(entryIdx - 1);
+        MarketData prevBar = marketDataMap.get(
+                priceKey(item.getStockCode(), item.getExchangeType(), prevTradeDate));
+        double preClose = StrategyBacktestEngine.resolvePreClose(entryBar, prevBar);
+        double limitPct = TradingLimitRules.resolveLimitPct(
+                item.getStockCode(), item.getExchangeType(), item.getStockName());
+        if (StrategyBacktestEngine.isLimitUpAtOpen(entryBar, preClose, limitPct)) {
+            return null;
+        }
+        double entryPrice = rawEntryPrice.doubleValue() * (1 + slippageRate);
+        double entryCost = entryPrice * (1 + commissionRate);
+        PeriodReturnResult result = computePeriodReturn(
+                item, entryIdx, holdingDay, tradingDays, marketDataMap,
+                entryCost, commissionRate, sellTaxRate, slippageRate);
+        return result.ret();
+    }
+
+    private static PeriodReturnResult computePeriodReturn(
+            SelectorResultItem item,
+            int entryIdx,
+            int holdingDay,
+            List<LocalDate> tradingDays,
+            Map<String, MarketData> marketDataMap,
+            double entryCost,
+            double commissionRate,
+            double sellTaxRate,
+            double slippageRate
+    ) {
+        int fwdIdx = entryIdx + holdingDay;
+        if (fwdIdx >= tradingDays.size()) {
+            return new PeriodReturnResult(null, SKIP_BEYOND_CALENDAR);
+        }
+        LocalDate fwdDate = tradingDays.get(fwdIdx);
+        MarketData exitBar = marketDataMap.get(
+                priceKey(item.getStockCode(), item.getExchangeType(), fwdDate));
+        if (exitBar == null) {
+            return new PeriodReturnResult(null, SKIP_NO_QUOTE_ON_EXIT);
+        }
+        BigDecimal rawExitPrice = exitBar.getClosePrice();
+        if (rawExitPrice == null || rawExitPrice.compareTo(BigDecimal.ZERO) <= 0) {
+            return new PeriodReturnResult(null, SKIP_INVALID_EXIT_CLOSE);
+        }
+        if (isZeroVolume(exitBar)) {
+            return new PeriodReturnResult(null, SKIP_ZERO_VOLUME_ON_EXIT);
+        }
+        double limitPct = TradingLimitRules.resolveLimitPct(
+                item.getStockCode(), item.getExchangeType(), item.getStockName());
+        if (fwdIdx > 0) {
+            LocalDate prevFwdDate = tradingDays.get(fwdIdx - 1);
+            MarketData prevExitBar = marketDataMap.get(
+                    priceKey(item.getStockCode(), item.getExchangeType(), prevFwdDate));
+            double exitPreClose = StrategyBacktestEngine.resolvePreClose(exitBar, prevExitBar);
+            if (StrategyBacktestEngine.isLimitDownAtClose(exitBar, exitPreClose, limitPct)) {
+                return new PeriodReturnResult(null, SKIP_LIMIT_DOWN_AT_CLOSE);
+            }
+        }
+        double exitPrice = rawExitPrice.doubleValue() * (1 - slippageRate);
+        double exitProceeds = exitPrice * (1 - commissionRate - sellTaxRate);
+        return new PeriodReturnResult(exitProceeds / entryCost - 1, null);
+    }
+
+    private static FactorAnalysis toFactorAnalysisDto(FactorResearchSummary summary) {
+        if (summary == null || summary.crossSectionDays() == 0) {
+            return null;
+        }
+        return FactorAnalysis.builder()
+                .holdingDays(summary.holdingDays())
+                .groupCount(summary.groupCount())
+                .crossSectionDays(summary.crossSectionDays())
+                .totalObservations(summary.totalObservations())
+                .rankIcMean(summary.rankIcMean())
+                .rankIcStd(summary.rankIcStd())
+                .rankIcIr(summary.rankIcIr())
+                .rankIcPositiveRate(summary.rankIcPositiveRate())
+                .dailyRankIc(summary.dailyRankIc().stream()
+                        .map(d -> DailyRankIc.builder()
+                                .tradeDate(d.tradeDate())
+                                .rankIc(d.rankIc())
+                                .sampleSize(d.sampleSize())
+                                .build())
+                        .toList())
+                .groupedReturns(summary.groupedReturns().stream()
+                        .map(g -> GroupReturnStat.builder()
+                                .groupNo(g.groupNo())
+                                .label(g.label())
+                                .avgReturn(g.avgReturn())
+                                .observations(g.observations())
+                                .build())
+                        .toList())
+                .longShortSpread(summary.longShortSpread())
+                .universeNote(summary.universeNote())
+                .build();
     }
 }

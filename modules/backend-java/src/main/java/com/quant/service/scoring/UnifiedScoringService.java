@@ -124,6 +124,8 @@ public class UnifiedScoringService {
         out.put("returned_items", slicedItems.size());
         out.put("items", slicedItems);
         out.put("source_summary", extractSummary(rawResult));
+        boolean excludeST = parseBool(req.get("excludeST"), true);
+        out.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, strategy != UnifiedScoringStrategy.OVERSOLD_REBOUND));
         return out;
     }
 
@@ -658,6 +660,10 @@ public class UnifiedScoringService {
                 out.put(key, gate.get(key));
             }
         }
+        Object trad = snapshot.get("tradability");
+        if (trad instanceof Map<?, ?> tradMap) {
+            out.put("tradability", tradMap);
+        }
     }
 
     private static List<Map<String, Object>> sliceTopN(
@@ -753,6 +759,9 @@ public class UnifiedScoringService {
                         "strategy", strategy.name(),
                         "raw_summary", extractSummary(rawResult)
                 ));
+                boolean excludeST = parseBool(strategyReq.get("excludeST"), true);
+                snap.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, strategy != UnifiedScoringStrategy.OVERSOLD_REBOUND));
+                snap.put("quality_gate", buildQualityGateSnapshot(strategy, strategyReq, rawResult, items.size()));
                 existing.setFactorSnapshot(snap);
                 existing.setRunStatus("SUCCESS");
                 selectorResultRepository.save(existing);
@@ -785,6 +794,9 @@ public class UnifiedScoringService {
         snapshot.put("strategy_request", strategyReq);
         snapshot.put("raw_summary", extractSummary(rawResult));
         snapshot.put("quality_gate", buildQualityGateSnapshot(strategy, strategyReq, rawResult, items.size()));
+        boolean excludeST = parseBool(strategyReq.get("excludeST"), true);
+        boolean excludeLimitDown = strategy != UnifiedScoringStrategy.OVERSOLD_REBOUND;
+        snapshot.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, excludeLimitDown));
         sr.setFactorSnapshot(snapshot);
         selectorResultRepository.save(sr);
 
@@ -957,6 +969,7 @@ public class UnifiedScoringService {
         copyIfPresent(rawResult, s, "persisted");
         copyIfPresent(rawResult, s, "risk_level");
         copyIfPresent(rawResult, s, "macro");
+        copyIfPresent(rawResult, s, "exclude_st");
         return s;
     }
 

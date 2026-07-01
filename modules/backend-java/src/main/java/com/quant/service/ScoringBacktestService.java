@@ -344,6 +344,7 @@ public class ScoringBacktestService {
         assumptions.put("limit_up_entry_blocked", true);
         assumptions.put("limit_down_exit_blocked", true);
         assumptions.put("limit_pct_source", "BY_BOARD_AND_ST");
+        assumptions.put("selector_tradability", ScoringUtils.tradabilitySnapshot(true, true));
         assumptions.put("skip_reason_codes", List.of(
                 SKIP_NO_QUOTE_ON_ENTRY,
                 SKIP_INVALID_ENTRY_OPEN,

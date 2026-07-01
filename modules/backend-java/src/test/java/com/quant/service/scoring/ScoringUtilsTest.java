@@ -67,6 +67,16 @@ class ScoringUtilsTest {
     }
 
     @Test
+    void tradabilitySnapshotReflectsOversoldLimitDownException() {
+        Map<String, Object> normal = ScoringUtils.tradabilitySnapshot(true, true);
+        assertThat(normal.get("exclude_limit_down_at_close")).isEqualTo(true);
+        assertThat(normal.get("exclude_limit_up_at_close")).isEqualTo(true);
+
+        Map<String, Object> oversold = ScoringUtils.tradabilitySnapshot(true, false);
+        assertThat(oversold.get("exclude_limit_down_at_close")).isEqualTo(false);
+    }
+
+    @Test
     void pickTopNByMinScoreAllowsFewerThanTopNWhenQualityGateFails() {
         List<Map<String, Object>> items = List.of(
                 Map.of("stock_code", "A", "total_score", 80),

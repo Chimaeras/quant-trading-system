@@ -117,6 +117,27 @@ class ClassicFactorCalculatorTest {
         assertThat(result).isEmpty();
     }
 
+    @Test
+    void excludesLimitUpAtCloseOnSignalDay() {
+        List<MarketData> bars = sampleBars(75, 10, 50_000_000);
+        MarketData prev = bars.get(bars.size() - 2);
+        MarketData signal = bars.get(bars.size() - 1);
+        double preClose = prev.getClosePrice().doubleValue();
+        signal.setClosePrice(BigDecimal.valueOf(preClose * 1.10));
+
+        var result = calculator.calculate(
+                "000001",
+                "SZSE",
+                bars,
+                1_000_000,
+                0,
+                key -> "测试股份",
+                true
+        );
+
+        assertThat(result).isEmpty();
+    }
+
     private static List<MarketData> sampleBars(int count, double close, double amount) {
         return sampleBars(count, close, amount, 0.01);
     }

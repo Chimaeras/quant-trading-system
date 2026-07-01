@@ -381,7 +381,11 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         thresholds.put("bulk_fetch", bulkFetch);
         thresholds.put("exclude_st", excludeST);
         thresholds.put("ranking", "all_stocks_by_final_score_then_top_n");
-        return Map.of("weights", weights, "thresholds", thresholds);
+        Map<String, Object> snap = new LinkedHashMap<>();
+        snap.put("weights", weights);
+        snap.put("thresholds", thresholds);
+        snap.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, true));
+        return snap;
     }
 
     private static int capCalendarDays(LocalDate start, LocalDate end) {

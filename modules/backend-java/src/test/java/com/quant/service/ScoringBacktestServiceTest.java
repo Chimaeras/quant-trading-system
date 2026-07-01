@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -181,6 +182,7 @@ class ScoringBacktestServiceTest {
         assertThat(skipped.getEntryPrice()).isNull();
         assertThat(response.getHoldingPeriodStats().get(1).getTotalObservations()).isZero();
         assertThat(response.getExecutionAssumptions().get("limit_up_entry_blocked")).isEqualTo(true);
+        assertThat(response.getExecutionAssumptions().get("selector_tradability")).isInstanceOf(Map.class);
     }
 
     @Test

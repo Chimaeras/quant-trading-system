@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -128,6 +129,20 @@ public final class ScoringUtils {
             return false;
         }
         return true;
+    }
+
+    /**
+     * 选股可交易性过滤假设，写入 factor_snapshot 供前端与审计追溯。
+     */
+    public static Map<String, Object> tradabilitySnapshot(boolean excludeST, boolean excludeLimitDownAtClose) {
+        Map<String, Object> t = new LinkedHashMap<>();
+        t.put("exclude_st", excludeST);
+        t.put("exclude_zero_volume", true);
+        t.put("exclude_limit_up_at_close", true);
+        t.put("exclude_limit_down_at_close", excludeLimitDownAtClose);
+        t.put("limit_pct_source", "BY_BOARD_AND_ST");
+        t.put("limit_price_basis", "PREV_CLOSE_TO_SIGNAL_CLOSE");
+        return t;
     }
 
     /**

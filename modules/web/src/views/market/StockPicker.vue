@@ -179,6 +179,7 @@
       <span v-if="resultMeta.min_total_score != null">质量闸 ≥ {{ resultMeta.min_total_score }}</span>
       <span v-if="resultMeta.qualified_items != null">合格 {{ resultMeta.qualified_items }} 只</span>
       <span v-if="resultMeta.total_scored_pool != null">评分池 {{ resultMeta.total_scored_pool }} 只</span>
+      <span v-if="tradabilitySummary">{{ tradabilitySummary }}</span>
       <el-button v-if="hasFactorSnapshot" link type="primary" @click="snapshotVisible = true">策略参数快照</el-button>
     </div>
 
@@ -440,12 +441,33 @@ const REASON_LABELS: Record<string, string> = {
   quality_gate: '质量闸'
 }
 
+const TRADABILITY_LABELS: Record<string, string> = {
+  exclude_st: '排除 ST',
+  exclude_zero_volume: '排除零成交量(停牌代理)',
+  exclude_limit_up_at_close: '排除信号日涨停收盘',
+  exclude_limit_down_at_close: '排除信号日跌停收盘',
+  limit_pct_source: '涨跌停幅度来源',
+  limit_price_basis: '涨跌停价基准'
+}
+
 const hasFactorSnapshot = computed(() => {
   const snap = resultMeta.factor_snapshot
   return !!snap && typeof snap === 'object' && Object.keys(snap).length > 0
 })
 
 const factorSnapshotEntries = computed(() => flattenSnapshotEntries(resultMeta.factor_snapshot))
+
+const tradabilitySummary = computed(() => {
+  const snap = resultMeta.factor_snapshot
+  const t = snap?.tradability
+  if (!t || typeof t !== 'object') return ''
+  const trad = t as Record<string, unknown>
+  const parts: string[] = []
+  if (trad.exclude_limit_up_at_close === true) parts.push('过滤涨停')
+  if (trad.exclude_limit_down_at_close === true) parts.push('过滤跌停')
+  if (trad.exclude_st === true) parts.push('排除ST')
+  return parts.length ? `可交易性: ${parts.join(' / ')}` : ''
+})
 
 const detailReasonEntries = computed(() => {
   if (!detailRow.value) return []
@@ -478,6 +500,15 @@ function flattenSnapshotEntries(
   const rows: Array<{ label: string; value: string }> = []
   for (const [key, value] of Object.entries(snap)) {
     const label = prefix ? `${prefix}.${key}` : key
+    if (key === 'tradability' && value && typeof value === 'object' && !Array.isArray(value)) {
+      for (const [tk, tv] of Object.entries(value as Record<string, unknown>)) {
+        rows.push({
+          label: `可交易性.${TRADABILITY_LABELS[tk] || tk}`,
+          value: formatReasonValue(tv)
+        })
+      }
+      continue
+    }
     if (value && typeof value === 'object' && !Array.isArray(value)) {
       rows.push(...flattenSnapshotEntries(value as Record<string, unknown>, label))
     } else {
@@ -610,6 +641,12 @@ function applyResult(data: Record<string, any>) {
   const snap = data.factor_snapshot
   resultMeta.factor_snapshot =
     snap && typeof snap === 'object' && !Array.isArray(snap) ? (snap as Record<string, unknown>) : null
+  if (data.tradability && typeof data.tradability === 'object') {
+    resultMeta.factor_snapshot = {
+      ...(resultMeta.factor_snapshot || {}),
+      tradability: data.tradability as Record<string, unknown>
+    }
+  }
   applyQualityMeta(data)
   const incoming = Array.isArray(data.items) ? data.items : Array.isArray(data.list) ? data.list : []
   const merged = new Map<string, Record<string, any>>()

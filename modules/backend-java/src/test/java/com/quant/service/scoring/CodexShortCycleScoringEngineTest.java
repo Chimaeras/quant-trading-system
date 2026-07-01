@@ -94,6 +94,16 @@ class CodexShortCycleScoringEngineTest {
         assertThat(adj.get(0).er5()).isCloseTo(0.02, org.assertj.core.data.Offset.offset(0.001));
     }
 
+    @Test
+    void countImputedFinancialFieldsDetectsDebtImputation() {
+        List<CodexShortCycleScoringEngine.RawFeatures> raws = List.of(
+                raw("000001", "SZSE", "A", "银行", 0, 0, 0, 0, 0, 0, 0.1, 0, 50, 1.5, 0, 0, 0, 0, 0, 0, 1, 0, 22),
+                raw("000002", "SZSE", "B", "银行", 0, 0, 0, 0, 0, 0, 0.2, 0, 35, 1.8, 0, 0, 0, 0, 0, 0, 1, 0, 22)
+        );
+        List<CodexShortCycleScoringEngine.RawFeatures> imputed = CodexShortCycleScoringEngine.imputeFinancialByIndustry(raws);
+        assertThat(CodexShortCycleScoringEngine.countImputedFinancialFields(raws.get(0), imputed.get(0))).isGreaterThan(0);
+    }
+
     private static CodexShortCycleScoringEngine.StockBarContext context(
             String code, String ex, String name, List<MarketData> bars) {
         return new CodexShortCycleScoringEngine.StockBarContext(code, ex, name, "测试", bars, null);

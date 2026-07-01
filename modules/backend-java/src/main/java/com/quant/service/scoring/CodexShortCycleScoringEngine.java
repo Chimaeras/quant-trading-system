@@ -218,20 +218,32 @@ public class CodexShortCycleScoringEngine {
         for (RawFeatures rf : raws) {
             String ind = rf.industry() != null && !rf.industry().isBlank() ? rf.industry() : "_none_";
             double[] med = medians.getOrDefault(ind, new double[6]);
+            double roe = imputeFin(rf.roe, med[0], 0);
+            double rev = imputeFin(rf.revenueYoY, med[1], 0);
+            double debt = imputeFin(rf.debtRatio, med[2], 50);
+            double curr = imputeFin(rf.currentRatio, med[3], 1.5);
+            double ey = imputeFin(rf.earningsYield, med[4], 0);
+            double bm = imputeFin(rf.bookToMarket, med[5], 0);
             out.add(new RawFeatures(
                     rf.key, rf.stockCode, rf.exchangeType, rf.stockName, rf.industry(),
                     rf.er1, rf.er5, rf.er20Minus5, rf.maAlign, rf.rsiShape, rf.volConfirm,
-                    imputeFin(rf.roe, med[0], 0),
-                    imputeFin(rf.revenueYoY, med[1], 0),
-                    imputeFin(rf.debtRatio, med[2], 50),
-                    imputeFin(rf.currentRatio, med[3], 1.5),
-                    imputeFin(rf.earningsYield, med[4], 0),
-                    imputeFin(rf.bookToMarket, med[5], 0),
+                    roe, rev, debt, curr, ey, bm,
                     rf.vol20, rf.downVol20, rf.illiq20, rf.maxGap20,
                     rf.avgAmount20, rf.ret20, rf.logMarketCap
             ));
         }
         return out;
+    }
+
+    static int countImputedFinancialFields(RawFeatures before, RawFeatures after) {
+        int n = 0;
+        if (before.roe() != after.roe()) n++;
+        if (before.revenueYoY() != after.revenueYoY()) n++;
+        if (before.debtRatio() != after.debtRatio()) n++;
+        if (before.currentRatio() != after.currentRatio()) n++;
+        if (before.earningsYield() != after.earningsYield()) n++;
+        if (before.bookToMarket() != after.bookToMarket()) n++;
+        return n;
     }
 
     private static double imputeFin(double value, double industryMedian, double placeholder) {

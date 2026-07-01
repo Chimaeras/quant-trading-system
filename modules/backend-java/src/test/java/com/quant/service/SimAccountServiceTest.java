@@ -134,6 +134,35 @@ class SimAccountServiceTest {
     }
 
     @Test
+    void blocksBuyAtLimitUpWhenPreviousBarIsLastTradingDay() {
+        UserAccount account = accountWithCash(100_000);
+        LocalDate monday = LocalDate.of(2026, 6, 30);
+        MarketData bar = new MarketData();
+        bar.setTradeDate(monday);
+        bar.setClosePrice(BigDecimal.valueOf(11));
+        MarketData friday = new MarketData();
+        friday.setTradeDate(LocalDate.of(2026, 6, 27));
+        friday.setClosePrice(BigDecimal.valueOf(10));
+
+        when(userAccountRepository.findFirstByUserIdAndStatus(1L, 1)).thenReturn(Optional.of(account));
+        when(marketDataRepository.findFirstByStockCodeAndExchangeTypeOrderByTradeDateDesc("000001", "SZSE"))
+                .thenReturn(Optional.of(bar));
+        when(marketDataRepository.findFirstByStockCodeAndExchangeTypeAndTradeDateLessThanOrderByTradeDateDesc(
+                "000001", "SZSE", monday))
+                .thenReturn(Optional.of(friday));
+        when(stockInfoRepository.findByStockCodeAndExchangeType("000001", "SZSE")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.placeOrder(1L, Map.of(
+                "stockCode", "000001",
+                "exchangeType", "SZSE",
+                "action", "buy",
+                "volume", 100,
+                "price", 11
+        ))).isInstanceOf(BusinessException.class)
+                .hasMessageContaining("涨停");
+    }
+
+    @Test
     void blocksBuyAtLimitUpWhenPreCloseDerivedFromPreviousClose() {
         UserAccount account = accountWithCash(100_000);
         LocalDate today = LocalDate.of(2026, 6, 30);
@@ -147,7 +176,8 @@ class SimAccountServiceTest {
         when(userAccountRepository.findFirstByUserIdAndStatus(1L, 1)).thenReturn(Optional.of(account));
         when(marketDataRepository.findFirstByStockCodeAndExchangeTypeOrderByTradeDateDesc("000001", "SZSE"))
                 .thenReturn(Optional.of(bar));
-        when(marketDataRepository.findByStockCodeAndExchangeTypeAndTradeDate("000001", "SZSE", today.minusDays(1)))
+        when(marketDataRepository.findFirstByStockCodeAndExchangeTypeAndTradeDateLessThanOrderByTradeDateDesc(
+                "000001", "SZSE", today))
                 .thenReturn(Optional.of(prevBar));
         when(stockInfoRepository.findByStockCodeAndExchangeType("000001", "SZSE")).thenReturn(Optional.empty());
 

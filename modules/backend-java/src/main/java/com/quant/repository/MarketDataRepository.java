@@ -23,6 +23,10 @@ public interface MarketDataRepository extends JpaRepository<MarketData, Long> {
     Optional<MarketData> findFirstByStockCodeAndExchangeTypeOrderByTradeDateDesc(
             String stockCode, String exchangeType);
 
+    /** 指定股票在 tradeDate 之前的最近一条行情（用于推导前收，跳过非交易日）。 */
+    Optional<MarketData> findFirstByStockCodeAndExchangeTypeAndTradeDateLessThanOrderByTradeDateDesc(
+            String stockCode, String exchangeType, LocalDate tradeDate);
+
     @Query("SELECT MIN(m.tradeDate) FROM MarketData m")
     Optional<LocalDate> findMinTradeDate();
 

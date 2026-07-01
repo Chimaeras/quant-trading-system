@@ -173,10 +173,26 @@ public class ScoringBacktestService {
                     LocalDate fwdDate = tradingDays.get(fwdIdx);
                     String fwdKey = priceKey(item.getStockCode(), item.getExchangeType(), fwdDate);
                     MarketData exitBar = marketDataMap.get(fwdKey);
-                    BigDecimal rawExitPrice = exitBar != null ? exitBar.getClosePrice() : null;
+                    if (exitBar == null) {
+                        forwardReturns.put(h, null);
+                        continue;
+                    }
+                    BigDecimal rawExitPrice = exitBar.getClosePrice();
                     if (rawExitPrice == null || rawExitPrice.compareTo(BigDecimal.ZERO) <= 0) {
                         forwardReturns.put(h, null);
                         continue;
+                    }
+                    if (fwdIdx > 0) {
+                        LocalDate prevFwdDate = tradingDays.get(fwdIdx - 1);
+                        MarketData prevExitBar = marketDataMap.get(
+                                priceKey(item.getStockCode(), item.getExchangeType(), prevFwdDate));
+                        double exitPreClose = StrategyBacktestEngine.resolvePreClose(exitBar, prevExitBar);
+                        if (StrategyBacktestEngine.isLimitDownAtClose(
+                                exitBar, exitPreClose, MAIN_BOARD_LIMIT_PCT)) {
+                            log.debug("出场日 {} {} 跌停收盘，跳过收益计算", fwdDate, item.getStockCode());
+                            forwardReturns.put(h, null);
+                            continue;
+                        }
                     }
                     double exitPrice = rawExitPrice.doubleValue() * (1 - slippageRate);
                     double exitProceeds = exitPrice * (1 - commissionRate - sellTaxRate);
@@ -285,6 +301,7 @@ public class ScoringBacktestService {
         assumptions.put("slippage_rate_each_side", slippageRate);
         assumptions.put("return_type", "NET_AFTER_MODELED_COSTS");
         assumptions.put("limit_up_entry_blocked", true);
+        assumptions.put("limit_down_exit_blocked", true);
         assumptions.put("limit_pct_main_board", MAIN_BOARD_LIMIT_PCT);
         return assumptions;
     }

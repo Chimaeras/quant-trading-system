@@ -269,6 +269,22 @@ public final class StrategyBacktestEngine {
                 && open >= limitDownPrice * (1 - LIMIT_PRICE_TOLERANCE);
     }
 
+    /**
+     * 跌停收盘：收盘价落在跌停价容差带内，卖单无法按收盘价成交。
+     */
+    public static boolean isLimitDownAtClose(MarketData bar, double preClose, double limitPct) {
+        if (preClose <= 0 || bar.getClosePrice() == null) {
+            return false;
+        }
+        double close = bar.getClosePrice().doubleValue();
+        if (close <= 0) {
+            return false;
+        }
+        double limitDownPrice = preClose * (1 - limitPct);
+        return close <= limitDownPrice * (1 + LIMIT_PRICE_TOLERANCE)
+                && close >= limitDownPrice * (1 - LIMIT_PRICE_TOLERANCE);
+    }
+
     private static double calcSharpe(List<Double> dailyReturns) {
         if (dailyReturns.size() < 2) {
             return 0;

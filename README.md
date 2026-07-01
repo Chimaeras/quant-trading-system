@@ -147,6 +147,21 @@ quant-trading-system/
 - [多维度打分口径说明](docs/多维度打分口径说明.md)
 - [综合三维度打分系统说明](docs/综合三维度打分系统说明.md)
 
+### 持续优化（Cursor / Codex）
+
+在另一台机器 `git clone` 本仓库后，可直接按下列文档继续迭代（规则均在仓库内）：
+
+| 文档 | 用途 |
+|------|------|
+| [选股迭代优先方向](docs/选股迭代优先方向.md) | **业务主航道**：选股能力优先 |
+| [Cursor 持续优化执行手册](docs/Cursor量化系统持续优化执行手册.md) | Cursor `/loop` 流程 |
+| [Codex 持续优化执行协议](docs/Codex量化系统持续优化执行协议.md) | Codex 长期目标 / Automation |
+| [.cursor/optimization-progress.md](.cursor/optimization-progress.md) | 轮次进度（共用） |
+| [.cursor/rules/quant-optimization-loop.mdc](.cursor/rules/quant-optimization-loop.mdc) | Cursor 规则摘要 |
+
+Cursor 示例：`/loop 30s` + `@docs/Cursor量化系统持续优化执行手册.md`  
+Codex 示例：长期目标 + `@docs/Codex量化系统持续优化执行协议.md` + `@docs/选股迭代优先方向.md`
+
 ## 许可证
 
 MIT License

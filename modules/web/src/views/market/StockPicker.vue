@@ -208,6 +208,11 @@
           {{ resultMeta.qualified_items ?? 0 }} 只。宁可空结果，也不凑满 TopN。
         </p>
       </template>
+      <template v-else-if="form.horizonProfile === 'SHORT_3_5D' && form.minCodexScore > 0">
+        <p class="empty-tip">
+          Codex 短周期：最低百分位分 {{ form.minCodexScore }}，且须 F&gt;−0.5、R&gt;−1.0。可调低阈值或扩大股票池。
+        </p>
+      </template>
     </el-empty>
 
     <el-table v-if="mode === 'classic' && results.length" v-loading="loading" :data="displayedResults" stripe>
@@ -227,12 +232,12 @@
         <template #default="{ row }">{{ formatCodexFactor(row, 'R') }}</template>
       </el-table-column>
       <el-table-column v-if="form.horizonProfile === 'SHORT_3_5D'" label="中性化" min-width="100">
-        <template #default="{ row }">{{ formatCodexFactor(row, 'neutralization_mode') }}</template>
+        <template #default="{ row }">{{ formatNeutralizationMode(row) }}</template>
       </el-table-column>
-      <el-table-column prop="trend_score" label="趋势分" min-width="90" />
-      <el-table-column prop="momentum_score" label="动量分" min-width="90" />
-      <el-table-column prop="ret20" label="20日收益(%)" min-width="110" />
-      <el-table-column prop="ret60" label="60日收益(%)" min-width="110" />
+      <el-table-column v-if="form.horizonProfile !== 'SHORT_3_5D'" prop="trend_score" label="趋势分" min-width="90" />
+      <el-table-column v-if="form.horizonProfile !== 'SHORT_3_5D'" prop="momentum_score" label="动量分" min-width="90" />
+      <el-table-column v-if="form.horizonProfile !== 'SHORT_3_5D'" prop="ret20" label="20日收益(%)" min-width="110" />
+      <el-table-column v-if="form.horizonProfile !== 'SHORT_3_5D'" prop="ret60" label="60日收益(%)" min-width="110" />
       <el-table-column prop="max_drawdown60" label="60日回撤(%)" min-width="110" />
       <el-table-column label="操作" min-width="90" fixed="right">
         <template #default="{ row }">
@@ -317,7 +322,10 @@
         <el-descriptions-item label="G 市场">{{ formatCodexFactor(detailRow, 'G_market') }}</el-descriptions-item>
         <el-descriptions-item label="S_raw">{{ formatCodexFactor(detailRow, 'S_raw') }}</el-descriptions-item>
         <el-descriptions-item label="百分位分">{{ formatCodexFactor(detailRow, 'score_percentile') }}</el-descriptions-item>
-        <el-descriptions-item label="中性化">{{ formatCodexFactor(detailRow, 'neutralization_mode') }}</el-descriptions-item>
+        <el-descriptions-item label="中性化">{{ formatNeutralizationMode(detailRow) }}</el-descriptions-item>
+        <el-descriptions-item v-if="formatCodexFactor(detailRow, 'G_weighting') !== '—'" label="G 加权">
+          {{ formatGWeighting(detailRow) }}
+        </el-descriptions-item>
         <el-descriptions-item label="ln(MV)来源">{{ formatLogMvSource(detailRow) }}</el-descriptions-item>
         <el-descriptions-item v-if="formatCodexFactor(detailRow, 'financial_imputed_count') !== '—'" label="财报填充项">
           {{ formatCodexFactor(detailRow, 'financial_imputed_count') }}
@@ -482,7 +490,14 @@ const REASON_LABELS: Record<string, string> = {
   sentiment_discount_factor: '情绪折扣系数',
   oversold_level: '超跌程度',
   volume_price_type: '量价形态',
-  quality_gate: '质量闸'
+  quality_gate: '质量闸',
+  G_weighting: 'G 市场加权',
+  G_market: 'G 市场状态',
+  neutralization_mode: '中性化模式',
+  financial_imputed_count: '财报填充项',
+  log_mv_source: 'ln(MV)来源',
+  score_percentile: '百分位分',
+  preprocessing: '预处理管道'
 }
 
 const TRADABILITY_LABELS: Record<string, string> = {
@@ -621,6 +636,24 @@ function formatLogMvSource(row: Record<string, any>) {
     avg_amount20_fallback: '20日均额(回退)'
   }
   return labels[src] ?? src
+}
+
+function formatNeutralizationMode(row: Record<string, any>) {
+  const mode = formatCodexFactor(row, 'neutralization_mode')
+  if (mode === '—') return mode
+  const labels: Record<string, string> = {
+    FULL_MV_INDUSTRY_REGRESSION: '全回归(lnMV+行业)',
+    LOG_MV_ONLY_REGRESSION: '仅ln(MV)回归',
+    INDUSTRY_DEMEAN_FALLBACK: '行业市值加权去均值',
+    PASSTHROUGH: '直通(样本不足)'
+  }
+  return labels[mode] ?? mode
+}
+
+function formatGWeighting(row: Record<string, any>) {
+  const w = formatCodexFactor(row, 'G_weighting')
+  if (w === 'value_weighted_by_exp_logMv') return '市值加权(exp lnMV)'
+  return w
 }
 
 function sentimentMeta(row: Record<string, any> | null) {
@@ -1203,7 +1236,10 @@ async function saveOversoldTemplate() {
 function exportCsv() {
   const rows = displayedResults.value
   if (!rows.length) return
-  const headers = ['rank_no', 'stock_code', 'stock_name', 'final_score', 'trend_score', 'momentum_score', 'volume_score', 'ret20', 'ret60']
+  const codex = form.horizonProfile === 'SHORT_3_5D'
+  const headers = codex
+    ? ['rank_no', 'stock_code', 'stock_name', 'final_score', 'T', 'F', 'R', 'neutralization_mode', 'neutralization_industries', 'score_percentile']
+    : ['rank_no', 'stock_code', 'stock_name', 'final_score', 'trend_score', 'momentum_score', 'volume_score', 'ret20', 'ret60']
   const lines = [
     `# trade_date=${resultMeta.trade_date || ''}`,
     `# factor_version=${resultMeta.factor_version || ''}`,
@@ -1214,6 +1250,14 @@ function exportCsv() {
     const row: Record<string, unknown> = {
       ...r,
       rank_no: focusForm.view === 'focus' ? r.local_rank : r.rank_no
+    }
+    if (codex) {
+      row.T = formatCodexFactor(r, 'T')
+      row.F = formatCodexFactor(r, 'F')
+      row.R = formatCodexFactor(r, 'R')
+      row.neutralization_mode = formatNeutralizationMode(r)
+      row.neutralization_industries = formatCodexFactor(r, 'neutralization_industries')
+      row.score_percentile = formatCodexFactor(r, 'score_percentile')
     }
     lines.push(headers.map((h) => String(row[h] ?? '')).join(','))
   }

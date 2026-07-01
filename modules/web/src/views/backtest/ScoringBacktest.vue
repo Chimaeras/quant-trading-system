@@ -122,6 +122,15 @@
           <p v-if="response.shortHorizonValidation.neutralization_pipeline">
             中性化管道：{{ response.shortHorizonValidation.neutralization_pipeline }}
           </p>
+          <p v-if="response.shortHorizonValidation.codex_g_weighting">
+            G 市场状态：{{ response.shortHorizonValidation.codex_g_weighting }}
+          </p>
+          <p v-if="response.shortHorizonValidation.codex_t_dominates === true">
+            T 因子 T+3 Rank IC &gt; 0.02，短周期预测力主要由趋势项驱动
+          </p>
+          <p v-if="response.shortHorizonValidation.codex_t_dominates === false && response.shortHorizonValidation.codex_sub_factors_available">
+            T 因子 T+3 IC 未达 0.02，请结合 F/R 子因子 IC 综合判断
+          </p>
           <p>
             T+3 IC：{{ formatIcMean(response.shortHorizonValidation.t3_rank_ic_mean) }}
             · T+5 IC：{{ formatIcMean(response.shortHorizonValidation.t5_rank_ic_mean) }}

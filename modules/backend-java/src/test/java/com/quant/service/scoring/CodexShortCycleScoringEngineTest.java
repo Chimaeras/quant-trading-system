@@ -29,7 +29,7 @@ class CodexShortCycleScoringEngineTest {
                 CodexShortCycleScoringEngine.scoreCrossSection(
                         raws, 0.5, CodexShortCycleScoringEngine.buildNeutralizationContext(raws));
         assertThat(rows).hasSize(3);
-        assertThat(rows.get(0).breakdown()).containsKeys("T", "F", "R", "S_raw", "G_market", "neutralization_mode");
+        assertThat(rows.get(0).breakdown()).containsKeys("T", "F", "R", "S_raw", "G_market", "neutralization_mode", "G_weighting");
     }
 
     @Test
@@ -79,6 +79,18 @@ class CodexShortCycleScoringEngineTest {
         );
         List<CodexShortCycleScoringEngine.RawFeatures> imputed = CodexShortCycleScoringEngine.imputeFinancialByIndustry(raws);
         assertThat(imputed.get(0).debtRatio()).isEqualTo(42.5);
+    }
+
+    @Test
+    void estimateMarketStateLargeCapDominatesErSignal() {
+        List<CodexShortCycleScoringEngine.RawFeatures> raws = List.of(
+                raw("000001", "SZSE", "大", "银行", 0, 0.20, 0.20, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0.10, 0, 0, 25, 0.20, 25.0, "test"),
+                raw("000002", "SZSE", "小", "银行", 0, -0.20, -0.20, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0.30, 0, 0, 1, -0.20, 18.0, "test")
+        );
+        double gWeighted = CodexShortCycleScoringEngine.estimateMarketState(raws);
+        assertThat(gWeighted).isGreaterThan(0);
     }
 
     @Test

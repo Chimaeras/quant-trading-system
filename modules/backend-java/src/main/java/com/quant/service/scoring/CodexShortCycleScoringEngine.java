@@ -330,6 +330,7 @@ public class CodexShortCycleScoringEngine {
             bd.put("preprocessing", "winsorize→OLS(lnMV+industry)→robustZ(MAD,no二次winsorize)");
             bd.put("G_market", ScoringUtils.round4(g));
             bd.put("G_weighting", "value_weighted_by_exp_logMv");
+            bd.put("G_vol_weighting", "value_weighted_by_exp_logMv");
             bd.put("T", ScoringUtils.round4(t));
             bd.put("F", ScoringUtils.round4(f));
             bd.put("R", ScoringUtils.round4(r));
@@ -377,7 +378,12 @@ public class CodexShortCycleScoringEngine {
         }
         double avgEr20m5 = wEr20m5 / wSum;
         double avgMa = wMa / wSum;
-        double avgVol = raws.stream().mapToDouble(r -> r.vol20).average().orElse(0.2);
+        double wVol = 0;
+        for (RawFeatures r : raws) {
+            double w = Math.exp(r.logMarketCap);
+            wVol += w * r.vol20;
+        }
+        double avgVol = wVol / wSum;
         double atrProxy = Math.max(0.05, avgVol);
         return 0.5 * Math.tanh(avgEr20m5 / atrProxy) + 0.5 * Math.tanh(avgMa / 0.05);
     }

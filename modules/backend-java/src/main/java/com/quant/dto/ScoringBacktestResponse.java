@@ -75,5 +75,7 @@ public class ScoringBacktestResponse {
         private Double entryPrice;
         /** key = 持仓天数，value = 该周期的 forward return；若缺失则为 null */
         private Map<Integer, Double> forwardReturns;
+        /** 入场未成交原因；成功入场时为 null */
+        private String skipReason;
     }
 }

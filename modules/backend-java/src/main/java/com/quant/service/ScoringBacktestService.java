@@ -28,6 +28,11 @@ public class ScoringBacktestService {
 
     private static final double MAIN_BOARD_LIMIT_PCT = 0.10;
 
+    static final String SKIP_NO_QUOTE_ON_ENTRY = "NO_QUOTE_ON_ENTRY_DAY";
+    static final String SKIP_INVALID_ENTRY_OPEN = "INVALID_ENTRY_OPEN";
+    static final String SKIP_LIMIT_UP_AT_OPEN = "LIMIT_UP_AT_OPEN";
+    static final String SKIP_NO_NEXT_TRADING_DAY = "NO_NEXT_TRADING_DAY";
+
     private final SelectorResultRepository resultRepo;
     private final SelectorResultItemRepository itemRepo;
     private final MarketDataRepository marketDataRepo;
@@ -141,14 +146,19 @@ public class ScoringBacktestService {
 
             for (SelectorResultItem item : topItems) {
                 int entryIdx = baseIdx + 1;
-                if (entryIdx >= tradingDays.size()) continue;
+                if (entryIdx >= tradingDays.size()) {
+                    addSkippedStock(stockReturns, item, null, SKIP_NO_NEXT_TRADING_DAY);
+                    continue;
+                }
                 LocalDate entryDate = tradingDays.get(entryIdx);
                 MarketData entryBar = marketDataMap.get(priceKey(item.getStockCode(), item.getExchangeType(), entryDate));
                 if (entryBar == null) {
+                    addSkippedStock(stockReturns, item, entryDate, SKIP_NO_QUOTE_ON_ENTRY);
                     continue;
                 }
                 BigDecimal rawEntryPrice = entryBar.getOpenPrice();
                 if (rawEntryPrice == null || rawEntryPrice.compareTo(BigDecimal.ZERO) <= 0) {
+                    addSkippedStock(stockReturns, item, entryDate, SKIP_INVALID_ENTRY_OPEN);
                     continue;
                 }
                 LocalDate prevTradeDate = tradingDays.get(entryIdx - 1);
@@ -157,6 +167,7 @@ public class ScoringBacktestService {
                 double preClose = StrategyBacktestEngine.resolvePreClose(entryBar, prevBar);
                 if (StrategyBacktestEngine.isLimitUpAtOpen(entryBar, preClose, MAIN_BOARD_LIMIT_PCT)) {
                     log.debug("入场日 {} {} 涨停开盘，跳过", entryDate, item.getStockCode());
+                    addSkippedStock(stockReturns, item, entryDate, SKIP_LIMIT_UP_AT_OPEN);
                     continue;
                 }
                 double entryPrice = rawEntryPrice.doubleValue() * (1 + slippageRate);
@@ -303,6 +314,31 @@ public class ScoringBacktestService {
         assumptions.put("limit_up_entry_blocked", true);
         assumptions.put("limit_down_exit_blocked", true);
         assumptions.put("limit_pct_main_board", MAIN_BOARD_LIMIT_PCT);
+        assumptions.put("skip_reason_codes", List.of(
+                SKIP_NO_QUOTE_ON_ENTRY,
+                SKIP_INVALID_ENTRY_OPEN,
+                SKIP_LIMIT_UP_AT_OPEN,
+                SKIP_NO_NEXT_TRADING_DAY
+        ));
         return assumptions;
+    }
+
+    private static void addSkippedStock(
+            List<StockReturn> stockReturns,
+            SelectorResultItem item,
+            LocalDate entryDate,
+            String skipReason
+    ) {
+        stockReturns.add(StockReturn.builder()
+                .stockCode(item.getStockCode())
+                .exchangeType(item.getExchangeType())
+                .stockName(item.getStockName())
+                .finalScore(item.getFinalScore())
+                .rankNo(item.getRankNo())
+                .entryDate(entryDate)
+                .entryPrice(null)
+                .forwardReturns(null)
+                .skipReason(skipReason)
+                .build());
     }
 }

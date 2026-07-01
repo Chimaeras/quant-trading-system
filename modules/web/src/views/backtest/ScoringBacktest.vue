@@ -145,6 +145,12 @@
         <el-table-column prop="stockCode" label="代码" width="100" />
         <el-table-column prop="stockName" label="名称" width="100" />
         <el-table-column prop="finalScore" label="得分" width="80" sortable />
+        <el-table-column prop="skipReason" label="跳过原因" min-width="140">
+          <template #default="{ row }">
+            <span v-if="row.skipReason">{{ formatSkipReason(row.skipReason) }}</span>
+            <span v-else class="text-muted">—</span>
+          </template>
+        </el-table-column>
         <el-table-column v-for="day in form.holdingDays" :key="day" :label="'T+' + day" width="110">
           <template #default="{ row: stock }">
             <span v-if="stock.forwardReturns[day] != null" :class="stock.forwardReturns[day] >= 0 ? 'text-success' : 'text-danger'">
@@ -179,6 +185,17 @@ const form = reactive({
   topN: 10,
   holdingDays: [1, 3, 5, 10, 20]
 })
+
+const skipReasonLabels: Record<string, string> = {
+  NO_QUOTE_ON_ENTRY_DAY: '入场日无行情（可能停牌）',
+  INVALID_ENTRY_OPEN: '入场开盘价无效',
+  LIMIT_UP_AT_OPEN: '涨停开盘无法买入',
+  NO_NEXT_TRADING_DAY: '无下一交易日'
+}
+
+function formatSkipReason(code: string) {
+  return skipReasonLabels[code] ?? code
+}
 
 // 图表
 const chartRef = ref<HTMLElement>()

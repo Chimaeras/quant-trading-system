@@ -119,9 +119,60 @@ class ScoringBacktestServiceTest {
         ScoringBacktestResponse response = service.run(request);
 
         assertThat(response.getDailyDetails()).hasSize(1);
-        assertThat(response.getDailyDetails().getFirst().getTopStocks()).isEmpty();
+        ScoringBacktestResponse.StockReturn skipped =
+                response.getDailyDetails().getFirst().getTopStocks().getFirst();
+        assertThat(skipped.getSkipReason()).isEqualTo(ScoringBacktestService.SKIP_LIMIT_UP_AT_OPEN);
+        assertThat(skipped.getEntryPrice()).isNull();
         assertThat(response.getHoldingPeriodStats().get(1).getTotalObservations()).isZero();
         assertThat(response.getExecutionAssumptions().get("limit_up_entry_blocked")).isEqualTo(true);
+    }
+
+    @Test
+    void recordsSkipReasonWhenNoQuoteOnEntryDay() {
+        SelectorResultRepository resultRepository = mock(SelectorResultRepository.class);
+        SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
+        MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
+        ScoringBacktestService service =
+                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository);
+
+        LocalDate signalDate = LocalDate.of(2025, 1, 2);
+        LocalDate entryDate = LocalDate.of(2025, 1, 3);
+        SelectorResult result = new SelectorResult();
+        result.setResultId("R1");
+        result.setTradeDate(signalDate);
+        result.setStrategyType("CLASSIC_SELECTOR");
+
+        SelectorResultItem item = new SelectorResultItem();
+        item.setResultId("R1");
+        item.setRankNo(1);
+        item.setStockCode("000001");
+        item.setExchangeType("SZSE");
+        item.setStockName("测试股票");
+        item.setFinalScore(80.0);
+
+        MarketData signalBar = bar(signalDate, 100, 100);
+
+        when(resultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(any(), any()))
+                .thenReturn(List.of(result));
+        when(itemRepository.findByResultIdInOrderByRankNo(any())).thenReturn(List.of(item));
+        when(marketDataRepository.findDistinctTradeDatesBetween(any(), any()))
+                .thenReturn(List.of(signalDate, entryDate));
+        when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
+                .thenReturn(List.of(signalBar));
+
+        ScoringBacktestRequest request = new ScoringBacktestRequest();
+        request.setStrategyType("CLASSIC_SELECTOR");
+        request.setStartDate(signalDate);
+        request.setEndDate(signalDate);
+        request.setTopN(1);
+        request.setHoldingDays(List.of(1));
+
+        ScoringBacktestResponse response = service.run(request);
+        ScoringBacktestResponse.StockReturn skipped =
+                response.getDailyDetails().getFirst().getTopStocks().getFirst();
+
+        assertThat(skipped.getSkipReason()).isEqualTo(ScoringBacktestService.SKIP_NO_QUOTE_ON_ENTRY);
+        assertThat(skipped.getEntryDate()).isEqualTo(entryDate);
     }
 
     @Test

@@ -49,6 +49,7 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         double minTrendScore = parseDouble(request.get("minTrendScore"), 40d, 0d, 100d);
         String templateId = String.valueOf(request.getOrDefault("templateId", "")).trim();
         String factorVersion = String.valueOf(request.getOrDefault("factorVersion", "v1")).trim();
+        boolean excludeST = parseBool(request.get("excludeST"), true);
         boolean progressivePersist = parseBool(request.get("progressivePersist"), false);
         String fixedResultId = String.valueOf(request.getOrDefault("resultId", "")).trim();
         boolean resumeMode = parseBool(request.get("resumeMode"), false);
@@ -113,7 +114,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                     templateId,
                     factorVersion,
                     bulkFetch,
-                    resumeMode
+                    resumeMode,
+                    excludeST
             );
         }
 
@@ -145,7 +147,7 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                 return classicFactorCalculator.calculate(
                         stockCode, exchangeType, bars, minAvgAmount, minTrendScore,
                         k -> nameCache.computeIfAbsent(k, kk -> getStockName(stockCode, exchangeType)),
-                        false);
+                        excludeST);
             });
         }
 
@@ -217,7 +219,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                 templateId,
                 factorVersion,
                 bulkFetch,
-                false
+                false,
+                excludeST
         );
         List<SelectorResultItem> topItems = new ArrayList<>(selected.size());
         int rk = 1;
@@ -359,7 +362,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
             boolean fullHistory,
             int lookbackDaysRequested,
             LocalDate rangeStart,
-            boolean bulkFetch
+            boolean bulkFetch,
+            boolean excludeST
     ) {
         Map<String, Object> weights = Map.of(
                 "trend", 0.4,
@@ -375,6 +379,7 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         thresholds.put("lookback_days_requested", lookbackDaysRequested);
         thresholds.put("range_start", rangeStart != null ? rangeStart.toString() : "");
         thresholds.put("bulk_fetch", bulkFetch);
+        thresholds.put("exclude_st", excludeST);
         thresholds.put("ranking", "all_stocks_by_final_score_then_top_n");
         return Map.of("weights", weights, "thresholds", thresholds);
     }
@@ -404,7 +409,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
             String templateId,
             String factorVersion,
             boolean bulkFetch,
-            boolean resumeMode
+            boolean resumeMode,
+            boolean excludeST
     ) {
         String rid = (resultId != null && !resultId.isBlank()) ? resultId : genResultId();
         SelectorResult result = selectorResultRepository.findByResultId(rid).orElse(new SelectorResult());
@@ -423,7 +429,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         result.setSuccessCandidates(0);
         result.setFailedCandidates(0);
         result.setLastProcessedKey("");
-        result.setFactorSnapshot(buildFactorSnapshot(minAvgAmount, minTrendScore, fullHistory, lookbackDaysRequested, rangeStart, bulkFetch));
+        result.setFactorSnapshot(buildFactorSnapshot(
+                minAvgAmount, minTrendScore, fullHistory, lookbackDaysRequested, rangeStart, bulkFetch, excludeST));
         progressiveResultWriter.upsertRunningResult(
                 rid,
                 result,

@@ -115,6 +115,17 @@ class ScoringUtilsTest {
     }
 
     @Test
+    void tradabilitySnapshotDisclosesLookbackScopeWhenBulkFetchDisabled() {
+        Map<String, Object> bulk = ScoringUtils.tradabilitySnapshot(true, true, 60, true);
+        Map<String, Object> window = ScoringUtils.tradabilitySnapshot(true, true, 60, false);
+
+        assertThat(bulk.get("listing_tenure_bar_scope")).isEqualTo("FULL_BULK_BARS_IN_LOOKBACK");
+        assertThat(window.get("listing_tenure_bar_scope")).isEqualTo("LOOKBACK_WINDOW_EARLIEST_TRADE_DATE_ONLY");
+        assertThat(window.get("listing_tenure_warning")).isNotNull();
+        assertThat(window.get("bulk_fetch")).isEqualTo(false);
+    }
+
+    @Test
     void pickTopNByMinScoreAllowsFewerThanTopNWhenQualityGateFails() {
         List<Map<String, Object>> items = List.of(
                 Map.of("stock_code", "A", "total_score", 80),

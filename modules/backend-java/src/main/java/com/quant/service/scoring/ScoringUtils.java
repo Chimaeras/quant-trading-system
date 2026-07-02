@@ -293,6 +293,14 @@ public final class ScoringUtils {
             boolean excludeST,
             boolean excludeLimitDownAtClose,
             int minListingDays) {
+        return tradabilitySnapshot(excludeST, excludeLimitDownAtClose, minListingDays, true);
+    }
+
+    public static Map<String, Object> tradabilitySnapshot(
+            boolean excludeST,
+            boolean excludeLimitDownAtClose,
+            int minListingDays,
+            boolean bulkFetch) {
         Map<String, Object> t = new LinkedHashMap<>();
         t.put("exclude_st", excludeST);
         t.put("exclude_zero_volume", true);
@@ -302,6 +310,14 @@ public final class ScoringUtils {
         t.put("status_semantics", "1=active,0=suspended,-1=delisted,null=assume_active");
         t.put("min_listing_days", Math.max(0, minListingDays));
         t.put("listing_tenure_basis", "CALENDAR_DAYS_FROM_LIST_DATE_OR_EARLIEST_BAR");
+        t.put("listing_tenure_bar_scope", bulkFetch
+                ? "FULL_BULK_BARS_IN_LOOKBACK"
+                : "LOOKBACK_WINDOW_EARLIEST_TRADE_DATE_ONLY");
+        if (!bulkFetch && minListingDays > 0) {
+            t.put("listing_tenure_warning",
+                    "bulkFetch=false 时 pair 预过滤仅见 lookback 窗口内最早交易日，可能低估上市时长");
+        }
+        t.put("bulk_fetch", bulkFetch);
         t.put("limit_pct_source", "BY_BOARD_AND_ST");
         t.put("limit_price_basis", "PREV_CLOSE_TO_SIGNAL_CLOSE");
         t.put("avg_amount20_basis", "MEAN_AMOUNT_LAST_20_NON_ZERO_VOLUME_DAYS");

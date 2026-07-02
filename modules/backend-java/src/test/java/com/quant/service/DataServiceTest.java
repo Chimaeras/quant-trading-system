@@ -61,6 +61,7 @@ class DataServiceTest {
         Map<String, Object> result = dataService.backfillListDateFromMarketData();
 
         assertThat(result.get("missing_before")).isEqualTo(2L);
+        assertThat(result.get("backfillable")).isEqualTo(2);
         assertThat(result.get("updated")).isEqualTo(1);
         assertThat(result.get("skipped_no_match")).isEqualTo(1);
         assertThat(result.get("missing_after")).isEqualTo(1L);
@@ -80,5 +81,20 @@ class DataServiceTest {
 
         assertThat(result.get("updated")).isEqualTo(0);
         verify(stockInfoRepo, never()).save(any());
+    }
+
+    @Test
+    void getOverviewReportsListDateMissingAndBackfillable() {
+        when(marketDataRepo.count()).thenReturn(100L);
+        when(marketDataRepo.countDistinctStocks()).thenReturn(10L);
+        when(marketDataRepo.findMinTradeDate()).thenReturn(java.util.Optional.of(LocalDate.of(2020, 1, 1)));
+        when(marketDataRepo.findMaxTradeDate()).thenReturn(java.util.Optional.of(LocalDate.of(2026, 1, 1)));
+        when(stockInfoRepo.countByListDateIsNull()).thenReturn(5L);
+        when(marketDataRepo.countBackfillableListDateCandidates()).thenReturn(3L);
+
+        Map<String, Object> overview = dataService.getOverview();
+
+        assertThat(overview.get("list_date_missing_count")).isEqualTo(5L);
+        assertThat(overview.get("list_date_backfillable_count")).isEqualTo(3L);
     }
 }

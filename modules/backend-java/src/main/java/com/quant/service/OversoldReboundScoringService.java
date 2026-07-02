@@ -340,6 +340,7 @@ public class OversoldReboundScoringService {
         double minAvgAmount = ScoringUtils.parseDouble(req.get("minAvgAmount"), 30_000_000d, 0d, 1_000_000_000_000d);
         boolean excludeST = ScoringUtils.parseBool(req.get("excludeST"), true);
         int minListingDays = ScoringUtils.parseInt(req.get("minListingDays"), 60, 0, 3650);
+        boolean bulkFetch = ScoringUtils.parseBool(req.get("bulkFetch"), true);
 
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("factor", FACTOR_VERSION);
@@ -350,7 +351,7 @@ public class OversoldReboundScoringService {
         snapshot.put("minOversoldScore30", 15);
         snapshot.put("excludeST", excludeST);
         snapshot.put("weights", Map.of("trend", 0.35, "volume", 0.25, "oversold", 0.25, "confirm", 0.15));
-        Map<String, Object> tradability = new LinkedHashMap<>(ScoringUtils.tradabilitySnapshot(excludeST, false, minListingDays));
+        Map<String, Object> tradability = new LinkedHashMap<>(ScoringUtils.tradabilitySnapshot(excludeST, false, minListingDays, bulkFetch));
         tradability.put("min_avg_amount", minAvgAmount);
         snapshot.put("tradability", tradability);
         snapshot.put("effective_lookback_days", effectiveLookbackDays);

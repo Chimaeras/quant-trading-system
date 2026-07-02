@@ -41,4 +41,6 @@ export interface DataOverview {
   latest_date: string
   completeness: number
   storage_size: string
+  list_date_missing_count?: number
+  list_date_backfillable_count?: number
 }

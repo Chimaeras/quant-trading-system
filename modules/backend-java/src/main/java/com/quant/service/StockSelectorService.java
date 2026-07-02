@@ -538,7 +538,7 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         Map<String, Object> snap = new LinkedHashMap<>();
         snap.put("weights", weights);
         snap.put("thresholds", thresholds);
-        snap.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, true, minListingDays));
+        snap.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, true, minListingDays, bulkFetch));
         if (codexProfile) {
             Map<String, Object> preprocessing = new LinkedHashMap<>();
             preprocessing.put("pipeline", "winsorize(2.5/97.5) → OLS(lnMV+industry) → robustZ(MAD)");

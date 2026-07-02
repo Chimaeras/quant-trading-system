@@ -68,6 +68,13 @@ public class DataService {
         // 4. 存储占用：查询 MySQL 表大小
         result.put("storage_size", formatStorageSize(estimateStorageSize()));
 
+        long listDateMissing = stockInfoRepo.countByListDateIsNull();
+        result.put("list_date_missing_count", listDateMissing);
+        long listDateBackfillable = listDateMissing > 0
+                ? marketDataRepo.countBackfillableListDateCandidates()
+                : 0L;
+        result.put("list_date_backfillable_count", listDateBackfillable);
+
         return result;
     }
 
@@ -105,6 +112,7 @@ public class DataService {
     public Map<String, Object> backfillListDateFromMarketData() {
         long missingBefore = stockInfoRepo.countByListDateIsNull();
         List<Object[]> candidates = marketDataRepo.findEarliestTradeDatesForMissingListDate();
+        int backfillable = candidates.size();
         int updated = 0;
         int skippedNoMatch = 0;
 
@@ -132,6 +140,7 @@ public class DataService {
         long missingAfter = stockInfoRepo.countByListDateIsNull();
         Map<String, Object> result = new HashMap<>();
         result.put("missing_before", missingBefore);
+        result.put("backfillable", backfillable);
         result.put("updated", updated);
         result.put("skipped_no_match", skippedNoMatch);
         result.put("missing_after", missingAfter);

@@ -527,6 +527,9 @@ const TRADABILITY_LABELS: Record<string, string> = {
   exclude_limit_down_at_close: '排除信号日跌停收盘',
   min_listing_days: '最短上市自然日',
   listing_tenure_basis: '上市时长口径',
+  listing_tenure_bar_scope: '上市时长K线范围',
+  listing_tenure_warning: '上市时长提示',
+  bulk_fetch: '批量拉取K线',
   limit_pct_source: '涨跌停幅度来源',
   limit_price_basis: '涨跌停价基准',
   avg_amount20_basis: '20日均成交额口径',
@@ -551,6 +554,7 @@ const tradabilitySummary = computed(() => {
     if (trad.exclude_st === true) parts.push('排除ST')
     const minDays = trad.min_listing_days
     if (typeof minDays === 'number' && minDays > 0) parts.push(`上市≥${minDays}天`)
+    if (trad.bulk_fetch === false) parts.push('非bulk预过滤')
     if (parts.length) return `可交易性: ${parts.join(' / ')}`
   }
   if (mode.value === 'oversold') return '可交易性: 过滤涨停 / 排除ST / 上市≥60天（缺 snapshot 时默认）'

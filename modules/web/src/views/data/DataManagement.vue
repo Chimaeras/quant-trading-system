@@ -28,6 +28,14 @@
           <span class="label">存储空间</span>
           <span class="value">{{ overview?.storage_size ?? '-' }}</span>
         </div>
+        <div class="stat-item">
+          <span class="label">上市日缺失</span>
+          <span class="value">{{ overview?.list_date_missing_count ?? '-' }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">可回填上市日</span>
+          <span class="value">{{ overview?.list_date_backfillable_count ?? '-' }}</span>
+        </div>
       </div>
       <div class="list-date-backfill">
         <p class="backfill-hint">
@@ -37,7 +45,7 @@
           回填缺失上市日期
         </el-button>
         <span v-if="backfillResult" class="backfill-result">
-          已补 {{ backfillResult.updated }} 条（补前缺失 {{ backfillResult.missing_before }}，补后缺失 {{ backfillResult.missing_after }}）
+          可回填 {{ backfillResult.backfillable ?? '—' }} 条，已补 {{ backfillResult.updated }} 条（补前缺失 {{ backfillResult.missing_before }}，补后缺失 {{ backfillResult.missing_after }}）
         </span>
       </div>
     </el-card>
@@ -209,7 +217,7 @@ const dataStore = useDataStore()
 const toast = useToast()
 const loading = ref(false)
 const backfillLoading = ref(false)
-const backfillResult = ref<{ missing_before: number; updated: number; missing_after: number } | null>(null)
+const backfillResult = ref<{ missing_before: number; backfillable?: number; updated: number; missing_after: number } | null>(null)
 const taskLoading = ref(false)
 const taskSubmitting = ref(false)
 const stoppingTaskId = ref('')

@@ -91,6 +91,17 @@ class CrossSectionNeutralizerTest {
     }
 
     @Test
+    void estimateLogMarketCapPrefersPersistedTotalMarketValue() {
+        MarketData bar = new MarketData();
+        bar.setTotalMarketValue(BigDecimal.valueOf(50_000_000_000L));
+        bar.setAmount(BigDecimal.valueOf(100_000_000));
+        bar.setTurnoverRate(BigDecimal.valueOf(2.0));
+        CrossSectionNeutralizer.LogMvEstimate est = CrossSectionNeutralizer.estimateLogMarketCap(bar, 1e6);
+        assertThat(est.source()).isEqualTo(CrossSectionNeutralizer.LOG_MV_FROM_TOTAL_MV);
+        assertThat(CrossSectionNeutralizer.isReliableLogMvSource(est.source())).isTrue();
+    }
+
+    @Test
     void isReliableLogMvSourceAcceptsTurnoverOnly() {
         assertThat(CrossSectionNeutralizer.isReliableLogMvSource(CrossSectionNeutralizer.LOG_MV_FROM_TURNOVER))
                 .isTrue();

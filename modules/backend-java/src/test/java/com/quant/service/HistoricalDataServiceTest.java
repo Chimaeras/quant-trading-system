@@ -46,6 +46,15 @@ class HistoricalDataServiceTest {
         assertThat(HistoricalDataService.isValidDailyBar(negativeAmount)).isFalse();
     }
 
+    @Test
+    void populateTotalMarketValueFromAmountAndTurnover() {
+        MarketData bar = bar("10.10", "10.50", "9.90", "10.30", 1000L, "100000000");
+        bar.setTurnoverRate(new BigDecimal("2.5"));
+        HistoricalDataService.populateTotalMarketValue(bar);
+        assertThat(bar.getTotalMarketValue()).isNotNull();
+        assertThat(bar.getTotalMarketValue().doubleValue()).isEqualTo(4_000_000_000.0);
+    }
+
     private static MarketData bar(
             String open,
             String high,

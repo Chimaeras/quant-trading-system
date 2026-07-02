@@ -452,6 +452,7 @@ public class HistoricalDataService {
             m.setAmount(BigDecimal.valueOf(turnover));
             m.setChangePct(BigDecimal.valueOf(removePercentageSuffix(changePctStr)));
             m.setTurnoverRate(BigDecimal.valueOf(removePercentageSuffix(turnoverRateStr)));
+            populateTotalMarketValue(m);
             if (m.getClosePrice() != null) {
                 BigDecimal pre = m.getClosePrice().subtract(BigDecimal.valueOf(changeAmt));
                 m.setPreClose(pre);
@@ -585,6 +586,7 @@ public class HistoricalDataService {
         m.setAmount(toBigDecimal(parts, 6));
         if (parts.length > 8) m.setChangePct(toBigDecimal(parts, 8));
         if (parts.length > 10) m.setTurnoverRate(toBigDecimal(parts, 10));
+        populateTotalMarketValue(m);
         if (m.getClosePrice() != null && m.getChangePct() != null) {
             try {
                 BigDecimal pct = m.getChangePct().divide(BigDecimal.valueOf(100), 6, java.math.RoundingMode.HALF_UP);
@@ -595,6 +597,22 @@ public class HistoricalDataService {
             } catch (Exception ignored) {}
         }
         return isValidDailyBar(m) ? m : null;
+    }
+
+    /**
+     * 由成交额/换手率推算总市值并写入实体，供 Codex ln(MV) 优先读取。
+     */
+    static void populateTotalMarketValue(MarketData bar) {
+        if (bar == null || bar.getAmount() == null || bar.getTurnoverRate() == null) {
+            return;
+        }
+        double amount = bar.getAmount().doubleValue();
+        double turnover = bar.getTurnoverRate().doubleValue();
+        if (amount <= 0 || turnover <= 1e-8) {
+            return;
+        }
+        double turnoverFrac = turnover > 1.0 ? turnover / 100.0 : turnover;
+        bar.setTotalMarketValue(BigDecimal.valueOf(amount / Math.max(turnoverFrac, 1e-9)));
     }
 
     /**

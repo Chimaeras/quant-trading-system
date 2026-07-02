@@ -60,6 +60,10 @@ public class MarketData {
     @Column(precision = 12, scale = 4)
     private BigDecimal pbRatio;
 
+    /** 总市值（元）；入库时可由成交额/换手率推算，供 ln(MV) 中性化优先使用。 */
+    @Column(precision = 24, scale = 4)
+    private BigDecimal totalMarketValue;
+
     @Column(updatable = false)
     private LocalDateTime createdAt;
 

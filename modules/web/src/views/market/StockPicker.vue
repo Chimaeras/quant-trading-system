@@ -194,6 +194,8 @@
       <span v-if="resultMeta.min_total_score != null">质量闸 ≥ {{ resultMeta.min_total_score }}</span>
       <span v-if="resultMeta.qualified_items != null">合格 {{ resultMeta.qualified_items }} 只</span>
       <span v-if="resultMeta.total_scored_pool != null">评分池 {{ resultMeta.total_scored_pool }} 只</span>
+      <span v-if="resultMeta.cross_section_count != null">全截面 {{ resultMeta.cross_section_count }} 只</span>
+      <span v-if="resultMeta.display_top_n != null">展示 Top {{ resultMeta.display_top_n }}</span>
       <span v-if="tradabilitySummary">{{ tradabilitySummary }}</span>
       <el-button v-if="hasFactorSnapshot" link type="primary" @click="snapshotVisible = true">策略参数快照</el-button>
     </div>
@@ -327,6 +329,9 @@
           {{ formatGWeighting(detailRow) }}
         </el-descriptions-item>
         <el-descriptions-item label="ln(MV)来源">{{ formatLogMvSource(detailRow) }}</el-descriptions-item>
+        <el-descriptions-item v-if="formatCodexFactor(detailRow, 'log_mv_reliable') !== '—'" label="ln(MV)可靠">
+          {{ formatCodexFactor(detailRow, 'log_mv_reliable') }}
+        </el-descriptions-item>
         <el-descriptions-item v-if="formatCodexFactor(detailRow, 'financial_imputed_count') !== '—'" label="财报填充项">
           {{ formatCodexFactor(detailRow, 'financial_imputed_count') }}
         </el-descriptions-item>
@@ -416,7 +421,9 @@ const resultMeta = reactive({
   min_total_score: null as number | null,
   qualified_items: null as number | null,
   total_scored_pool: null as number | null,
-  factor_snapshot: null as Record<string, unknown> | null
+  factor_snapshot: null as Record<string, unknown> | null,
+  cross_section_count: null as number | null,
+  display_top_n: null as number | null
 })
 const templates = ref<Array<Record<string, unknown>>>([])
 
@@ -742,6 +749,9 @@ function applyResult(data: Record<string, any>) {
   resultMeta.run_status = String(data.run_status ?? '')
   resultMeta.processed_candidates = Number(data.processed_candidates || 0)
   resultMeta.total_candidates = Number(data.total_candidates || 0)
+  resultMeta.cross_section_count =
+    data.cross_section_count != null ? Number(data.cross_section_count) : null
+  resultMeta.display_top_n = data.top_n != null ? Number(data.top_n) : null
   const snap = data.factor_snapshot
   resultMeta.factor_snapshot =
     snap && typeof snap === 'object' && !Array.isArray(snap) ? (snap as Record<string, unknown>) : null

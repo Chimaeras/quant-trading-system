@@ -558,6 +558,8 @@ public class CodexShortCycleScoringEngine {
         }
         if (minCodexScoreApplied > 0) {
             reasons.put("min_codex_score_applied", ScoringUtils.round2(minCodexScoreApplied));
+        } else {
+            reasons.put("min_codex_score_warning", "已关闭 Codex 百分位闸(minCodexScore=0)，结果仅供研究");
         }
         if (minTrendScoreApplied > 0) {
             reasons.put("min_trend_score_applied", ScoringUtils.round2(minTrendScoreApplied));

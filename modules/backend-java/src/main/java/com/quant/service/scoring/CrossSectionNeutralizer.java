@@ -43,12 +43,13 @@ public final class CrossSectionNeutralizer {
     public record LogMvEstimate(double logMv, String source) {}
 
     public static final String LOG_MV_FROM_TURNOVER = "turnover_amount";
+    public static final String LOG_MV_FROM_TOTAL_MV = "total_market_value";
     public static final String LOG_MV_FROM_NOTIONAL = "close_x_volume";
     public static final String LOG_MV_FROM_AVG_AMOUNT = "avg_amount20_fallback";
 
-    /** 仅 turnover+amount 推算的 ln(MV) 视为可靠；其余代理仅用于回归自变量，不宜做 G 市值加权。 */
+    /** turnover 推算与 persisted totalMarketValue 视为可靠；其余代理不宜做 G 市值加权。 */
     public static boolean isReliableLogMvSource(String source) {
-        return LOG_MV_FROM_TURNOVER.equals(source);
+        return LOG_MV_FROM_TURNOVER.equals(source) || LOG_MV_FROM_TOTAL_MV.equals(source);
     }
 
     public static Context buildContext(List<String> industries, List<Double> logMarketCap) {
@@ -177,6 +178,12 @@ public final class CrossSectionNeutralizer {
     }
 
     public static LogMvEstimate estimateLogMarketCap(MarketData lastBar, double avgAmount20) {
+        if (lastBar != null && lastBar.getTotalMarketValue() != null) {
+            double mv = lastBar.getTotalMarketValue().doubleValue();
+            if (mv > 0 && Double.isFinite(mv)) {
+                return new LogMvEstimate(Math.log(mv), LOG_MV_FROM_TOTAL_MV);
+            }
+        }
         if (lastBar != null && lastBar.getTurnoverRate() != null && lastBar.getAmount() != null) {
             double tr = lastBar.getTurnoverRate().doubleValue();
             double amt = lastBar.getAmount().doubleValue();

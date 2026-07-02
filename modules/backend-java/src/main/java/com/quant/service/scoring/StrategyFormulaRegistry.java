@@ -79,10 +79,10 @@ public final class StrategyFormulaRegistry {
                         ),
                         neutralV2 ? 95 : 92,
                         neutralV2
-                                ? "§4.1 完整横截面回归中性化已实现；MV 无字段时用成交额/换手率代理 ln(MV)"
+                                ? "§4.1 完整横截面回归中性化已实现；优先 persisted totalMarketValue，否则 turnover/amount 代理 ln(MV)"
                                 : "与《短周期选股评分公式设计文档》v1.0 对齐，适合 T+3/T+5 横截面排序",
                         List.of(
-                                neutralV2 ? "ln(MV) 来自 turnover/amount 或 avgAmount20 代理" : "G 使用全市场代理而非真实指数 MA/ATR",
+                                neutralV2 ? "ln(MV) 优先 totalMarketValue，其次 turnover/amount；弱代理不参与 G 市值加权" : "G 使用全市场代理而非真实指数 MA/ATR",
                                 neutralV2 ? "样本<30→行业demean；行业<3→仅ln(MV)回归" : "行业中性化为同行业 ER5 均值调整",
                                 "Score 为百分位分，高分=相对更强而非绝对上涨"
                         ),

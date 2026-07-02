@@ -417,7 +417,23 @@ public class HistoricalDataService {
             result.add(m);
         }
         result.sort(Comparator.comparing(MarketData::getTradeDate));
-        return result;
+        return dedupeByTradeDate(result);
+    }
+
+    /**
+     * 同一 trade_date 保留最后一条（源接口偶发重复行会导致 uk_code_date 冲突）。
+     */
+    static List<MarketData> dedupeByTradeDate(List<MarketData> bars) {
+        if (bars == null || bars.isEmpty()) {
+            return List.of();
+        }
+        TreeMap<LocalDate, MarketData> byDate = new TreeMap<>();
+        for (MarketData bar : bars) {
+            if (bar != null && bar.getTradeDate() != null) {
+                byDate.put(bar.getTradeDate(), bar);
+            }
+        }
+        return new ArrayList<>(byDate.values());
     }
 
     private MarketData parseSohuHqRow(String code, String exchangeType, JsonNode data) {
@@ -564,7 +580,7 @@ public class HistoricalDataService {
                 result.add(m);
             }
         }
-        return result;
+        return dedupeByTradeDate(result);
     }
 
     /** kline 格式: 日期,开,收,高,低,成交量,成交额,振幅,涨跌幅,涨跌额,换手率 */

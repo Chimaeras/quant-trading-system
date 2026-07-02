@@ -28,13 +28,23 @@ public final class TradingLimitRules {
         if ("BSE".equals(exchange) || code.startsWith("8") || code.startsWith("4")) {
             return BSE_LIMIT_PCT;
         }
-        if ("SSE".equals(exchange) && code.startsWith("688")) {
+        if ("SSE".equals(exchange) && isStarStockCode(code)) {
             return CHINEXT_STAR_LIMIT_PCT;
         }
-        if ("SZSE".equals(exchange) && code.startsWith("300")) {
+        if ("SZSE".equals(exchange) && isChiNextStockCode(code)) {
             return CHINEXT_STAR_LIMIT_PCT;
         }
         return MAIN_BOARD_LIMIT_PCT;
+    }
+
+    /** 科创板：688 常规 + 689 等扩展段，涨跌停幅度均为 20%。 */
+    static boolean isStarStockCode(String code) {
+        return code.startsWith("688") || code.startsWith("689");
+    }
+
+    /** 创业板：300 存量 + 301/302 注册制新股，涨跌停幅度均为 20%。 */
+    static boolean isChiNextStockCode(String code) {
+        return code.startsWith("300") || code.startsWith("301") || code.startsWith("302");
     }
 
     static boolean isStStock(String stockName) {

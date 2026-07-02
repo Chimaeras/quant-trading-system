@@ -5,10 +5,24 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class HistoricalDataServiceTest {
+
+    @Test
+    void dedupeByTradeDateKeepsLastOccurrencePerDay() {
+        MarketData first = bar("10.10", "10.50", "9.90", "10.30", 1000L, "100000000");
+        MarketData duplicate = bar("10.20", "10.60", "10.00", "10.40", 2000L, "200000000");
+        duplicate.setTradeDate(first.getTradeDate());
+
+        List<MarketData> out = HistoricalDataService.dedupeByTradeDate(List.of(first, duplicate));
+
+        assertThat(out).hasSize(1);
+        assertThat(out.get(0).getClosePrice()).isEqualByComparingTo("10.40");
+        assertThat(out.get(0).getVolume()).isEqualTo(2000L);
+    }
 
     @Test
     void acceptsValidTradingAndSuspendedBars() {

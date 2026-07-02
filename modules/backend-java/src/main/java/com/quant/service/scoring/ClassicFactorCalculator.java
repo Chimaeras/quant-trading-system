@@ -141,7 +141,7 @@ public class ClassicFactorCalculator {
         double ret60 = ScoringUtils.pct(close.get(n - 1), close.get(n - 61));
         double ma20 = TechnicalIndicators.avg(close, n - 20, n - 1);
         double ma60 = TechnicalIndicators.avg(close, n - 60, n - 1);
-        double avgAmount20 = TechnicalIndicators.avg(amount, amount.size() - 20, amount.size() - 1);
+        double avgAmount20 = ScoringUtils.avgAmount20(bars);
         double vol20 = ScoringUtils.stdPct(close, 20) * 100;
         double mdd60 = ScoringUtils.maxDrawdown(close, 60);
 

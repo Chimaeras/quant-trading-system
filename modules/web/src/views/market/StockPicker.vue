@@ -528,7 +528,9 @@ const TRADABILITY_LABELS: Record<string, string> = {
   min_listing_days: '最短上市自然日',
   listing_tenure_basis: '上市时长口径',
   limit_pct_source: '涨跌停幅度来源',
-  limit_price_basis: '涨跌停价基准'
+  limit_price_basis: '涨跌停价基准',
+  avg_amount20_basis: '20日均成交额口径',
+  min_avg_amount_gate: '最低成交额闸'
 }
 
 const hasFactorSnapshot = computed(() => {

@@ -542,9 +542,7 @@ public class OversoldReboundScoringService {
         double ret20 = (n >= 21) ? ScoringUtils.pct(lastClose, close[n - 21]) : 0;
 
         // 日均成交额（20日）
-        double avgAmount20 = 0;
-        for (int i = Math.max(0, n - 20); i < n; i++) avgAmount20 += amount[i];
-        avgAmount20 = (n >= 20) ? avgAmount20 / 20.0 : 0;
+        double avgAmount20 = ScoringUtils.avgAmount20(bars);
         if (minAvgAmount > 0 && avgAmount20 < minAvgAmount) {
             return null;
         }

@@ -211,19 +211,24 @@ public final class ScoringUtils {
     }
 
     /**
-     * 最近 20 个交易日日均成交额（元）。有效 K 线不足 20 根时返回 0。
+     * 最近 20 个<strong>有成交</strong>交易日的日均成交额（元）。
+     * 零成交量（停牌代理）日不计入样本；不足 20 个有效样本时返回 0。
      */
     public static double avgAmount20(List<MarketData> bars) {
-        if (bars == null || bars.size() < 20) {
+        if (bars == null || bars.isEmpty()) {
             return 0;
         }
-        int n = bars.size();
-        double[] amount = new double[n];
-        for (int i = 0; i < n; i++) {
-            MarketData b = bars.get(i);
-            amount[i] = b.getAmount() != null ? b.getAmount().doubleValue() : 0;
+        double sum = 0;
+        int count = 0;
+        for (int i = bars.size() - 1; i >= 0 && count < 20; i--) {
+            MarketData bar = bars.get(i);
+            if (isExplicitZeroVolume(bar)) {
+                continue;
+            }
+            sum += bar.getAmount() != null ? bar.getAmount().doubleValue() : 0;
+            count++;
         }
-        return TechnicalIndicators.avg(amount, n - 20, n - 1);
+        return count >= 20 ? sum / 20.0 : 0;
     }
 
     /** 当 minAvgAmount &gt; 0 时，要求 avgAmount20 不低于该阈值。 */
@@ -253,6 +258,8 @@ public final class ScoringUtils {
         t.put("listing_tenure_basis", "CALENDAR_DAYS_FROM_LIST_DATE_OR_EARLIEST_BAR");
         t.put("limit_pct_source", "BY_BOARD_AND_ST");
         t.put("limit_price_basis", "PREV_CLOSE_TO_SIGNAL_CLOSE");
+        t.put("avg_amount20_basis", "MEAN_AMOUNT_LAST_20_NON_ZERO_VOLUME_DAYS");
+        t.put("min_avg_amount_gate", "avgAmount20 >= minAvgAmount when minAvgAmount > 0");
         return t;
     }
 

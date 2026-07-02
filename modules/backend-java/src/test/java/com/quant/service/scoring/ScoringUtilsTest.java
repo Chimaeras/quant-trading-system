@@ -50,6 +50,20 @@ class ScoringUtilsTest {
     }
 
     @Test
+    void tradableForScoringRejectsChiNext301LimitUpAtTwentyPercent() {
+        MarketData prev = bar("301578", "SZSE", 10.0);
+        MarketData limitUp20 = bar("301578", "SZSE", 12.0);
+        MarketData notLimitUp = bar("301578", "SZSE", 11.0);
+
+        assertThat(ScoringUtils.isTradableForScoring(
+                List.of(prev, limitUp20), "301578", "SZSE", "注册制创业板", true, true, true))
+                .isFalse();
+        assertThat(ScoringUtils.isTradableForScoring(
+                List.of(prev, notLimitUp), "301578", "SZSE", "注册制创业板", true, true, true))
+                .isTrue();
+    }
+
+    @Test
     void tradableForScoringRejectsLimitUpAtCloseAndHonorsOversoldLimitDownException() {
         MarketData prev = bar("000001", "SZSE", 10.0);
         MarketData limitUpClose = bar("000001", "SZSE", 11.0);
@@ -93,6 +107,8 @@ class ScoringUtilsTest {
         Map<String, Object> normal = ScoringUtils.tradabilitySnapshot(true, true, 60);
         assertThat(normal.get("exclude_limit_down_at_close")).isEqualTo(true);
         assertThat(normal.get("min_listing_days")).isEqualTo(60);
+        assertThat(normal.get("avg_amount20_basis"))
+                .isEqualTo("MEAN_AMOUNT_LAST_20_NON_ZERO_VOLUME_DAYS");
 
         Map<String, Object> oversold = ScoringUtils.tradabilitySnapshot(true, false, 60);
         assertThat(oversold.get("exclude_limit_down_at_close")).isEqualTo(false);
@@ -112,6 +128,18 @@ class ScoringUtilsTest {
         assertThat(out.get(0).get("stock_code")).isEqualTo("A");
         assertThat(out.get(1).get("stock_code")).isEqualTo("C");
         assertThat(ScoringUtils.countByMinScore(items, 55, "total_score")).isEqualTo(2);
+    }
+
+    @Test
+    void avgAmount20ExcludesZeroVolumeDaysFromLastTwentyTraded() {
+        List<MarketData> bars = sampleAmountBars(25, 50_000_000);
+        for (int i = 20; i < 25; i++) {
+            bars.get(i).setVolume(0L);
+            bars.get(i).setAmount(java.math.BigDecimal.ZERO);
+        }
+
+        assertThat(ScoringUtils.avgAmount20(bars)).isEqualTo(50_000_000.0);
+        assertThat(ScoringUtils.passesMinAvgAmount(bars, 40_000_000)).isTrue();
     }
 
     @Test
@@ -169,6 +197,7 @@ class ScoringUtilsTest {
             MarketData bar = new MarketData();
             bar.setTradeDate(start.plusDays(i));
             bar.setAmount(java.math.BigDecimal.valueOf(amount));
+            bar.setVolume(1000L);
             bars.add(bar);
         }
         return bars;

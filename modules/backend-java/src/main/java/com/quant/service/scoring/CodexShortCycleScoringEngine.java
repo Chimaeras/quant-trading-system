@@ -493,7 +493,7 @@ public class CodexShortCycleScoringEngine {
             return Optional.empty();
         }
         int n = close.size();
-        double avgAmount20 = TechnicalIndicators.avg(amount, n - 20, n - 1);
+        double avgAmount20 = ScoringUtils.avgAmount20(bars);
         if (avgAmount20 < minAvgAmount) {
             return Optional.empty();
         }

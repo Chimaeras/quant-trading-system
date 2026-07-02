@@ -55,7 +55,8 @@ class CodexShortCycleScoringEngineTest {
             List<MarketData> bars = sampleBars(80, 10 + i * 0.5, 50_000_000, 0.02 + i * 0.001);
             contexts.add(new CodexShortCycleScoringEngine.StockBarContext(
                     code, "SZSE", "测试" + i, "银行", bars, null,
-                    bars.get(bars.size() - 1).getTradeDate()));
+                    bars.get(bars.size() - 1).getTradeDate(),
+                    bars.get(bars.size() - 1).getTradeDate().minusDays(200), 1));
         }
         List<CandidateScore> relaxed = engine.scoreUniverse(contexts, 1_000_000, true, 60, 0, 0);
         List<CandidateScore> strict = engine.scoreUniverse(contexts, 1_000_000, true, 60, 0, 99);
@@ -85,12 +86,10 @@ class CodexShortCycleScoringEngineTest {
         List<CodexShortCycleScoringEngine.StockBarContext> contexts = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             String code = String.format("%06d", i + 1);
+            List<MarketData> bars = sampleBars(80, 10 + i * 0.5, 50_000_000, 0.02 + i * 0.001);
+            LocalDate tradeDate = bars.get(bars.size() - 1).getTradeDate();
             contexts.add(new CodexShortCycleScoringEngine.StockBarContext(
-                    code, "SZSE", "测试" + i, "银行",
-                    sampleBars(80, 10 + i * 0.5, 50_000_000, 0.02 + i * 0.001),
-                    null,
-                    sampleBars(80, 10 + i * 0.5, 50_000_000, 0.02 + i * 0.001)
-                            .get(79).getTradeDate()));
+                    code, "SZSE", "测试" + i, "银行", bars, null, tradeDate, tradeDate.minusDays(200), 1));
         }
         List<CandidateScore> strict = engine.scoreUniverse(contexts, 1_000_000, true, 60, 99);
         List<CandidateScore> relaxed = engine.scoreUniverse(contexts, 1_000_000, true, 60, 0);
@@ -247,7 +246,8 @@ class CodexShortCycleScoringEngineTest {
             List<MarketData> bars = sampleBars(80, 10 + i * 0.1, 50_000_000, 0.01);
             multi.add(new CodexShortCycleScoringEngine.StockBarContext(
                     String.format("%06d", i + 1), "SZSE", "测试" + i, "银行",
-                    bars, null, bars.get(bars.size() - 1).getTradeDate()));
+                    bars, null, bars.get(bars.size() - 1).getTradeDate(),
+                    bars.get(bars.size() - 1).getTradeDate().minusDays(200), 1));
         }
         List<CandidateScore> scored = engine.scoreUniverse(multi, 1_000_000, true, 60, 0);
         assertThat(scored).isNotEmpty();
@@ -261,8 +261,26 @@ class CodexShortCycleScoringEngineTest {
         LocalDate staleTradeDate = bars.get(bars.size() - 1).getTradeDate().plusDays(15);
         List<CodexShortCycleScoringEngine.StockBarContext> contexts = List.of(
                 new CodexShortCycleScoringEngine.StockBarContext(
-                        "000001", "SZSE", "过期", "测试", bars, null, staleTradeDate),
+                        "000001", "SZSE", "过期", "测试", bars, null, staleTradeDate, null, 1),
                 context("000002", "SZSE", "正常", sampleBars(80, 12, 50_000_000, 0.03))
+        );
+        List<CandidateScore> scored = engine.scoreUniverse(contexts, 1_000_000, true, 60, 0);
+        assertThat(scored).hasSize(1);
+        assertThat(scored.get(0).getStockCode()).isEqualTo("000002");
+    }
+
+    @Test
+    void scoreUniverseExcludesInsufficientListingTenure() {
+        List<MarketData> youngBars = sampleBars(80, 10, 50_000_000, 0.02);
+        LocalDate tradeDate = youngBars.get(youngBars.size() - 1).getTradeDate();
+        List<MarketData> matureBars = sampleBars(80, 12, 50_000_000, 0.03);
+        LocalDate matureTradeDate = matureBars.get(matureBars.size() - 1).getTradeDate();
+        List<CodexShortCycleScoringEngine.StockBarContext> contexts = List.of(
+                new CodexShortCycleScoringEngine.StockBarContext(
+                        "000001", "SZSE", "次新", "测试", youngBars, null, tradeDate, tradeDate.minusDays(30), 1),
+                new CodexShortCycleScoringEngine.StockBarContext(
+                        "000002", "SZSE", "成熟", "测试", matureBars, null, matureTradeDate,
+                        matureTradeDate.minusDays(200), 1)
         );
         List<CandidateScore> scored = engine.scoreUniverse(contexts, 1_000_000, true, 60, 0);
         assertThat(scored).hasSize(1);
@@ -272,7 +290,8 @@ class CodexShortCycleScoringEngineTest {
     private static CodexShortCycleScoringEngine.StockBarContext context(
             String code, String ex, String name, List<MarketData> bars) {
         LocalDate tradeDate = bars.isEmpty() ? null : bars.get(bars.size() - 1).getTradeDate();
-        return new CodexShortCycleScoringEngine.StockBarContext(code, ex, name, "测试", bars, null, tradeDate);
+        LocalDate listDate = tradeDate != null ? tradeDate.minusDays(200) : null;
+        return new CodexShortCycleScoringEngine.StockBarContext(code, ex, name, "测试", bars, null, tradeDate, listDate, 1);
     }
 
     private static CodexShortCycleScoringEngine.RawFeatures raw(

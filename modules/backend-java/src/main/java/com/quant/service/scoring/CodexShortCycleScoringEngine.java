@@ -39,7 +39,9 @@ public class CodexShortCycleScoringEngine {
             String industry,
             List<MarketData> bars,
             StockFinancialSnapshot financialSnapshot,
-            LocalDate tradeDate
+            LocalDate tradeDate,
+            LocalDate listDate,
+            Integer stockStatus
     ) {}
 
     record RawFeatures(
@@ -469,7 +471,10 @@ public class CodexShortCycleScoringEngine {
             return Optional.empty();
         }
         if (!ScoringUtils.isTradableForScoring(
-                bars, ctx.stockCode(), ctx.exchangeType(), ctx.stockName(), excludeST, true, true)) {
+                bars, ctx.stockCode(), ctx.exchangeType(), ctx.stockName(), ctx.stockStatus(), excludeST, true, true)) {
+            return Optional.empty();
+        }
+        if (!ScoringUtils.hasMinListingTenure(ctx.listDate(), ctx.tradeDate(), minListingDays, bars)) {
             return Optional.empty();
         }
 

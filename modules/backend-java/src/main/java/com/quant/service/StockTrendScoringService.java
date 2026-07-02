@@ -94,6 +94,7 @@ public class StockTrendScoringService {
         boolean bulkFetch = ScoringUtils.parseBool(req.get("bulkFetch"), true);
         boolean includeItems = ScoringUtils.parseBool(req.get("includeItems"), false);
         boolean excludeST = ScoringUtils.parseBool(req.get("excludeST"), true);
+        double minAvgAmount = ScoringUtils.parseDouble(req.get("minAvgAmount"), 30_000_000d, 0d, 1_000_000_000_000d);
         int minListingDays = ScoringUtils.parseInt(req.get("minListingDays"), 60, 0, 3650);
 
         LocalDate rangeStart = tradeDate.minusDays(lookbackDays);
@@ -104,6 +105,7 @@ public class StockTrendScoringService {
 
         ConcurrentMap<String, String> nameCache = new ConcurrentHashMap<>();
         Map<String, LocalDate> listDateCache = new HashMap<>();
+        Map<String, Integer> statusCache = new HashMap<>();
         if (minListingDays > 0) {
             for (StockInfo s : stockInfoRepository.findAll()) {
                 if (s.getStockCode() == null || s.getExchangeType() == null) {
@@ -114,10 +116,20 @@ public class StockTrendScoringService {
                     nameCache.putIfAbsent(k, s.getStockName());
                 }
                 listDateCache.put(k, s.getListDate());
+                statusCache.put(k, s.getStatus());
+            }
+        } else {
+            for (StockInfo s : stockInfoRepository.findAll()) {
+                if (s.getStockCode() == null || s.getExchangeType() == null) {
+                    continue;
+                }
+                statusCache.put(s.getStockCode() + "|" + s.getExchangeType(), s.getStatus());
             }
         }
         final Map<String, LocalDate> listDateRef = listDateCache;
+        final Map<String, Integer> statusRef = statusCache;
         final int minListingDaysFinal = minListingDays;
+        final double minAvgAmountFinal = minAvgAmount;
         List<StockTrendScore> rows = Collections.synchronizedList(new ArrayList<>());
         int scanned;
         int skipped;
@@ -160,8 +172,8 @@ public class StockTrendScoringService {
                     String exchangeType = p > 0 ? key.substring(p + 1) : "";
                     List<MarketData> bars = grouped.getOrDefault(key, List.of());
                     Optional<StockTrendScore> row = scoreOne(
-                            stockCode, exchangeType, tradeDate, bars, nameCache, listDateRef, minListingDaysFinal,
-                            biasThreshold, excludeST, skippedNoBarOnTradeDate);
+                            stockCode, exchangeType, tradeDate, bars, nameCache, listDateRef, statusRef, minListingDaysFinal,
+                            minAvgAmountFinal, biasThreshold, excludeST, skippedNoBarOnTradeDate);
                     if (row.isPresent()) rows.add(row.get());
                     else k++;
                 }
@@ -181,8 +193,8 @@ public class StockTrendScoringService {
                         String stockCode = p > 0 ? key.substring(0, p) : key;
                         String exchangeType = p > 0 ? key.substring(p + 1) : "";
                         List<MarketData> bars = grouped.getOrDefault(key, List.of());
-                        return scoreOne(stockCode, exchangeType, tradeDate, bars, nameCache, listDateRef, minListingDaysFinal,
-                                biasThreshold, excludeST, skippedNoBarOnTradeDate);
+                        return scoreOne(stockCode, exchangeType, tradeDate, bars, nameCache, listDateRef, statusRef, minListingDaysFinal,
+                                minAvgAmountFinal, biasThreshold, excludeST, skippedNoBarOnTradeDate);
                     });
                 }
 
@@ -217,8 +229,8 @@ public class StockTrendScoringService {
                                 stockCode, exchangeType, rangeStart, tradeDate);
                 barsFetched += bars.size();
                 Optional<StockTrendScore> row = scoreOne(
-                        stockCode, exchangeType, tradeDate, bars, nameCache, listDateRef, minListingDaysFinal,
-                        biasThreshold, excludeST, skippedNoBarOnTradeDate);
+                        stockCode, exchangeType, tradeDate, bars, nameCache, listDateRef, statusRef, minListingDaysFinal,
+                        minAvgAmountFinal, biasThreshold, excludeST, skippedNoBarOnTradeDate);
                 if (row.isEmpty()) {
                     k++;
                     continue;
@@ -247,8 +259,8 @@ public class StockTrendScoringService {
                     List<MarketData> bars = marketDataRepository
                             .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
                                     stockCode, exchangeType, rangeStart, tradeDate);
-                    return scoreOne(stockCode, exchangeType, tradeDate, bars, nameCache, listDateRef, minListingDaysFinal,
-                            biasThreshold, excludeST, skippedNoBarOnTradeDate);
+                    return scoreOne(stockCode, exchangeType, tradeDate, bars, nameCache, listDateRef, statusRef, minListingDaysFinal,
+                            minAvgAmountFinal, biasThreshold, excludeST, skippedNoBarOnTradeDate);
                 });
             }
 
@@ -329,6 +341,7 @@ public class StockTrendScoringService {
         res.put("scored_per_sec", ScoringUtils.round2(scoredPerSec));
         res.put("include_items", includeItems);
         res.put("exclude_st", excludeST);
+        res.put("min_avg_amount", minAvgAmount);
         res.put("items", items);
         return res;
     }
@@ -359,9 +372,9 @@ public class StockTrendScoringService {
 
     private Optional<StockTrendScore> scoreOne(String stockCode, String exchangeType, LocalDate tradeDate,
                                                 List<MarketData> bars, Map<String, String> nameCache,
-                                                Map<String, LocalDate> listDateCache, int minListingDays,
-                                                double biasThreshold, boolean excludeST,
-                                                AtomicInteger skippedNoBarOnTradeDate) {
+                                                Map<String, LocalDate> listDateCache, Map<String, Integer> statusCache,
+                                                int minListingDays, double minAvgAmount, double biasThreshold,
+                                                boolean excludeST, AtomicInteger skippedNoBarOnTradeDate) {
         if (bars == null || bars.size() < ScoringConstants.MIN_BARS_TECHNICAL) {
             return Optional.empty();
         }
@@ -388,7 +401,11 @@ public class StockTrendScoringService {
         if (!ScoringUtils.hasMinListingTenure(listDateCache.get(stockCode + "|" + exchangeType), tradeDate, minListingDays)) {
             return Optional.empty();
         }
-        if (!ScoringUtils.isTradableForScoring(bars, stockCode, exchangeType, stockName, excludeST, true, true)) {
+        if (!ScoringUtils.isTradableForScoring(bars, stockCode, exchangeType, stockName,
+                statusCache.get(stockCode + "|" + exchangeType), excludeST, true, true)) {
+            return Optional.empty();
+        }
+        if (!ScoringUtils.passesMinAvgAmount(bars, minAvgAmount)) {
             return Optional.empty();
         }
 

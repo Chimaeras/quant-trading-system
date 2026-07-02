@@ -67,6 +67,9 @@
       <el-form-item label="最低综合分">
         <el-input-number v-model="oversoldForm.minTotalScore" :min="0" :max="100" />
       </el-form-item>
+      <el-form-item label="最低日均成交额">
+        <el-input-number v-model="oversoldForm.minAvgAmount" :min="0" :step="5000000" />
+      </el-form-item>
       <el-form-item label="排除 ST">
         <el-switch v-model="oversoldForm.excludeST" />
       </el-form-item>
@@ -100,6 +103,9 @@
       </el-form-item>
       <el-form-item label="最低综合分">
         <el-input-number v-model="commonForm.minTotalScore" :min="0" :max="100" :step="1" />
+      </el-form-item>
+      <el-form-item label="最低日均成交额">
+        <el-input-number v-model="commonForm.minAvgAmount" :min="0" :step="5000000" />
       </el-form-item>
       <el-form-item label="排除 ST">
         <el-switch v-model="commonForm.excludeST" />
@@ -432,7 +438,7 @@ const form = reactive({
   fullHistory: true,
   lookbackDays: 120,
   scoreTopN: 500,
-  minAvgAmount: 0,
+  minAvgAmount: 30_000_000,
   minTrendScore: 40,
   minListingDays: 60,
   horizonProfile: 'MEDIUM_TREND',
@@ -444,6 +450,7 @@ const oversoldForm = reactive({
   tradeDate: dayjs().format('YYYY-MM-DD'),
   scoreTopN: 500,
   minTotalScore: 60,
+  minAvgAmount: 30_000_000,
   excludeST: true,
   persist: true,
   templateId: ''
@@ -455,6 +462,7 @@ const commonForm = reactive({
   lookbackDays: 120,
   biasThreshold: 5.0,
   minTotalScore: 45,
+  minAvgAmount: 30_000_000,
   excludeST: true,
   minListingDays: 60
 })
@@ -964,6 +972,7 @@ function buildGenericPayload(): Record<string, unknown> {
     tradeDate: commonForm.tradeDate,
     topN: commonForm.scoreTopN,
     minTotalScore: commonForm.minTotalScore,
+    minAvgAmount: commonForm.minAvgAmount,
     excludeST: commonForm.excludeST,
     minListingDays: commonForm.minListingDays,
     persist: true
@@ -1025,6 +1034,7 @@ async function runOversold() {
       tradeDate: oversoldForm.tradeDate,
       topN: oversoldForm.scoreTopN,
       minTotalScore: oversoldForm.minTotalScore,
+      minAvgAmount: oversoldForm.minAvgAmount,
       excludeST: oversoldForm.excludeST,
       minListingDays: 60,
       persist: oversoldForm.persist,
@@ -1240,6 +1250,7 @@ async function saveOversoldTemplate() {
     params: {
       topN: oversoldForm.scoreTopN,
       minTotalScore: oversoldForm.minTotalScore,
+      minAvgAmount: oversoldForm.minAvgAmount,
       excludeST: oversoldForm.excludeST,
       persist: oversoldForm.persist
     }

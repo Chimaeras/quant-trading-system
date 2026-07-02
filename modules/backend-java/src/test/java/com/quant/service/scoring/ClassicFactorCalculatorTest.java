@@ -86,6 +86,26 @@ class ClassicFactorCalculatorTest {
     }
 
     @Test
+    void excludesCandidateWhenStockStatusSuspended() {
+        List<MarketData> bars = sampleBars(75, 10, 50_000_000);
+
+        var result = calculator.calculate(
+                "000001",
+                "SZSE",
+                bars,
+                1_000_000,
+                0,
+                key -> "测试股份",
+                true,
+                ClassicFactorCalculator.HORIZON_MEDIUM,
+                null,
+                0
+        );
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
     void excludesCandidateBelowMinimumTrendScore() {
         List<MarketData> bars = sampleBars(75, 10, 50_000_000);
 

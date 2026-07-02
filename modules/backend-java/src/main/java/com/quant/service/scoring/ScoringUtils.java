@@ -1,5 +1,6 @@
 package com.quant.service.scoring;
 
+import com.quant.entity.MarketData;
 import com.quant.service.backtest.StrategyBacktestEngine;
 import com.quant.service.backtest.TradingLimitRules;
 
@@ -93,6 +94,23 @@ public final class ScoringUtils {
             boolean excludeST,
             boolean excludeLimitUpAtClose,
             boolean excludeLimitDownAtClose) {
+        return isTradableForScoring(
+                bars, stockCode, exchangeType, stockName, null,
+                excludeST, excludeLimitUpAtClose, excludeLimitDownAtClose);
+    }
+
+    public static boolean isTradableForScoring(
+            List<com.quant.entity.MarketData> bars,
+            String stockCode,
+            String exchangeType,
+            String stockName,
+            Integer stockStatus,
+            boolean excludeST,
+            boolean excludeLimitUpAtClose,
+            boolean excludeLimitDownAtClose) {
+        if (!isActiveStockStatus(stockStatus)) {
+            return false;
+        }
         if (bars == null || bars.isEmpty()) {
             return false;
         }
@@ -153,16 +171,64 @@ public final class ScoringUtils {
      * 上市满 N 个自然日才可纳入候选；listDate 缺失时不据此过滤（保守放行并依赖 min_listing_days 披露）。
      */
     public static boolean hasMinListingTenure(LocalDate listDate, LocalDate tradeDate, int minListingDays) {
+        return hasMinListingTenure(listDate, tradeDate, minListingDays, null);
+    }
+
+    /**
+     * listDate 缺失时，可选使用 K 线最早交易日作为上市日代理（仅当 bars 非空）。
+     */
+    public static boolean hasMinListingTenure(
+            LocalDate listDate,
+            LocalDate tradeDate,
+            int minListingDays,
+            List<MarketData> bars) {
         if (minListingDays <= 0 || tradeDate == null) {
             return true;
         }
-        if (listDate == null) {
+        LocalDate effectiveListDate = listDate;
+        if (effectiveListDate == null && bars != null) {
+            for (MarketData bar : bars) {
+                if (bar == null || bar.getTradeDate() == null) {
+                    continue;
+                }
+                if (effectiveListDate == null || bar.getTradeDate().isBefore(effectiveListDate)) {
+                    effectiveListDate = bar.getTradeDate();
+                }
+            }
+        }
+        if (effectiveListDate == null) {
             return true;
         }
-        if (listDate.isAfter(tradeDate)) {
+        if (effectiveListDate.isAfter(tradeDate)) {
             return false;
         }
-        return ChronoUnit.DAYS.between(listDate, tradeDate) >= minListingDays;
+        return ChronoUnit.DAYS.between(effectiveListDate, tradeDate) >= minListingDays;
+    }
+
+    /** stock_info.status：1=正常，0=停牌，-1=退市；缺失时视为正常。 */
+    public static boolean isActiveStockStatus(Integer status) {
+        return status == null || status == 1;
+    }
+
+    /**
+     * 最近 20 个交易日日均成交额（元）。有效 K 线不足 20 根时返回 0。
+     */
+    public static double avgAmount20(List<MarketData> bars) {
+        if (bars == null || bars.size() < 20) {
+            return 0;
+        }
+        int n = bars.size();
+        double[] amount = new double[n];
+        for (int i = 0; i < n; i++) {
+            MarketData b = bars.get(i);
+            amount[i] = b.getAmount() != null ? b.getAmount().doubleValue() : 0;
+        }
+        return TechnicalIndicators.avg(amount, n - 20, n - 1);
+    }
+
+    /** 当 minAvgAmount &gt; 0 时，要求 avgAmount20 不低于该阈值。 */
+    public static boolean passesMinAvgAmount(List<MarketData> bars, double minAvgAmount) {
+        return minAvgAmount <= 0 || avgAmount20(bars) >= minAvgAmount;
     }
 
     /**
@@ -181,8 +247,10 @@ public final class ScoringUtils {
         t.put("exclude_zero_volume", true);
         t.put("exclude_limit_up_at_close", true);
         t.put("exclude_limit_down_at_close", excludeLimitDownAtClose);
+        t.put("exclude_non_active_status", true);
+        t.put("status_semantics", "1=active,0=suspended,-1=delisted,null=assume_active");
         t.put("min_listing_days", Math.max(0, minListingDays));
-        t.put("listing_tenure_basis", "CALENDAR_DAYS_FROM_LIST_DATE");
+        t.put("listing_tenure_basis", "CALENDAR_DAYS_FROM_LIST_DATE_OR_EARLIEST_BAR");
         t.put("limit_pct_source", "BY_BOARD_AND_ST");
         t.put("limit_price_basis", "PREV_CLOSE_TO_SIGNAL_CLOSE");
         return t;

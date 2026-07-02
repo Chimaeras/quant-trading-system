@@ -113,4 +113,64 @@ class ScoringUtilsTest {
         assertThat(out.get(1).get("stock_code")).isEqualTo("C");
         assertThat(ScoringUtils.countByMinScore(items, 55, "total_score")).isEqualTo(2);
     }
+
+    @Test
+    void passesMinAvgAmountHonorsTwentyDayAverageThreshold() {
+        List<MarketData> low = sampleAmountBars(25, 500_000);
+        List<MarketData> high = sampleAmountBars(25, 50_000_000);
+
+        assertThat(ScoringUtils.passesMinAvgAmount(low, 1_000_000)).isFalse();
+        assertThat(ScoringUtils.passesMinAvgAmount(high, 1_000_000)).isTrue();
+        assertThat(ScoringUtils.passesMinAvgAmount(low, 0)).isTrue();
+    }
+
+    @Test
+    void isActiveStockStatusAllowsNormalOrMissingOnly() {
+        assertThat(ScoringUtils.isActiveStockStatus(1)).isTrue();
+        assertThat(ScoringUtils.isActiveStockStatus(null)).isTrue();
+        assertThat(ScoringUtils.isActiveStockStatus(0)).isFalse();
+        assertThat(ScoringUtils.isActiveStockStatus(-1)).isFalse();
+    }
+
+    @Test
+    void hasMinListingTenureUsesEarliestBarWhenListDateMissing() {
+        LocalDate trade = LocalDate.of(2024, 6, 1);
+        List<MarketData> bars = new java.util.ArrayList<>();
+        for (int i = 0; i < 80; i++) {
+            MarketData bar = new MarketData();
+            bar.setTradeDate(trade.minusDays(79 - i));
+            bars.add(bar);
+        }
+        assertThat(ScoringUtils.hasMinListingTenure(null, trade, 60, bars)).isTrue();
+        List<MarketData> shortHistory = new java.util.ArrayList<>();
+        for (int i = 0; i < 31; i++) {
+            MarketData bar = new MarketData();
+            bar.setTradeDate(trade.minusDays(30 - i));
+            shortHistory.add(bar);
+        }
+        assertThat(ScoringUtils.hasMinListingTenure(null, trade, 60, shortHistory)).isFalse();
+    }
+
+    @Test
+    void tradableForScoringRejectsSuspendedStatus() {
+        MarketData normal = new MarketData();
+        normal.setVolume(1000L);
+        normal.setClosePrice(java.math.BigDecimal.TEN);
+        assertThat(ScoringUtils.isTradableForScoring(
+                List.of(normal), "000001", "SZSE", "测试股份", 0, true, true, true)).isFalse();
+        assertThat(ScoringUtils.isTradableForScoring(
+                List.of(normal), "000001", "SZSE", "测试股份", 1, true, true, true)).isTrue();
+    }
+
+    private static List<MarketData> sampleAmountBars(int count, double amount) {
+        List<MarketData> bars = new java.util.ArrayList<>(count);
+        LocalDate start = LocalDate.of(2024, 1, 1);
+        for (int i = 0; i < count; i++) {
+            MarketData bar = new MarketData();
+            bar.setTradeDate(start.plusDays(i));
+            bar.setAmount(java.math.BigDecimal.valueOf(amount));
+            bars.add(bar);
+        }
+        return bars;
+    }
 }

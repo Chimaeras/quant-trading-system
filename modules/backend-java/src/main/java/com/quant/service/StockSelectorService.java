@@ -128,6 +128,25 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
             }
         }
 
+        Map<String, Integer> statusByKey = new HashMap<>();
+        for (StockInfo info : stockInfoRepository.findAll()) {
+            if (info.getStockCode() == null || info.getExchangeType() == null) {
+                continue;
+            }
+            statusByKey.put(info.getStockCode() + "|" + info.getExchangeType(), info.getStatus());
+        }
+        pairs = pairs.stream()
+                .filter(p -> p != null && p.length >= 2
+                        && ScoringUtils.isActiveStockStatus(
+                        statusByKey.get(String.valueOf(p[0]) + "|" + String.valueOf(p[1]))))
+                .toList();
+        if (pairs.isEmpty()) {
+            return Map.of(
+                    "message", "过滤非正常交易状态后无可用标的",
+                    "trade_date", tradeDate.toString(),
+                    "items", List.of());
+        }
+
         Map<String, List<MarketData>> bulkByKey = null;
         if (bulkFetch && !pairs.isEmpty()) {
             List<MarketData> allBars = marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(rangeStart, tradeDate);
@@ -216,6 +235,7 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         CompletionService<Optional<CandidateScore>> cs = new ExecutorCompletionService<>(pool);
         final Map<String, List<MarketData>> bulkRef = bulkByKey;
         final String horizonProfileFinal = horizonProfile;
+        final Map<String, Integer> statusRef = statusByKey;
         int submitted = 0;
         for (Object[] pair : pairs) {
             if (pair == null || pair.length < 2) continue;
@@ -236,7 +256,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                         k -> nameCache.computeIfAbsent(k, kk -> getStockName(stockCode, exchangeType)),
                         excludeST,
                         horizonProfileFinal,
-                        tradeDate);
+                        tradeDate,
+                        statusRef.get(stockCode + "|" + exchangeType));
             });
         }
 
@@ -555,6 +576,16 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
     ) {
         Map<String, StockFinancialSnapshot> finByKey =
                 financialSnapshotLoader.loadLatestByStockKey(tradeDate);
+        Map<String, Integer> statusByKey = new HashMap<>();
+        Map<String, LocalDate> listDateByKey = new HashMap<>();
+        for (StockInfo info : stockInfoRepository.findAll()) {
+            if (info.getStockCode() == null || info.getExchangeType() == null) {
+                continue;
+            }
+            String infoKey = info.getStockCode() + "|" + info.getExchangeType();
+            statusByKey.put(infoKey, info.getStatus());
+            listDateByKey.put(infoKey, info.getListDate());
+        }
         List<CodexShortCycleScoringEngine.StockBarContext> contexts = new ArrayList<>(pairs.size());
         for (Object[] pair : pairs) {
             if (pair == null || pair.length < 2) {
@@ -578,7 +609,9 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                     industryCache.getOrDefault(key, ""),
                     bars,
                     finByKey.get(key),
-                    tradeDate
+                    tradeDate,
+                    listDateByKey.get(key),
+                    statusByKey.get(key)
             ));
         }
 

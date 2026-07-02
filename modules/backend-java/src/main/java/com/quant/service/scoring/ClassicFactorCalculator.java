@@ -47,7 +47,7 @@ public class ClassicFactorCalculator {
             boolean excludeST
     ) {
         return calculate(stockCode, exchangeType, bars, minAvgAmount, minTrendScore,
-                nameResolver, excludeST, HORIZON_MEDIUM, null);
+                nameResolver, excludeST, HORIZON_MEDIUM, null, null);
     }
 
     public Optional<CandidateScore> calculate(
@@ -61,7 +61,7 @@ public class ClassicFactorCalculator {
             String horizonProfile
     ) {
         return calculate(stockCode, exchangeType, bars, minAvgAmount, minTrendScore,
-                nameResolver, excludeST, horizonProfile, null);
+                nameResolver, excludeST, horizonProfile, null, null);
     }
 
     public Optional<CandidateScore> calculate(
@@ -74,6 +74,22 @@ public class ClassicFactorCalculator {
             boolean excludeST,
             String horizonProfile,
             LocalDate tradeDate
+    ) {
+        return calculate(stockCode, exchangeType, bars, minAvgAmount, minTrendScore,
+                nameResolver, excludeST, horizonProfile, tradeDate, null);
+    }
+
+    public Optional<CandidateScore> calculate(
+            String stockCode,
+            String exchangeType,
+            List<MarketData> bars,
+            double minAvgAmount,
+            double minTrendScore,
+            Function<String, String> nameResolver,
+            boolean excludeST,
+            String horizonProfile,
+            LocalDate tradeDate,
+            Integer stockStatus
     ) {
         if (bars == null || bars.size() < MIN_BARS) {
             return Optional.empty();
@@ -95,7 +111,7 @@ public class ClassicFactorCalculator {
 
         String cacheKey = stockCode + ":" + exchangeType;
         String name = nameResolver != null ? nameResolver.apply(cacheKey) : stockCode;
-        if (!ScoringUtils.isTradableForScoring(bars, stockCode, exchangeType, name, excludeST, true, true)) {
+        if (!ScoringUtils.isTradableForScoring(bars, stockCode, exchangeType, name, stockStatus, excludeST, true, true)) {
             return Optional.empty();
         }
 

@@ -107,6 +107,7 @@ public class MultiDimScoringService {
         boolean bulkFetch = parseBool(req.get("bulkFetch"), true);
         boolean includeItems = parseBool(req.get("includeItems"), false);
         boolean excludeST = parseBool(req.get("excludeST"), true);
+        double minAvgAmount = ScoringUtils.parseDouble(req.get("minAvgAmount"), 30_000_000d, 0d, 1_000_000_000_000d);
         int minListingDays = ScoringUtils.parseInt(req.get("minListingDays"), 60, 0, 3650);
 
         if (!bulkFetch) {
@@ -158,7 +159,7 @@ public class MultiDimScoringService {
                 String stockCode = p > 0 ? key.substring(0, p) : key;
                 String exchangeType = p > 0 ? key.substring(p + 1) : "";
                 scoreAndAdd(key, stockCode, exchangeType, tradeDate, grouped.getOrDefault(key, List.of()),
-                        mdToday.get(key), infoByKey.get(key), indAvgs, sim, rows, skipped, excludeST, minListingDays);
+                        mdToday.get(key), infoByKey.get(key), indAvgs, sim, rows, skipped, excludeST, minListingDays, minAvgAmount);
             }
         } else {
             ExecutorService pool = Executors.newFixedThreadPool(threads, r -> {
@@ -170,13 +171,14 @@ public class MultiDimScoringService {
             CompletionService<Void> cs = new ExecutorCompletionService<>(pool);
             final boolean finalExcludeST = excludeST;
             final int finalMinListingDays = minListingDays;
+            final double finalMinAvgAmount = minAvgAmount;
             for (String key : keys) {
                 cs.submit(() -> {
                     int p = key.indexOf('|');
                     String stockCode = p > 0 ? key.substring(0, p) : key;
                     String exchangeType = p > 0 ? key.substring(p + 1) : "";
                     scoreAndAdd(key, stockCode, exchangeType, tradeDate, grouped.getOrDefault(key, List.of()),
-                            mdToday.get(key), infoByKey.get(key), indAvgs, sim, rows, skipped, finalExcludeST, finalMinListingDays);
+                            mdToday.get(key), infoByKey.get(key), indAvgs, sim, rows, skipped, finalExcludeST, finalMinListingDays, finalMinAvgAmount);
                     return null;
                 });
             }
@@ -205,6 +207,7 @@ public class MultiDimScoringService {
         res.put("skipped", skipped.get());
         res.put("include_items", includeItems);
         res.put("exclude_st", excludeST);
+        res.put("min_avg_amount", minAvgAmount);
         if (includeItems) {
             List<Map<String, Object>> items = new ArrayList<>();
             int i = 0;
@@ -231,7 +234,8 @@ public class MultiDimScoringService {
             List<StockMultiDimScore> rows,
             AtomicInteger skipped,
             boolean excludeST,
-            int minListingDays) {
+            int minListingDays,
+            double minAvgAmount) {
 
         if (bars == null || bars.size() < MIN_BARS) {
             skipped.incrementAndGet();
@@ -248,7 +252,12 @@ public class MultiDimScoringService {
             skipped.incrementAndGet();
             return;
         }
-        if (!ScoringUtils.isTradableForScoring(bars, stockCode, exchangeType, stockName, excludeST, true, true)) {
+        if (!ScoringUtils.isTradableForScoring(bars, stockCode, exchangeType, stockName,
+                info != null ? info.getStatus() : null, excludeST, true, true)) {
+            skipped.incrementAndGet();
+            return;
+        }
+        if (!ScoringUtils.passesMinAvgAmount(bars, minAvgAmount)) {
             skipped.incrementAndGet();
             return;
         }

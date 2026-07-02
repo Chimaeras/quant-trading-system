@@ -9,6 +9,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -234,6 +235,51 @@ public final class ScoringUtils {
     /** 当 minAvgAmount &gt; 0 时，要求 avgAmount20 不低于该阈值。 */
     public static boolean passesMinAvgAmount(List<MarketData> bars, double minAvgAmount) {
         return minAvgAmount <= 0 || avgAmount20(bars) >= minAvgAmount;
+    }
+
+    /**
+     * bulkFetch=false 时仅用窗口内最早交易日代理 list_date，供 pair 级上市时长预过滤。
+     */
+    public static List<MarketData> listingTenureBars(List<MarketData> bulkBars, LocalDate earliestInWindow) {
+        if (bulkBars != null && !bulkBars.isEmpty()) {
+            return bulkBars;
+        }
+        if (earliestInWindow == null) {
+            return null;
+        }
+        MarketData proxy = new MarketData();
+        proxy.setTradeDate(earliestInWindow);
+        return List.of(proxy);
+    }
+
+    public static Map<String, LocalDate> mapEarliestTradeDatesByKey(List<Object[]> rows) {
+        Map<String, LocalDate> out = new HashMap<>();
+        if (rows == null) {
+            return out;
+        }
+        for (Object[] row : rows) {
+            if (row == null || row.length < 3 || row[0] == null || row[1] == null || row[2] == null) {
+                continue;
+            }
+            LocalDate d = coerceLocalDate(row[2]);
+            if (d != null) {
+                out.put(String.valueOf(row[0]) + "|" + String.valueOf(row[1]), d);
+            }
+        }
+        return out;
+    }
+
+    private static LocalDate coerceLocalDate(Object value) {
+        if (value instanceof LocalDate localDate) {
+            return localDate;
+        }
+        if (value instanceof java.sql.Date sqlDate) {
+            return sqlDate.toLocalDate();
+        }
+        if (value instanceof java.util.Date utilDate) {
+            return new java.sql.Date(utilDate.getTime()).toLocalDate();
+        }
+        return null;
     }
 
     /**

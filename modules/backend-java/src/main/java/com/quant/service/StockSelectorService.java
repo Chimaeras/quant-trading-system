@@ -125,6 +125,7 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         }
 
         Map<String, List<MarketData>> bulkByKey = null;
+        Map<String, LocalDate> earliestBarDateByKey = Map.of();
         if (bulkFetch && !pairs.isEmpty()) {
             List<MarketData> allBars = marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(rangeStart, tradeDate);
             bulkByKey = new HashMap<>(Math.max(16, pairs.size() * 2));
@@ -132,18 +133,24 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                 if (m.getStockCode() == null || m.getExchangeType() == null) continue;
                 bulkByKey.computeIfAbsent(m.getStockCode() + "|" + m.getExchangeType(), k -> new ArrayList<>()).add(m);
             }
+        } else if (minListingDays > 0 && !pairs.isEmpty()) {
+            earliestBarDateByKey = ScoringUtils.mapEarliestTradeDatesByKey(
+                    marketDataRepository.findEarliestTradeDatesInRange(rangeStart, tradeDate));
         }
 
         if (minListingDays > 0) {
             final int listingDaysThreshold = minListingDays;
             final Map<String, List<MarketData>> bulkRefForListing = bulkByKey;
+            final Map<String, LocalDate> earliestRefForListing = earliestBarDateByKey;
             pairs = pairs.stream()
                     .filter(p -> {
                         if (p == null || p.length < 2) {
                             return false;
                         }
                         String key = String.valueOf(p[0]) + "|" + String.valueOf(p[1]);
-                        List<MarketData> bars = bulkRefForListing != null ? bulkRefForListing.get(key) : null;
+                        List<MarketData> bars = ScoringUtils.listingTenureBars(
+                                bulkRefForListing != null ? bulkRefForListing.get(key) : null,
+                                earliestRefForListing.get(key));
                         return ScoringUtils.hasMinListingTenure(
                                 listDateByKey.get(key), tradeDate, listingDaysThreshold, bars);
                     })

@@ -161,6 +161,34 @@ class ScoringUtilsTest {
     }
 
     @Test
+    void listingTenureBarsFallsBackWhenBulkBarsEmpty() {
+        LocalDate earliest = LocalDate.of(2024, 1, 1);
+        List<MarketData> out = ScoringUtils.listingTenureBars(List.of(), earliest);
+        assertThat(out).hasSize(1);
+        assertThat(out.get(0).getTradeDate()).isEqualTo(earliest);
+    }
+
+    @Test
+    void listingTenureBarsUsesEarliestWhenBulkBarsMissing() {
+        LocalDate trade = LocalDate.of(2024, 6, 1);
+        LocalDate earliest = trade.minusDays(90);
+        List<MarketData> proxy = ScoringUtils.listingTenureBars(null, earliest);
+        assertThat(ScoringUtils.hasMinListingTenure(null, trade, 60, proxy)).isTrue();
+        assertThat(ScoringUtils.hasMinListingTenure(null, trade, 60, null)).isTrue();
+    }
+
+    @Test
+    void mapEarliestTradeDatesByKeyBuildsStockKeyIndex() {
+        List<Object[]> rows = List.of(
+                new Object[]{"000001", "SZSE", LocalDate.of(2010, 1, 1)},
+                new Object[]{"000002", "SZSE", java.sql.Date.valueOf(LocalDate.of(2012, 3, 1))}
+        );
+        Map<String, LocalDate> map = ScoringUtils.mapEarliestTradeDatesByKey(rows);
+        assertThat(map.get("000001|SZSE")).isEqualTo(LocalDate.of(2010, 1, 1));
+        assertThat(map.get("000002|SZSE")).isEqualTo(LocalDate.of(2012, 3, 1));
+    }
+
+    @Test
     void hasMinListingTenureUsesEarliestBarWhenListDateMissing() {
         LocalDate trade = LocalDate.of(2024, 6, 1);
         List<MarketData> bars = new java.util.ArrayList<>();

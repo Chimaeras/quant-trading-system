@@ -70,4 +70,15 @@ public interface MarketDataRepository extends JpaRepository<MarketData, Long> {
             GROUP BY m.stock_code, m.exchange_type
             """, nativeQuery = true)
     List<Object[]> findEarliestTradeDatesForMissingListDate();
+
+    /** 区间内各证券最早交易日（用于 bulkFetch=false 时上市时长 pair 预过滤）。 */
+    @Query(value = """
+            SELECT m.stock_code, m.exchange_type, MIN(m.trade_date)
+            FROM market_data m
+            WHERE m.trade_date BETWEEN :startDate AND :endDate
+            GROUP BY m.stock_code, m.exchange_type
+            """, nativeQuery = true)
+    List<Object[]> findEarliestTradeDatesInRange(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
 }

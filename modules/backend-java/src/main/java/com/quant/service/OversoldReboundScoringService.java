@@ -456,6 +456,9 @@ public class OversoldReboundScoringService {
     private ScoreResult scoreOne(String stockCode, String exchangeType, LocalDate tradeDate, List<MarketData> bars,
                                  Map<String, String> nameCache, boolean excludeST) {
         if (bars == null || bars.size() < ScoringConstants.MIN_BARS_OVERSOLD) return null;
+        if (!ScoringUtils.isSignalBarOnTradeDate(bars, tradeDate)) {
+            return null;
+        }
 
         int barCount = bars.size();
         double[] close = new double[barCount];

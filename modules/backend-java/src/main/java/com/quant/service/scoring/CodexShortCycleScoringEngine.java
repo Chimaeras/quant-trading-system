@@ -174,7 +174,7 @@ public class CodexShortCycleScoringEngine {
             double s5 = 0;
             double s20 = 0;
             for (RawFeatures rf : group) {
-                double w = Math.exp(rf.logMarketCap);
+                double w = gMarketCapWeight(rf);
                 wSum += w;
                 s1 += w * rf.er1;
                 s5 += w * rf.er5;
@@ -217,8 +217,36 @@ public class CodexShortCycleScoringEngine {
         List<String> industries = raws.stream()
                 .map(r -> r.industry() != null && !r.industry().isBlank() ? r.industry() : "_none_")
                 .toList();
-        List<Double> logMv = raws.stream().map(RawFeatures::logMarketCap).toList();
+        List<Double> reliable = new ArrayList<>();
+        for (RawFeatures r : raws) {
+            if (CrossSectionNeutralizer.isReliableLogMvSource(r.logMvSource()) && Double.isFinite(r.logMarketCap())) {
+                reliable.add(r.logMarketCap());
+            }
+        }
+        double regressionLogMvMedian = medianLogMv(reliable.isEmpty()
+                ? raws.stream().map(RawFeatures::logMarketCap).toList()
+                : reliable);
+        List<Double> logMv = new ArrayList<>(raws.size());
+        for (RawFeatures r : raws) {
+            logMv.add(CrossSectionNeutralizer.isReliableLogMvSource(r.logMvSource())
+                    ? r.logMarketCap()
+                    : regressionLogMvMedian);
+        }
         return CrossSectionNeutralizer.buildContext(industries, logMv);
+    }
+
+    private static double medianLogMv(List<Double> values) {
+        List<Double> sorted = new ArrayList<>();
+        for (Double v : values) {
+            if (v != null && Double.isFinite(v)) {
+                sorted.add(v);
+            }
+        }
+        sorted.sort(Double::compare);
+        if (sorted.isEmpty()) {
+            return Math.log(1e8);
+        }
+        return sorted.get(sorted.size() / 2);
     }
 
     static List<RawFeatures> imputeFinancialByIndustry(List<RawFeatures> raws) {
@@ -278,9 +306,6 @@ public class CodexShortCycleScoringEngine {
         if (Double.isNaN(value)) {
             return Math.abs(industryMedian) > 1e-9 ? industryMedian : fallback;
         }
-        if (Math.abs(value) < 1e-9 && Math.abs(industryMedian) > 1e-9) {
-            return industryMedian;
-        }
         return value;
     }
 
@@ -337,6 +362,10 @@ public class CodexShortCycleScoringEngine {
         List<Double> zIlliq = zByFactor.get("illiq20");
         List<Double> zGap = zByFactor.get("maxGap20");
 
+        long weakLogMvCount = raws.stream()
+                .filter(r -> !CrossSectionNeutralizer.isReliableLogMvSource(r.logMvSource()))
+                .count();
+
         List<ScoredRow> rows = new ArrayList<>(raws.size());
         for (int i = 0; i < raws.size(); i++) {
             double t = 0.28 * zEr20m5.get(i) + 0.20 * zEr5.get(i) - 0.15 * zEr1.get(i)
@@ -361,6 +390,9 @@ public class CodexShortCycleScoringEngine {
             bd.put("G_weighting", gWeighting);
             bd.put("G_vol_weighting", gWeighting);
             bd.put("log_mv_reliable", CrossSectionNeutralizer.isReliableLogMvSource(raws.get(i).logMvSource()));
+            if (weakLogMvCount > 0) {
+                bd.put("regression_log_mv_imputed_count", weakLogMvCount);
+            }
             bd.put("T", ScoringUtils.round4(t));
             bd.put("F", ScoringUtils.round4(f));
             bd.put("R", ScoringUtils.round4(r));
@@ -492,14 +524,15 @@ public class CodexShortCycleScoringEngine {
                 pb = fin.getPbRatio().doubleValue();
             }
         }
-        double roe = fin != null && fin.getRoe() != null ? fin.getRoe().doubleValue() : 0;
-        double revenueYoY = fin != null && fin.getRevenueYoY() != null ? fin.getRevenueYoY().doubleValue() : 0;
+        double roe = fin != null && fin.getRoe() != null ? fin.getRoe().doubleValue() : MISSING_FINANCIAL;
+        double revenueYoY = fin != null && fin.getRevenueYoY() != null
+                ? fin.getRevenueYoY().doubleValue() : MISSING_FINANCIAL;
         double debtRatio = fin != null && fin.getDebtRatio() != null
                 ? fin.getDebtRatio().doubleValue() : MISSING_FINANCIAL;
         double currentRatio = fin != null && fin.getCurrentRatio() != null
                 ? fin.getCurrentRatio().doubleValue() : MISSING_FINANCIAL;
-        double earningsYield = pe != null && pe > 0 ? 1.0 / pe : 0;
-        double bookToMarket = pb != null && pb > 0 ? 1.0 / pb : 0;
+        double earningsYield = pe != null && pe > 0 ? 1.0 / pe : MISSING_FINANCIAL;
+        double bookToMarket = pb != null && pb > 0 ? 1.0 / pb : MISSING_FINANCIAL;
 
         double vol20 = annualizedVol(close, 20);
         double downVol20 = downVol(close, 20);

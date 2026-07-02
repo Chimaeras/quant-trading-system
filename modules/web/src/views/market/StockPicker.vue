@@ -503,6 +503,11 @@ const REASON_LABELS: Record<string, string> = {
   neutralization_mode: '中性化模式',
   financial_imputed_count: '财报填充项',
   log_mv_source: 'ln(MV)来源',
+  log_mv_reliable: 'ln(MV)可靠',
+  min_codex_score_warning: 'Codex阈值提示',
+  pass_ma_trend: '均线趋势闸',
+  pass_ret20: '20日收益闸',
+  regression_log_mv_imputed_count: '回归ln(MV)插补数',
   score_percentile: '百分位分',
   preprocessing: '预处理管道'
 }

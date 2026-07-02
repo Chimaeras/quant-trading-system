@@ -107,6 +107,34 @@ class CodexShortCycleScoringEngineTest {
     }
 
     @Test
+    void imputeFinancialByIndustryFillsMissingRoeWithIndustryMedian() {
+        List<CodexShortCycleScoringEngine.RawFeatures> raws = List.of(
+                raw("000001", "SZSE", "A", "银行", 0, 0, 0, 0, 0, 0,
+                        Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN,
+                        0, 0, 0, 0, 1, 0, 22, "test"),
+                raw("000002", "SZSE", "B", "银行", 0, 0, 0, 0, 0, 0,
+                        12, 8, 35, 1.8, 0.05, 0.3, 0, 0, 0, 0, 1, 0, 22, "test")
+        );
+        List<CodexShortCycleScoringEngine.RawFeatures> imputed =
+                CodexShortCycleScoringEngine.imputeFinancialByIndustry(raws);
+        assertThat(imputed.get(0).roe()).isEqualTo(12);
+        assertThat(imputed.get(0).revenueYoY()).isEqualTo(8);
+    }
+
+    @Test
+    void imputeFinancialPreservesRealZeroRoe() {
+        List<CodexShortCycleScoringEngine.RawFeatures> raws = List.of(
+                raw("000001", "SZSE", "A", "银行", 0, 0, 0, 0, 0, 0,
+                        0, 5, 40, 1.5, 0.04, 0.2, 0, 0, 0, 0, 1, 0, 22, "test"),
+                raw("000002", "SZSE", "B", "银行", 0, 0, 0, 0, 0, 0,
+                        15, 10, 35, 1.8, 0.05, 0.3, 0, 0, 0, 0, 1, 0, 22, "test")
+        );
+        List<CodexShortCycleScoringEngine.RawFeatures> imputed =
+                CodexShortCycleScoringEngine.imputeFinancialByIndustry(raws);
+        assertThat(imputed.get(0).roe()).isEqualTo(0);
+    }
+
+    @Test
     void imputeFinancialByIndustryFillsMissingDebtWithIndustryMedian() {
         List<CodexShortCycleScoringEngine.RawFeatures> raws = List.of(
                 raw("000001", "SZSE", "A", "银行", 0, 0, 0, 0, 0, 0, 0.1, 0,
@@ -167,6 +195,21 @@ class CodexShortCycleScoringEngineTest {
         );
         double g = CodexShortCycleScoringEngine.estimateMarketState(raws);
         assertThat(g).isFinite();
+    }
+
+    @Test
+    void buildNeutralizationContextReplacesWeakLogMvWithReliableMedian() {
+        List<CodexShortCycleScoringEngine.RawFeatures> raws = List.of(
+                raw("000001", "SZSE", "A", "银行", 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 24.0,
+                        CrossSectionNeutralizer.LOG_MV_FROM_TURNOVER),
+                raw("000002", "SZSE", "B", "银行", 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 17.0,
+                        CrossSectionNeutralizer.LOG_MV_FROM_AVG_AMOUNT)
+        );
+        CrossSectionNeutralizer.Context ctx = CodexShortCycleScoringEngine.buildNeutralizationContext(raws);
+        assertThat(ctx.logMv().get(0)).isEqualTo(24.0);
+        assertThat(ctx.logMv().get(1)).isEqualTo(24.0);
     }
 
     @Test

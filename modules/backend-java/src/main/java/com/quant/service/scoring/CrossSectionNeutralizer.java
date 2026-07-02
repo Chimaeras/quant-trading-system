@@ -46,6 +46,11 @@ public final class CrossSectionNeutralizer {
     public static final String LOG_MV_FROM_NOTIONAL = "close_x_volume";
     public static final String LOG_MV_FROM_AVG_AMOUNT = "avg_amount20_fallback";
 
+    /** 仅 turnover+amount 推算的 ln(MV) 视为可靠；其余代理仅用于回归自变量，不宜做 G 市值加权。 */
+    public static boolean isReliableLogMvSource(String source) {
+        return LOG_MV_FROM_TURNOVER.equals(source);
+    }
+
     public static Context buildContext(List<String> industries, List<Double> logMarketCap) {
         int n = industries != null ? industries.size() : 0;
         if (n == 0) {

@@ -57,7 +57,8 @@ public class ProgressiveResultWriter {
     }
 
     /**
-     * 全量打分结束后再写入 TopN：先清空再批量写入，避免运行过程中库内出现非 Top 的噪声明细。
+     * 写入通过质量闸的全截面候选（按得分排序 rankNo），供打分回测 Rank IC 使用；
+     * 前端/API 展示仍按父结果 {@code topN} 截取。
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void replaceResultItems(String resultId, List<SelectorResultItem> items) {

@@ -235,7 +235,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                         stockCode, exchangeType, bars, minAvgAmount, minTrendScore,
                         k -> nameCache.computeIfAbsent(k, kk -> getStockName(stockCode, exchangeType)),
                         excludeST,
-                        horizonProfileFinal);
+                        horizonProfileFinal,
+                        tradeDate);
             });
         }
 
@@ -290,7 +291,6 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         }
         FactorCollinearityChecker.logVifReport(candidates);
         candidates.sort((a, b) -> Double.compare(b.getFinalScore(), a.getFinalScore()));
-        List<CandidateScore> selected = candidates.stream().limit(topN).toList();
 
         String finalResultId = progressiveResultId != null
                 ? progressiveResultId
@@ -312,21 +312,22 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                 minListingDays,
                 horizonProfile
         );
-        List<SelectorResultItem> topItems = new ArrayList<>(selected.size());
+        List<SelectorResultItem> persistedItems = new ArrayList<>(candidates.size());
         int rk = 1;
-        for (CandidateScore c : selected) {
-            topItems.add(c.toSelectorResultItem(finalResultId, rk++, "CLASSIC_SELECTOR"));
+        for (CandidateScore c : candidates) {
+            persistedItems.add(c.toSelectorResultItem(finalResultId, rk++, "CLASSIC_SELECTOR"));
         }
         if (progressiveResultId != null) {
-            progressiveResultWriter.replaceResultItems(finalResultId, topItems);
+            progressiveResultWriter.replaceResultItems(finalResultId, persistedItems);
         } else {
             selectorResultItemRepository.deleteByResultId(finalResultId);
-            for (SelectorResultItem item : topItems) {
+            for (SelectorResultItem item : persistedItems) {
                 selectorResultItemRepository.save(item);
             }
         }
+        enrichFactorSnapshot(finalResultId, persistedItems.size());
         int totalTargets = targetsSize(pairs);
-        int finalScoredCount = scoredCount;
+        int finalScoredCount = candidates.size();
         progressiveResultWriter.finishResult(
                 finalResultId,
                 "SUCCESS",
@@ -336,6 +337,18 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                 Math.max(0, totalTargets - finalScoredCount)
         );
         return getResultById(finalResultId);
+    }
+
+    private void enrichFactorSnapshot(String resultId, int crossSectionCount) {
+        selectorResultRepository.findByResultId(resultId).ifPresent(result -> {
+            Map<String, Object> snap = result.getFactorSnapshot() != null
+                    ? new LinkedHashMap<>(result.getFactorSnapshot())
+                    : new LinkedHashMap<>();
+            snap.put("cross_section_count", crossSectionCount);
+            snap.put("display_top_n", result.getTopN());
+            result.setFactorSnapshot(snap);
+            selectorResultRepository.save(result);
+        });
     }
 
     private int targetsSize(List<Object[]> pairs) {
@@ -363,7 +376,11 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
     }
 
     private Map<String, Object> toResultMap(SelectorResult r) {
-        List<SelectorResultItem> items = selectorResultItemRepository.findByResultIdOrderByRankNoAsc(r.getResultId());
+        List<SelectorResultItem> allItems = selectorResultItemRepository.findByResultIdOrderByRankNoAsc(r.getResultId());
+        int displayTopN = r.getTopN() != null && r.getTopN() > 0 ? r.getTopN() : allItems.size();
+        List<SelectorResultItem> items = allItems.size() <= displayTopN
+                ? allItems
+                : allItems.subList(0, displayTopN);
         List<Map<String, Object>> outItems = new ArrayList<>();
         String fv = r.getFactorVersion() != null ? r.getFactorVersion() : "";
         for (SelectorResultItem i : items) {
@@ -400,6 +417,7 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         out.put("trade_date", r.getTradeDate().toString());
         out.put("lookback_days", r.getLookbackDays());
         out.put("top_n", r.getTopN());
+        out.put("cross_section_count", allItems.size());
         out.put("min_avg_amount", r.getMinAvgAmount());
         out.put("min_trend_score", r.getMinTrendScore());
         out.put("template_id", r.getTemplateId());
@@ -559,7 +577,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                     nameCache.getOrDefault(key, getStockName(stockCode, exchangeType)),
                     industryCache.getOrDefault(key, ""),
                     bars,
-                    finByKey.get(key)
+                    finByKey.get(key),
+                    tradeDate
             ));
         }
 
@@ -586,9 +605,9 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         }
 
         List<CandidateScore> candidates = codexShortCycleScoringEngine.scoreUniverse(
-                contexts, minAvgAmount, excludeST, minListingDays, minCodexScore);
+                contexts, minAvgAmount, excludeST, minListingDays, minCodexScore, minTrendScore);
         FactorCollinearityChecker.logVifReport(candidates);
-        List<CandidateScore> selected = candidates.stream().limit(topN).toList();
+        candidates.sort((a, b) -> Double.compare(b.getFinalScore(), a.getFinalScore()));
 
         String finalResultId = progressiveResultId != null
                 ? progressiveResultId
@@ -610,19 +629,20 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                 minListingDays,
                 horizonProfile
         );
-        List<SelectorResultItem> topItems = new ArrayList<>(selected.size());
+        List<SelectorResultItem> persistedItems = new ArrayList<>(candidates.size());
         int rk = 1;
-        for (CandidateScore c : selected) {
-            topItems.add(c.toSelectorResultItem(finalResultId, rk++, "CLASSIC_SELECTOR"));
+        for (CandidateScore c : candidates) {
+            persistedItems.add(c.toSelectorResultItem(finalResultId, rk++, "CLASSIC_SELECTOR"));
         }
         if (progressiveResultId != null) {
-            progressiveResultWriter.replaceResultItems(finalResultId, topItems);
+            progressiveResultWriter.replaceResultItems(finalResultId, persistedItems);
         } else {
             selectorResultItemRepository.deleteByResultId(finalResultId);
-            for (SelectorResultItem item : topItems) {
+            for (SelectorResultItem item : persistedItems) {
                 selectorResultItemRepository.save(item);
             }
         }
+        enrichFactorSnapshot(finalResultId, persistedItems.size());
         int totalTargets = targetsSize(pairs);
         int scoredCount = candidates.size();
         progressiveResultWriter.finishResult(

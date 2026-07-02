@@ -25,6 +25,18 @@ class ScoringUtilsTest {
     }
 
     @Test
+    void isSignalBarOnTradeDateRejectsStaleLastBar() {
+        MarketData stale = new MarketData();
+        stale.setTradeDate(LocalDate.of(2024, 3, 1));
+        stale.setClosePrice(java.math.BigDecimal.TEN);
+        assertThat(ScoringUtils.isSignalBarOnTradeDate(List.of(stale), LocalDate.of(2024, 6, 1)))
+                .isFalse();
+        assertThat(ScoringUtils.isSignalBarOnTradeDate(List.of(stale), LocalDate.of(2024, 3, 1)))
+                .isTrue();
+        assertThat(ScoringUtils.isSignalBarOnTradeDate(List.of(stale), null)).isTrue();
+    }
+
+    @Test
     void tradableForScoringRejectsZeroVolumeAndStWhenEnabled() {
         MarketData zeroVol = new MarketData();
         zeroVol.setVolume(0L);

@@ -48,6 +48,39 @@ class CodexShortCycleScoringEngineTest {
     }
 
     @Test
+    void scoreUniverseRespectsMinTrendScoreThreshold() {
+        List<CodexShortCycleScoringEngine.StockBarContext> contexts = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            String code = String.format("%06d", i + 1);
+            List<MarketData> bars = sampleBars(80, 10 + i * 0.5, 50_000_000, 0.02 + i * 0.001);
+            contexts.add(new CodexShortCycleScoringEngine.StockBarContext(
+                    code, "SZSE", "测试" + i, "银行", bars, null,
+                    bars.get(bars.size() - 1).getTradeDate()));
+        }
+        List<CandidateScore> relaxed = engine.scoreUniverse(contexts, 1_000_000, true, 60, 0, 0);
+        List<CandidateScore> strict = engine.scoreUniverse(contexts, 1_000_000, true, 60, 0, 99);
+        assertThat(relaxed.size()).isGreaterThanOrEqualTo(strict.size());
+        for (CandidateScore c : strict) {
+            assertThat(c.getTrendScore()).isGreaterThanOrEqualTo(99);
+            assertThat(c.isPassMinTrendScore()).isTrue();
+            assertThat(c.getReasons()).containsEntry("pass_min_trend_score", true);
+        }
+    }
+
+    @Test
+    void toCandidateReflectsActualPassFlags() {
+        List<CodexShortCycleScoringEngine.StockBarContext> contexts = List.of(
+                context("000001", "SZSE", "测试", sampleBars(80, 10, 50_000_000, 0.02))
+        );
+        List<CandidateScore> scored = engine.scoreUniverse(contexts, 1_000_000, true, 60, 0, 0);
+        assertThat(scored).isNotEmpty();
+        CandidateScore c = scored.get(0);
+        assertThat(c.getReasons()).containsKeys(
+                "pass_min_avg_amount", "pass_min_trend_score", "pass_ma_trend", "pass_ret20");
+        assertThat(c.isPassMinAvgAmount()).isTrue();
+    }
+
+    @Test
     void scoreUniverseRespectsMinCodexScoreThreshold() {
         List<CodexShortCycleScoringEngine.StockBarContext> contexts = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
@@ -55,7 +88,9 @@ class CodexShortCycleScoringEngineTest {
             contexts.add(new CodexShortCycleScoringEngine.StockBarContext(
                     code, "SZSE", "测试" + i, "银行",
                     sampleBars(80, 10 + i * 0.5, 50_000_000, 0.02 + i * 0.001),
-                    null));
+                    null,
+                    sampleBars(80, 10 + i * 0.5, 50_000_000, 0.02 + i * 0.001)
+                            .get(79).getTradeDate()));
         }
         List<CandidateScore> strict = engine.scoreUniverse(contexts, 1_000_000, true, 60, 99);
         List<CandidateScore> relaxed = engine.scoreUniverse(contexts, 1_000_000, true, 60, 0);
@@ -72,34 +107,63 @@ class CodexShortCycleScoringEngineTest {
     }
 
     @Test
-    void imputeFinancialByIndustryFillsPlaceholderDebt() {
+    void imputeFinancialByIndustryFillsMissingDebtWithIndustryMedian() {
+        List<CodexShortCycleScoringEngine.RawFeatures> raws = List.of(
+                raw("000001", "SZSE", "A", "银行", 0, 0, 0, 0, 0, 0, 0.1, 0,
+                        Double.NaN, 1.5, 0, 0, 0, 0, 0, 0, 1),
+                raw("000002", "SZSE", "B", "银行", 0, 0, 0, 0, 0, 0, 0.2, 0, 35, 1.8, 0, 0, 0, 0, 0, 0, 1)
+        );
+        List<CodexShortCycleScoringEngine.RawFeatures> imputed = CodexShortCycleScoringEngine.imputeFinancialByIndustry(raws);
+        assertThat(imputed.get(0).debtRatio()).isEqualTo(35);
+    }
+
+    @Test
+    void imputeFinancialByIndustryPreservesRealDebtRatio50() {
         List<CodexShortCycleScoringEngine.RawFeatures> raws = List.of(
                 raw("000001", "SZSE", "A", "银行", 0, 0, 0, 0, 0, 0, 0.1, 0, 50, 1.5, 0, 0, 0, 0, 0, 0, 1),
                 raw("000002", "SZSE", "B", "银行", 0, 0, 0, 0, 0, 0, 0.2, 0, 35, 1.8, 0, 0, 0, 0, 0, 0, 1)
         );
         List<CodexShortCycleScoringEngine.RawFeatures> imputed = CodexShortCycleScoringEngine.imputeFinancialByIndustry(raws);
-        assertThat(imputed.get(0).debtRatio()).isEqualTo(42.5);
+        assertThat(imputed.get(0).debtRatio()).isEqualTo(50);
     }
 
     @Test
-    void estimateMarketStateLargeCapDominatesErSignal() {
+    void estimateMarketStateLargeCapDominatesWithReliableLogMv() {
         List<CodexShortCycleScoringEngine.RawFeatures> raws = List.of(
                 raw("000001", "SZSE", "大", "银行", 0, 0.20, 0.20, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0.10, 0, 0, 25, 0.20, 25.0, "test"),
+                        0, 0, 0, 0, 0, 0, 0, 0.10, 0, 0, 25, 0.20, 25.0,
+                        CrossSectionNeutralizer.LOG_MV_FROM_TURNOVER),
                 raw("000002", "SZSE", "小", "银行", 0, -0.20, -0.20, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0.30, 0, 0, 1, -0.20, 18.0, "test")
+                        0, 0, 0, 0, 0, 0, 0, 0.30, 0, 0, 1, -0.20, 18.0,
+                        CrossSectionNeutralizer.LOG_MV_FROM_TURNOVER)
         );
         double gWeighted = CodexShortCycleScoringEngine.estimateMarketState(raws);
         assertThat(gWeighted).isGreaterThan(0);
     }
 
     @Test
+    void estimateMarketStateUsesEqualWeightForWeakLogMvProxy() {
+        List<CodexShortCycleScoringEngine.RawFeatures> weak = List.of(
+                raw("000001", "SZSE", "大", "银行", 0, 0.20, 0.20, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0.10, 0, 0, 25, 0.20, 25.0,
+                        CrossSectionNeutralizer.LOG_MV_FROM_AVG_AMOUNT),
+                raw("000002", "SZSE", "小", "银行", 0, -0.20, -0.20, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0.30, 0, 0, 1, -0.20, 18.0,
+                        CrossSectionNeutralizer.LOG_MV_FROM_AVG_AMOUNT)
+        );
+        double gEqual = CodexShortCycleScoringEngine.estimateMarketState(weak);
+        assertThat(gEqual).isFinite();
+    }
+
+    @Test
     void estimateMarketStateUsesValueWeighting() {
         List<CodexShortCycleScoringEngine.RawFeatures> raws = List.of(
                 raw("000001", "SZSE", "A", "银行", 0, 0.10, 0.10, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0.10, 25.0, "test"),
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0.10, 25.0,
+                        CrossSectionNeutralizer.LOG_MV_FROM_TURNOVER),
                 raw("000002", "SZSE", "B", "银行", 0, 0.01, 0.01, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0.01, 18.0, "test")
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0.01, 18.0,
+                        CrossSectionNeutralizer.LOG_MV_FROM_TURNOVER)
         );
         double g = CodexShortCycleScoringEngine.estimateMarketState(raws);
         assertThat(g).isFinite();
@@ -121,7 +185,8 @@ class CodexShortCycleScoringEngineTest {
     @Test
     void countImputedFinancialFieldsDetectsDebtImputation() {
         List<CodexShortCycleScoringEngine.RawFeatures> raws = List.of(
-                raw("000001", "SZSE", "A", "银行", 0, 0, 0, 0, 0, 0, 0.1, 0, 50, 1.5, 0, 0, 0, 0, 0, 0, 1, 0, 22, "test"),
+                raw("000001", "SZSE", "A", "银行", 0, 0, 0, 0, 0, 0, 0.1, 0,
+                        Double.NaN, 1.5, 0, 0, 0, 0, 0, 0, 1, 0, 22, "test"),
                 raw("000002", "SZSE", "B", "银行", 0, 0, 0, 0, 0, 0, 0.2, 0, 35, 1.8, 0, 0, 0, 0, 0, 0, 1, 0, 22, "test")
         );
         List<CodexShortCycleScoringEngine.RawFeatures> imputed = CodexShortCycleScoringEngine.imputeFinancialByIndustry(raws);
@@ -136,9 +201,10 @@ class CodexShortCycleScoringEngineTest {
         // 单票无法截面打分，至少验证 extract 路径在多样本场景
         List<CodexShortCycleScoringEngine.StockBarContext> multi = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
+            List<MarketData> bars = sampleBars(80, 10 + i * 0.1, 50_000_000, 0.01);
             multi.add(new CodexShortCycleScoringEngine.StockBarContext(
                     String.format("%06d", i + 1), "SZSE", "测试" + i, "银行",
-                    sampleBars(80, 10 + i * 0.1, 50_000_000, 0.01), null));
+                    bars, null, bars.get(bars.size() - 1).getTradeDate()));
         }
         List<CandidateScore> scored = engine.scoreUniverse(multi, 1_000_000, true, 60, 0);
         assertThat(scored).isNotEmpty();
@@ -146,9 +212,24 @@ class CodexShortCycleScoringEngineTest {
                 .isEqualTo(CrossSectionNeutralizer.LOG_MV_FROM_TURNOVER);
     }
 
+    @Test
+    void scoreUniverseExcludesStaleSignalBar() {
+        List<MarketData> bars = sampleBars(80, 10, 50_000_000, 0.02);
+        LocalDate staleTradeDate = bars.get(bars.size() - 1).getTradeDate().plusDays(15);
+        List<CodexShortCycleScoringEngine.StockBarContext> contexts = List.of(
+                new CodexShortCycleScoringEngine.StockBarContext(
+                        "000001", "SZSE", "过期", "测试", bars, null, staleTradeDate),
+                context("000002", "SZSE", "正常", sampleBars(80, 12, 50_000_000, 0.03))
+        );
+        List<CandidateScore> scored = engine.scoreUniverse(contexts, 1_000_000, true, 60, 0);
+        assertThat(scored).hasSize(1);
+        assertThat(scored.get(0).getStockCode()).isEqualTo("000002");
+    }
+
     private static CodexShortCycleScoringEngine.StockBarContext context(
             String code, String ex, String name, List<MarketData> bars) {
-        return new CodexShortCycleScoringEngine.StockBarContext(code, ex, name, "测试", bars, null);
+        LocalDate tradeDate = bars.isEmpty() ? null : bars.get(bars.size() - 1).getTradeDate();
+        return new CodexShortCycleScoringEngine.StockBarContext(code, ex, name, "测试", bars, null, tradeDate);
     }
 
     private static CodexShortCycleScoringEngine.RawFeatures raw(

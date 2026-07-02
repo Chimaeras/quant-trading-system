@@ -15,6 +15,26 @@ class ClassicFactorCalculatorTest {
     private final ClassicFactorCalculator calculator = new ClassicFactorCalculator();
 
     @Test
+    void excludesStaleBarsWhenTradeDateMisaligned() {
+        List<MarketData> bars = sampleBars(80, 10, 50_000_000, 0.02);
+        LocalDate signalDate = bars.get(bars.size() - 1).getTradeDate().plusDays(10);
+
+        var result = calculator.calculate(
+                "000001",
+                "SZSE",
+                bars,
+                1_000_000,
+                0,
+                key -> "测试股份",
+                true,
+                ClassicFactorCalculator.HORIZON_MEDIUM,
+                signalDate
+        );
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
     void excludesStStockWhenExcludeStEnabled() {
         List<MarketData> bars = sampleBars(75, 10, 50_000_000);
 

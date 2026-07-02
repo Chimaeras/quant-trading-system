@@ -57,6 +57,23 @@ public final class ScoringUtils {
         return bar != null && bar.getVolume() != null && bar.getVolume() <= 0;
     }
 
+    /**
+     * 信号日 K 线必须与 {@code tradeDate} 对齐，避免停牌/缺 bar 时用过期行情打分。
+     * {@code tradeDate} 为 null 时跳过校验（仅单元测试场景；生产选股须传入信号日）。
+     */
+    public static boolean isSignalBarOnTradeDate(
+            List<com.quant.entity.MarketData> bars,
+            java.time.LocalDate tradeDate) {
+        if (tradeDate == null) {
+            return true;
+        }
+        if (bars == null || bars.isEmpty()) {
+            return false;
+        }
+        java.time.LocalDate lastBarDate = bars.get(bars.size() - 1).getTradeDate();
+        return lastBarDate != null && tradeDate.equals(lastBarDate);
+    }
+
     /** 信号日可交易性：零成交量、ST、信号日涨跌停（默认均过滤）。 */
     public static boolean isTradableForScoring(com.quant.entity.MarketData signalBar, String stockName, boolean excludeST) {
         return isTradableForScoring(signalBar, null, null, null, stockName, excludeST, true, true);

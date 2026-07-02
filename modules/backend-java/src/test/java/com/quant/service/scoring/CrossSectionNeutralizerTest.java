@@ -91,6 +91,16 @@ class CrossSectionNeutralizerTest {
     }
 
     @Test
+    void isReliableLogMvSourceAcceptsTurnoverOnly() {
+        assertThat(CrossSectionNeutralizer.isReliableLogMvSource(CrossSectionNeutralizer.LOG_MV_FROM_TURNOVER))
+                .isTrue();
+        assertThat(CrossSectionNeutralizer.isReliableLogMvSource(CrossSectionNeutralizer.LOG_MV_FROM_NOTIONAL))
+                .isFalse();
+        assertThat(CrossSectionNeutralizer.isReliableLogMvSource(CrossSectionNeutralizer.LOG_MV_FROM_AVG_AMOUNT))
+                .isFalse();
+    }
+
+    @Test
     void estimateLogMarketCapFallsBackToAvgAmount() {
         CrossSectionNeutralizer.LogMvEstimate est =
                 CrossSectionNeutralizer.estimateLogMarketCap(null, 5_000_000);

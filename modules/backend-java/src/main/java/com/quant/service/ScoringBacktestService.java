@@ -51,7 +51,7 @@ public class ScoringBacktestService {
     private static final int FACTOR_MIN_CROSS_SECTION_SIZE = 10;
     private static final List<String> CODEX_SUB_FACTOR_KEYS = List.of("T", "F", "R");
     private static final String FACTOR_UNIVERSE_NOTE =
-            "基于 persisted 选股结果全截面；未复现历史时点股票池，存在幸存者偏差";
+            "基于 persisted 全截面候选（通过质量闸的全部条目，非 TopN 子集）；未复现历史时点股票池，存在幸存者偏差";
 
     private final SelectorResultRepository resultRepo;
     private final SelectorResultItemRepository itemRepo;

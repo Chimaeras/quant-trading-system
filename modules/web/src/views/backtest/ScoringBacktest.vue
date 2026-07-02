@@ -393,9 +393,9 @@ const icByHoldingRows = computed(() => {
     .map(Number)
     .sort((a, b) => a - b)
     .map((d) => ({
-      holdingDays: d,
       label: 'T+' + d,
-      ...map[d]
+      ...map[d],
+      holdingDays: d
     }))
 })
 

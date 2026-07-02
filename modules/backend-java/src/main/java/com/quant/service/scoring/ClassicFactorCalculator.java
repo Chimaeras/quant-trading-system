@@ -4,6 +4,7 @@ import com.quant.entity.MarketData;
 import com.quant.service.scoring.model.CandidateScore;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.util.*;
 import java.util.function.Function;
 
@@ -46,7 +47,7 @@ public class ClassicFactorCalculator {
             boolean excludeST
     ) {
         return calculate(stockCode, exchangeType, bars, minAvgAmount, minTrendScore,
-                nameResolver, excludeST, HORIZON_MEDIUM);
+                nameResolver, excludeST, HORIZON_MEDIUM, null);
     }
 
     public Optional<CandidateScore> calculate(
@@ -59,7 +60,25 @@ public class ClassicFactorCalculator {
             boolean excludeST,
             String horizonProfile
     ) {
+        return calculate(stockCode, exchangeType, bars, minAvgAmount, minTrendScore,
+                nameResolver, excludeST, horizonProfile, null);
+    }
+
+    public Optional<CandidateScore> calculate(
+            String stockCode,
+            String exchangeType,
+            List<MarketData> bars,
+            double minAvgAmount,
+            double minTrendScore,
+            Function<String, String> nameResolver,
+            boolean excludeST,
+            String horizonProfile,
+            LocalDate tradeDate
+    ) {
         if (bars == null || bars.size() < MIN_BARS) {
+            return Optional.empty();
+        }
+        if (!ScoringUtils.isSignalBarOnTradeDate(bars, tradeDate)) {
             return Optional.empty();
         }
 

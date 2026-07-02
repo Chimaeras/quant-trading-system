@@ -5,6 +5,7 @@ import com.quant.entity.StockFinancialSnapshot;
 import com.quant.service.scoring.model.CandidateScore;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -28,6 +29,8 @@ public class CodexShortCycleScoringEngine {
     public static final double DEFAULT_MIN_CODEX_SCORE = 90.0;
     public static final double MIN_F_FACTOR = -0.5;
     public static final double MIN_R_FACTOR = -1.0;
+    /** 财务缺失哨兵；与真实 0 或行业典型值区分，避免 imputeFin 误插补。 */
+    static final double MISSING_FINANCIAL = Double.NaN;
 
     public record StockBarContext(
             String stockCode,
@@ -35,7 +38,8 @@ public class CodexShortCycleScoringEngine {
             String stockName,
             String industry,
             List<MarketData> bars,
-            StockFinancialSnapshot financialSnapshot
+            StockFinancialSnapshot financialSnapshot,
+            LocalDate tradeDate
     ) {}
 
     record RawFeatures(
@@ -92,6 +96,17 @@ public class CodexShortCycleScoringEngine {
             int minListingDays,
             double minCodexScore
     ) {
+        return scoreUniverse(contexts, minAvgAmount, excludeST, minListingDays, minCodexScore, 0);
+    }
+
+    public List<CandidateScore> scoreUniverse(
+            List<StockBarContext> contexts,
+            double minAvgAmount,
+            boolean excludeST,
+            int minListingDays,
+            double minCodexScore,
+            double minTrendScore
+    ) {
         if (contexts == null || contexts.isEmpty()) {
             return List.of();
         }
@@ -131,7 +146,12 @@ public class CodexShortCycleScoringEngine {
             if (minCodexScore > 0 && row.score() < minCodexScore) {
                 continue;
             }
-            out.add(toCandidate(row, minCodexScore, financialImputedByKey.getOrDefault(row.raw().key(), 0)));
+            double trendScore = ScoringUtils.clamp(row.tFactor() * 10 + 50, 0, 100);
+            if (minTrendScore > 0 && trendScore < minTrendScore) {
+                continue;
+            }
+            out.add(toCandidate(row, minCodexScore, minTrendScore, minAvgAmount,
+                    financialImputedByKey.getOrDefault(row.raw().key(), 0)));
         }
         out.sort((a, b) -> Double.compare(b.getFinalScore(), a.getFinalScore()));
         return out;
@@ -254,9 +274,9 @@ public class CodexShortCycleScoringEngine {
         return n;
     }
 
-    private static double imputeFin(double value, double industryMedian, double placeholder) {
-        if (Math.abs(value - placeholder) < 1e-9 && Math.abs(industryMedian) > 1e-9) {
-            return industryMedian;
+    private static double imputeFin(double value, double industryMedian, double fallback) {
+        if (Double.isNaN(value)) {
+            return Math.abs(industryMedian) > 1e-9 ? industryMedian : fallback;
         }
         if (Math.abs(value) < 1e-9 && Math.abs(industryMedian) > 1e-9) {
             return industryMedian;
@@ -267,7 +287,10 @@ public class CodexShortCycleScoringEngine {
     private static double medianField(List<RawFeatures> group, java.util.function.ToDoubleFunction<RawFeatures> fn) {
         List<Double> vals = new ArrayList<>();
         for (RawFeatures rf : group) {
-            vals.add(fn.applyAsDouble(rf));
+            double v = fn.applyAsDouble(rf);
+            if (!Double.isNaN(v)) {
+                vals.add(v);
+            }
         }
         vals.sort(Double::compare);
         int n = vals.size();
@@ -329,8 +352,15 @@ public class CodexShortCycleScoringEngine {
             bd.put("neutralization_industries", neutCtx != null ? neutCtx.industryCount() : 0);
             bd.put("preprocessing", "winsorize→OLS(lnMV+industry)→robustZ(MAD,no二次winsorize)");
             bd.put("G_market", ScoringUtils.round4(g));
-            bd.put("G_weighting", "value_weighted_by_exp_logMv");
-            bd.put("G_vol_weighting", "value_weighted_by_exp_logMv");
+            long reliableMvCount = raws.stream()
+                    .filter(rf -> CrossSectionNeutralizer.isReliableLogMvSource(rf.logMvSource()))
+                    .count();
+            String gWeighting = reliableMvCount == raws.size()
+                    ? "value_weighted_by_exp_logMv"
+                    : "mixed_reliable_mv_or_equal_weight";
+            bd.put("G_weighting", gWeighting);
+            bd.put("G_vol_weighting", gWeighting);
+            bd.put("log_mv_reliable", CrossSectionNeutralizer.isReliableLogMvSource(raws.get(i).logMvSource()));
             bd.put("T", ScoringUtils.round4(t));
             bd.put("F", ScoringUtils.round4(f));
             bd.put("R", ScoringUtils.round4(r));
@@ -363,12 +393,18 @@ public class CodexShortCycleScoringEngine {
         return z;
     }
 
+    private static double gMarketCapWeight(RawFeatures r) {
+        return CrossSectionNeutralizer.isReliableLogMvSource(r.logMvSource())
+                ? Math.exp(r.logMarketCap())
+                : 1.0;
+    }
+
     static double estimateMarketState(List<RawFeatures> raws) {
         double wSum = 0;
         double wEr20m5 = 0;
         double wMa = 0;
         for (RawFeatures r : raws) {
-            double w = Math.exp(r.logMarketCap);
+            double w = gMarketCapWeight(r);
             wSum += w;
             wEr20m5 += w * r.er20Minus5;
             wMa += w * r.maAlign;
@@ -380,8 +416,7 @@ public class CodexShortCycleScoringEngine {
         double avgMa = wMa / wSum;
         double wVol = 0;
         for (RawFeatures r : raws) {
-            double w = Math.exp(r.logMarketCap);
-            wVol += w * r.vol20;
+            wVol += gMarketCapWeight(r) * r.vol20;
         }
         double avgVol = wVol / wSum;
         double atrProxy = Math.max(0.05, avgVol);
@@ -396,6 +431,9 @@ public class CodexShortCycleScoringEngine {
     ) {
         List<MarketData> bars = ctx.bars();
         if (bars == null || bars.size() < MIN_BARS) {
+            return Optional.empty();
+        }
+        if (!ScoringUtils.isSignalBarOnTradeDate(bars, ctx.tradeDate())) {
             return Optional.empty();
         }
         if (!ScoringUtils.isTradableForScoring(
@@ -456,8 +494,10 @@ public class CodexShortCycleScoringEngine {
         }
         double roe = fin != null && fin.getRoe() != null ? fin.getRoe().doubleValue() : 0;
         double revenueYoY = fin != null && fin.getRevenueYoY() != null ? fin.getRevenueYoY().doubleValue() : 0;
-        double debtRatio = fin != null && fin.getDebtRatio() != null ? fin.getDebtRatio().doubleValue() : 50;
-        double currentRatio = fin != null && fin.getCurrentRatio() != null ? fin.getCurrentRatio().doubleValue() : 1.5;
+        double debtRatio = fin != null && fin.getDebtRatio() != null
+                ? fin.getDebtRatio().doubleValue() : MISSING_FINANCIAL;
+        double currentRatio = fin != null && fin.getCurrentRatio() != null
+                ? fin.getCurrentRatio().doubleValue() : MISSING_FINANCIAL;
         double earningsYield = pe != null && pe > 0 ? 1.0 / pe : 0;
         double bookToMarket = pb != null && pb > 0 ? 1.0 / pb : 0;
 
@@ -476,32 +516,51 @@ public class CodexShortCycleScoringEngine {
         ));
     }
 
-    private static CandidateScore toCandidate(ScoredRow row, double minCodexScoreApplied, int financialImputedCount) {
+    private static CandidateScore toCandidate(
+            ScoredRow row,
+            double minCodexScoreApplied,
+            double minTrendScoreApplied,
+            double minAvgAmountApplied,
+            int financialImputedCount) {
         CandidateScore c = new CandidateScore();
         c.setStockCode(row.raw().stockCode());
         c.setExchangeType(row.raw().exchangeType());
         c.setStockName(row.raw().stockName());
         c.setFinalScore(row.score());
-        c.setTrendScore(ScoringUtils.clamp(row.tFactor() * 10 + 50, 0, 100));
+        double trendScore = ScoringUtils.clamp(row.tFactor() * 10 + 50, 0, 100);
+        c.setTrendScore(trendScore);
         c.setMomentumScore(ScoringUtils.clamp(row.fFactor() * 10 + 50, 0, 100));
         c.setVolumeScore(ScoringUtils.clamp(row.rFactor() * 10 + 50, 0, 100));
         c.setRiskPenalty(ScoringUtils.clamp(-row.rFactor() * 10, 0, 100));
+        c.setRet20(row.raw().ret20());
         c.setAvgAmount20(row.raw().avgAmount20());
-        c.setPassMinAvgAmount(true);
-        c.setPassMinTrendScore(true);
-        c.setPassMaTrend(true);
-        c.setPassRet20(true);
+        boolean passMinAvgAmount = row.raw().avgAmount20() >= minAvgAmountApplied;
+        boolean passMinTrendScore = minTrendScoreApplied <= 0 || trendScore >= minTrendScoreApplied;
+        boolean passMaTrend = row.raw().maAlign() > 0;
+        boolean passRet20 = row.raw().ret20() >= Math.log(0.95);
+        c.setPassMinAvgAmount(passMinAvgAmount);
+        c.setPassMinTrendScore(passMinTrendScore);
+        c.setPassMaTrend(passMaTrend);
+        c.setPassRet20(passRet20);
         Map<String, Object> reasons = new LinkedHashMap<>(row.breakdown());
         reasons.put("horizon_profile", StrategyFormulaRegistry.HORIZON_SHORT_3_5D);
         reasons.put("scoring_model", FORMULA_VERSION);
         reasons.put("doc_ref", "Codex/短周期选股评分公式设计文档.md v1.0");
         reasons.put("log_mv_source", row.raw().logMvSource());
+        reasons.put("log_mv_reliable", CrossSectionNeutralizer.isReliableLogMvSource(row.raw().logMvSource()));
         reasons.put("log_market_cap", ScoringUtils.round4(row.raw().logMarketCap()));
+        reasons.put("pass_min_avg_amount", passMinAvgAmount);
+        reasons.put("pass_min_trend_score", passMinTrendScore);
+        reasons.put("pass_ma_trend", passMaTrend);
+        reasons.put("pass_ret20", passRet20);
         if (financialImputedCount > 0) {
             reasons.put("financial_imputed_count", financialImputedCount);
         }
         if (minCodexScoreApplied > 0) {
             reasons.put("min_codex_score_applied", ScoringUtils.round2(minCodexScoreApplied));
+        }
+        if (minTrendScoreApplied > 0) {
+            reasons.put("min_trend_score_applied", ScoringUtils.round2(minTrendScoreApplied));
         }
         c.setReasons(reasons);
         return c;

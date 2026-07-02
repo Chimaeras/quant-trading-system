@@ -167,6 +167,36 @@ export const dataApi = {
     return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>)
   },
 
+  /** 用 K 线最早交易日回填 stock_info.list_date（仅补空值） */
+  async backfillListDate(): Promise<{
+    missing_before: number
+    updated: number
+    missing_after: number
+    skipped_no_match?: number
+    no_market_data?: number
+    note?: string
+  }> {
+    const res = await request.post<{
+      data: {
+        missing_before: number
+        updated: number
+        missing_after: number
+        skipped_no_match?: number
+        no_market_data?: number
+        note?: string
+      }
+    }>('/data/stock-info/backfill-list-date')
+    const d = res.data
+    return {
+      missing_before: d?.missing_before ?? 0,
+      updated: d?.updated ?? 0,
+      missing_after: d?.missing_after ?? 0,
+      skipped_no_match: d?.skipped_no_match,
+      no_market_data: d?.no_market_data,
+      note: d?.note
+    }
+  },
+
   /** 更新股票列表 */
   async updateStockList(): Promise<{ success: boolean; count: number }> {
     if (!mockDataEnabled) {

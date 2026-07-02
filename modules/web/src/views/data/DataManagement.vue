@@ -29,6 +29,17 @@
           <span class="value">{{ overview?.storage_size ?? '-' }}</span>
         </div>
       </div>
+      <div class="list-date-backfill">
+        <p class="backfill-hint">
+          上市日期（list_date）缺失时，可用本地 K 线最早交易日回填空值，不覆盖已有数据；受行情窗口限制，非交易所官方上市日。
+        </p>
+        <el-button type="warning" size="small" :loading="backfillLoading" @click="runBackfillListDate">
+          回填缺失上市日期
+        </el-button>
+        <span v-if="backfillResult" class="backfill-result">
+          已补 {{ backfillResult.updated }} 条（补前缺失 {{ backfillResult.missing_before }}，补后缺失 {{ backfillResult.missing_after }}）
+        </span>
+      </div>
     </el-card>
     <el-card shadow="hover" style="margin-top: 20px">
       <template #header>
@@ -197,6 +208,8 @@ import { useToast } from '@/composables/useToast'
 const dataStore = useDataStore()
 const toast = useToast()
 const loading = ref(false)
+const backfillLoading = ref(false)
+const backfillResult = ref<{ missing_before: number; updated: number; missing_after: number } | null>(null)
 const taskLoading = ref(false)
 const taskSubmitting = ref(false)
 const stoppingTaskId = ref('')
@@ -258,6 +271,19 @@ const refresh = async () => {
     await dataStore.fetchOverview()
   } finally {
     loading.value = false
+  }
+}
+
+const runBackfillListDate = async () => {
+  backfillLoading.value = true
+  try {
+    const result = await dataApi.backfillListDate()
+    backfillResult.value = result
+    toast.success(`上市日期回填完成：新增 ${result.updated} 条`)
+  } catch (e: any) {
+    toast.error(e?.message || '上市日期回填失败')
+  } finally {
+    backfillLoading.value = false
   }
 }
 
@@ -441,6 +467,26 @@ onMounted(async () => {
   font-size: 18px;
   font-weight: bold;
   color: var(--text-primary);
+}
+.list-date-backfill {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(145, 196, 255, 0.12);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.backfill-hint {
+  margin: 0;
+  flex: 1 1 100%;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.backfill-result {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 .update-form { margin-bottom: 8px; }
 .task-hint {

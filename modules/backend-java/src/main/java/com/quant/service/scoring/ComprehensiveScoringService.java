@@ -552,7 +552,8 @@ public class ComprehensiveScoringService {
         String exchangeType = p > 0 ? key.substring(p + 1) : "";
 
         String stockName = info != null && info.getStockName() != null ? info.getStockName() : "";
-        if (!ScoringUtils.hasMinListingTenure(info != null ? info.getListDate() : null, tradeDate, minListingDays)) {
+        if (!ScoringUtils.hasMinListingTenure(
+                info != null ? info.getListDate() : null, tradeDate, minListingDays, bars)) {
             skipped.incrementAndGet();
             return;
         }

@@ -40,6 +40,12 @@ public class DataController {
         return ApiResponse.success(dataService.getOverview());
     }
 
+    /** 用 K 线最早交易日回填 stock_info.list_date（仅补空值） */
+    @PostMapping("/stock-info/backfill-list-date")
+    public ApiResponse<Map<String, Object>> backfillListDate() {
+        return ApiResponse.success(dataService.backfillListDateFromMarketData());
+    }
+
     /** 历史行情立即更新：按股票+日期范围拉取，仅补充缺失的交易日 */
     @PostMapping("/history/update")
     public ApiResponse<Map<String, Object>> updateHistory(

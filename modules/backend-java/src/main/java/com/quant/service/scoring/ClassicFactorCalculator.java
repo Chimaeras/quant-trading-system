@@ -47,7 +47,7 @@ public class ClassicFactorCalculator {
             boolean excludeST
     ) {
         return calculate(stockCode, exchangeType, bars, minAvgAmount, minTrendScore,
-                nameResolver, excludeST, HORIZON_MEDIUM, null, null);
+                nameResolver, excludeST, HORIZON_MEDIUM, null, null, null, 0);
     }
 
     public Optional<CandidateScore> calculate(
@@ -61,7 +61,7 @@ public class ClassicFactorCalculator {
             String horizonProfile
     ) {
         return calculate(stockCode, exchangeType, bars, minAvgAmount, minTrendScore,
-                nameResolver, excludeST, horizonProfile, null, null);
+                nameResolver, excludeST, horizonProfile, null, null, null, 0);
     }
 
     public Optional<CandidateScore> calculate(
@@ -76,7 +76,7 @@ public class ClassicFactorCalculator {
             LocalDate tradeDate
     ) {
         return calculate(stockCode, exchangeType, bars, minAvgAmount, minTrendScore,
-                nameResolver, excludeST, horizonProfile, tradeDate, null);
+                nameResolver, excludeST, horizonProfile, tradeDate, null, null, 0);
     }
 
     public Optional<CandidateScore> calculate(
@@ -90,6 +90,24 @@ public class ClassicFactorCalculator {
             String horizonProfile,
             LocalDate tradeDate,
             Integer stockStatus
+    ) {
+        return calculate(stockCode, exchangeType, bars, minAvgAmount, minTrendScore,
+                nameResolver, excludeST, horizonProfile, tradeDate, stockStatus, null, 0);
+    }
+
+    public Optional<CandidateScore> calculate(
+            String stockCode,
+            String exchangeType,
+            List<MarketData> bars,
+            double minAvgAmount,
+            double minTrendScore,
+            Function<String, String> nameResolver,
+            boolean excludeST,
+            String horizonProfile,
+            LocalDate tradeDate,
+            Integer stockStatus,
+            LocalDate listDate,
+            int minListingDays
     ) {
         if (bars == null || bars.size() < MIN_BARS) {
             return Optional.empty();
@@ -111,6 +129,9 @@ public class ClassicFactorCalculator {
 
         String cacheKey = stockCode + ":" + exchangeType;
         String name = nameResolver != null ? nameResolver.apply(cacheKey) : stockCode;
+        if (!ScoringUtils.hasMinListingTenure(listDate, tradeDate, minListingDays, bars)) {
+            return Optional.empty();
+        }
         if (!ScoringUtils.isTradableForScoring(bars, stockCode, exchangeType, name, stockStatus, excludeST, true, true)) {
             return Optional.empty();
         }

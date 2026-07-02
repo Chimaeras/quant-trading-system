@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface StockInfoRepository extends JpaRepository<StockInfo, Long> {
@@ -25,4 +26,8 @@ public interface StockInfoRepository extends JpaRepository<StockInfo, Long> {
               )
             """)
     Page<StockInfo> search(@Param("keyword") String keyword, @Param("exchange") String exchange, Pageable pageable);
+
+    long countByListDateIsNull();
+
+    List<StockInfo> findByListDateIsNull();
 }

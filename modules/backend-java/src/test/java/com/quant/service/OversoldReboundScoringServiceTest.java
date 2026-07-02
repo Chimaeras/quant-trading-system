@@ -38,7 +38,30 @@ class OversoldReboundScoringServiceTest {
                 new HashMap<>(),
                 true,
                 1_000_000,
-                1
+                1,
+                null,
+                0
+        );
+
+        assertThat(result).isNull();
+    }
+
+    @Test
+    void excludesCandidateWhenListingTenureTooShortWithoutListDate() {
+        List<MarketData> bars = sampleBars(ScoringConstants.MIN_BARS_OVERSOLD + 10, 10, 50_000_000);
+        LocalDate tradeDate = bars.get(bars.size() - 1).getTradeDate();
+
+        var result = service.scoreOne(
+                "000001",
+                "SZSE",
+                tradeDate,
+                bars,
+                new HashMap<>(Map.of("000001:SZSE", "测试股份")),
+                true,
+                1_000_000,
+                1,
+                null,
+                300
         );
 
         assertThat(result).isNull();
@@ -57,7 +80,9 @@ class OversoldReboundScoringServiceTest {
                 new HashMap<>(Map.of("000001:SZSE", "测试股份")),
                 true,
                 1_000_000,
-                1
+                1,
+                bars.get(0).getTradeDate(),
+                60
         );
 
         assertThat(result).isNotNull();

@@ -398,7 +398,8 @@ public class StockTrendScoringService {
             }
             return nameValue == null ? "" : nameValue;
         });
-        if (!ScoringUtils.hasMinListingTenure(listDateCache.get(stockCode + "|" + exchangeType), tradeDate, minListingDays)) {
+        if (!ScoringUtils.hasMinListingTenure(
+                listDateCache.get(stockCode + "|" + exchangeType), tradeDate, minListingDays, bars)) {
             return Optional.empty();
         }
         if (!ScoringUtils.isTradableForScoring(bars, stockCode, exchangeType, stockName,

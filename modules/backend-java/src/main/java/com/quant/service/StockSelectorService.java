@@ -102,38 +102,15 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
             return Map.of("message", "无可用行情数据", "trade_date", tradeDate.toString(), "items", List.of());
         }
 
-        if (minListingDays > 0) {
-            final int listingDaysThreshold = minListingDays;
-            Map<String, LocalDate> listDateByKey = new HashMap<>();
-            for (StockInfo info : stockInfoRepository.findAll()) {
-                if (info.getStockCode() == null || info.getExchangeType() == null) {
-                    continue;
-                }
-                listDateByKey.put(info.getStockCode() + "|" + info.getExchangeType(), info.getListDate());
-            }
-            LocalDate signalDate = tradeDate;
-            pairs = pairs.stream()
-                    .filter(p -> p != null && p.length >= 2
-                            && ScoringUtils.hasMinListingTenure(
-                            listDateByKey.get(String.valueOf(p[0]) + "|" + String.valueOf(p[1])),
-                            signalDate,
-                            listingDaysThreshold))
-                    .toList();
-            if (pairs.isEmpty()) {
-                return Map.of(
-                        "message", "过滤上市时长后无可用标的",
-                        "trade_date", tradeDate.toString(),
-                        "min_listing_days", minListingDays,
-                        "items", List.of());
-            }
-        }
-
         Map<String, Integer> statusByKey = new HashMap<>();
+        Map<String, LocalDate> listDateByKey = new HashMap<>();
         for (StockInfo info : stockInfoRepository.findAll()) {
             if (info.getStockCode() == null || info.getExchangeType() == null) {
                 continue;
             }
-            statusByKey.put(info.getStockCode() + "|" + info.getExchangeType(), info.getStatus());
+            String infoKey = info.getStockCode() + "|" + info.getExchangeType();
+            statusByKey.put(infoKey, info.getStatus());
+            listDateByKey.put(infoKey, info.getListDate());
         }
         pairs = pairs.stream()
                 .filter(p -> p != null && p.length >= 2
@@ -154,6 +131,29 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
             for (MarketData m : allBars) {
                 if (m.getStockCode() == null || m.getExchangeType() == null) continue;
                 bulkByKey.computeIfAbsent(m.getStockCode() + "|" + m.getExchangeType(), k -> new ArrayList<>()).add(m);
+            }
+        }
+
+        if (minListingDays > 0) {
+            final int listingDaysThreshold = minListingDays;
+            final Map<String, List<MarketData>> bulkRefForListing = bulkByKey;
+            pairs = pairs.stream()
+                    .filter(p -> {
+                        if (p == null || p.length < 2) {
+                            return false;
+                        }
+                        String key = String.valueOf(p[0]) + "|" + String.valueOf(p[1]);
+                        List<MarketData> bars = bulkRefForListing != null ? bulkRefForListing.get(key) : null;
+                        return ScoringUtils.hasMinListingTenure(
+                                listDateByKey.get(key), tradeDate, listingDaysThreshold, bars);
+                    })
+                    .toList();
+            if (pairs.isEmpty()) {
+                return Map.of(
+                        "message", "过滤上市时长后无可用标的",
+                        "trade_date", tradeDate.toString(),
+                        "min_listing_days", minListingDays,
+                        "items", List.of());
             }
         }
 
@@ -236,6 +236,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         final Map<String, List<MarketData>> bulkRef = bulkByKey;
         final String horizonProfileFinal = horizonProfile;
         final Map<String, Integer> statusRef = statusByKey;
+        final Map<String, LocalDate> listDateRef = listDateByKey;
+        final int minListingDaysFinal = minListingDays;
         int submitted = 0;
         for (Object[] pair : pairs) {
             if (pair == null || pair.length < 2) continue;
@@ -257,7 +259,9 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                         excludeST,
                         horizonProfileFinal,
                         tradeDate,
-                        statusRef.get(stockCode + "|" + exchangeType));
+                        statusRef.get(stockCode + "|" + exchangeType),
+                        listDateRef.get(stockCode + "|" + exchangeType),
+                        minListingDaysFinal);
             });
         }
 

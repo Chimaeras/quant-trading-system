@@ -59,4 +59,15 @@ public interface MarketDataRepository extends JpaRepository<MarketData, Long> {
     /** 获取区间内所有不重复的交易日（升序），用于回测时定位 T+N 交易日 */
     @Query("SELECT DISTINCT m.tradeDate FROM MarketData m WHERE m.tradeDate BETWEEN :start AND :end ORDER BY m.tradeDate")
     List<LocalDate> findDistinctTradeDatesBetween(@Param("start") LocalDate start, @Param("end") LocalDate end);
+
+    /** stock_info.list_date 缺失时，用 market_data 最早交易日批量回填候选 */
+    @Query(value = """
+            SELECT m.stock_code, m.exchange_type, MIN(m.trade_date)
+            FROM market_data m
+            INNER JOIN stock_info s
+                ON s.stock_code = m.stock_code AND s.exchange_type = m.exchange_type
+            WHERE s.list_date IS NULL
+            GROUP BY m.stock_code, m.exchange_type
+            """, nativeQuery = true)
+    List<Object[]> findEarliestTradeDatesForMissingListDate();
 }

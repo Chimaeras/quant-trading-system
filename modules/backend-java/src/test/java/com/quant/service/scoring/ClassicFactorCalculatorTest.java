@@ -164,6 +164,29 @@ class ClassicFactorCalculatorTest {
     }
 
     @Test
+    void excludesCandidateWhenListingTenureTooShortWithoutListDate() {
+        List<MarketData> bars = sampleBars(75, 10, 50_000_000);
+        LocalDate tradeDate = bars.get(bars.size() - 1).getTradeDate();
+
+        var result = calculator.calculate(
+                "000001",
+                "SZSE",
+                bars,
+                1_000_000,
+                0,
+                key -> "测试股份",
+                true,
+                ClassicFactorCalculator.HORIZON_MEDIUM,
+                tradeDate,
+                1,
+                null,
+                120
+        );
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
     void excludesZeroVolumeOnSignalDay() {
         List<MarketData> bars = sampleBars(75, 10, 50_000_000);
         bars.get(bars.size() - 1).setVolume(0L);

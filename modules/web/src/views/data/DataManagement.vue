@@ -1,5 +1,11 @@
 <template>
   <div class="data-management terminal-page">
+    <el-tabs v-model="activeDataTab" class="data-tabs" @tab-change="onDataTabChange">
+      <el-tab-pane label="数据总览" name="overview" />
+      <el-tab-pane label="热门股票" name="hot" />
+    </el-tabs>
+
+    <div v-show="activeDataTab === 'overview'">
     <el-card shadow="hover">
       <template #header>
         <span>数据概览</span>
@@ -202,6 +208,79 @@
         </el-dialog>
       </el-space>
     </el-card>
+    </div>
+
+    <div v-show="activeDataTab === 'hot'">
+      <el-card shadow="hover">
+        <template #header>
+          <div class="hot-header">
+            <span>热门股票</span>
+            <el-button type="primary" size="small" :loading="hotLoading" @click="loadHotStocks">
+              刷新榜单
+            </el-button>
+          </div>
+        </template>
+        <el-form inline class="hot-form">
+          <el-form-item label="TopN">
+            <el-input-number v-model="hotForm.limit" :min="1" :max="500" :step="10" controls-position="right" />
+          </el-form-item>
+          <el-form-item label="近期交易日">
+            <el-input-number v-model="hotForm.days" :min="3" :max="30" :step="1" controls-position="right" />
+          </el-form-item>
+          <el-form-item label="基准交易日">
+            <el-input-number v-model="hotForm.baselineDays" :min="5" :max="120" :step="5" controls-position="right" />
+          </el-form-item>
+          <el-form-item label="截止日">
+            <el-date-picker v-model="hotForm.endDate" type="date" value-format="YYYY-MM-DD" placeholder="默认最新交易日" clearable />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="hotLoading" @click="loadHotStocks">计算热门度</el-button>
+          </el-form-item>
+        </el-form>
+
+        <div class="hot-meta">
+          <span>区间：{{ hotMeta.start_date }} ~ {{ hotMeta.end_date }}</span>
+          <span>返回：{{ hotRows.length }} / {{ hotMeta.limit }}</span>
+          <span>公式：{{ hotMeta.formula }}</span>
+        </div>
+
+        <el-table :data="hotRows" size="small" stripe border v-loading="hotLoading" class="hot-table">
+          <el-table-column type="index" label="#" width="56" />
+          <el-table-column prop="stock_code" label="代码" min-width="90" fixed="left" />
+          <el-table-column prop="stock_name" label="名称" min-width="110" fixed="left" />
+          <el-table-column prop="exchange_type" label="交易所" min-width="80" />
+          <el-table-column prop="industry" label="行业" min-width="120" show-overflow-tooltip />
+          <el-table-column label="热度" min-width="120" sortable>
+            <template #default="{ row }">
+              <span class="hot-score">{{ formatNumber(row.hot_score, 2) }}</span>
+              <el-tag size="small" :type="hotLevelType(row.hot_score)" effect="dark">{{ row.hot_level }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="近均成交额" min-width="120" sortable>
+            <template #default="{ row }">{{ formatAmount(row.avg_amount) }}</template>
+          </el-table-column>
+          <el-table-column label="均换手率" min-width="100" sortable>
+            <template #default="{ row }">{{ formatNumber(row.avg_turnover, 2) }}%</template>
+          </el-table-column>
+          <el-table-column label="量能放大" min-width="100" sortable>
+            <template #default="{ row }">{{ formatNumber(row.volume_ratio, 2) }}x</template>
+          </el-table-column>
+          <el-table-column label="上涨天数" min-width="90">
+            <template #default="{ row }">{{ row.up_days }}/{{ row.trade_days }}</template>
+          </el-table-column>
+          <el-table-column label="最新价" min-width="90">
+            <template #default="{ row }">{{ formatNumber(row.latest_close, 2) }}</template>
+          </el-table-column>
+          <el-table-column label="最新涨跌幅" min-width="110">
+            <template #default="{ row }">
+              <span :class="Number(row.latest_change_pct) >= 0 ? 'price-up' : 'price-down'">
+                {{ formatNumber(row.latest_change_pct, 2) }}%
+              </span>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-card>
+    </div>
   </div>
 </template>
 
@@ -209,7 +288,7 @@
 import { ref, computed, onMounted, reactive } from 'vue'
 import dayjs from 'dayjs'
 import { useDataStore } from '@/stores/data'
-import { dataApi } from '@/api/data'
+import { dataApi, type HotStockItem, type HotStocksResponse } from '@/api/data'
 import { applyTradingDayPreset, type PresetKey } from '@/utils/tradingDays'
 import { useToast } from '@/composables/useToast'
 
@@ -228,6 +307,25 @@ const detailLoading = ref(false)
 const detailTaskId = ref('')
 const detailPage = ref(1)
 const detailSize = ref(100)
+const activeDataTab = ref<'overview' | 'hot'>('overview')
+const hotLoading = ref(false)
+const hotRows = ref<HotStockItem[]>([])
+const hotMeta = ref<HotStocksResponse>({
+  limit: 50,
+  days: 7,
+  baseline_days: 20,
+  start_date: '-',
+  end_date: '-',
+  items_count: 0,
+  formula: '35%成交额规模 + 25%换手率 + 25%量能放大 + 15%上涨天数占比',
+  items: []
+})
+const hotForm = reactive({
+  limit: 50,
+  days: 7,
+  baselineDays: 20,
+  endDate: ''
+})
 
 const _defaultRange = applyTradingDayPreset('y1')
 type UpdateMode = 'SINGLE' | 'ALL' | 'LIST' | 'MAIN_BOARD'
@@ -280,6 +378,52 @@ const refresh = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const loadHotStocks = async () => {
+  hotLoading.value = true
+  try {
+    const data = await dataApi.getHotStocks({
+      limit: hotForm.limit,
+      days: hotForm.days,
+      baselineDays: hotForm.baselineDays,
+      endDate: hotForm.endDate || undefined
+    })
+    hotMeta.value = data
+    hotRows.value = data.items ?? []
+  } catch (e: any) {
+    toast.error(e?.message || '热门股票计算失败')
+  } finally {
+    hotLoading.value = false
+  }
+}
+
+const onDataTabChange = async (name: string | number) => {
+  if (name === 'hot' && hotRows.value.length === 0) {
+    await loadHotStocks()
+  }
+}
+
+function formatNumber(value: unknown, digits = 2): string {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return '-'
+  return n.toFixed(digits)
+}
+
+function formatAmount(value: unknown): string {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) return '-'
+  if (n >= 100000000) return `${(n / 100000000).toFixed(2)}亿`
+  if (n >= 10000) return `${(n / 10000).toFixed(1)}万`
+  return n.toFixed(0)
+}
+
+function hotLevelType(score: unknown): 'danger' | 'warning' | 'success' | 'info' {
+  const n = Number(score)
+  if (n >= 80) return 'danger'
+  if (n >= 65) return 'warning'
+  if (n >= 50) return 'success'
+  return 'info'
 }
 
 const runBackfillListDate = async () => {
@@ -495,6 +639,43 @@ onMounted(async () => {
 .backfill-result {
   font-size: 12px;
   color: var(--text-muted);
+}
+.data-tabs {
+  margin-bottom: 12px;
+}
+.hot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.hot-form {
+  margin-bottom: 8px;
+}
+.hot-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin-bottom: 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.hot-table {
+  width: 100%;
+}
+.hot-score {
+  display: inline-block;
+  min-width: 44px;
+  margin-right: 8px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.price-up {
+  color: #f56c6c;
+}
+.price-down {
+  color: #67c23a;
 }
 .update-form { margin-bottom: 8px; }
 .task-hint {

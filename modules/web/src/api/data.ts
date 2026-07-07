@@ -8,6 +8,34 @@ import request from './request'
 import type { DataOverview } from '@/types'
 
 /** Mock 数据仅在开发环境显式设置 VITE_ENABLE_MOCK_DATA=true 时启用。 */
+export interface HotStockItem {
+  stock_code: string
+  stock_name: string
+  exchange_type: string
+  industry?: string
+  trade_days: number
+  avg_volume: number
+  avg_amount: number
+  avg_turnover: number
+  volume_ratio: number
+  up_days: number
+  latest_close: number
+  latest_change_pct: number
+  hot_score: number
+  hot_level: string
+}
+
+export interface HotStocksResponse {
+  limit: number
+  days: number
+  baseline_days: number
+  start_date: string
+  end_date: string
+  items_count: number
+  formula: string
+  items: HotStockItem[]
+}
+
 const mockDataEnabled = import.meta.env.DEV && import.meta.env.VITE_ENABLE_MOCK_DATA === 'true'
 
 /** 计算两个日期之间的交易日数量（去除周末） */
@@ -57,6 +85,35 @@ export const dataApi = {
   },
 
   /** 从 IndexedDB 计算真实数据概览 */
+  async getHotStocks(params: {
+    limit?: number
+    days?: number
+    baselineDays?: number
+    endDate?: string
+  } = {}): Promise<HotStocksResponse> {
+    const res = await request.get<{ data: HotStocksResponse }>('/data/hot-stocks', {
+      params: {
+        limit: params.limit ?? 50,
+        days: params.days ?? 7,
+        baselineDays: params.baselineDays ?? 20,
+        endDate: params.endDate || undefined,
+        _t: Date.now()
+      },
+      headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' }
+    })
+    const d = res.data
+    return {
+      limit: d?.limit ?? params.limit ?? 50,
+      days: d?.days ?? params.days ?? 7,
+      baseline_days: d?.baseline_days ?? params.baselineDays ?? 20,
+      start_date: d?.start_date ?? '-',
+      end_date: d?.end_date ?? '-',
+      items_count: d?.items_count ?? 0,
+      formula: d?.formula ?? '',
+      items: d?.items ?? []
+    }
+  },
+
   async getOverviewFromIndexedDB(): Promise<DataOverview> {
     try {
       const db = await getDB()

@@ -40,6 +40,16 @@ public class DataController {
         return ApiResponse.success(dataService.getOverview());
     }
 
+    /** 最近 N 个交易日热门股票榜：成交额、换手率、量能放大、上涨天数综合打分。 */
+    @GetMapping("/hot-stocks")
+    public ApiResponse<Map<String, Object>> getHotStocks(
+            @RequestParam(defaultValue = "50") int limit,
+            @RequestParam(defaultValue = "7") int days,
+            @RequestParam(defaultValue = "20") int baselineDays,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return ApiResponse.success(dataService.getHotStocks(limit, days, baselineDays, endDate));
+    }
+
     /** 用 K 线最早交易日回填 stock_info.list_date（仅补空值） */
     @PostMapping("/stock-info/backfill-list-date")
     public ApiResponse<Map<String, Object>> backfillListDate() {

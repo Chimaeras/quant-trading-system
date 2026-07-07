@@ -11,10 +11,13 @@ import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
+import java.math.BigDecimal;
 import java.sql.Date;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -78,6 +81,156 @@ public class DataService {
         return result;
     }
 
+    /**
+     * 最近 N 个交易日热门度榜单。
+     * 口径：成交额规模 35% + 换手率 25% + 相对前 20 个交易日量能放大 25% + 上涨天数占比 15%。
+     */
+    public Map<String, Object> getHotStocks(int rawLimit, int rawDays, int rawBaselineDays, LocalDate endDate) {
+        int limit = clamp(rawLimit, 1, 500);
+        int days = clamp(rawDays, 3, 30);
+        int baselineDays = clamp(rawBaselineDays, 5, 120);
+
+        String endDateFilter = endDate != null ? "WHERE trade_date <= :endDate" : "";
+        String sql = """
+                WITH recent_dates AS (
+                    SELECT trade_date
+                    FROM (
+                        SELECT DISTINCT trade_date
+                        FROM market_data
+                        %s
+                        ORDER BY trade_date DESC
+                        LIMIT %d
+                    ) d
+                ),
+                bounds AS (
+                    SELECT MIN(trade_date) AS start_date, MAX(trade_date) AS end_date, COUNT(*) AS trade_days
+                    FROM recent_dates
+                ),
+                baseline_dates AS (
+                    SELECT trade_date
+                    FROM (
+                        SELECT DISTINCT m.trade_date
+                        FROM market_data m
+                        CROSS JOIN bounds b
+                        WHERE m.trade_date < b.start_date
+                        ORDER BY m.trade_date DESC
+                        LIMIT %d
+                    ) d
+                ),
+                recent AS (
+                    SELECT
+                        m.stock_code,
+                        m.exchange_type,
+                        COUNT(*) AS trade_days,
+                        AVG(COALESCE(m.volume, 0)) AS avg_volume,
+                        AVG(COALESCE(m.amount, 0)) AS avg_amount,
+                        AVG(COALESCE(m.turnover_rate, 0)) AS avg_turnover,
+                        SUM(CASE WHEN COALESCE(m.change_pct, 0) > 0 THEN 1 ELSE 0 END) AS up_days
+                    FROM market_data m
+                    INNER JOIN recent_dates d ON d.trade_date = m.trade_date
+                    GROUP BY m.stock_code, m.exchange_type
+                ),
+                latest AS (
+                    SELECT stock_code, exchange_type, close_price, change_pct
+                    FROM (
+                        SELECT
+                            m.stock_code,
+                            m.exchange_type,
+                            m.close_price,
+                            m.change_pct,
+                            ROW_NUMBER() OVER (
+                                PARTITION BY m.stock_code, m.exchange_type
+                                ORDER BY m.trade_date DESC
+                            ) AS rn
+                        FROM market_data m
+                        INNER JOIN recent_dates d ON d.trade_date = m.trade_date
+                    ) x
+                    WHERE rn = 1
+                ),
+                baseline AS (
+                    SELECT
+                        m.stock_code,
+                        m.exchange_type,
+                        AVG(COALESCE(m.volume, 0)) AS base_avg_volume,
+                        AVG(COALESCE(m.amount, 0)) AS base_avg_amount
+                    FROM market_data m
+                    INNER JOIN baseline_dates d ON d.trade_date = m.trade_date
+                    GROUP BY m.stock_code, m.exchange_type
+                )
+                SELECT
+                    r.stock_code,
+                    COALESCE(s.stock_name, '') AS stock_name,
+                    r.exchange_type,
+                    COALESCE(s.industry, '') AS industry,
+                    r.trade_days,
+                    ROUND(r.avg_volume, 0) AS avg_volume,
+                    ROUND(r.avg_amount, 2) AS avg_amount,
+                    ROUND(r.avg_turnover, 2) AS avg_turnover,
+                    ROUND(COALESCE(r.avg_volume / NULLIF(b.base_avg_volume, 0), 1), 2) AS volume_ratio,
+                    r.up_days,
+                    ROUND(l.close_price, 2) AS latest_close,
+                    ROUND(l.change_pct, 2) AS latest_change_pct,
+                    (SELECT start_date FROM bounds) AS start_date,
+                    (SELECT end_date FROM bounds) AS end_date,
+                    ROUND(100 * (
+                        0.35 * LEAST(LOG10(GREATEST(r.avg_amount, 0) + 1) / 9, 1) +
+                        0.25 * LEAST(GREATEST(r.avg_turnover, 0) / 12, 1) +
+                        0.25 * LEAST(GREATEST(COALESCE(r.avg_volume / NULLIF(b.base_avg_volume, 0), 1), 0) / 3, 1) +
+                        0.15 * LEAST(GREATEST(r.up_days / NULLIF(r.trade_days, 0), 0), 1)
+                    ), 2) AS hot_score
+                FROM recent r
+                LEFT JOIN latest l ON l.stock_code = r.stock_code AND l.exchange_type = r.exchange_type
+                LEFT JOIN baseline b ON b.stock_code = r.stock_code AND b.exchange_type = r.exchange_type
+                LEFT JOIN stock_info s ON s.stock_code = r.stock_code AND s.exchange_type = r.exchange_type
+                WHERE r.trade_days >= GREATEST(3, FLOOR((SELECT trade_days FROM bounds) * 0.6))
+                  AND COALESCE(r.avg_amount, 0) > 0
+                ORDER BY hot_score DESC, r.avg_amount DESC
+                LIMIT %d
+                """.formatted(endDateFilter, days, baselineDays, limit);
+
+        Query query = entityManager.createNativeQuery(sql);
+        if (endDate != null) {
+            query.setParameter("endDate", endDate);
+        }
+        List<?> rows = query.getResultList();
+        List<Map<String, Object>> items = new ArrayList<>();
+        LocalDate startDate = null;
+        LocalDate actualEndDate = null;
+        for (Object rowObj : rows) {
+            Object[] row = (Object[]) rowObj;
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("stock_code", stringValue(row[0]));
+            item.put("stock_name", stringValue(row[1]));
+            item.put("exchange_type", stringValue(row[2]));
+            item.put("industry", stringValue(row[3]));
+            item.put("trade_days", longValue(row[4]));
+            item.put("avg_volume", doubleValue(row[5]));
+            item.put("avg_amount", doubleValue(row[6]));
+            item.put("avg_turnover", doubleValue(row[7]));
+            item.put("volume_ratio", doubleValue(row[8]));
+            item.put("up_days", longValue(row[9]));
+            item.put("latest_close", doubleValue(row[10]));
+            item.put("latest_change_pct", doubleValue(row[11]));
+            startDate = toLocalDate(row[12]);
+            actualEndDate = toLocalDate(row[13]);
+            double hotScore = doubleValue(row[14]);
+            item.put("hot_score", hotScore);
+            item.put("hot_level", hotLevel(hotScore));
+            items.add(item);
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("limit", limit);
+        result.put("days", days);
+        result.put("baseline_days", baselineDays);
+        result.put("start_date", startDate != null ? startDate.toString() : "-");
+        result.put("end_date", actualEndDate != null ? actualEndDate.toString() : "-");
+        result.put("items_count", items.size());
+        result.put("formula", "35%成交额规模 + 25%换手率 + 25%量能放大 + 15%上涨天数占比");
+        result.put("items", items);
+        return result;
+    }
+
     /** 估算交易日数量（去除周末，简化按 5/7） */
     private long estimateTradingDays(long calendarDays) {
         return Math.max(1, calendarDays * 5 / 7);
@@ -102,6 +255,32 @@ public class DataService {
         if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
         if (bytes < 1024 * 1024 * 1024) return String.format("%.1f MB", bytes / (1024.0 * 1024));
         return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static String stringValue(Object value) {
+        return value == null ? "" : String.valueOf(value);
+    }
+
+    private static long longValue(Object value) {
+        return value instanceof Number number ? number.longValue() : 0L;
+    }
+
+    private static double doubleValue(Object value) {
+        if (value instanceof BigDecimal decimal) {
+            return decimal.doubleValue();
+        }
+        return value instanceof Number number ? number.doubleValue() : 0.0;
+    }
+
+    private static String hotLevel(double score) {
+        if (score >= 80) return "极热";
+        if (score >= 65) return "高热";
+        if (score >= 50) return "活跃";
+        return "温和";
     }
 
     /**

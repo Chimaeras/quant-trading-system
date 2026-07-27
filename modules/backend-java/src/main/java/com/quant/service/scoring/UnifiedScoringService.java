@@ -96,6 +96,13 @@ public class UnifiedScoringService {
         strategyReq.remove("persist");
 
         Map<String, Object> rawResult = dispatch(strategy, strategyReq);
+        if (rawResult == null) {
+            rawResult = new LinkedHashMap<>();
+            rawResult.put("items", List.of());
+            rawResult.put("trade_date", String.valueOf(strategyReq.getOrDefault("tradeDate", "")));
+            rawResult.put("factor_version", strategy.name().toLowerCase());
+            rawResult.put("message", "策略未返回结果，按空结果处理");
+        }
         List<Map<String, Object>> rawItems = readItems(rawResult);
         double minTotalScore = parseDouble(req.get("minTotalScore"), defaultMinTotalScore(strategy), 0, 100);
         List<Map<String, Object>> slicedItems = sliceTopN(strategy, rawItems, minTotalScore, topN);

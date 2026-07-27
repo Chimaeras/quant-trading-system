@@ -164,8 +164,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
             }
         }
 
-        Map<String, String> nameCache = new HashMap<>();
-        Map<String, String> industryCache = new HashMap<>();
+        Map<String, String> nameCache = new ConcurrentHashMap<>();
+        Map<String, String> industryCache = new ConcurrentHashMap<>();
         for (StockInfo info : stockInfoRepository.findAll()) {
             if (info.getStockCode() == null || info.getExchangeType() == null) {
                 continue;
@@ -262,7 +262,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                 }
                 return classicFactorCalculator.calculate(
                         stockCode, exchangeType, bars, minAvgAmount, minTrendScore,
-                        k -> nameCache.computeIfAbsent(k, kk -> getStockName(stockCode, exchangeType)),
+                        k -> nameCache.computeIfAbsent(stockCode + "|" + exchangeType,
+                                kk -> getStockName(stockCode, exchangeType)),
                         excludeST,
                         horizonProfileFinal,
                         tradeDate,

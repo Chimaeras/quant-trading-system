@@ -35,3 +35,33 @@ export function runScreener(params: {
 }): Promise<ScreenerResponse> {
   return request.get('/api/screener/run', { params })
 }
+
+export interface ScreenerTemplate {
+  id?: number
+  user_id: number
+  name: string
+  keyword?: string
+  exchange?: string
+  industry?: string
+  min_listing_days?: number
+  created_at?: string
+}
+
+export function saveScreenerTemplate(params: {
+  name: string
+  keyword?: string
+  exchange?: string
+  industry?: string
+  minListingDays?: number
+  userId?: number
+}): Promise<ScreenerTemplate> {
+  return request.post('/api/screener/templates/save', params)
+}
+
+export function listScreenerTemplates(userId?: number): Promise<ScreenerTemplate[]> {
+  return request.get('/api/screener/templates/list', { params: userId ? { userId } : {} })
+}
+
+export function deleteScreenerTemplate(id: number, userId?: number): Promise<{ deleted: boolean }> {
+  return request.post('/api/screener/templates/delete', { id, ...(userId ? { userId } : {}) })
+}

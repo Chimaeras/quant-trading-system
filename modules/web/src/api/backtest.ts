@@ -148,3 +148,32 @@ export interface StrategyBacktestResponse {
   equityCurve: Array<Record<string, unknown>>
   executionAssumptions?: Record<string, unknown>
 }
+
+export interface TurnoverDaily {
+  trade_date: string
+  turnover: number
+  new_count: number
+  exit_count: number
+}
+
+export interface TurnoverResponse {
+  strategy: string
+  start_date: string
+  end_date: string
+  top_n: number
+  signal_days: number
+  avg_turnover: number
+  max_turnover: number
+  min_turnover: number
+  daily_turnover: TurnoverDaily[]
+  note: string
+}
+
+export function analyzeTurnover(params: {
+  strategy?: string
+  startDate: string
+  endDate: string
+  topN?: number
+}): Promise<TurnoverResponse> {
+  return request.get('/api/backtest/turnover', { params })
+}

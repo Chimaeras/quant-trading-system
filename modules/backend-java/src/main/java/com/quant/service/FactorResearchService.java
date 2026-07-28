@@ -74,8 +74,41 @@ public class FactorResearchService {
         out.put("coverage", allItems.isEmpty() ? 0.0
                 : Math.round(validCount * 10000.0 / allItems.size()) / 100.0);
         out.put("distribution", buildDistribution(scores));
-        out.put("note", "仅作因子研究评价（覆盖率/分布），禁止据此直接调整因子权重");
+        out.put("group_bands", buildGroupBands(scores, 5));
+        out.put("note", "仅作因子研究评价（覆盖率/分布/分组），禁止据此直接调整因子权重");
         return out;
+    }
+
+    /** 按数量等分为 groupCount 组，返回每组的得分范围与数量，展示得分集中度。 */
+    private List<Map<String, Object>> buildGroupBands(List<Double> sortedScores, int groupCount) {
+        List<Map<String, Object>> bands = new ArrayList<>();
+        int n = sortedScores.size();
+        if (n == 0 || groupCount <= 0) {
+            return bands;
+        }
+        int effectiveGroups = Math.min(groupCount, n);
+        int baseSize = n / effectiveGroups;
+        int remainder = n % effectiveGroups;
+        int idx = 0;
+        for (int g = 0; g < effectiveGroups; g++) {
+            int size = baseSize + (g < remainder ? 1 : 0);
+            double lo = sortedScores.get(idx);
+            double hi = sortedScores.get(idx + size - 1);
+            double avg = 0;
+            for (int i = idx; i < idx + size; i++) {
+                avg += sortedScores.get(i);
+            }
+            avg /= size;
+            Map<String, Object> b = new LinkedHashMap<>();
+            b.put("group_no", g + 1);
+            b.put("min_score", round2(lo));
+            b.put("max_score", round2(hi));
+            b.put("avg_score", round2(avg));
+            b.put("count", size);
+            bands.add(b);
+            idx += size;
+        }
+        return bands;
     }
 
     private Map<String, Object> buildDistribution(List<Double> sortedScores) {

@@ -1,6 +1,7 @@
 package com.quant.controller;
 
 import com.quant.dto.ApiResponse;
+import com.quant.service.WatchlistAlertService;
 import com.quant.service.WatchlistService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -17,6 +18,7 @@ import java.util.Map;
 public class WatchlistController {
 
     private final WatchlistService watchlistService;
+    private final WatchlistAlertService watchlistAlertService;
 
     @GetMapping("/list")
     public ApiResponse<List<Map<String, Object>>> list(@RequestParam(required = false) Long userId) {
@@ -38,5 +40,15 @@ public class WatchlistController {
         String stockCode = String.valueOf(body.getOrDefault("stockCode", ""));
         String exchangeType = String.valueOf(body.getOrDefault("exchangeType", ""));
         return ApiResponse.success(watchlistService.remove(userId, stockCode, exchangeType));
+    }
+
+    @GetMapping("/alerts")
+    public ApiResponse<Map<String, Object>> alerts(
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) Double pctThreshold,
+            @RequestParam(required = false) Double volumeRatioThreshold,
+            @RequestParam(required = false) Integer lookbackDays) {
+        return ApiResponse.success(watchlistAlertService.scan(
+                userId != null ? userId : 1L, pctThreshold, volumeRatioThreshold, lookbackDays));
     }
 }

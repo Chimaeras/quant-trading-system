@@ -25,6 +25,12 @@
         <el-form-item>
           <el-button type="primary" :loading="loading" @click="run">筛选</el-button>
         </el-form-item>
+        <el-form-item label="模板名">
+          <el-input v-model="templateName" placeholder="保存当前条件" style="width: 150px" clearable />
+        </el-form-item>
+        <el-form-item>
+          <el-button :loading="saving" @click="saveTemplate">保存模板</el-button>
+        </el-form-item>
       </el-form>
 
       <p class="hint">
@@ -51,18 +57,45 @@
         </template>
         <el-empty v-else-if="!loading" description="设置条件后点击筛选" />
       </div>
+
+      <el-card shadow="never" class="tpl-card">
+        <template #header>已保存模板</template>
+        <el-table :data="templates" size="small" stripe border v-loading="loadingTpl">
+          <el-table-column type="index" label="#" width="56" />
+          <el-table-column prop="name" label="名称" min-width="120" />
+          <el-table-column prop="keyword" label="关键字" min-width="100" />
+          <el-table-column prop="exchange" label="交易所" min-width="80" />
+          <el-table-column prop="industry" label="行业" min-width="90" />
+          <el-table-column prop="min_listing_days" label="上市≥天" min-width="90" />
+          <el-table-column prop="created_at" label="创建时间" min-width="150">
+            <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="140" fixed="right">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="applyTemplate(row)">加载</el-button>
+              <el-button link type="danger" :loading="deletingId === row.id" @click="removeTemplate(row)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-empty v-if="!loadingTpl && !templates.length" description="暂无保存的模板" />
+      </el-card>
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { runScreener, type ScreenerResponse } from '@/api/screener'
+import { runScreener, saveScreenerTemplate, listScreenerTemplates, deleteScreenerTemplate, type ScreenerResponse, type ScreenerTemplate } from '@/api/screener'
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
 const loading = ref(false)
 const result = ref<ScreenerResponse | null>(null)
+const templateName = ref('')
+const saving = ref(false)
+const loadingTpl = ref(false)
+const deletingId = ref<number | null>(null)
+const templates = ref<ScreenerTemplate[]>([])
 
 const form = reactive({
   keyword: '',
@@ -89,7 +122,73 @@ async function run() {
   }
 }
 
-onMounted(() => run())
+function formatTime(value: string): string {
+  if (!value) return '—'
+  return value.replace('T', ' ').slice(0, 16)
+}
+
+async function loadTemplates() {
+  loadingTpl.value = true
+  try {
+    templates.value = await listScreenerTemplates()
+  } catch (e: any) {
+    toast.error(e?.message || '加载模板失败')
+  } finally {
+    loadingTpl.value = false
+  }
+}
+
+async function saveTemplate() {
+  if (!templateName.value.trim()) {
+    toast.warning('请输入模板名称')
+    return
+  }
+  saving.value = true
+  try {
+    await saveScreenerTemplate({
+      name: templateName.value.trim(),
+      keyword: form.keyword || undefined,
+      exchange: form.exchange || undefined,
+      industry: form.industry || undefined,
+      minListingDays: form.minListingDays || undefined
+    })
+    toast.success('模板已保存')
+    templateName.value = ''
+    await loadTemplates()
+  } catch (e: any) {
+    toast.error(e?.message || '保存模板失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+function applyTemplate(t: ScreenerTemplate) {
+  form.keyword = t.keyword || ''
+  form.exchange = t.exchange || ''
+  form.industry = t.industry || ''
+  form.minListingDays = t.min_listing_days || 60
+  toast.success('已加载模板：' + t.name)
+  run()
+}
+
+async function removeTemplate(t: ScreenerTemplate) {
+  if (!t.id) return
+  deletingId.value = t.id
+  try {
+    await deleteScreenerTemplate(t.id)
+    toast.success('已删除')
+    await loadTemplates()
+  } catch (e: any) {
+    toast.error(e?.message || '删除失败')
+  } finally {
+    deletingId.value = null
+  }
+}
+
+onMounted(() => {
+  run()
+  loadTemplates()
+})
 </script>
 
 <style scoped>
@@ -111,5 +210,10 @@ onMounted(() => run())
   margin-bottom: 10px;
   font-size: 12px;
   color: var(--text-secondary);
+}
+.tpl-card {
+  margin-top: 16px;
+  background: rgba(9, 18, 34, 0.72);
+  border: 1px solid rgba(145, 196, 255, 0.18);
 }
 </style>

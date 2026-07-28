@@ -1,6 +1,8 @@
 package com.quant.service;
 
+import com.quant.entity.ScreenerTemplate;
 import com.quant.entity.StockInfo;
+import com.quant.repository.ScreenerTemplateRepository;
 import com.quant.repository.StockInfoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +34,7 @@ import java.util.Map;
 public class ScreenerService {
 
     private final StockInfoRepository stockInfoRepository;
+    private final ScreenerTemplateRepository screenerTemplateRepository;
 
     @Transactional(readOnly = true)
     public Map<String, Object> screen(
@@ -89,6 +92,58 @@ public class ScreenerService {
         if (info.getListDate() != null) {
             m.put("listing_days", ChronoUnit.DAYS.between(info.getListDate(), LocalDate.now()));
         }
+        return m;
+    }
+
+    @Transactional
+    public Map<String, Object> saveTemplate(Long userId, String name, String keyword,
+                                            String exchange, String industry, Integer minListingDays) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("模板名称不能为空");
+        }
+        ScreenerTemplate tpl = screenerTemplateRepository
+                .findByUserIdAndName(userId, name.trim())
+                .orElseGet(() -> {
+                    ScreenerTemplate t = new ScreenerTemplate();
+                    t.setUserId(userId);
+                    t.setName(name.trim());
+                    return t;
+                });
+        tpl.setKeyword(keyword);
+        tpl.setExchange(exchange);
+        tpl.setIndustry(industry);
+        tpl.setMinListingDays(minListingDays);
+        screenerTemplateRepository.save(tpl);
+        log.info("选股模板保存 userId={} name={}", userId, name);
+        return templateToMap(tpl);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> listTemplates(Long userId) {
+        return screenerTemplateRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+                .map(this::templateToMap)
+                .toList();
+    }
+
+    @Transactional
+    public Map<String, Object> deleteTemplate(Long userId, Long id) {
+        long deleted = screenerTemplateRepository.deleteByUserIdAndId(userId, id);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", id);
+        out.put("deleted", deleted > 0);
+        return out;
+    }
+
+    private Map<String, Object> templateToMap(ScreenerTemplate tpl) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", tpl.getId());
+        m.put("user_id", tpl.getUserId());
+        m.put("name", tpl.getName());
+        m.put("keyword", tpl.getKeyword());
+        m.put("exchange", tpl.getExchange());
+        m.put("industry", tpl.getIndustry());
+        m.put("min_listing_days", tpl.getMinListingDays());
+        m.put("created_at", tpl.getCreatedAt() != null ? tpl.getCreatedAt().toString() : "");
         return m;
     }
 }

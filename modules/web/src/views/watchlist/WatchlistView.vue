@@ -28,7 +28,7 @@
       </el-form>
 
       <p class="hint">
-        自选股池仅记录关注标的；实时盯盘与异动提醒（WebSocket）为后续扩展，当前不推送。
+        自选股池记录关注标的；异动扫描基于最新入库行情（非实时），点击下方「异动扫描」查看当日异动信号。
       </p>
 
       <el-table :data="items" size="small" stripe border v-loading="loading">
@@ -48,12 +48,54 @@
       </el-table>
       <el-empty v-if="!loading && !items.length" description="暂无自选股，添加关注标的开始跟踪" />
     </el-card>
+
+    <el-card shadow="hover" class="alert-card">
+      <template #header>
+        <div class="header">
+          <span>异动扫描</span>
+          <el-button type="primary" size="small" :loading="scanning" @click="scanAlerts">异动扫描</el-button>
+        </div>
+      </template>
+
+      <div v-loading="scanning">
+        <template v-if="scan">
+          <p class="scan-meta">
+            信号日：{{ scan.signal_date || '—' }} · 扫描 {{ scan.total_scanned }} 只 · 异动 {{ scan.total_alerted }} 只
+            <span class="basis">（{{ scan.basis }}）</span>
+          </p>
+          <el-table v-if="scan.alerts.length" :data="scan.alerts" size="small" stripe border>
+            <el-table-column type="index" label="#" width="56" />
+            <el-table-column prop="stock_code" label="代码" min-width="90" />
+            <el-table-column prop="stock_name" label="名称" min-width="100" />
+            <el-table-column prop="signal_date" label="信号日" min-width="110" />
+            <el-table-column label="最新收盘" min-width="90">
+              <template #default="{ row }">{{ row.latest_close != null ? row.latest_close.toFixed(2) : '—' }}</template>
+            </el-table-column>
+            <el-table-column label="涨跌幅" min-width="90">
+              <template #default="{ row }">
+                <span :class="pctClass(row.pct_change)">{{ pctText(row.pct_change) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="量比" min-width="80">
+              <template #default="{ row }">{{ row.volume_ratio != null ? row.volume_ratio.toFixed(2) : '—' }}</template>
+            </el-table-column>
+            <el-table-column label="异动信号" min-width="240">
+              <template #default="{ row }">
+                <el-tag v-for="s in row.signals" :key="s" size="small" class="signal-tag">{{ s }}</el-tag>
+              </template>
+            </el-table-column>
+          </el-table>
+          <el-empty v-else-if="!scanning" :description="scan.note" />
+        </template>
+        <el-empty v-else-if="!scanning" description="点击异动扫描查看当日异动信号" />
+      </div>
+    </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { listWatchlist, addWatchlist, removeWatchlist, type WatchlistItem } from '@/api/watchlist'
+import { listWatchlist, addWatchlist, removeWatchlist, scanWatchlistAlerts, type WatchlistItem, type WatchlistAlertScan } from '@/api/watchlist'
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
@@ -61,6 +103,8 @@ const loading = ref(false)
 const adding = ref(false)
 const removingKey = ref('')
 const items = ref<WatchlistItem[]>([])
+const scanning = ref(false)
+const scan = ref<WatchlistAlertScan | null>(null)
 
 const form = reactive({
   stockCode: '',
@@ -116,6 +160,25 @@ async function removeItem(row: WatchlistItem) {
   }
 }
 
+function pctText(v: number): string {
+  return Number.isFinite(v) ? (v * 100).toFixed(2) + '%' : '—'
+}
+function pctClass(v: number): string {
+  if (!Number.isFinite(v)) return ''
+  return v > 0 ? 'text-danger' : v < 0 ? 'text-success' : ''
+}
+
+async function scanAlerts() {
+  scanning.value = true
+  try {
+    scan.value = await scanWatchlistAlerts()
+  } catch (e: any) {
+    toast.error(e?.message || '异动扫描失败')
+  } finally {
+    scanning.value = false
+  }
+}
+
 onMounted(() => {
   loadList()
 })
@@ -140,4 +203,21 @@ onMounted(() => {
   font-size: 12px;
   color: var(--text-secondary);
 }
+.alert-card {
+  margin-top: 16px;
+}
+.scan-meta {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.basis {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.signal-tag {
+  margin: 0 4px 4px 0;
+}
+.text-danger { color: #f56c6c; }
+.text-success { color: #67c23a; }
 </style>

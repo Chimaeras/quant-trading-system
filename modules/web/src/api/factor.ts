@@ -8,6 +8,14 @@ export interface FactorDistribution {
   max: number
 }
 
+export interface FactorGroupBand {
+  group_no: number
+  min_score: number
+  max_score: number
+  avg_score: number
+  count: number
+}
+
 export interface FactorResearchResponse {
   strategy: string
   start_date: string
@@ -17,6 +25,7 @@ export interface FactorResearchResponse {
   valid_observations: number
   coverage: number
   distribution: FactorDistribution
+  group_bands: FactorGroupBand[]
   note: string
 }
 

@@ -70,6 +70,13 @@ class FactorResearchServiceTest {
         assertThat(dist.get("min")).isEqualTo(60.0);
         assertThat(dist.get("max")).isEqualTo(80.0);
         assertThat(dist.get("median")).isEqualTo(70.0);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> bands = (List<Map<String, Object>>) out.get("group_bands");
+        assertThat(bands).isNotEmpty();
+        assertThat(bands.get(0).get("min_score")).isEqualTo(60.0);
+        int totalBandCount = bands.stream().mapToInt(b -> (int) b.get("count")).sum();
+        assertThat(totalBandCount).isEqualTo(3);
     }
 
     @Test

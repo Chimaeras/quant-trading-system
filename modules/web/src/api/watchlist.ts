@@ -39,3 +39,33 @@ export function removeWatchlist(
     ...(userId ? { userId } : {})
   })
 }
+
+export interface WatchlistAlert {
+  stock_code: string
+  exchange_type: string
+  stock_name?: string
+  signal_date: string
+  latest_close: number | null
+  pct_change: number
+  volume_ratio: number
+  signals: string[]
+}
+
+export interface WatchlistAlertScan {
+  user_id: number
+  basis: string
+  signal_date: string
+  total_scanned: number
+  total_alerted: number
+  alerts: WatchlistAlert[]
+  note: string
+}
+
+export function scanWatchlistAlerts(params?: {
+  userId?: number
+  pctThreshold?: number
+  volumeRatioThreshold?: number
+  lookbackDays?: number
+}): Promise<WatchlistAlertScan> {
+  return request.get('/api/watchlist/alerts', { params: params || {} })
+}

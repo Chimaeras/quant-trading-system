@@ -374,6 +374,29 @@
         </el-table-column>
       </el-table>
     </el-dialog>
+
+    <el-collapse class="turnover-collapse">
+      <el-collapse-item title="候选换手率分析" name="turnover">
+        <el-button type="primary" size="small" :loading="turnoverLoading" @click="runTurnover">分析换手率</el-button>
+        <template v-if="turnover">
+          <div class="turnover-meta">
+            <span>信号日：{{ turnover.signal_days }}</span>
+            <span>平均换手：{{ (turnover.avg_turnover * 100).toFixed(2) }}%</span>
+            <span>最高：{{ (turnover.max_turnover * 100).toFixed(2) }}%</span>
+            <span>最低：{{ (turnover.min_turnover * 100).toFixed(2) }}%</span>
+          </div>
+          <el-table v-if="turnover.daily_turnover.length" :data="turnover.daily_turnover" size="small" stripe border max-height="320">
+            <el-table-column prop="trade_date" label="信号日" min-width="110" />
+            <el-table-column label="换手率" min-width="100">
+              <template #default="{ row }">{{ (row.turnover * 100).toFixed(2) }}%</template>
+            </el-table-column>
+            <el-table-column prop="new_count" label="新进数" min-width="80" />
+            <el-table-column prop="exit_count" label="退出数" min-width="80" />
+          </el-table>
+          <p class="turnover-note">{{ turnover.note }}</p>
+        </template>
+      </el-collapse-item>
+    </el-collapse>
   </el-card>
 </template>
 
@@ -381,7 +404,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import * as echarts from 'echarts'
 import dayjs from 'dayjs'
-import { backtestApi, type ScoringBacktestResponse, type DailyDetail, type StockReturn } from '@/api/backtest'
+import { backtestApi, analyzeTurnover, type ScoringBacktestResponse, type DailyDetail, type StockReturn, type TurnoverResponse } from '@/api/backtest'
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
@@ -390,6 +413,8 @@ const errorMsg = ref('')
 const strategies = ref<string[]>([])
 const strategiesLoading = ref(false)
 const response = ref<ScoringBacktestResponse | null>(null)
+const turnover = ref<TurnoverResponse | null>(null)
+const turnoverLoading = ref(false)
 
 const form = reactive({
   strategyType: '',
@@ -874,6 +899,22 @@ function onResize() {
   icSeriesChart?.resize()
 }
 
+async function runTurnover() {
+  turnoverLoading.value = true
+  try {
+    turnover.value = await analyzeTurnover({
+      strategy: form.strategyType || undefined,
+      startDate: form.startDate,
+      endDate: form.endDate,
+      topN: form.topN
+    })
+  } catch (e: any) {
+    toast.error(e?.message || '换手率分析失败')
+  } finally {
+    turnoverLoading.value = false
+  }
+}
+
 onMounted(() => {
   loadStrategies()
   window.addEventListener('resize', onResize)
@@ -1018,5 +1059,22 @@ onBeforeUnmount(() => {
 
 .assumptions-alert :deep(.el-alert__content) {
   width: 100%;
+}
+
+.turnover-collapse {
+  margin-top: 16px;
+}
+.turnover-meta {
+  display: flex;
+  gap: 18px;
+  margin: 10px 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.turnover-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
 }
 </style>

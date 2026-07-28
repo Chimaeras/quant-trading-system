@@ -50,6 +50,21 @@
             </el-card>
 
             <el-card shadow="never" class="q-card">
+              <template #header>得分分组（等数量 5 组）</template>
+              <el-table v-if="result.group_bands.length" :data="result.group_bands" size="small" stripe border>
+                <el-table-column prop="group_no" label="组" width="60" />
+                <el-table-column label="得分范围" min-width="140">
+                  <template #default="{ row }">{{ fmt(row.min_score) }} ~ {{ fmt(row.max_score) }}</template>
+                </el-table-column>
+                <el-table-column label="均值" min-width="80">
+                  <template #default="{ row }">{{ fmt(row.avg_score) }}</template>
+                </el-table-column>
+                <el-table-column prop="count" label="数量" width="70" />
+              </el-table>
+              <el-empty v-else description="无有效得分" :image-size="40" />
+            </el-card>
+
+            <el-card shadow="never" class="q-card">
               <template #header>研究范围</template>
               <div class="q-meta">
                 <span>策略：{{ strategyLabel(result.strategy) }}</span>

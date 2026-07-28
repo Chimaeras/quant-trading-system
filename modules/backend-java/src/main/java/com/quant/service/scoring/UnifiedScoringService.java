@@ -133,7 +133,8 @@ public class UnifiedScoringService {
         out.put("source_summary", extractSummary(rawResult));
         boolean excludeST = parseBool(req.get("excludeST"), true);
         int minListingDays = resolveMinListingDays(req, strategy);
-        out.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, strategy != UnifiedScoringStrategy.OVERSOLD_REBOUND, minListingDays));
+        boolean bulkFetch = resolveBulkFetch(req, strategy);
+        out.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, strategy != UnifiedScoringStrategy.OVERSOLD_REBOUND, minListingDays, bulkFetch));
         return out;
     }
 
@@ -649,6 +650,18 @@ public class UnifiedScoringService {
         return parseInt(strategyReq.get("minListingDays"), defaultDays, 0, 3650);
     }
 
+    /**
+     * 解析 factor_snapshot 中应披露的 bulkFetch 口径：必须与各子服务实际行为一致。
+     * MultiDimScoringService 强制 bulkFetch=true（否则直接报错）；其余策略默认 true，
+     * 可由请求显式关闭（此时 pair 级上市时长预过滤仅见 lookback 窗口内最早交易日）。
+     */
+    private static boolean resolveBulkFetch(Map<String, Object> strategyReq, UnifiedScoringStrategy strategy) {
+        if (strategy == UnifiedScoringStrategy.MULTI_DIM) {
+            return true;
+        }
+        return parseBool(strategyReq.get("bulkFetch"), true);
+    }
+
     private static Map<String, Object> buildQualityGateSnapshot(
             UnifiedScoringStrategy strategy,
             Map<String, Object> strategyReq,
@@ -779,7 +792,8 @@ public class UnifiedScoringService {
                 ));
                 boolean excludeST = parseBool(strategyReq.get("excludeST"), true);
                 int minListingDays = resolveMinListingDays(strategyReq, strategy);
-                snap.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, strategy != UnifiedScoringStrategy.OVERSOLD_REBOUND, minListingDays));
+                boolean bulkFetch = resolveBulkFetch(strategyReq, strategy);
+                snap.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, strategy != UnifiedScoringStrategy.OVERSOLD_REBOUND, minListingDays, bulkFetch));
                 snap.put("quality_gate", buildQualityGateSnapshot(strategy, strategyReq, rawResult, items.size()));
                 existing.setFactorSnapshot(snap);
                 existing.setRunStatus("SUCCESS");
@@ -816,7 +830,8 @@ public class UnifiedScoringService {
         boolean excludeST = parseBool(strategyReq.get("excludeST"), true);
         boolean excludeLimitDown = strategy != UnifiedScoringStrategy.OVERSOLD_REBOUND;
         int minListingDays = resolveMinListingDays(strategyReq, strategy);
-        snapshot.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, excludeLimitDown, minListingDays));
+        boolean bulkFetch = resolveBulkFetch(strategyReq, strategy);
+        snapshot.put("tradability", ScoringUtils.tradabilitySnapshot(excludeST, excludeLimitDown, minListingDays, bulkFetch));
         sr.setFactorSnapshot(snapshot);
         selectorResultRepository.save(sr);
 

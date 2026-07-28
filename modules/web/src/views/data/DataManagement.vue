@@ -47,7 +47,37 @@
         <p class="backfill-hint">
           上市日期（list_date）缺失时，可用本地 K 线最早交易日回填空值，不覆盖已有数据；受行情窗口限制，非交易所官方上市日。
         </p>
-        <el-button type="warning" size="small" :loading="backfillLoading" @click="runBackfillListDate">
+        <el-alert
+          v-if="listDateMissing > 0 && listDateBackfillable > 0"
+          type="warning"
+          :closable="false"
+          show-icon
+          class="backfill-alert"
+          :title="`检测到 ${listDateMissing} 只股票缺失上市日，其中 ${listDateBackfillable} 只可从本地 K 线回填，建议立即回填。`"
+        />
+        <el-alert
+          v-else-if="listDateMissing > 0 && listDateBackfillable === 0"
+          type="info"
+          :closable="false"
+          show-icon
+          class="backfill-alert"
+          :title="`检测到 ${listDateMissing} 只股票缺失上市日，但本地 K 线无法回填（需接入官方上市日数据源）。`"
+        />
+        <el-alert
+          v-else
+          type="success"
+          :closable="false"
+          show-icon
+          class="backfill-alert"
+          title="上市日数据完整，无需回填。"
+        />
+        <el-button
+          type="warning"
+          size="small"
+          :loading="backfillLoading"
+          :disabled="listDateBackfillable === 0"
+          @click="runBackfillListDate"
+        >
           回填缺失上市日期
         </el-button>
         <span v-if="backfillResult" class="backfill-result">
@@ -354,6 +384,8 @@ const taskForm = reactive<{
 })
 
 const overview = computed(() => dataStore.overview)
+const listDateMissing = computed(() => Number(overview.value?.list_date_missing_count ?? 0))
+const listDateBackfillable = computed(() => Number(overview.value?.list_date_backfillable_count ?? 0))
 
 /** 各按钮：闭区间内交易日条数见 utils/tradingDays PRESET_TRADING_DAY_COUNTS */
 const datePresets: { key: PresetKey; label: string }[] = [
@@ -432,6 +464,8 @@ const runBackfillListDate = async () => {
     const result = await dataApi.backfillListDate()
     backfillResult.value = result
     toast.success(`上市日期回填完成：新增 ${result.updated} 条`)
+    // 回填后自动刷新概览，避免 missing_count 仍显示旧值造成「未回填成功」的误判
+    await refresh()
   } catch (e: any) {
     toast.error(e?.message || '上市日期回填失败')
   } finally {
@@ -635,6 +669,10 @@ onMounted(async () => {
   font-size: 12px;
   color: var(--text-secondary);
   line-height: 1.5;
+}
+.backfill-alert {
+  flex: 1 1 100%;
+  margin-bottom: 4px;
 }
 .backfill-result {
   font-size: 12px;

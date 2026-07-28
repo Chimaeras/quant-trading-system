@@ -249,4 +249,52 @@ class StrategyBacktestEngineTest {
         bar.setOpenPrice(BigDecimal.TEN);
         assertThat(StrategyBacktestEngine.resolvePreClose(bar, null)).isZero();
     }
+
+    @Test
+    void detectsStMainBoardFivePctLimitAtCloseAndOneWordBoard() {
+        // 主板 ST 涨跌停 5%：10.50 落在 10×1.05 容差带内 → 涨停收盘
+        MarketData limitUpClose = new MarketData();
+        limitUpClose.setClosePrice(BigDecimal.valueOf(10.50));
+        assertThat(StrategyBacktestEngine.isLimitUpAtClose(limitUpClose, 10.0, 0.05)).isTrue();
+        assertThat(StrategyBacktestEngine.isLimitDownAtClose(limitUpClose, 10.0, 0.05)).isFalse();
+
+        // 9.50 落在 10×0.95 容差带内 → 跌停收盘
+        MarketData limitDownClose = new MarketData();
+        limitDownClose.setClosePrice(BigDecimal.valueOf(9.50));
+        assertThat(StrategyBacktestEngine.isLimitDownAtClose(limitDownClose, 10.0, 0.05)).isTrue();
+        assertThat(StrategyBacktestEngine.isLimitUpAtClose(limitDownClose, 10.0, 0.05)).isFalse();
+
+        // 10.4（+4%）未达 5% 涨停
+        MarketData near = new MarketData();
+        near.setClosePrice(BigDecimal.valueOf(10.40));
+        assertThat(StrategyBacktestEngine.isLimitUpAtClose(near, 10.0, 0.05)).isFalse();
+
+        // 一字板：开盘=收盘=涨停价，开盘与收盘均判涨停
+        MarketData oneWord = new MarketData();
+        oneWord.setOpenPrice(BigDecimal.valueOf(10.50));
+        oneWord.setClosePrice(BigDecimal.valueOf(10.50));
+        assertThat(StrategyBacktestEngine.isLimitUpAtOpen(oneWord, 10.0, 0.05)).isTrue();
+        assertThat(StrategyBacktestEngine.isLimitUpAtClose(oneWord, 10.0, 0.05)).isTrue();
+    }
+
+    @Test
+    void stLimitPctFlowsThroughLimitDetection() {
+        // 主板 ST：resolveLimitPct=5%，10.50 收盘触发涨停
+        double stMainBoardPct = TradingLimitRules.resolveLimitPct("000001", "SZSE", "*ST测试");
+        assertThat(stMainBoardPct).isEqualTo(0.05);
+        MarketData limitUp = new MarketData();
+        limitUp.setClosePrice(BigDecimal.valueOf(10.50));
+        assertThat(StrategyBacktestEngine.isLimitUpAtClose(limitUp, 10.0, stMainBoardPct)).isTrue();
+
+        // 注册制创业板 ST：resolveLimitPct=20%，5% 涨幅不算涨停
+        double stChiNextPct = TradingLimitRules.resolveLimitPct("301578", "SZSE", "*ST创业板");
+        assertThat(stChiNextPct).isEqualTo(0.20);
+        MarketData chiNextUp = new MarketData();
+        chiNextUp.setClosePrice(BigDecimal.valueOf(10.50));
+        assertThat(StrategyBacktestEngine.isLimitUpAtClose(chiNextUp, 10.0, stChiNextPct)).isFalse();
+        // 20% 涨幅才算涨停
+        MarketData chiNextLimit = new MarketData();
+        chiNextLimit.setClosePrice(BigDecimal.valueOf(12.00));
+        assertThat(StrategyBacktestEngine.isLimitUpAtClose(chiNextLimit, 10.0, stChiNextPct)).isTrue();
+    }
 }

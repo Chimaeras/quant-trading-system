@@ -19,12 +19,11 @@ public final class TradingLimitRules {
      * @param stockName     证券名称，用于识别 ST
      */
     public static double resolveLimitPct(String stockCode, String exchangeType, String stockName) {
-        if (isStStock(stockName)) {
-            return ST_LIMIT_PCT;
-        }
         String code = normalizeCode(stockCode);
         String exchange = exchangeType != null ? exchangeType.trim().toUpperCase() : "";
 
+        // 注册制板块（创业板 300/301/302、科创板 688/689、北交所）ST 不适用 5%，
+        // 涨跌停幅度与普通股一致（20%/30%）；仅主板 ST/*ST 适用 5%。
         if ("BSE".equals(exchange) || code.startsWith("8") || code.startsWith("4")) {
             return BSE_LIMIT_PCT;
         }
@@ -33,6 +32,9 @@ public final class TradingLimitRules {
         }
         if ("SZSE".equals(exchange) && isChiNextStockCode(code)) {
             return CHINEXT_STAR_LIMIT_PCT;
+        }
+        if (isStStock(stockName)) {
+            return ST_LIMIT_PCT;
         }
         return MAIN_BOARD_LIMIT_PCT;
     }

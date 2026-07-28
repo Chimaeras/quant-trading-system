@@ -88,6 +88,42 @@ class OversoldReboundScoringServiceTest {
         assertThat(result).isNotNull();
     }
 
+    @Test
+    void excludesStCandidateWhenExcludeStEnabled() {
+        List<MarketData> bars = sampleBars(ScoringConstants.MIN_BARS_OVERSOLD + 10, 10, 50_000_000);
+        LocalDate tradeDate = bars.get(bars.size() - 1).getTradeDate();
+
+        // excludeST=true 时，名称含 ST 的标的应被排除
+        var excluded = service.scoreOne(
+                "000001",
+                "SZSE",
+                tradeDate,
+                bars,
+                new HashMap<>(Map.of("000001:SZSE", "*ST测试")),
+                true,
+                1_000_000,
+                1,
+                bars.get(0).getTradeDate(),
+                60
+        );
+        assertThat(excluded).isNull();
+
+        // excludeST=false 时，ST 标的可进入评分（涨跌停口径仍按板块解析）
+        var allowed = service.scoreOne(
+                "000001",
+                "SZSE",
+                tradeDate,
+                bars,
+                new HashMap<>(Map.of("000001:SZSE", "*ST测试")),
+                false,
+                1_000_000,
+                1,
+                bars.get(0).getTradeDate(),
+                60
+        );
+        assertThat(allowed).isNotNull();
+    }
+
     private static List<MarketData> sampleBars(int count, double close, double amount) {
         List<MarketData> bars = new ArrayList<>(count);
         LocalDate start = LocalDate.of(2023, 1, 1);

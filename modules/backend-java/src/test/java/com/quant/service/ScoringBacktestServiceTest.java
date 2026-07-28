@@ -572,6 +572,66 @@ class ScoringBacktestServiceTest {
         assertThat(v.get("codex_t_dominates")).isEqualTo(true);
     }
 
+    @Test
+    void selectorTradabilityReflectsResultFactorSnapshotNotHardcoded() {
+        SelectorResultRepository resultRepository = mock(SelectorResultRepository.class);
+        SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
+        MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
+        ScoringBacktestService service =
+                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository);
+
+        LocalDate signalDate = LocalDate.of(2025, 1, 2);
+        LocalDate entryDate = LocalDate.of(2025, 1, 3);
+        SelectorResult result = new SelectorResult();
+        result.setResultId("R1");
+        result.setTradeDate(signalDate);
+        result.setStrategyType("CLASSIC_SELECTOR");
+        // 被回测结果在选股时用了 minListingDays=120、bulkFetch=false
+        Map<String, Object> tradability = new LinkedHashMap<>();
+        tradability.put("min_listing_days", 120);
+        tradability.put("bulk_fetch", false);
+        tradability.put("exclude_st", false);
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("tradability", tradability);
+        result.setFactorSnapshot(snapshot);
+
+        SelectorResultItem item = new SelectorResultItem();
+        item.setResultId("R1");
+        item.setRankNo(1);
+        item.setStockCode("000001");
+        item.setExchangeType("SZSE");
+        item.setStockName("测试股票");
+        item.setFinalScore(80.0);
+
+        MarketData signalBar = bar(signalDate, 100, 100);
+
+        when(resultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(any(), any()))
+                .thenReturn(List.of(result));
+        when(itemRepository.findByResultIdInOrderByRankNo(any())).thenReturn(List.of(item));
+        when(marketDataRepository.findDistinctTradeDatesBetween(any(), any()))
+                .thenReturn(List.of(signalDate, entryDate));
+        when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
+                .thenReturn(List.of(signalBar));
+
+        ScoringBacktestRequest request = new ScoringBacktestRequest();
+        request.setStrategyType("CLASSIC_SELECTOR");
+        request.setStartDate(signalDate);
+        request.setEndDate(signalDate);
+        request.setTopN(1);
+        request.setHoldingDays(List.of(1));
+
+        ScoringBacktestResponse response = service.run(request);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> selectorTradability =
+                (Map<String, Object>) response.getExecutionAssumptions().get("selector_tradability");
+
+        // 应取自被回测结果的 factor_snapshot，而非硬编码 60/true
+        assertThat(selectorTradability.get("min_listing_days")).isEqualTo(120);
+        assertThat(selectorTradability.get("bulk_fetch")).isEqualTo(false);
+        assertThat(selectorTradability.get("exclude_st")).isEqualTo(false);
+        assertThat(selectorTradability.get("source")).isEqualTo("result_factor_snapshot");
+    }
+
     private MarketData bar(LocalDate date, double open, double close) {
         MarketData bar = new MarketData();
         bar.setStockCode("000001");

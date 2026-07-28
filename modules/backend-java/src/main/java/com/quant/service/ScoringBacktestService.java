@@ -70,7 +70,6 @@ public class ScoringBacktestService {
         double commissionRate = boundedRate(req.getCommissionRate(), 0.0003);
         double sellTaxRate = boundedRate(req.getSellTaxRate(), 0.0005);
         double slippageRate = boundedRate(req.getSlippageRate(), 0.0002);
-        Map<String, Object> assumptions = executionAssumptions(commissionRate, sellTaxRate, slippageRate);
 
         // 1. 查询日期范围内的选股结果，按日期取最新的一条
         List<SelectorResult> results = resultRepo
@@ -91,6 +90,9 @@ public class ScoringBacktestService {
         }
         List<SelectorResult> dailyResults = new ArrayList<>(latestPerDate.values());
         dailyResults.sort(Comparator.comparing(SelectorResult::getTradeDate));
+
+        Map<String, Object> assumptions = executionAssumptions(
+                commissionRate, sellTaxRate, slippageRate, dailyResults);
 
         if (dailyResults.isEmpty()) {
             log.warn("未找到符合条件的选股结果");
@@ -484,7 +486,8 @@ public class ScoringBacktestService {
     private Map<String, Object> executionAssumptions(
             double commissionRate,
             double sellTaxRate,
-            double slippageRate
+            double slippageRate,
+            List<SelectorResult> dailyResults
     ) {
         Map<String, Object> assumptions = new LinkedHashMap<>();
         assumptions.put("entry", "NEXT_TRADING_DAY_OPEN");
@@ -501,7 +504,7 @@ public class ScoringBacktestService {
         assumptions.put("limit_up_entry_blocked", true);
         assumptions.put("limit_down_exit_blocked", true);
         assumptions.put("limit_pct_source", "BY_BOARD_AND_ST");
-        assumptions.put("selector_tradability", ScoringUtils.tradabilitySnapshot(true, true, 60));
+        assumptions.put("selector_tradability", resolveSelectorTradability(dailyResults));
         assumptions.put("short_horizon_research_focus", "T+3/T+5 Rank IC 与分组 spread 用于验证 3～5 日预测有效性");
         assumptions.put("codex_neutralization", "v2: winsorize → OLS(lnMV+industry dummies) → robust Z on residuals");
         assumptions.put("skip_reason_codes", List.of(
@@ -517,6 +520,36 @@ public class ScoringBacktestService {
                 SKIP_LIMIT_DOWN_AT_CLOSE
         ));
         return assumptions;
+    }
+
+    /**
+     * 回测假设里的 selector_tradability 应取自被回测结果的 factor_snapshot，
+     * 反映选股时实际的可交易性口径（minListingDays/bulkFetch/excludeST 等），
+     * 而非硬编码默认值；无 snapshot 时回退到保守默认。
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> resolveSelectorTradability(List<SelectorResult> dailyResults) {
+        if (dailyResults != null) {
+            for (SelectorResult r : dailyResults) {
+                if (r == null || r.getFactorSnapshot() == null) {
+                    continue;
+                }
+                Object trad = r.getFactorSnapshot().get("tradability");
+                if (trad instanceof Map<?, ?> tradMap) {
+                    Map<String, Object> out = new LinkedHashMap<>();
+                    for (Map.Entry<?, ?> e : tradMap.entrySet()) {
+                        if (e.getKey() != null) {
+                            out.put(String.valueOf(e.getKey()), e.getValue());
+                        }
+                    }
+                    out.put("source", "result_factor_snapshot");
+                    return out;
+                }
+            }
+        }
+        Map<String, Object> fallback = new LinkedHashMap<>(ScoringUtils.tradabilitySnapshot(true, true, 60));
+        fallback.put("source", "default_no_snapshot_in_result");
+        return fallback;
     }
 
     private static boolean isZeroVolume(MarketData bar) {

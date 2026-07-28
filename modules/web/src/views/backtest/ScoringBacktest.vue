@@ -489,7 +489,13 @@ const tradabilityAssumptionLabels: Record<string, string> = {
   limit_pct_source: '涨跌停幅度来源',
   limit_price_basis: '涨跌停价基准',
   avg_amount20_basis: '20日均成交额口径',
-  min_avg_amount_gate: '最低成交额闸'
+  min_avg_amount_gate: '最低成交额闸',
+  source: '口径来源'
+}
+
+const tradabilitySourceLabels: Record<string, string> = {
+  result_factor_snapshot: '取自选股结果快照',
+  default_no_snapshot_in_result: '结果无快照，使用默认'
 }
 
 function formatAssumptionKey(key: string) {
@@ -499,7 +505,12 @@ function formatAssumptionKey(key: string) {
 function formatAssumptionValue(value: unknown, key?: string): string {
   if (key === 'selector_tradability' && value && typeof value === 'object' && !Array.isArray(value)) {
     return Object.entries(value as Record<string, unknown>)
-      .map(([k, v]) => `${tradabilityAssumptionLabels[k] || k}=${formatAssumptionValue(v)}`)
+      .map(([k, v]) => {
+        if (k === 'source' && typeof v === 'string') {
+          return `${tradabilityAssumptionLabels[k] || k}=${tradabilitySourceLabels[v] || v}`
+        }
+        return `${tradabilityAssumptionLabels[k] || k}=${formatAssumptionValue(v)}`
+      })
       .join('；')
   }
   if (Array.isArray(value)) return value.join(', ')

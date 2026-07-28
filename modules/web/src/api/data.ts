@@ -114,6 +114,11 @@ export const dataApi = {
     }
   },
 
+  /** 数据质量驾驶舱 */
+  async getQuality(): Promise<any> {
+    return request.get('/data/quality')
+  },
+
   async getOverviewFromIndexedDB(): Promise<DataOverview> {
     try {
       const db = await getDB()

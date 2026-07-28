@@ -32,12 +32,19 @@ public class DataController {
     private final HistoricalDataUpdateService historicalDataUpdateService;
     private final StockFinancialSnapshotRepository stockFinancialSnapshotRepository;
     private final StockMarginDailyRepository stockMarginDailyRepository;
+    private final com.quant.service.DataQualityService dataQualityService;
 
     @GetMapping("/overview")
     public ApiResponse<Map<String, Object>> getOverview(HttpServletResponse response) {
         response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
         response.setHeader("Pragma", "no-cache");
         return ApiResponse.success(dataService.getOverview());
+    }
+
+    /** 数据质量驾驶舱：缺失交易日、list_date 缺失、更新滞后告警、复权口径披露。 */
+    @GetMapping("/quality")
+    public ApiResponse<Map<String, Object>> getQuality() {
+        return ApiResponse.success(dataQualityService.buildQualityReport());
     }
 
     /** 最近 N 个交易日热门股票榜：成交额、换手率、量能放大、上涨天数综合打分。 */

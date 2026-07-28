@@ -41,4 +41,18 @@ public interface SelectorResultRepository extends JpaRepository<SelectorResult, 
 
     @Query("SELECT DISTINCT s.strategyType FROM SelectorResult s WHERE s.strategyType IS NOT NULL ORDER BY s.strategyType")
     List<String> findDistinctStrategyTypes();
+
+    /**
+     * 各策略在指定交易日的成功结果（同策略同日可能多条，取 createdAt 最新一条由 Service 层去重）。
+     */
+    @Query("SELECT s FROM SelectorResult s WHERE s.tradeDate = :tradeDate AND s.runStatus = 'SUCCESS' ORDER BY s.strategyType, s.createdAt DESC")
+    List<SelectorResult> findSuccessByTradeDateOrderByStrategyAndCreatedAtDesc(@Param("tradeDate") LocalDate tradeDate);
+
+    /**
+     * 各策略最新交易日（不限定状态），用于日报默认数据日期。
+     */
+    @Query("SELECT s FROM SelectorResult s WHERE s.runStatus = 'SUCCESS' AND s.tradeDate = " +
+            "(SELECT MAX(s2.tradeDate) FROM SelectorResult s2 WHERE s2.strategyType = s.strategyType AND s2.runStatus = 'SUCCESS') " +
+            "ORDER BY s.strategyType, s.createdAt DESC")
+    List<SelectorResult> findLatestSuccessPerStrategy();
 }

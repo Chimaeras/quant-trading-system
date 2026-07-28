@@ -30,4 +30,10 @@ public interface StockInfoRepository extends JpaRepository<StockInfo, Long> {
     long countByListDateIsNull();
 
     List<StockInfo> findByListDateIsNull();
+
+    /**
+     * 按 (stockCode, exchangeType) 批量查询，用于选股结果行业集中度聚合。
+     */
+    @Query("select s from StockInfo s where concat(s.stockCode, '|', s.exchangeType) in :keys")
+    List<StockInfo> findByStockKeyIn(@Param("keys") List<String> keys);
 }

@@ -115,6 +115,12 @@ public class ScoringBacktestResponse {
         private double minReturn;
         /** 有效观测数量 */
         private int totalObservations;
+        /** 平均盈利收益率（仅收益>0 样本） */
+        private double avgWin;
+        /** 平均亏损收益率（仅收益<0 样本，负数） */
+        private double avgLoss;
+        /** 胜率盈亏比 = avgWin / |avgLoss|；无亏损样本时为 0 */
+        private double profitLossRatio;
     }
 
     @Data

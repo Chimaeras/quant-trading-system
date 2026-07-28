@@ -20,6 +20,9 @@ export interface PeriodStat {
   maxReturn: number
   minReturn: number
   totalObservations: number
+  avgWin: number
+  avgLoss: number
+  profitLossRatio: number
 }
 
 export interface StockReturn {

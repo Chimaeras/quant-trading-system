@@ -1,0 +1,116 @@
+package com.quant.service;
+
+import com.quant.dto.ScoringBacktestRequest;
+import com.quant.dto.ScoringBacktestResponse;
+import com.quant.dto.ScoringBacktestResponse.PeriodStat;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 样本外 / walk-forward 简易框架。
+ *
+ * <p>口径：
+ * <ul>
+ *   <li>将 [startDate, endDate] 按日历等分为 {@code windows} 个<b>连续非重叠</b>窗口。</li>
+ *   <li>每个窗口复用 {@link ScoringBacktestService#run} 计算该窗口内 TopN 在指定持有期的收益。</li>
+ *   <li>信号日与可成交时点分离（次日开盘入场、持有期末收盘出场），与打分回测一致；无未来函数。</li>
+ *   <li>仅作分段稳定性研究，<b>不做</b>自动参数搜索/优化。</li>
+ *   <li>窗口划分基于日历日，引擎内部再映射到交易日；存在幸存者偏差（沿用打分回测口径）。</li>
+ * </ul>
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class WalkForwardService {
+
+    private static final int MIN_WINDOWS = 2;
+    private static final int MAX_WINDOWS = 12;
+    private static final int DEFAULT_WINDOWS = 4;
+    private static final int DEFAULT_TOP_N = 10;
+    private static final int DEFAULT_HOLDING_DAY = 5;
+
+    private final ScoringBacktestService scoringBacktestService;
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> run(String strategy, LocalDate startDate, LocalDate endDate,
+                                   Integer windows, Integer topN, Integer holdingDay) {
+        int w = clamp(windows, MIN_WINDOWS, MAX_WINDOWS, DEFAULT_WINDOWS);
+        int n = topN != null && topN > 0 ? topN : DEFAULT_TOP_N;
+        int h = holdingDay != null && holdingDay > 0 ? holdingDay : DEFAULT_HOLDING_DAY;
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("strategy", strategy);
+        out.put("start_date", startDate.toString());
+        out.put("end_date", endDate.toString());
+        out.put("windows", w);
+        out.put("top_n", n);
+        out.put("holding_day", h);
+
+        List<LocalDate> boundaries = splitRange(startDate, endDate, w);
+        List<Map<String, Object>> windowStats = new ArrayList<>();
+
+        for (int i = 0; i < w; i++) {
+            LocalDate ws = boundaries.get(i);
+            LocalDate we = boundaries.get(i + 1).minusDays(1);
+            if (i == w - 1) {
+                we = endDate;
+            }
+
+            ScoringBacktestRequest req = new ScoringBacktestRequest();
+            req.setStrategyType(strategy);
+            req.setStartDate(ws);
+            req.setEndDate(we);
+            req.setTopN(n);
+            req.setHoldingDays(List.of(h));
+
+            ScoringBacktestResponse resp = scoringBacktestService.run(req);
+            PeriodStat stat = resp.getHoldingPeriodStats() != null
+                    ? resp.getHoldingPeriodStats().get(h) : null;
+
+            Map<String, Object> wsMap = new LinkedHashMap<>();
+            wsMap.put("window_no", i + 1);
+            wsMap.put("start_date", ws.toString());
+            wsMap.put("end_date", we.toString());
+            wsMap.put("signal_days", resp.getTotalTradingDays());
+            wsMap.put("avg_return", stat != null ? round4(stat.getAvgReturn()) : 0.0);
+            wsMap.put("win_rate", stat != null ? round4(stat.getWinRate()) : 0.0);
+            wsMap.put("observations", stat != null ? stat.getTotalObservations() : 0);
+            windowStats.add(wsMap);
+        }
+        out.put("window_stats", windowStats);
+
+        out.put("note", "连续非重叠日历窗口；次日开盘入场+持有期末收盘出场（T+1），无未来函数；"
+                + "仅作分段稳定性研究，不做自动参数搜索；存在幸存者偏差");
+        return out;
+    }
+
+    /** 将 [start, end] 等分为 w 段，返回 w+1 个边界点（最后边界为 end+1，由调用方处理）。 */
+    private static List<LocalDate> splitRange(LocalDate start, LocalDate end, int w) {
+        long total = ChronoUnit.DAYS.between(start, end) + 1;
+        long step = Math.max(1, total / w);
+        List<LocalDate> bounds = new ArrayList<>();
+        for (int i = 0; i < w; i++) {
+            bounds.add(start.plusDays(i * step));
+        }
+        bounds.add(end.plusDays(1));
+        return bounds;
+    }
+
+    private static int clamp(Integer v, int min, int max, int def) {
+        if (v == null || v < min) return def;
+        return Math.min(v, max);
+    }
+
+    private static double round4(double v) {
+        return Math.round(v * 10000.0) / 10000.0;
+    }
+}

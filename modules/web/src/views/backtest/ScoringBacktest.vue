@@ -187,6 +187,20 @@
               <span class="stat-value text-danger">{{ (stat.minReturn * 100).toFixed(2) }}%</span>
             </div>
             <div class="stat-item">
+              <span class="stat-label">平均盈利</span>
+              <span class="stat-value text-success">{{ (stat.avgWin * 100).toFixed(2) }}%</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">平均亏损</span>
+              <span class="stat-value text-danger">{{ (stat.avgLoss * 100).toFixed(2) }}%</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">盈亏比</span>
+              <span class="stat-value" :class="stat.profitLossRatio >= 1 ? 'text-success' : 'text-danger'">
+                {{ stat.profitLossRatio.toFixed(2) }}
+              </span>
+            </div>
+            <div class="stat-item">
               <span class="stat-label">观测数</span>
               <span class="stat-value">{{ stat.totalObservations }}</span>
             </div>

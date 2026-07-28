@@ -319,6 +319,11 @@ public class ScoringBacktestService {
                     : (sorted.get(sorted.size() / 2 - 1) + sorted.get(sorted.size() / 2)) / 2.0;
             long wins = returns.stream().filter(r -> r > 0).count();
 
+            // 胜率盈亏比：平均盈利 / |平均亏损|
+            double avgWin = returns.stream().filter(r -> r > 0).mapToDouble(Double::doubleValue).average().orElse(0);
+            double avgLoss = returns.stream().filter(r -> r < 0).mapToDouble(Double::doubleValue).average().orElse(0);
+            double profitLossRatio = avgLoss < 0 ? avgWin / Math.abs(avgLoss) : 0;
+
             holdingPeriodStats.put(h, PeriodStat.builder()
                     .winRate((double) wins / returns.size())
                     .avgReturn(avg)
@@ -326,6 +331,9 @@ public class ScoringBacktestService {
                     .maxReturn(sorted.get(sorted.size() - 1))
                     .minReturn(sorted.get(0))
                     .totalObservations(returns.size())
+                    .avgWin(avgWin)
+                    .avgLoss(avgLoss)
+                    .profitLossRatio(profitLossRatio)
                     .build());
         }
 

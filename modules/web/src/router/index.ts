@@ -7,13 +7,21 @@ const routes = [
     redirect: '/data/overview',
     children: [
       { path: 'data/overview', name: 'DataOverview', component: () => import('@/views/data/DataManagement.vue'), meta: { title: '数据管理' } },
+      { path: 'data/quality', name: 'DataQuality', component: () => import('@/views/data/DataQuality.vue'), meta: { title: '数据质量' } },
       { path: 'data/stocks', name: 'StockBrowser', component: () => import('@/views/data/StockBrowser.vue'), meta: { title: '股票浏览器' } },
+      { path: 'report/daily', name: 'DailyReport', component: () => import('@/views/report/DailyReport.vue'), meta: { title: '选股日报' } },
+      { path: 'compare/strategies', name: 'StrategyCompare', component: () => import('@/views/compare/StrategyCompare.vue'), meta: { title: '策略对比' } },
+      { path: 'watchlist', name: 'Watchlist', component: () => import('@/views/watchlist/WatchlistView.vue'), meta: { title: '自选股池' } },
       { path: 'market/stock', name: 'StockDetail', component: () => import('@/views/market/StockDetailView.vue'), meta: { title: '股票详情' } },
       { path: 'market/kline', name: 'KLine', component: () => import('@/views/market/KLineView.vue'), meta: { title: 'K线图' } },
       { path: 'market/stock-picker', name: 'StockPicker', component: () => import('@/views/market/StockPicker.vue'), meta: { title: '选股打分' } },
+      { path: 'screener', name: 'Screener', component: () => import('@/views/screener/ScreenerView.vue'), meta: { title: '条件选股' } },
+      { path: 'factor/research', name: 'FactorResearch', component: () => import('@/views/factor/FactorResearch.vue'), meta: { title: '因子研究' } },
       { path: 'backtest/scoring', name: 'ScoringBacktest', component: () => import('@/views/backtest/ScoringBacktest.vue'), meta: { title: '打分回测' } },
       { path: 'backtest/strategy', name: 'StrategyBacktest', component: () => import('@/views/backtest/StrategyBacktest.vue'), meta: { title: '策略回测' } },
-      { path: 'account/overview', name: 'AccountOverview', component: () => import('@/views/account/AccountView.vue'), meta: { title: '模拟账户' } }
+      { path: 'backtest/walk-forward', name: 'WalkForward', component: () => import('@/views/backtest/WalkForward.vue'), meta: { title: 'Walk-Forward' } },
+      { path: 'account/overview', name: 'AccountOverview', component: () => import('@/views/account/AccountView.vue'), meta: { title: '模拟账户' } },
+      { path: 'reconcile/position', name: 'ReconcilePosition', component: () => import('@/views/reconcile/ReconcileView.vue'), meta: { title: '持仓对账' } }
     ]
   },
   { path: '/login', name: 'Login', component: () => import('@/views/auth/Login.vue'), meta: { title: '登录' } }

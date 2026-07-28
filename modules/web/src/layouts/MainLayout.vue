@@ -38,7 +38,16 @@ const navGroups = computed(() => [
     title: "数据",
     items: [
       { path: "/data/overview", label: "数据管理" },
+      { path: "/data/quality", label: "数据质量" },
       { path: "/data/stocks", label: "股票浏览器" }
+    ]
+  },
+  {
+    title: "日报",
+    items: [
+      { path: "/report/daily", label: "选股日报" },
+      { path: "/compare/strategies", label: "策略对比" },
+      { path: "/watchlist", label: "自选股池" }
     ]
   },
   {
@@ -46,20 +55,24 @@ const navGroups = computed(() => [
     items: [
       { path: "/market/stock", label: "股票详情" },
       { path: "/market/kline", label: "K线图" },
-      { path: "/market/stock-picker", label: "选股打分" }
+      { path: "/market/stock-picker", label: "选股打分" },
+      { path: "/screener", label: "条件选股" }
     ]
   },
   {
     title: "回测",
     items: [
       { path: "/backtest/scoring", label: "打分回测" },
-      { path: "/backtest/strategy", label: "策略回测" }
+      { path: "/backtest/strategy", label: "策略回测" },
+      { path: "/backtest/walk-forward", label: "Walk-Forward" },
+      { path: "/factor/research", label: "因子研究" }
     ]
   },
   {
     title: "账户",
     items: [
       { path: "/account/overview", label: "模拟账户" },
+      { path: "/reconcile/position", label: "持仓对账" },
       { path: "/login", label: "登录" }
     ]
   }

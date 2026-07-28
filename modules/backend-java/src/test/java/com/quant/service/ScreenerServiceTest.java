@@ -57,7 +57,7 @@ class ScreenerServiceTest {
                 .thenReturn(page);
 
         // 筛选：银行 + 上市≥60 天
-        Map<String, Object> out = service().screen(null, "SZSE", "银行", 60, ref, 1, 50);
+        Map<String, Object> out = service().screen(null, "SZSE", "银行", 60, false, ref, 1, 50);
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> items = (List<Map<String, Object>>) out.get("items");
@@ -74,7 +74,7 @@ class ScreenerServiceTest {
         Page<StockInfo> page = new PageImpl<>(List.of(noListDate), PageRequest.of(0, 50), 1);
         when(stockInfoRepository.search(any(), any(), any())).thenReturn(page);
 
-        Map<String, Object> out = service().screen(null, null, null, 60, ref, 1, 50);
+        Map<String, Object> out = service().screen(null, null, null, 60, false, ref, 1, 50);
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> items = (List<Map<String, Object>>) out.get("items");
@@ -90,7 +90,7 @@ class ScreenerServiceTest {
             return t;
         });
 
-        Map<String, Object> out = service().saveTemplate(1L, "银行筛选", "银行", "SZSE", "银行", 60);
+        Map<String, Object> out = service().saveTemplate(1L, "银行筛选", "银行", "SZSE", "银行", 60, true);
 
         assertThat(out.get("name")).isEqualTo("银行筛选");
         assertThat(out.get("keyword")).isEqualTo("银行");
@@ -108,7 +108,7 @@ class ScreenerServiceTest {
         when(screenerTemplateRepository.findByUserIdAndName(1L, "银行筛选")).thenReturn(Optional.of(existing));
         when(screenerTemplateRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        Map<String, Object> out = service().saveTemplate(1L, "银行筛选", null, null, "银行", 120);
+        Map<String, Object> out = service().saveTemplate(1L, "银行筛选", null, null, "银行", 120, false);
 
         assertThat(out.get("id")).isEqualTo(5L);
         assertThat(out.get("min_listing_days")).isEqualTo(120);
@@ -138,5 +138,22 @@ class ScreenerServiceTest {
         when(screenerTemplateRepository.deleteByUserIdAndId(1L, 8L)).thenReturn(0L);
         Map<String, Object> out2 = service().deleteTemplate(1L, 8L);
         assertThat(out2.get("deleted")).isEqualTo(false);
+    }
+
+    @Test
+    void screenExcludesStStocksWhenEnabled() {
+        LocalDate ref = LocalDate.of(2025, 1, 2);
+        StockInfo normal = info("000001", "SZSE", "银行", ref.minusDays(1000));
+        StockInfo st = info("000002", "SZSE", "银行", ref.minusDays(1000));
+        st.setStockName("ST测试");
+        Page<StockInfo> page = new PageImpl<>(List.of(normal, st), PageRequest.of(0, 50), 2);
+        when(stockInfoRepository.search(any(), any(), any())).thenReturn(page);
+
+        Map<String, Object> out = service().screen(null, null, null, null, true, ref, 1, 50);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) out.get("items");
+        assertThat(items).hasSize(1);
+        assertThat(items.get(0).get("stock_code")).isEqualTo("000001");
     }
 }

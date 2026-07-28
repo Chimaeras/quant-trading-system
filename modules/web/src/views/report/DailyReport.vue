@@ -103,18 +103,56 @@
         <el-empty v-else-if="!loading" description="点击「生成日报」查看每日信号摘要" />
       </div>
     </el-card>
+
+    <el-card shadow="hover" class="trend-card">
+      <template #header>
+        <div class="report-header">
+          <span>多日信号趋势</span>
+          <div class="header-actions">
+            <el-date-picker v-model="trendStart" type="date" value-format="YYYY-MM-DD" style="width: 150px" />
+            <span style="color: var(--text-muted)">~</span>
+            <el-date-picker v-model="trendEnd" type="date" value-format="YYYY-MM-DD" style="width: 150px" />
+            <el-button type="primary" size="small" :loading="trendLoading" @click="loadTrend">查询趋势</el-button>
+          </div>
+        </div>
+      </template>
+
+      <div v-loading="trendLoading">
+        <template v-if="trend">
+          <p class="report-meta">
+            <span>信号日数：{{ trend.signal_days }}</span>
+            <span>策略：{{ trend.strategies.join('、') || '—' }}</span>
+          </p>
+          <el-table v-if="trend.daily_trend.length" :data="trend.daily_trend" size="small" stripe border max-height="360">
+            <el-table-column prop="trade_date" label="信号日" min-width="110" />
+            <el-table-column prop="strategies_with_opportunity" label="有机会策略数" min-width="120" />
+            <el-table-column prop="total_candidates" label="候选总数" min-width="90" />
+            <el-table-column v-for="s in trend.strategies" :key="s" :label="strategyLabel(s)" min-width="90">
+              <template #default="{ row }">{{ row.per_strategy[s] ?? 0 }}</template>
+            </el-table-column>
+          </el-table>
+          <p class="note">{{ trend.note }}</p>
+        </template>
+        <el-empty v-else-if="!trendLoading" description="选择日期范围后查询多日信号趋势" />
+      </div>
+    </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { getDailyReport, type DailyReportResponse } from '@/api/report'
+import { getDailyReport, getTrendReport, type DailyReportResponse, type TrendReportResponse } from '@/api/report'
 import { useToast } from '@/composables/useToast'
+import dayjs from 'dayjs'
 
 const toast = useToast()
 const loading = ref(false)
 const report = ref<DailyReportResponse | null>(null)
 const tradeDate = ref('')
+const trendLoading = ref(false)
+const trend = ref<TrendReportResponse | null>(null)
+const trendStart = ref(dayjs().subtract(14, 'day').format('YYYY-MM-DD'))
+const trendEnd = ref(dayjs().format('YYYY-MM-DD'))
 
 const overallVerdictType = computed<'success' | 'warning' | 'info'>(() => {
   if (!report.value) return 'info'
@@ -154,6 +192,25 @@ async function loadReport() {
     toast.error(e?.message || '选股日报生成失败')
   } finally {
     loading.value = false
+  }
+}
+
+async function loadTrend() {
+  if (!trendStart.value || !trendEnd.value) {
+    toast.warning('请选择起止日期')
+    return
+  }
+  if (trendStart.value > trendEnd.value) {
+    toast.warning('起始日不能晚于截止日')
+    return
+  }
+  trendLoading.value = true
+  try {
+    trend.value = await getTrendReport(trendStart.value, trendEnd.value)
+  } catch (e: any) {
+    toast.error(e?.message || '趋势查询失败')
+  } finally {
+    trendLoading.value = false
   }
 }
 
@@ -261,5 +318,8 @@ onMounted(() => {
   color: var(--text-muted);
   min-width: 44px;
   text-align: right;
+}
+.trend-card {
+  margin-top: 16px;
 }
 </style>

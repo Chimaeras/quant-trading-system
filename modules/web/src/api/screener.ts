@@ -21,6 +21,7 @@ export interface ScreenerResponse {
     exchange: string
     industry: string
     min_listing_days: number
+    exclude_st: boolean
   }
   note: string
 }
@@ -30,6 +31,7 @@ export function runScreener(params: {
   exchange?: string
   industry?: string
   minListingDays?: number
+  excludeSt?: boolean
   page?: number
   size?: number
 }): Promise<ScreenerResponse> {
@@ -44,6 +46,7 @@ export interface ScreenerTemplate {
   exchange?: string
   industry?: string
   min_listing_days?: number
+  exclude_st?: boolean
   created_at?: string
 }
 
@@ -53,6 +56,7 @@ export function saveScreenerTemplate(params: {
   exchange?: string
   industry?: string
   minListingDays?: number
+  excludeSt?: boolean
   userId?: number
 }): Promise<ScreenerTemplate> {
   return request.post('/api/screener/templates/save', params)

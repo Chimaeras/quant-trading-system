@@ -4,7 +4,10 @@
       <template #header>
         <div class="header">
           <span>自选股池</span>
-          <el-button type="primary" size="small" :loading="loading" @click="loadList">刷新</el-button>
+          <div class="header-actions">
+            <el-button size="small" :disabled="!items.length" @click="exportCsv">导出 CSV</el-button>
+            <el-button type="primary" size="small" :loading="loading" @click="loadList">刷新</el-button>
+          </div>
         </div>
       </template>
 
@@ -24,6 +27,7 @@
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="adding" @click="addItem">加入自选</el-button>
+          <el-button @click="batchDialog = true">批量导入</el-button>
         </el-form-item>
       </el-form>
 
@@ -90,13 +94,74 @@
         <el-empty v-else-if="!scanning" description="点击异动扫描查看当日异动信号" />
       </div>
     </el-card>
+
+    <el-card shadow="hover" class="alert-card">
+      <template #header>
+        <div class="header">
+          <span>选股信号覆盖</span>
+          <el-button type="primary" size="small" :loading="coverageLoading" @click="loadCoverage">查询覆盖</el-button>
+        </div>
+      </template>
+
+      <div v-loading="coverageLoading">
+        <template v-if="coverage">
+          <p class="scan-meta">
+            信号日：{{ coverage.trade_date || '—' }} · 自选 {{ coverage.total }} 只 · 命中 {{ coverage.hit_count }} 只
+          </p>
+          <el-table v-if="coverage.items.length" :data="coverage.items" size="small" stripe border>
+            <el-table-column type="index" label="#" width="56" />
+            <el-table-column prop="stock_code" label="代码" min-width="90" />
+            <el-table-column prop="stock_name" label="名称" min-width="100" />
+            <el-table-column prop="hit_count" label="命中策略数" width="100" />
+            <el-table-column label="命中策略" min-width="240">
+              <template #default="{ row }">
+                <el-tag v-for="h in row.hit_strategies" :key="h.strategy" size="small" class="signal-tag">
+                  {{ strategyLabel(h.strategy) }} #{{ h.rank_no }}
+                </el-tag>
+                <span v-if="!row.hit_strategies.length" class="text-muted">—</span>
+              </template>
+            </el-table-column>
+          </el-table>
+          <el-empty v-else-if="!coverageLoading" :description="coverage.note" />
+          <p class="scan-meta basis">{{ coverage.note }}</p>
+        </template>
+        <el-empty v-else-if="!coverageLoading" description="点击查询自选股被选股信号命中情况" />
+      </div>
+    </el-card>
+
+    <el-dialog v-model="batchDialog" title="批量导入自选股" width="520px">
+      <p class="hint">每行一个代码，可选「代码,交易所」或「代码 交易所」；省略交易所时按代码前缀推断（6→沪，0/3→深，4/8→北）。</p>
+      <el-input v-model="batchText" type="textarea" :rows="8" placeholder="600000&#10;000001, SZSE&#10;300750 SZSE" />
+      <template v-if="batchResult">
+        <p class="scan-meta">
+          新增 {{ batchResult.added }} · 跳过 {{ batchResult.skipped }}
+        </p>
+      </template>
+      <template #footer>
+        <el-button @click="batchDialog = false">关闭</el-button>
+        <el-button type="primary" :loading="batching" @click="doBatchAdd">导入</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { listWatchlist, addWatchlist, removeWatchlist, scanWatchlistAlerts, type WatchlistItem, type WatchlistAlertScan } from '@/api/watchlist'
+import { listWatchlist, addWatchlist, removeWatchlist, scanWatchlistAlerts, getWatchlistSignalCoverage, batchAddWatchlist, type WatchlistItem, type WatchlistAlertScan, type SignalCoverageResponse, type BatchAddResult } from '@/api/watchlist'
 import { useToast } from '@/composables/useToast'
+import dayjs from 'dayjs'
+
+const STRATEGY_LABELS: Record<string, string> = {
+  CLASSIC_SELECTOR: '经典多因子',
+  OVERSOLD_REBOUND: '超跌反弹',
+  TREND: '趋势打分',
+  COMPREHENSIVE: '综合三维度',
+  MULTI_DIM: '多维度 v1'
+}
+
+function strategyLabel(s: string): string {
+  return STRATEGY_LABELS[s] || s
+}
 
 const toast = useToast()
 const loading = ref(false)
@@ -105,6 +170,12 @@ const removingKey = ref('')
 const items = ref<WatchlistItem[]>([])
 const scanning = ref(false)
 const scan = ref<WatchlistAlertScan | null>(null)
+const coverageLoading = ref(false)
+const coverage = ref<SignalCoverageResponse | null>(null)
+const batchDialog = ref(false)
+const batchText = ref('')
+const batching = ref(false)
+const batchResult = ref<BatchAddResult | null>(null)
 
 const form = reactive({
   stockCode: '',
@@ -179,6 +250,56 @@ async function scanAlerts() {
   }
 }
 
+async function loadCoverage() {
+  coverageLoading.value = true
+  try {
+    coverage.value = await getWatchlistSignalCoverage()
+  } catch (e: any) {
+    toast.error(e?.message || '信号覆盖查询失败')
+  } finally {
+    coverageLoading.value = false
+  }
+}
+
+async function doBatchAdd() {
+  if (!batchText.value.trim()) {
+    toast.warning('请输入至少一行代码')
+    return
+  }
+  batching.value = true
+  batchResult.value = null
+  try {
+    batchResult.value = await batchAddWatchlist(batchText.value)
+    toast.success(`新增 ${batchResult.value.added} 只，跳过 ${batchResult.value.skipped} 只`)
+    await loadList()
+  } catch (e: any) {
+    toast.error(e?.message || '批量导入失败')
+  } finally {
+    batching.value = false
+  }
+}
+
+function exportCsv() {
+  if (!items.value.length) return
+  const lines: string[] = ['代码,交易所,名称,备注,添加时间']
+  for (const it of items.value) {
+    lines.push([
+      it.stock_code,
+      it.exchange_type,
+      it.stock_name || '',
+      (it.note || '').replace(/,/g, '，'),
+      it.created_at || ''
+    ].join(','))
+  }
+  const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `watchlist-${dayjs().format('YYYY-MM-DD')}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 onMounted(() => {
   loadList()
 })
@@ -194,6 +315,10 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+.header-actions {
+  display: flex;
+  gap: 8px;
 }
 .add-form {
   margin-bottom: 8px;
@@ -220,4 +345,5 @@ onMounted(() => {
 }
 .text-danger { color: #f56c6c; }
 .text-success { color: #67c23a; }
+.text-muted { color: var(--text-muted); }
 </style>

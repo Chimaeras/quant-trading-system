@@ -26,11 +26,12 @@ public class ScreenerController {
             @RequestParam(required = false) String exchange,
             @RequestParam(required = false) String industry,
             @RequestParam(required = false) Integer minListingDays,
+            @RequestParam(required = false) Boolean excludeSt,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate referenceDate,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "50") int size) {
         return ApiResponse.success(screenerService.screen(
-                keyword, exchange, industry, minListingDays, referenceDate, page, size));
+                keyword, exchange, industry, minListingDays, excludeSt, referenceDate, page, size));
     }
 
     @PostMapping("/templates/save")
@@ -42,7 +43,10 @@ public class ScreenerController {
         String industry = body.get("industry") != null ? String.valueOf(body.get("industry")) : null;
         Integer minListingDays = body.get("minListingDays") != null
                 ? Integer.valueOf(String.valueOf(body.get("minListingDays"))) : null;
-        return ApiResponse.success(screenerService.saveTemplate(userId, name, keyword, exchange, industry, minListingDays));
+        Boolean excludeSt = body.get("excludeSt") != null
+                ? Boolean.valueOf(String.valueOf(body.get("excludeSt"))) : null;
+        return ApiResponse.success(screenerService.saveTemplate(
+                userId, name, keyword, exchange, industry, minListingDays, excludeSt));
     }
 
     @GetMapping("/templates/list")

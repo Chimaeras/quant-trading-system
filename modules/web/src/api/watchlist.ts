@@ -28,6 +28,21 @@ export function addWatchlist(
   })
 }
 
+export interface BatchAddResult {
+  user_id: number
+  added: number
+  skipped: number
+  errors: Array<{ stock_code: string; exchange_type: string; error: string }>
+  note: string
+}
+
+export function batchAddWatchlist(text: string, userId?: number): Promise<BatchAddResult> {
+  return request.post('/api/watchlist/batch-add', {
+    text,
+    ...(userId ? { userId } : {})
+  })
+}
+
 export function removeWatchlist(
   stockCode: string,
   exchangeType: string,
@@ -68,4 +83,31 @@ export function scanWatchlistAlerts(params?: {
   lookbackDays?: number
 }): Promise<WatchlistAlertScan> {
   return request.get('/api/watchlist/alerts', { params: params || {} })
+}
+
+export interface SignalHit {
+  strategy: string
+  rank_no: number
+  final_score?: number
+}
+
+export interface SignalCoverageItem {
+  stock_code: string
+  exchange_type: string
+  stock_name?: string
+  hit_strategies: SignalHit[]
+  hit_count: number
+}
+
+export interface SignalCoverageResponse {
+  user_id: number
+  trade_date: string
+  total: number
+  hit_count: number
+  items: SignalCoverageItem[]
+  note: string
+}
+
+export function getWatchlistSignalCoverage(userId?: number): Promise<SignalCoverageResponse> {
+  return request.get('/api/watchlist/signal-coverage', { params: userId ? { userId } : {} })
 }

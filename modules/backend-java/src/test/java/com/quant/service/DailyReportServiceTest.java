@@ -167,4 +167,39 @@ class DailyReportServiceTest {
         assertThat(out.get("trade_date")).isEqualTo("2025-01-03");
         assertThat(out.get("has_any_result")).isEqualTo(true);
     }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void trendReportAggregatesDailyCandidateCounts() {
+        LocalDate d1 = LocalDate.of(2025, 1, 2);
+        LocalDate d2 = LocalDate.of(2025, 1, 3);
+        when(selectorResultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(d1, d2))
+                .thenReturn(List.of(
+                        result("R2", "CLASSIC_SELECTOR", d2, 5),
+                        result("R1", "CLASSIC_SELECTOR", d1, 3)
+                ));
+
+        Map<String, Object> out = service().buildTrendReport(d1, d2);
+
+        assertThat(out.get("signal_days")).isEqualTo(2);
+        assertThat((List<String>) out.get("strategies")).containsExactly("CLASSIC_SELECTOR");
+
+        List<Map<String, Object>> trend = (List<Map<String, Object>>) out.get("daily_trend");
+        assertThat(trend).hasSize(2);
+        assertThat(trend.get(0).get("trade_date")).isEqualTo("2025-01-02");
+        assertThat(trend.get(0).get("total_candidates")).isEqualTo(3);
+        assertThat(trend.get(1).get("trade_date")).isEqualTo("2025-01-03");
+        assertThat(trend.get(1).get("total_candidates")).isEqualTo(5);
+    }
+
+    @Test
+    void trendReportReturnsEmptyWhenNoData() {
+        LocalDate d = LocalDate.of(2025, 1, 2);
+        when(selectorResultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(d, d))
+                .thenReturn(List.of());
+
+        Map<String, Object> out = service().buildTrendReport(d, d);
+        assertThat(out.get("signal_days")).isEqualTo(0);
+        assertThat((List<?>) out.get("daily_trend")).isEmpty();
+    }
 }

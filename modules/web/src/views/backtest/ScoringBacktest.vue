@@ -396,6 +396,28 @@
           <p class="turnover-note">{{ turnover.note }}</p>
         </template>
       </el-collapse-item>
+      <el-collapse-item title="分段稳定性报告" name="stability">
+        <el-button type="primary" size="small" :loading="stabilityLoading" @click="runStability">分析稳定性</el-button>
+        <template v-if="stability">
+          <el-alert type="info" :closable="false" show-icon class="stability-verdict" :title="stability.verdict" />
+          <p class="turnover-meta">切分日：{{ stability.split_date }} · 持有期 T+{{ stability.holding_day }}</p>
+          <el-table :data="[stability.first_half, stability.second_half, stability.full_period]" size="small" stripe border>
+            <el-table-column prop="label" label="分段" min-width="80" />
+            <el-table-column prop="signal_days" label="信号日" width="80" />
+            <el-table-column prop="observations" label="观测数" width="80" />
+            <el-table-column label="平均收益" min-width="100">
+              <template #default="{ row }">{{ (row.avg_return * 100).toFixed(2) }}%</template>
+            </el-table-column>
+            <el-table-column label="胜率" min-width="90">
+              <template #default="{ row }">{{ (row.win_rate * 100).toFixed(2) }}%</template>
+            </el-table-column>
+            <el-table-column label="盈亏比" min-width="90">
+              <template #default="{ row }">{{ row.profit_loss_ratio.toFixed(2) }}</template>
+            </el-table-column>
+          </el-table>
+          <p class="turnover-note">{{ stability.note }}</p>
+        </template>
+      </el-collapse-item>
     </el-collapse>
   </el-card>
 </template>
@@ -404,7 +426,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import * as echarts from 'echarts'
 import dayjs from 'dayjs'
-import { backtestApi, analyzeTurnover, type ScoringBacktestResponse, type DailyDetail, type StockReturn, type TurnoverResponse } from '@/api/backtest'
+import { backtestApi, analyzeTurnover, analyzeStability, type ScoringBacktestResponse, type DailyDetail, type StockReturn, type TurnoverResponse, type StabilityResponse } from '@/api/backtest'
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
@@ -415,6 +437,8 @@ const strategiesLoading = ref(false)
 const response = ref<ScoringBacktestResponse | null>(null)
 const turnover = ref<TurnoverResponse | null>(null)
 const turnoverLoading = ref(false)
+const stability = ref<StabilityResponse | null>(null)
+const stabilityLoading = ref(false)
 
 const form = reactive({
   strategyType: '',
@@ -915,6 +939,27 @@ async function runTurnover() {
   }
 }
 
+async function runStability() {
+  if (!form.strategyType) {
+    toast.warning('请先选择策略类型')
+    return
+  }
+  stabilityLoading.value = true
+  try {
+    stability.value = await analyzeStability({
+      strategy: form.strategyType,
+      startDate: form.startDate,
+      endDate: form.endDate,
+      topN: form.topN,
+      holdingDay: form.holdingDays[0] ?? 5
+    })
+  } catch (e: any) {
+    toast.error(e?.message || '稳定性分析失败')
+  } finally {
+    stabilityLoading.value = false
+  }
+}
+
 onMounted(() => {
   loadStrategies()
   window.addEventListener('resize', onResize)
@@ -1063,6 +1108,9 @@ onBeforeUnmount(() => {
 
 .turnover-collapse {
   margin-top: 16px;
+}
+.stability-verdict {
+  margin: 10px 0;
 }
 .turnover-meta {
   display: flex;

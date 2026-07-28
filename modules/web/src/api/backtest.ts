@@ -177,3 +177,36 @@ export function analyzeTurnover(params: {
 }): Promise<TurnoverResponse> {
   return request.get('/api/backtest/turnover', { params })
 }
+
+export interface StabilitySegment {
+  label: string
+  signal_days: number
+  avg_return: number
+  win_rate: number
+  profit_loss_ratio: number
+  observations: number
+}
+
+export interface StabilityResponse {
+  strategy: string
+  start_date: string
+  end_date: string
+  split_date: string
+  top_n: number
+  holding_day: number
+  first_half: StabilitySegment
+  second_half: StabilitySegment
+  full_period: StabilitySegment
+  verdict: string
+  note: string
+}
+
+export function analyzeStability(params: {
+  strategy: string
+  startDate: string
+  endDate: string
+  topN?: number
+  holdingDay?: number
+}): Promise<StabilityResponse> {
+  return request.get('/api/backtest/stability', { params })
+}

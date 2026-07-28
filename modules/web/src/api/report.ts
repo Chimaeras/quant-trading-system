@@ -64,3 +64,26 @@ export interface DailyReportResponse {
 export function getDailyReport(tradeDate?: string): Promise<DailyReportResponse> {
   return request.get('/api/report/daily', { params: tradeDate ? { tradeDate } : {} })
 }
+
+/** 多日趋势单日 */
+export interface TrendDay {
+  trade_date: string
+  strategies_with_opportunity: number
+  total_candidates: number
+  per_strategy: Record<string, number>
+}
+
+/** 多日趋势响应 */
+export interface TrendReportResponse {
+  start_date: string
+  end_date: string
+  strategies: string[]
+  signal_days: number
+  daily_trend: TrendDay[]
+  note: string
+}
+
+/** 拉取多日信号趋势 */
+export function getTrendReport(startDate: string, endDate: string): Promise<TrendReportResponse> {
+  return request.get('/api/report/trend', { params: { startDate, endDate } })
+}

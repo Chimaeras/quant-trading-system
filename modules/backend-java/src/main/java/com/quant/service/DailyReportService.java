@@ -214,4 +214,73 @@ public class DailyReportService {
                 : "所有策略均无合格标的，今日无机会");
         return summary;
     }
+
+    /**
+     * 多日信号趋势：给定日期范围，输出每日各策略候选数量与机会变化。
+     *
+     * <p>口径：
+     * <ul>
+     *   <li>数据来源：已持久化的 selector_result（SUCCESS），无未来函数。</li>
+     *   <li>同策略同日取最新一条；按 trade_date 升序。</li>
+     *   <li>仅统计 returned_items 与 has_opportunity，不展开候选明细。</li>
+     * </ul>
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> buildTrendReport(LocalDate startDate, LocalDate endDate) {
+        List<SelectorResult> results = selectorResultRepository
+                .findByTradeDateBetweenOrderByCreatedAtDesc(startDate, endDate);
+
+        // 同策略同日取最新
+        Map<String, SelectorResult> latestPerKey = new LinkedHashMap<>();
+        for (SelectorResult r : results) {
+            latestPerKey.putIfAbsent(r.getStrategyType() + "|" + r.getTradeDate(), r);
+        }
+
+        // 按 trade_date 分组
+        Map<LocalDate, List<SelectorResult>> byDate = new LinkedHashMap<>();
+        for (SelectorResult r : latestPerKey.values()) {
+            byDate.computeIfAbsent(r.getTradeDate(), k -> new ArrayList<>()).add(r);
+        }
+        List<LocalDate> dates = new ArrayList<>(byDate.keySet());
+        dates.sort(LocalDate::compareTo);
+
+        // 收集所有策略名
+        List<String> strategies = latestPerKey.values().stream()
+                .map(SelectorResult::getStrategyType)
+                .distinct()
+                .sorted()
+                .toList();
+
+        List<Map<String, Object>> dailyTrend = new ArrayList<>();
+        for (LocalDate d : dates) {
+            List<SelectorResult> dayResults = byDate.get(d);
+            Map<String, Object> day = new LinkedHashMap<>();
+            day.put("trade_date", d.toString());
+            int totalCandidates = 0;
+            int strategiesWithOpportunity = 0;
+            Map<String, Integer> perStrategy = new LinkedHashMap<>();
+            for (String s : strategies) {
+                perStrategy.put(s, 0);
+            }
+            for (SelectorResult r : dayResults) {
+                int returned = r.getSuccessCandidates() != null ? r.getSuccessCandidates() : 0;
+                perStrategy.put(r.getStrategyType(), returned);
+                totalCandidates += returned;
+                if (returned > 0) strategiesWithOpportunity++;
+            }
+            day.put("strategies_with_opportunity", strategiesWithOpportunity);
+            day.put("total_candidates", totalCandidates);
+            day.put("per_strategy", perStrategy);
+            dailyTrend.add(day);
+        }
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("start_date", startDate.toString());
+        out.put("end_date", endDate.toString());
+        out.put("strategies", strategies);
+        out.put("signal_days", dates.size());
+        out.put("daily_trend", dailyTrend);
+        out.put("note", "多日信号趋势：基于已持久化选股结果，无未来函数；returned_items=0 视为该策略当日无机会");
+        return out;
+    }
 }

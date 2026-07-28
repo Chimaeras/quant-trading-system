@@ -22,6 +22,9 @@
         <el-form-item label="上市≥(天)">
           <el-input-number v-model="form.minListingDays" :min="0" :max="3650" :step="30" controls-position="right" style="width: 130px" />
         </el-form-item>
+        <el-form-item label="排除ST">
+          <el-switch v-model="form.excludeSt" />
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="loading" @click="run">筛选</el-button>
         </el-form-item>
@@ -101,7 +104,8 @@ const form = reactive({
   keyword: '',
   exchange: '',
   industry: '',
-  minListingDays: 60
+  minListingDays: 60,
+  excludeSt: true
 })
 
 async function run() {
@@ -112,6 +116,7 @@ async function run() {
       exchange: form.exchange || undefined,
       industry: form.industry || undefined,
       minListingDays: form.minListingDays || undefined,
+      excludeSt: form.excludeSt || undefined,
       page: 1,
       size: 50
     })
@@ -150,7 +155,8 @@ async function saveTemplate() {
       keyword: form.keyword || undefined,
       exchange: form.exchange || undefined,
       industry: form.industry || undefined,
-      minListingDays: form.minListingDays || undefined
+      minListingDays: form.minListingDays || undefined,
+      excludeSt: form.excludeSt || undefined
     })
     toast.success('模板已保存')
     templateName.value = ''
@@ -167,6 +173,7 @@ function applyTemplate(t: ScreenerTemplate) {
   form.exchange = t.exchange || ''
   form.industry = t.industry || ''
   form.minListingDays = t.min_listing_days || 60
+  form.excludeSt = t.exclude_st ?? true
   toast.success('已加载模板：' + t.name)
   run()
 }

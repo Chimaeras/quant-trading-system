@@ -28,4 +28,11 @@ public class DailyReportController {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tradeDate) {
         return ApiResponse.success(dailyReportService.buildDailyReport(tradeDate));
     }
+
+    @GetMapping("/trend")
+    public ApiResponse<Map<String, Object>> trend(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return ApiResponse.success(dailyReportService.buildTrendReport(startDate, endDate));
+    }
 }

@@ -42,6 +42,23 @@ public class WatchlistController {
         return ApiResponse.success(watchlistService.remove(userId, stockCode, exchangeType));
     }
 
+    @PostMapping("/batch-add")
+    public ApiResponse<Map<String, Object>> batchAdd(@RequestBody Map<String, Object> body) {
+        Long userId = body.get("userId") != null ? Long.valueOf(String.valueOf(body.get("userId"))) : 1L;
+        Object text = body.get("text");
+        List<String[]> pairs = new java.util.ArrayList<>();
+        if (text instanceof String s) {
+            for (String line : s.split("\\r?\\n")) {
+                String t = line.trim();
+                if (t.isEmpty()) continue;
+                // 支持「代码,交易所」「代码 交易所」「代码」（逗号/空格/制表符分隔）
+                String[] parts = t.split("[,\\s]+");
+                pairs.add(parts);
+            }
+        }
+        return ApiResponse.success(watchlistService.batchAdd(userId, pairs));
+    }
+
     @GetMapping("/alerts")
     public ApiResponse<Map<String, Object>> alerts(
             @RequestParam(required = false) Long userId,
@@ -50,5 +67,10 @@ public class WatchlistController {
             @RequestParam(required = false) Integer lookbackDays) {
         return ApiResponse.success(watchlistAlertService.scan(
                 userId != null ? userId : 1L, pctThreshold, volumeRatioThreshold, lookbackDays));
+    }
+
+    @GetMapping("/signal-coverage")
+    public ApiResponse<Map<String, Object>> signalCoverage(@RequestParam(required = false) Long userId) {
+        return ApiResponse.success(watchlistService.signalCoverage(userId != null ? userId : 1L));
     }
 }

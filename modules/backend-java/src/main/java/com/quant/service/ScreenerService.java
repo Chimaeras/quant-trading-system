@@ -42,6 +42,7 @@ public class ScreenerService {
             String exchange,
             String industry,
             Integer minListingDays,
+            Boolean excludeSt,
             LocalDate referenceDate,
             int page,
             int size) {
@@ -50,10 +51,11 @@ public class ScreenerService {
         int p = Math.max(1, page);
         int s = Math.min(200, Math.max(10, size));
         Pageable pageable = PageRequest.of(p - 1, s);
+        boolean skipSt = Boolean.TRUE.equals(excludeSt);
 
         Page<StockInfo> raw = stockInfoRepository.search(keyword, exchange, pageable);
 
-        // 在内存中按 industry 与 minListingDays 过滤（search 未覆盖这两个条件）
+        // 在内存中按 industry / minListingDays / excludeSt 过滤（search 未覆盖这三个条件）
         List<Map<String, Object>> filtered = raw.getContent().stream()
                 .filter(info -> industry == null || industry.isBlank()
                         || industry.equalsIgnoreCase(info.getIndustry()))
@@ -63,6 +65,7 @@ public class ScreenerService {
                     long days = ChronoUnit.DAYS.between(info.getListDate(), ref);
                     return days >= minListingDays;
                 })
+                .filter(info -> !skipSt || !isStStock(info.getStockName()))
                 .map(this::toMap)
                 .toList();
 
@@ -77,9 +80,15 @@ public class ScreenerService {
                 "keyword", keyword != null ? keyword : "",
                 "exchange", exchange != null ? exchange : "",
                 "industry", industry != null ? industry : "",
-                "min_listing_days", minListingDays != null ? minListingDays : 0));
-        out.put("note", "MVP 条件选股器，仅基于 stock_info 筛选；实时行情过滤为后续扩展");
+                "min_listing_days", minListingDays != null ? minListingDays : 0,
+                "exclude_st", skipSt));
+        out.put("note", "条件选股器，基于 stock_info 筛选；实时行情过滤为后续扩展");
         return out;
+    }
+
+    /** ST/*ST/退市标的按名称识别（名称含 "ST" 即视为风险标的）。 */
+    private static boolean isStStock(String name) {
+        return name != null && name.toUpperCase().contains("ST");
     }
 
     private Map<String, Object> toMap(StockInfo info) {
@@ -97,7 +106,8 @@ public class ScreenerService {
 
     @Transactional
     public Map<String, Object> saveTemplate(Long userId, String name, String keyword,
-                                            String exchange, String industry, Integer minListingDays) {
+                                            String exchange, String industry, Integer minListingDays,
+                                            Boolean excludeSt) {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("模板名称不能为空");
         }
@@ -113,6 +123,7 @@ public class ScreenerService {
         tpl.setExchange(exchange);
         tpl.setIndustry(industry);
         tpl.setMinListingDays(minListingDays);
+        tpl.setExcludeSt(excludeSt);
         screenerTemplateRepository.save(tpl);
         log.info("选股模板保存 userId={} name={}", userId, name);
         return templateToMap(tpl);
@@ -143,6 +154,7 @@ public class ScreenerService {
         m.put("exchange", tpl.getExchange());
         m.put("industry", tpl.getIndustry());
         m.put("min_listing_days", tpl.getMinListingDays());
+        m.put("exclude_st", tpl.getExcludeSt());
         m.put("created_at", tpl.getCreatedAt() != null ? tpl.getCreatedAt().toString() : "");
         return m;
     }

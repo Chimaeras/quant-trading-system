@@ -41,6 +41,9 @@ public class ScreenerTemplate {
     @Column(name = "min_listing_days")
     private Integer minListingDays;
 
+    @Column(name = "exclude_st")
+    private Boolean excludeSt;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

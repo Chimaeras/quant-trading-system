@@ -104,4 +104,19 @@ class UnifiedScoringServiceTradabilityTest {
         assertThat(tradability.get("listing_tenure_bar_scope"))
                 .isEqualTo("FULL_BULK_BARS_IN_LOOKBACK");
     }
+
+    /**
+     * QP-002：统一打分响应必须标注 score_type=rule_score，明确输出是规则分数/截面百分位，
+     * 不是上涨概率；prob_up 待概率模型校准。避免前端/接口误读。
+     */
+    @Test
+    void responseMarksScoreTypeAsRuleScoreNotProbability() {
+        when(trendScoringService.run(any())).thenReturn(cannedResult());
+        UnifiedScoringService service = newService();
+
+        Map<String, Object> out = service.run(Map.of("strategy", "TREND", "persist", false));
+
+        assertThat(out.get("score_type")).isEqualTo("rule_score");
+        assertThat((String) out.get("score_type_note")).contains("非上涨概率");
+    }
 }

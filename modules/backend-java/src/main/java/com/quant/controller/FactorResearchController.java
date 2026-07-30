@@ -26,7 +26,8 @@ public class FactorResearchController {
     public ApiResponse<Map<String, Object>> research(
             @RequestParam(required = false) String strategy,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        return ApiResponse.success(factorResearchService.research(strategy, startDate, endDate));
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) Integer holdingDays) {
+        return ApiResponse.success(factorResearchService.research(strategy, startDate, endDate, holdingDays));
     }
 }

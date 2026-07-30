@@ -206,6 +206,15 @@
       <el-button v-if="hasFactorSnapshot" link type="primary" @click="snapshotVisible = true">策略参数快照</el-button>
     </div>
 
+    <el-alert
+      v-if="resultMeta.score_type === 'rule_score' && results.length"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="score-type-alert"
+      :title="resultMeta.score_type_note || '当前分数为规则分数/截面百分位，非上涨概率'"
+    />
+
     <el-empty
       v-if="!loading && resultMeta.result_id && results.length === 0"
       description="今日无符合质量闸的候选"
@@ -229,7 +238,7 @@
       </el-table-column>
       <el-table-column prop="stock_code" label="代码" min-width="95" />
       <el-table-column prop="stock_name" label="名称" min-width="120" />
-      <el-table-column prop="final_score" label="综合分" min-width="90" />
+      <el-table-column prop="final_score" label="综合分（规则分）" min-width="100" />
       <el-table-column v-if="form.horizonProfile === 'SHORT_3_5D'" label="T" min-width="72">
         <template #default="{ row }">{{ formatCodexFactor(row, 'T') }}</template>
       </el-table-column>
@@ -260,7 +269,7 @@
       </el-table-column>
       <el-table-column prop="stock_code" label="代码" min-width="95" />
       <el-table-column prop="stock_name" label="名称" min-width="120" />
-      <el-table-column prop="final_score" label="综合分" min-width="88" />
+      <el-table-column prop="final_score" label="综合分（规则分）" min-width="100" />
       <el-table-column prop="trend_score" label="趋势(40)" min-width="88" />
       <el-table-column prop="volume_score" label="量能(30)" min-width="88" />
       <el-table-column prop="momentum_score" label="超跌(30)" min-width="88" />
@@ -280,7 +289,7 @@
       </el-table-column>
       <el-table-column prop="stock_code" label="代码" min-width="95" />
       <el-table-column prop="stock_name" label="名称" min-width="120" />
-      <el-table-column prop="final_score" label="综合分" min-width="90" />
+      <el-table-column prop="final_score" label="综合分（规则分）" min-width="100" />
       <el-table-column prop="trend_score" :label="dimensionLabels.dim1" min-width="90" />
       <el-table-column prop="momentum_score" :label="dimensionLabels.dim2" min-width="90" />
       <el-table-column prop="volume_score" :label="dimensionLabels.dim3" min-width="90" />
@@ -429,7 +438,9 @@ const resultMeta = reactive({
   total_scored_pool: null as number | null,
   factor_snapshot: null as Record<string, unknown> | null,
   cross_section_count: null as number | null,
-  display_top_n: null as number | null
+  display_top_n: null as number | null,
+  score_type: '' as string,
+  score_type_note: '' as string
 })
 const templates = ref<Array<Record<string, unknown>>>([])
 
@@ -771,6 +782,8 @@ function applyResult(data: Record<string, any>) {
   resultMeta.cross_section_count =
     data.cross_section_count != null ? Number(data.cross_section_count) : null
   resultMeta.display_top_n = data.top_n != null ? Number(data.top_n) : null
+  resultMeta.score_type = String(data.score_type ?? '')
+  resultMeta.score_type_note = String(data.score_type_note ?? '')
   const snap = data.factor_snapshot
   resultMeta.factor_snapshot =
     snap && typeof snap === 'object' && !Array.isArray(snap) ? (snap as Record<string, unknown>) : null
@@ -1403,6 +1416,9 @@ onBeforeUnmount(() => {
   margin: 0;
   max-width: 420px;
   text-align: center;
+}
+.score-type-alert {
+  margin: 8px 0;
 }
 .empty-reason {
   color: var(--text-secondary);

@@ -2,8 +2,13 @@ package com.quant.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.quant.entity.AdjustFactor;
 import com.quant.entity.MarketData;
+import com.quant.entity.MarketPriceRaw;
+import com.quant.repository.AdjustFactorRepository;
 import com.quant.repository.MarketDataRepository;
+import com.quant.repository.MarketPriceRawRepository;
+import com.quant.research.AdjustFactorDerivationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
@@ -47,6 +52,9 @@ public class HistoricalDataService {
     private final RestTemplate restTemplate = createRestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final MarketDataRepository marketDataRepo;
+    private final MarketPriceRawRepository marketPriceRawRepo;
+    private final AdjustFactorRepository adjustFactorRepo;
+    private final AdjustFactorDerivationService adjustFactorDerivationService;
 
     /** 为 true 时：搜狐已有数据仍拉东财并合并（搜狐优先，东财仅补缺交易日） */
     @Value("${historical.supplement-eastmoney:false}")
@@ -660,6 +668,218 @@ public class HistoricalDataService {
 
     private static boolean isPositive(BigDecimal value) {
         return value != null && value.compareTo(BigDecimal.ZERO) > 0;
+    }
+
+    // ==================== QP-003b：不复权行情回填 + 复权因子推算 ====================
+
+    /** 不复权行情数据来源标识（东方财富 fqt=0）。 */
+    public static final String RAW_PRICE_SOURCE = "eastmoney_fqt0";
+
+    /**
+     * 回填不复权行情并推算复权因子（QP-003b）。
+     *
+     * <p>流程：拉取东方财富不复权日 K（fqt=0）→ 去重写入 market_price_raw →
+     * 读取已存前复权 market_data → 调用 {@link AdjustFactorDerivationService} 批量推算 adjust_factor。
+     * 已存在的 raw / factor 记录跳过（幂等）。
+     *
+     * <p>口径：raw 价用于成交仿真，factor=qfq_close/raw_close（source=derived_local）；
+     * 前复权 market_data 保持不动（双写并存）。
+     */
+    @Transactional
+    public Map<String, Object> backfillRawAndDeriveAdjustFactors(
+            String code, String exchangeType, LocalDate startDate, LocalDate endDate) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("stock_code", code);
+        out.put("exchange_type", exchangeType);
+        out.put("start_date", startDate.toString());
+        out.put("end_date", endDate.toString());
+
+        List<MarketPriceRaw> fetched = fetchRawFromEastmoneyChunked(code, exchangeType, startDate, endDate);
+        if (fetched.isEmpty()) {
+            out.put("raw_inserted", 0);
+            out.put("raw_skipped", 0);
+            out.put("message", "未获取到不复权数据");
+            return out;
+        }
+        // 去重：跳过 market_price_raw 已存在的交易日
+        List<MarketPriceRaw> toInsert = fetched.stream()
+                .filter(r -> marketPriceRawRepo
+                        .findByStockCodeAndExchangeTypeAndTradeDate(code, exchangeType, r.getTradeDate())
+                        .isEmpty())
+                .toList();
+        if (!toInsert.isEmpty()) {
+            marketPriceRawRepo.saveAll(toInsert);
+        }
+
+        // 读取已存前复权行情，推算复权因子
+        List<MarketData> qfqBars = marketDataRepo
+                .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
+                        code, exchangeType, startDate, endDate);
+        int[] derived = adjustFactorDerivationService.deriveAndPersistForStock(
+                code, exchangeType, startDate, endDate, qfqBars, fetched);
+
+        out.put("raw_inserted", toInsert.size());
+        out.put("raw_skipped", fetched.size() - toInsert.size());
+        out.put("factor_generated", derived[0]);
+        out.put("factor_skipped", derived[1]);
+        out.put("data_source", RAW_PRICE_SOURCE);
+        out.put("message", String.format("不复权新增 %d 条，复权因子生成 %d 条", toInsert.size(), derived[0]));
+        return out;
+    }
+
+    private List<MarketPriceRaw> fetchRawFromEastmoneyChunked(String code, String exchangeType,
+                                                              LocalDate startDate, LocalDate endDate) {
+        long days = java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate) + 1;
+        if (days <= EASTMONEY_CHUNK_MAX_DAYS) {
+            return fetchRawFromEastmoneyOnce(code, exchangeType, startDate, endDate);
+        }
+        Map<LocalDate, MarketPriceRaw> byDate = new TreeMap<>();
+        LocalDate cur = startDate;
+        while (!cur.isAfter(endDate)) {
+            LocalDate chunkEnd = cur.plusMonths(1).minusDays(1);
+            if (chunkEnd.isAfter(endDate)) {
+                chunkEnd = endDate;
+            }
+            for (MarketPriceRaw r : fetchRawFromEastmoneyOnce(code, exchangeType, cur, chunkEnd)) {
+                byDate.put(r.getTradeDate(), r);
+            }
+            cur = chunkEnd.plusDays(1);
+        }
+        return new ArrayList<>(byDate.values());
+    }
+
+    private List<MarketPriceRaw> fetchRawFromEastmoneyOnce(String code, String exchangeType,
+                                                           LocalDate startDate, LocalDate endDate) {
+        String secid = toEastmoneySecId(code, exchangeType);
+        String beg = startDate.format(DateTimeFormatter.BASIC_ISO_DATE);
+        String end = endDate.format(DateTimeFormatter.BASIC_ISO_DATE);
+        // fqt=0 不复权；与 fqt=1 前复权同源同结构
+        String url = EASTMONEY_KLINE_URL + "?secid=" + secid
+                + "&fields1=f1,f2,f3,f4,f5,f6"
+                + "&fields2=" + FIELDS2
+                + "&klt=101&fqt=0"
+                + "&beg=" + beg + "&end=" + end;
+
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                HttpHeaders headers = eastmoneyHeaders();
+                ResponseEntity<String> resp = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
+                String json = resp.getBody();
+                if (json == null || json.isBlank()) {
+                    return List.of();
+                }
+                return parseRawKlinesJson(code, exchangeType, json);
+            } catch (Exception e) {
+                boolean last = attempt >= MAX_ATTEMPTS;
+                if (last) {
+                    log.warn("[raw] 东方财富不复权行情失败: {} {} [{}..{}] - {}", code, exchangeType, beg, end, e.getMessage());
+                    return List.of();
+                }
+                long backoffMs = 300L * (1L << (attempt - 1));
+                try {
+                    Thread.sleep(backoffMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return List.of();
+                }
+            }
+        }
+        return List.of();
+    }
+
+    private List<MarketPriceRaw> parseRawKlinesJson(String code, String exchangeType, String json) throws Exception {
+        List<MarketPriceRaw> result = new ArrayList<>();
+        JsonNode root = objectMapper.readTree(json);
+        JsonNode data = root.path("data");
+        if (data.isNull() || !data.isObject()) {
+            return result;
+        }
+        JsonNode klines = data.path("klines");
+        if (!klines.isArray()) {
+            return result;
+        }
+        for (JsonNode k : klines) {
+            String line = k.asText("");
+            if (line.isBlank()) {
+                continue;
+            }
+            MarketPriceRaw r = parseRawKlineLine(code, exchangeType, line);
+            if (r != null) {
+                result.add(r);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 不复权 kline 行解析（格式与 {@link #parseKlineLine} 一致，但写入 {@link MarketPriceRaw}）。
+     * 不复权价不推导 preClose/totalMarketValue（成交仿真不需要），仅保留原始 OHLCV/成交额/换手率。
+     */
+    static MarketPriceRaw parseRawKlineLine(String code, String exchangeType, String line) {
+        String[] parts = line.split(",");
+        if (parts.length < 7) return null;
+        LocalDate tradeDate = parseDateStatic(parts[0]);
+        if (tradeDate == null) return null;
+
+        MarketPriceRaw m = new MarketPriceRaw();
+        m.setStockCode(code);
+        m.setExchangeType(exchangeType);
+        m.setTradeDate(tradeDate);
+        m.setOpenPrice(toBigDecimalStatic(parts, 1));
+        m.setClosePrice(toBigDecimalStatic(parts, 2));
+        m.setHighPrice(toBigDecimalStatic(parts, 3));
+        m.setLowPrice(toBigDecimalStatic(parts, 4));
+        m.setVolume(toLongStatic(parts, 5));
+        m.setAmount(toBigDecimalStatic(parts, 6));
+        if (parts.length > 10) m.setTurnoverRate(toBigDecimalStatic(parts, 10));
+        m.setSource(RAW_PRICE_SOURCE);
+        return isValidRawBar(m) ? m : null;
+    }
+
+    private static boolean isValidRawBar(MarketPriceRaw bar) {
+        if (bar == null || bar.getTradeDate() == null
+                || !isPositive(bar.getOpenPrice())
+                || !isPositive(bar.getHighPrice())
+                || !isPositive(bar.getLowPrice())
+                || !isPositive(bar.getClosePrice())) {
+            return false;
+        }
+        BigDecimal high = bar.getHighPrice();
+        BigDecimal low = bar.getLowPrice();
+        return high.compareTo(low) >= 0
+                && high.compareTo(bar.getOpenPrice()) >= 0
+                && high.compareTo(bar.getClosePrice()) >= 0
+                && low.compareTo(bar.getOpenPrice()) <= 0
+                && low.compareTo(bar.getClosePrice()) <= 0;
+    }
+
+    private static LocalDate parseDateStatic(String s) {
+        if (s == null || s.isBlank()) return null;
+        try {
+            if (s.length() == 10 && s.contains("-")) return LocalDate.parse(s);
+            if (s.length() == 8) return LocalDate.parse(s, DateTimeFormatter.BASIC_ISO_DATE);
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    private static BigDecimal toBigDecimalStatic(String[] arr, int i) {
+        if (i >= arr.length || arr[i] == null || arr[i].isBlank()) return null;
+        try {
+            return new BigDecimal(arr[i].trim());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static long toLongStatic(String[] arr, int i) {
+        if (i >= arr.length || arr[i] == null || arr[i].isBlank()) return 0L;
+        String t = arr[i].replace(",", "").trim();
+        if (t.isEmpty() || "-".equals(t)) return 0L;
+        try {
+            return Long.parseLong(t);
+        } catch (NumberFormatException e) {
+            try { return (long) Double.parseDouble(t); } catch (Exception ignored) { return 0L; }
+        }
     }
 
     private LocalDate parseDate(String s) {

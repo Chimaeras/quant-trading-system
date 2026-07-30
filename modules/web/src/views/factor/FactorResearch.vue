@@ -18,6 +18,9 @@
         <el-form-item label="截止日">
           <el-date-picker v-model="endDate" type="date" value-format="YYYY-MM-DD" placeholder="截止日" />
         </el-form-item>
+        <el-form-item label="IC持仓日">
+          <el-input-number v-model="holdingDays" :min="1" :max="60" :step="1" controls-position="right" style="width: 120px" />
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="loading" @click="run">研究</el-button>
         </el-form-item>
@@ -71,6 +74,49 @@
                 <span>区间：{{ result.start_date }} ~ {{ result.end_date }}</span>
               </div>
             </el-card>
+
+            <el-card shadow="never" class="q-card rank-ic-card">
+              <template #header>
+                <span>Rank IC 与分组收益（持仓 {{ result.rank_ic.holding_days }} 日）</span>
+              </template>
+              <div class="q-meta">
+                <span>截面日数：{{ result.rank_ic.cross_section_days }}</span>
+                <span>观测数：{{ result.rank_ic.total_observations }}</span>
+                <span>IC 均值：{{ fmt4(result.rank_ic.rank_ic_mean) }}</span>
+                <span>IC 标准差：{{ fmt4(result.rank_ic.rank_ic_std) }}</span>
+                <span>ICIR：{{ fmt4(result.rank_ic.rank_ic_ir) }}</span>
+                <span>IC 正率：{{ pct(result.rank_ic.rank_ic_positive_rate) }}</span>
+                <span>多空 spread：{{ pct4(result.rank_ic.long_short_spread) }}</span>
+              </div>
+              <el-alert type="info" :closable="false" show-icon class="ic-note" :title="result.rank_ic.basis_note" />
+              <el-alert type="warning" :closable="false" show-icon class="ic-note" :title="result.rank_ic.universe_note" />
+              <div v-if="result.rank_ic.grouped_returns.length" class="ic-section">
+                <div class="ic-section-title">分组收益（按得分等数量分组，仅研究评价）</div>
+                <el-table :data="result.rank_ic.grouped_returns" size="small" stripe border>
+                  <el-table-column prop="group_no" label="组" width="60" />
+                  <el-table-column prop="label" label="分组" min-width="120" />
+                  <el-table-column label="平均收益" min-width="100">
+                    <template #default="{ row }">{{ pct4(row.avg_return) }}</template>
+                  </el-table-column>
+                  <el-table-column prop="observations" label="观测数" width="80" />
+                </el-table>
+              </div>
+              <div v-if="result.rank_ic.daily_rank_ic.length" class="ic-section">
+                <div class="ic-section-title">每日 Rank IC</div>
+                <el-table :data="result.rank_ic.daily_rank_ic" size="small" stripe border max-height="320">
+                  <el-table-column prop="trade_date" label="信号日" min-width="110" />
+                  <el-table-column label="Rank IC" min-width="100">
+                    <template #default="{ row }">{{ fmt4(row.rank_ic) }}</template>
+                  </el-table-column>
+                  <el-table-column prop="sample_size" label="样本数" width="80" />
+                </el-table>
+              </div>
+              <el-empty
+                v-if="!result.rank_ic.grouped_returns.length && !result.rank_ic.daily_rank_ic.length"
+                description="截面样本不足或无可用 forward 收益（信号日接近数据末端时跳过）"
+                :image-size="40"
+              />
+            </el-card>
           </div>
         </template>
         <el-empty v-else-if="!loading" description="选择区间与策略后点击研究" />
@@ -98,6 +144,7 @@ const loading = ref(false)
 const strategy = ref('')
 const startDate = ref(dayjs().subtract(30, 'day').format('YYYY-MM-DD'))
 const endDate = ref(dayjs().format('YYYY-MM-DD'))
+const holdingDays = ref(5)
 const result = ref<FactorResearchResponse | null>(null)
 
 function strategyLabel(s: string): string {
@@ -107,6 +154,18 @@ function strategyLabel(s: string): string {
 
 function fmt(v: number): string {
   return Number.isFinite(v) ? v.toFixed(2) : '—'
+}
+
+function fmt4(v: number): string {
+  return Number.isFinite(v) ? v.toFixed(4) : '—'
+}
+
+function pct(v: number): string {
+  return Number.isFinite(v) ? `${(v * 100).toFixed(1)}%` : '—'
+}
+
+function pct4(v: number): string {
+  return Number.isFinite(v) ? `${(v * 100).toFixed(2)}%` : '—'
 }
 
 const coverageText = computed(() => {
@@ -136,7 +195,8 @@ async function run() {
     result.value = await getFactorResearch({
       strategy: strategy.value || undefined,
       startDate: startDate.value,
-      endDate: endDate.value
+      endDate: endDate.value,
+      holdingDays: holdingDays.value
     })
   } catch (e: any) {
     toast.error(e?.message || '因子研究失败')
@@ -178,4 +238,18 @@ onMounted(() => run())
 .text-danger { color: #f56c6c; }
 .text-success { color: #67c23a; }
 .text-warning { color: #e6a23c; }
+.rank-ic-card {
+  grid-column: 1 / -1;
+}
+.ic-note {
+  margin-top: 8px;
+}
+.ic-section {
+  margin-top: 12px;
+}
+.ic-section-title {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
 </style>

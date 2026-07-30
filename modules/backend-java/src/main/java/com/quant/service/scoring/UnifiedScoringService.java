@@ -131,6 +131,10 @@ public class UnifiedScoringService {
         out.put("returned_items", slicedItems.size());
         out.put("items", slicedItems);
         out.put("source_summary", extractSummary(rawResult));
+        // QP-002：明确 score 性质——当前所有策略输出均为 rule_score（规则分数/截面百分位），
+        // 不是上涨概率；prob_up_t2/t3 待概率模型（QP-012 起）校准后提供。避免用户误读。
+        out.put("score_type", "rule_score");
+        out.put("score_type_note", "rule_score 为规则分数/截面百分位，非上涨概率；prob_up 待概率模型校准");
         boolean excludeST = parseBool(req.get("excludeST"), true);
         int minListingDays = resolveMinListingDays(req, strategy);
         boolean bulkFetch = resolveBulkFetch(req, strategy);
@@ -441,6 +445,9 @@ public class UnifiedScoringService {
         out.put("failed_candidates", nvl(result.getFailedCandidates(), 0));
         out.put("last_processed_key", nvl(result.getLastProcessedKey(), ""));
         putQualityGateFields(out, result.getFactorSnapshot());
+        // QP-002：历史结果查询同样标注分数性质——rule_score 非上涨概率
+        out.put("score_type", "rule_score");
+        out.put("score_type_note", "rule_score 为规则分数/截面百分位，非上涨概率；prob_up 待概率模型校准");
         out.put("list", list);
         out.put("items", list);
         out.put("total", pg.getTotalElements());

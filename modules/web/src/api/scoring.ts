@@ -95,6 +95,9 @@ export interface UnifiedScoringRunResult {
   tradability?: Record<string, unknown>
   items: Record<string, unknown>[]
   source_summary?: Record<string, unknown>
+  /** QP-002：分数性质——当前为 rule_score（规则分数/截面百分位），非上涨概率 */
+  score_type?: 'rule_score' | 'probability'
+  score_type_note?: string
 }
 
 export interface UnifiedScoringResultItem extends Record<string, unknown> {
@@ -129,6 +132,9 @@ export interface UnifiedScoringResultPage {
   qualified_items?: number
   returned_items?: number
   total_scored_pool?: number
+  /** QP-002：分数性质——当前为 rule_score（规则分数/截面百分位），非上涨概率 */
+  score_type?: 'rule_score' | 'probability'
+  score_type_note?: string
   list: UnifiedScoringResultItem[]
   /** 兼容任务阶段结果接口 */
   items?: UnifiedScoringResultItem[]

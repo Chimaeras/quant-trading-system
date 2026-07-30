@@ -68,357 +68,441 @@
     <!-- 回测结果 -->
     <template v-if="response">
       <div class="result-meta">
-        <span>策略：{{ response.strategyType }}</span>
+        <span>策略：{{ response.strategyType || '全部' }}</span>
         <span>日期：{{ response.startDate }} ~ {{ response.endDate }}</span>
         <span>覆盖交易日：{{ response.totalTradingDays }} 天</span>
         <span>每日前 {{ response.topN }} 只</span>
       </div>
 
-      <el-alert
-        v-if="response.executionAssumptions"
-        type="info"
-        :closable="false"
-        class="run-alert assumptions-alert"
-        title="成交假设"
-      >
-        <div class="assumptions">
-          <span v-for="(value, key) in response.executionAssumptions" :key="String(key)">
-            {{ formatAssumptionKey(String(key)) }}：{{ formatAssumptionValue(value, String(key)) }}
-          </span>
-        </div>
-      </el-alert>
+      <el-tabs v-model="activeTab" class="result-tabs" @tab-change="handleTabChange">
+        <!-- ============ Tab 1：回测概览 ============ -->
+        <el-tab-pane label="回测概览" name="overview">
+          <div class="section-hint">每个持仓周期下，选出的 Top 股票整体表现如何。</div>
 
-      <el-alert
-        v-if="response.formulaAudit"
-        :type="formulaAuditAlertType"
-        :closable="false"
-        show-icon
-        class="run-alert formula-audit-alert"
-        title="策略公式审计（3～5 日预测适配）"
-      >
-        <div class="formula-audit">
-          <p><strong>公式：</strong>{{ response.formulaAudit.final_score_formula }}</p>
-          <p><strong>结论：</strong>{{ response.formulaAudit.short_horizon_verdict }}</p>
-          <p>短周期适配分：{{ response.formulaAudit.short_horizon_fit_score }}/100</p>
-          <ul v-if="formulaAuditTips.length" class="formula-tips">
-            <li v-for="(tip, idx) in formulaAuditTips" :key="idx">{{ tip }}</li>
-          </ul>
-        </div>
-      </el-alert>
-
-      <el-alert
-        v-if="response.shortHorizonValidation"
-        :type="shortHorizonValidationType"
-        :closable="false"
-        show-icon
-        class="run-alert"
-        title="3～5 日预测力验证（Rank IC）"
-      >
-        <div class="formula-audit">
-          <p>{{ response.shortHorizonValidation.verdict }}</p>
-          <p v-if="response.executionAssumptions?.codex_neutralization">
-            中性化：{{ response.executionAssumptions.codex_neutralization }}
-          </p>
-          <p v-if="response.shortHorizonValidation.neutralization_pipeline">
-            中性化管道：{{ response.shortHorizonValidation.neutralization_pipeline }}
-          </p>
-          <p v-if="response.shortHorizonValidation.codex_g_weighting">
-            G 市场状态：{{ response.shortHorizonValidation.codex_g_weighting }}
-          </p>
-          <p v-if="response.shortHorizonValidation.codex_t_dominates === true">
-            T 因子 T+3 Rank IC &gt; 0.02，短周期预测力主要由趋势项驱动
-          </p>
-          <p v-if="response.shortHorizonValidation.codex_t_dominates === false && response.shortHorizonValidation.codex_sub_factors_available">
-            T 因子 T+3 IC 未达 0.02，请结合 F/R 子因子 IC 综合判断
-          </p>
-          <p>
-            T+3 IC：{{ formatIcMean(response.shortHorizonValidation.t3_rank_ic_mean) }}
-            · T+5 IC：{{ formatIcMean(response.shortHorizonValidation.t5_rank_ic_mean) }}
-            · 置信：{{ response.shortHorizonValidation.confidence }}
-          </p>
-          <p v-if="response.shortHorizonValidation.codex_sub_factors_available">
-            Codex 子因子 IC（T+3/T+5）：
-            <span v-for="key in ['T', 'F', 'R']" :key="key" class="codex-ic-chip">
-              {{ key }}:
-              {{ formatIcMean(codexSubIc(key, 3)) }}/{{ formatIcMean(codexSubIc(key, 5)) }}
-            </span>
-          </p>
-        </div>
-      </el-alert>
-
-      <div v-if="codexFactorTableRows.length" class="section-title">Codex T/F/R 子因子 Rank IC</div>
-      <el-table v-if="codexFactorTableRows.length" :data="codexFactorTableRows" stripe size="small" class="codex-ic-table">
-        <el-table-column prop="factor" label="因子" width="80" />
-        <el-table-column prop="h3" label="T+3 IC" min-width="100" />
-        <el-table-column prop="h5" label="T+5 IC" min-width="100" />
-        <el-table-column prop="h10" label="T+10 IC" min-width="100" />
-      </el-table>
-
-      <!-- 汇总统计卡片 -->
-      <div class="section-title">各持仓周期汇总</div>
-      <div class="stats-grid">
-        <div v-for="(stat, day) in response.holdingPeriodStats" :key="day" class="stat-card glass">
-          <div class="stat-header">T+{{ day }}</div>
-          <div class="stat-body">
-            <div class="stat-item">
-              <span class="stat-label">胜率</span>
-              <span class="stat-value" :class="stat.winRate >= 0.5 ? 'text-success' : 'text-danger'">
-                {{ (stat.winRate * 100).toFixed(1) }}%
-              </span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">平均收益</span>
-              <span class="stat-value" :class="stat.avgReturn >= 0 ? 'text-success' : 'text-danger'">
-                {{ (stat.avgReturn * 100).toFixed(2) }}%
-              </span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">中位数收益</span>
-              <span class="stat-value" :class="stat.medianReturn >= 0 ? 'text-success' : 'text-danger'">
-                {{ (stat.medianReturn * 100).toFixed(2) }}%
-              </span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">最大收益</span>
-              <span class="stat-value text-success">{{ (stat.maxReturn * 100).toFixed(2) }}%</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">最小收益</span>
-              <span class="stat-value text-danger">{{ (stat.minReturn * 100).toFixed(2) }}%</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">平均盈利</span>
-              <span class="stat-value text-success">{{ (stat.avgWin * 100).toFixed(2) }}%</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">平均亏损</span>
-              <span class="stat-value text-danger">{{ (stat.avgLoss * 100).toFixed(2) }}%</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">盈亏比</span>
-              <span class="stat-value" :class="stat.profitLossRatio >= 1 ? 'text-success' : 'text-danger'">
-                {{ stat.profitLossRatio.toFixed(2) }}
-              </span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">观测数</span>
-              <span class="stat-value">{{ stat.totalObservations }}</span>
+          <div class="verdict-grid">
+            <div v-for="v in periodVerdicts" :key="v.day" class="verdict-card glass">
+              <div class="verdict-head">
+                <span class="period-tag">持有 {{ v.day }} 个交易日</span>
+                <el-tag :type="v.verdictType" size="small" effect="dark">{{ v.verdictLabel }}</el-tag>
+              </div>
+              <p class="verdict-text">{{ v.conclusion }}</p>
+              <div class="verdict-metrics">
+                <div class="vm">
+                  <span class="vm-label">盈利概率</span>
+                  <b :class="v.winRate >= 0.5 ? 'text-success' : 'text-danger'">{{ pct1(v.winRate) }}</b>
+                </div>
+                <div class="vm">
+                  <span class="vm-label">平均收益</span>
+                  <b :class="v.avgReturn >= 0 ? 'text-success' : 'text-danger'">{{ pct(v.avgReturn) }}</b>
+                </div>
+                <div class="vm">
+                  <span class="vm-label">盈亏比</span>
+                  <b :class="v.profitLossRatio >= 1 ? 'text-success' : 'text-danger'">{{ v.profitLossRatio.toFixed(2) }}</b>
+                </div>
+                <div class="vm">
+                  <span class="vm-label">样本数</span>
+                  <b>{{ v.totalObservations }}</b>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      <!-- 截面因子研究 -->
-      <template v-if="response.factorAnalysis">
-        <div class="section-title">截面因子研究（T+{{ response.factorAnalysis.holdingDays }}）</div>
-        <el-alert
-          type="warning"
-          :closable="false"
-          show-icon
-          class="run-alert"
-          :title="response.factorAnalysis.universeNote"
-        />
-        <div class="stats-grid factor-ic-grid">
-          <div class="stat-card glass">
-            <div class="stat-header">Rank IC 均值</div>
-            <div class="stat-body">
-              <div class="stat-item">
-                <span class="stat-label">IC Mean</span>
-                <span class="stat-value" :class="response.factorAnalysis.rankIcMean >= 0 ? 'text-success' : 'text-danger'">
-                  {{ response.factorAnalysis.rankIcMean.toFixed(4) }}
+          <el-collapse class="assumptions-collapse">
+            <el-collapse-item title="成交与费用假设" name="assumptions">
+              <div class="assumptions-clean">
+                <div v-for="row in businessAssumptions" :key="row.key" class="assumption-row">
+                  <span class="assumption-label">{{ row.label }}</span>
+                  <span class="assumption-value">{{ row.value }}</span>
+                </div>
+              </div>
+              <el-collapse class="tech-collapse">
+                <el-collapse-item title="技术细节" name="tech">
+                  <div class="assumptions-clean">
+                    <div v-for="row in technicalAssumptions" :key="row.key" class="assumption-row">
+                      <span class="assumption-label">{{ row.label }}</span>
+                      <span class="assumption-value">{{ row.value }}</span>
+                    </div>
+                  </div>
+                </el-collapse-item>
+              </el-collapse>
+            </el-collapse-item>
+          </el-collapse>
+        </el-tab-pane>
+
+        <!-- ============ Tab 2：持仓周期表现 ============ -->
+        <el-tab-pane label="持仓周期表现" name="performance">
+          <div class="section-hint">各持仓周期的详细收益分布与盈亏统计。</div>
+          <div class="stats-grid">
+            <div v-for="(stat, day) in response.holdingPeriodStats" :key="day" class="stat-card glass">
+              <div class="stat-header">持有 {{ day }} 个交易日</div>
+              <div class="stat-body">
+                <div class="stat-item">
+                  <span class="stat-label">盈利概率</span>
+                  <span class="stat-value" :class="stat.winRate >= 0.5 ? 'text-success' : 'text-danger'">
+                    {{ (stat.winRate * 100).toFixed(1) }}%
+                  </span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">平均收益</span>
+                  <span class="stat-value" :class="stat.avgReturn >= 0 ? 'text-success' : 'text-danger'">
+                    {{ (stat.avgReturn * 100).toFixed(2) }}%
+                  </span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">中位数收益</span>
+                  <span class="stat-value" :class="stat.medianReturn >= 0 ? 'text-success' : 'text-danger'">
+                    {{ (stat.medianReturn * 100).toFixed(2) }}%
+                  </span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">平均赚</span>
+                  <span class="stat-value text-success">{{ (stat.avgWin * 100).toFixed(2) }}%</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">平均亏</span>
+                  <span class="stat-value text-danger">{{ (stat.avgLoss * 100).toFixed(2) }}%</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">盈亏比（赚/亏）</span>
+                  <span class="stat-value" :class="stat.profitLossRatio >= 1 ? 'text-success' : 'text-danger'">
+                    {{ stat.profitLossRatio.toFixed(2) }}
+                  </span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">最大收益 / 最大亏损</span>
+                  <span class="stat-value">
+                    <span class="text-success">{{ (stat.maxReturn * 100).toFixed(2) }}%</span>
+                    <span class="text-muted"> / </span>
+                    <span class="text-danger">{{ (stat.minReturn * 100).toFixed(2) }}%</span>
+                  </span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">样本数</span>
+                  <span class="stat-value">{{ stat.totalObservations }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-title">各周期盈利概率与平均收益对比</div>
+          <div ref="chartRef" class="chart-box"></div>
+        </el-tab-pane>
+
+        <!-- ============ Tab 3：因子有效性 ============ -->
+        <el-tab-pane label="因子有效性" name="factor">
+          <template v-if="response.factorAnalysis || response.shortHorizonValidation || response.formulaAudit">
+            <div class="section-hint">
+              “因子有效性”回答：得分高的股票，未来是否真的涨得更好？以下指标衡量选股排序的预测能力。
+            </div>
+
+            <!-- 因子有效性解读卡 -->
+            <template v-if="response.factorAnalysis">
+              <div class="section-title">选股排序预测力（持有 {{ response.factorAnalysis.holdingDays }} 个交易日）</div>
+              <div class="stats-grid factor-ic-grid">
+                <div class="stat-card glass">
+                  <div class="stat-header">选股排序准确度</div>
+                  <div class="stat-body">
+                    <div class="stat-item">
+                      <span class="stat-label">准确度（Rank IC）</span>
+                      <span class="stat-value" :class="response.factorAnalysis.rankIcMean >= 0 ? 'text-success' : 'text-danger'">
+                        {{ response.factorAnalysis.rankIcMean.toFixed(4) }}
+                      </span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-label">业务判定</span>
+                      <el-tag :type="icVerdict(response.factorAnalysis.rankIcMean).type" size="small">
+                        {{ icVerdict(response.factorAnalysis.rankIcMean).text }}
+                      </el-tag>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-label">预测有效天数占比</span>
+                      <span class="stat-value">{{ (response.factorAnalysis.rankIcPositiveRate * 100).toFixed(1) }}%</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="stat-card glass">
+                  <div class="stat-header">预测稳定性</div>
+                  <div class="stat-body">
+                    <div class="stat-item">
+                      <span class="stat-label">稳定性（ICIR）</span>
+                      <span class="stat-value">{{ response.factorAnalysis.rankIcIr.toFixed(3) }}</span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-label">业务判定</span>
+                      <el-tag :type="icirVerdict(response.factorAnalysis.rankIcIr).type" size="small">
+                        {{ icirVerdict(response.factorAnalysis.rankIcIr).text }}
+                      </el-tag>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-label">波动幅度</span>
+                      <span class="stat-value">{{ response.factorAnalysis.rankIcStd.toFixed(4) }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="stat-card glass">
+                  <div class="stat-header">高分 vs 低分收益差</div>
+                  <div class="stat-body">
+                    <div class="stat-item">
+                      <span class="stat-label">多空收益差</span>
+                      <span class="stat-value" :class="response.factorAnalysis.longShortSpread >= 0 ? 'text-success' : 'text-danger'">
+                        {{ (response.factorAnalysis.longShortSpread * 100).toFixed(2) }}%
+                      </span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-label">业务含义</span>
+                      <span class="stat-value small-text">
+                        {{ response.factorAnalysis.longShortSpread >= 0 ? '高分组合收益高于低分组合，选股有效' : '高分组合反而跑输低分组合，选股方向需警惕' }}
+                      </span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-label">样本覆盖</span>
+                      <span class="stat-value">{{ response.factorAnalysis.crossSectionDays }} 个截面日 / {{ response.factorAnalysis.totalObservations }} 个观测</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <!-- 短周期验证（业务化） -->
+            <el-alert
+              v-if="response.shortHorizonValidation"
+              :type="shortHorizonValidationType"
+              :closable="false"
+              show-icon
+              class="run-alert"
+              title="短周期预测力验证结论"
+            >
+              <div class="formula-audit">
+                <p><strong>结论：</strong>{{ response.shortHorizonValidation.verdict }}</p>
+                <p>置信度：{{ response.shortHorizonValidation.confidence }}</p>
+                <p>
+                  T+3 选股准确度：{{ formatIcMean(response.shortHorizonValidation.t3_rank_ic_mean) }}
+                  <el-tag v-if="response.shortHorizonValidation.t3_rank_ic_mean != null" :type="icVerdict(Number(response.shortHorizonValidation.t3_rank_ic_mean)).type" size="small" style="margin-left:6px">
+                    {{ icVerdict(Number(response.shortHorizonValidation.t3_rank_ic_mean)).text }}
+                  </el-tag>
+                </p>
+                <p>
+                  T+5 选股准确度：{{ formatIcMean(response.shortHorizonValidation.t5_rank_ic_mean) }}
+                  <el-tag v-if="response.shortHorizonValidation.t5_rank_ic_mean != null" :type="icVerdict(Number(response.shortHorizonValidation.t5_rank_ic_mean)).type" size="small" style="margin-left:6px">
+                    {{ icVerdict(Number(response.shortHorizonValidation.t5_rank_ic_mean)).text }}
+                  </el-tag>
+                </p>
+                <p v-if="response.shortHorizonValidation.codex_t_dominates === true" class="text-success">
+                  趋势因子（T）是短周期预测力的主要来源
+                </p>
+                <p v-else-if="response.shortHorizonValidation.codex_t_dominates === false && response.shortHorizonValidation.codex_sub_factors_available">
+                  趋势因子（T）预测力不足，建议结合 F（财务）/ R（风险）因子综合判断
+                </p>
+                <p class="text-muted disclaimer-inline">{{ response.shortHorizonValidation.disclaimer }}</p>
+              </div>
+            </el-alert>
+
+            <!-- 公式审计 -->
+            <el-alert
+              v-if="response.formulaAudit"
+              :type="formulaAuditAlertType"
+              :closable="false"
+              show-icon
+              class="run-alert"
+              title="策略公式适配性"
+            >
+              <div class="formula-audit">
+                <p><strong>公式：</strong>{{ response.formulaAudit.final_score_formula }}</p>
+                <p><strong>结论：</strong>{{ response.formulaAudit.short_horizon_verdict }}</p>
+                <p>短周期适配分：{{ response.formulaAudit.short_horizon_fit_score }}/100</p>
+                <ul v-if="formulaAuditTips.length" class="formula-tips">
+                  <li v-for="(tip, idx) in formulaAuditTips" :key="idx">{{ tip }}</li>
+                </ul>
+              </div>
+            </el-alert>
+
+            <!-- Codex 子因子表 -->
+            <div v-if="codexFactorTableRows.length" class="section-title">各子因子预测力（T=趋势 / F=财务 / R=风险）</div>
+            <el-table v-if="codexFactorTableRows.length" :data="codexFactorTableRows" stripe size="small" class="data-table">
+              <el-table-column prop="factor" label="因子" width="80">
+                <template #default="{ row }">{{ codexFactorLabel(row.factor) }}</template>
+              </el-table-column>
+              <el-table-column label="T+3 准确度" min-width="120">
+                <template #default="{ row }">
+                  {{ row.h3 }} <el-tag v-if="row.h3 !== '-'" :type="icVerdict(Number(row.h3)).type" size="small" style="margin-left:4px">{{ icVerdict(Number(row.h3)).text }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="T+5 准确度" min-width="120">
+                <template #default="{ row }">
+                  {{ row.h5 }} <el-tag v-if="row.h5 !== '-'" :type="icVerdict(Number(row.h5)).type" size="small" style="margin-left:4px">{{ icVerdict(Number(row.h5)).text }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="T+10 准确度" min-width="120">
+                <template #default="{ row }">
+                  {{ row.h10 }} <el-tag v-if="row.h10 !== '-'" :type="icVerdict(Number(row.h10)).type" size="small" style="margin-left:4px">{{ icVerdict(Number(row.h10)).text }}</el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
+
+            <!-- 分组收益 -->
+            <template v-if="response.factorAnalysis">
+              <div class="section-title">按得分分组的表现（验证单调性：分数越高是否收益越高）</div>
+              <el-alert
+                type="warning"
+                :closable="false"
+                show-icon
+                class="run-alert"
+                :title="response.factorAnalysis.universeNote"
+              />
+              <div ref="factorChartRef" class="chart-box"></div>
+              <el-table :data="response.factorAnalysis.groupedReturns" stripe size="small" class="data-table" max-height="260">
+                <el-table-column prop="label" label="分组" width="120" />
+                <el-table-column label="平均收益" width="120">
+                  <template #default="{ row }">
+                    <span :class="row.avgReturn >= 0 ? 'text-success' : 'text-danger'">
+                      {{ (row.avgReturn * 100).toFixed(2) }}%
+                    </span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="observations" label="截面日观测" />
+              </el-table>
+
+              <template v-if="icByHoldingRows.length">
+                <div class="section-title">不同持有期的预测力对比</div>
+                <div ref="icByHoldingChartRef" class="chart-box"></div>
+                <el-table :data="icByHoldingRows" stripe size="small" class="data-table" max-height="220">
+                  <el-table-column prop="label" label="持有期" width="90" />
+                  <el-table-column label="选股准确度" width="110">
+                    <template #default="{ row }">
+                      <span :class="row.rankIcMean >= 0 ? 'text-success' : 'text-danger'">{{ row.rankIcMean.toFixed(4) }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="稳定性" width="90">
+                    <template #default="{ row }">{{ row.rankIcIr.toFixed(3) }}</template>
+                  </el-table-column>
+                  <el-table-column label="高分减低分收益差" width="130">
+                    <template #default="{ row }">
+                      <span :class="row.longShortSpread >= 0 ? 'text-success' : 'text-danger'">
+                        {{ (row.longShortSpread * 100).toFixed(2) }}%
+                      </span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="crossSectionDays" label="截面日" width="80" />
+                </el-table>
+              </template>
+
+              <template v-if="response.factorAnalysis.dailyRankIc?.length">
+                <div class="section-title">每日选股准确度变化趋势</div>
+                <div ref="icSeriesChartRef" class="chart-box"></div>
+              </template>
+            </template>
+          </template>
+          <el-empty v-else description="本次回测无因子有效性数据" />
+        </el-tab-pane>
+
+        <!-- ============ Tab 4：每日明细 ============ -->
+        <el-tab-pane label="每日明细" name="daily">
+          <div class="section-hint">逐日查看选出的股票及其实际收益，点击「详情」查看个股明细。</div>
+          <div class="section-title">
+            每日回测明细
+            <el-button size="small" style="margin-left: 12px" @click="exportCsv">导出 CSV</el-button>
+          </div>
+          <el-table :data="dailyPage" stripe size="small" class="data-table" max-height="500">
+            <el-table-column prop="tradeDate" label="交易日期" width="120" sortable />
+            <el-table-column v-for="day in form.holdingDays" :key="day" :label="'持有' + day + '日盈利概率'" width="130">
+              <template #default="{ row }">
+                <span v-if="row.dailyWinRate[day] != null" :class="row.dailyWinRate[day] >= 0.5 ? 'text-success' : 'text-danger'">
+                  {{ (row.dailyWinRate[day] * 100).toFixed(1) }}%
                 </span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-label">IC Std</span>
-                <span class="stat-value">{{ response.factorAnalysis.rankIcStd.toFixed(4) }}</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-label">ICIR</span>
-                <span class="stat-value">{{ response.factorAnalysis.rankIcIr.toFixed(3) }}</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-label">IC&gt;0 占比</span>
-                <span class="stat-value">{{ (response.factorAnalysis.rankIcPositiveRate * 100).toFixed(1) }}%</span>
-              </div>
-            </div>
+                <span v-else class="text-muted">-</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="80">
+              <template #default="{ row }">
+                <el-button link type="primary" @click="showDetail(row)">详情</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div class="pagination-box" v-if="dailyPageTotal > pageSize">
+            <el-pagination
+              v-model:current-page="dailyPageNum"
+              :page-size="pageSize"
+              :total="dailyPageTotal"
+              layout="prev, pager, next"
+              background
+              small
+            />
           </div>
-          <div class="stat-card glass">
-            <div class="stat-header">样本覆盖</div>
-            <div class="stat-body">
-              <div class="stat-item">
-                <span class="stat-label">截面日数</span>
-                <span class="stat-value">{{ response.factorAnalysis.crossSectionDays }}</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-label">总观测数</span>
-                <span class="stat-value">{{ response.factorAnalysis.totalObservations }}</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-label">分组数</span>
-                <span class="stat-value">{{ response.factorAnalysis.groupCount }}</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-label">多空 Spread</span>
-                <span class="stat-value" :class="response.factorAnalysis.longShortSpread >= 0 ? 'text-success' : 'text-danger'">
-                  {{ (response.factorAnalysis.longShortSpread * 100).toFixed(2) }}%
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
+        </el-tab-pane>
+      </el-tabs>
 
-        <div class="section-title">分组平均收益</div>
-        <div ref="factorChartRef" class="chart-box"></div>
-        <el-table :data="response.factorAnalysis.groupedReturns" stripe size="small" class="data-table" max-height="260">
-          <el-table-column prop="label" label="分组" width="120" />
-          <el-table-column label="平均收益" width="120">
+      <!-- 详情弹窗 -->
+      <el-dialog v-model="detailVisible" :title="'回测明细 - ' + detailDate" width="900px" destroy-on-close>
+        <el-table :data="detailStocks" stripe size="small" max-height="400">
+          <el-table-column prop="rankNo" label="排名" width="60" />
+          <el-table-column prop="stockCode" label="代码" width="100" />
+          <el-table-column prop="stockName" label="名称" width="100" />
+          <el-table-column prop="finalScore" label="得分" width="80" sortable />
+          <el-table-column prop="skipReason" label="跳过原因" min-width="140">
             <template #default="{ row }">
-              <span :class="row.avgReturn >= 0 ? 'text-success' : 'text-danger'">
-                {{ (row.avgReturn * 100).toFixed(2) }}%
-              </span>
+              <span v-if="row.skipReason">{{ formatSkipReason(row.skipReason) }}</span>
+              <span v-else class="text-muted">—</span>
             </template>
           </el-table-column>
-          <el-table-column prop="observations" label="截面日观测" />
+          <el-table-column v-for="day in form.holdingDays" :key="day" :label="'持有' + day + '日收益'" width="120">
+            <template #default="{ row: stock }">
+              <span v-if="stock.forwardReturns[day] != null" :class="stock.forwardReturns[day] >= 0 ? 'text-success' : 'text-danger'">
+                {{ (stock.forwardReturns[day] * 100).toFixed(2) }}%
+              </span>
+              <span v-else-if="stock.periodSkipReasons?.[day]" class="text-muted skip-hint">
+                {{ formatSkipReason(stock.periodSkipReasons[day]) }}
+              </span>
+              <span v-else class="text-muted">-</span>
+            </template>
+          </el-table-column>
         </el-table>
+      </el-dialog>
 
-        <template v-if="icByHoldingRows.length">
-          <div class="section-title">多持有期 IC 对比</div>
-          <div ref="icByHoldingChartRef" class="chart-box"></div>
-          <el-table :data="icByHoldingRows" stripe size="small" class="data-table" max-height="220">
-            <el-table-column prop="label" label="持有期" width="90" />
-            <el-table-column label="IC Mean" width="100">
-              <template #default="{ row }">
-                <span :class="row.rankIcMean >= 0 ? 'text-success' : 'text-danger'">{{ row.rankIcMean.toFixed(4) }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="ICIR" width="90">
-              <template #default="{ row }">{{ row.rankIcIr.toFixed(3) }}</template>
-            </el-table-column>
-            <el-table-column label="多空 Spread" width="110">
-              <template #default="{ row }">
-                <span :class="row.longShortSpread >= 0 ? 'text-success' : 'text-danger'">
-                  {{ (row.longShortSpread * 100).toFixed(2) }}%
-                </span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="crossSectionDays" label="截面日" width="80" />
-          </el-table>
-        </template>
-
-        <template v-if="response.factorAnalysis.dailyRankIc?.length">
-          <div class="section-title">每日 Rank IC 时序</div>
-          <div ref="icSeriesChartRef" class="chart-box"></div>
-        </template>
-      </template>
-
-      <!-- 胜率柱状图 -->
-      <div class="section-title">胜率对比</div>
-      <div ref="chartRef" class="chart-box"></div>
-
-      <!-- 每日明细 -->
-      <div class="section-title">
-        每日回测明细
-        <el-button size="small" style="margin-left: 12px" @click="exportCsv">导出 CSV</el-button>
-      </div>
-      <el-table :data="dailyPage" stripe size="small" class="data-table" max-height="500">
-        <el-table-column prop="tradeDate" label="交易日期" width="120" sortable />
-        <el-table-column v-for="day in form.holdingDays" :key="day" :label="'T+' + day + ' 胜率'" width="110">
-          <template #default="{ row }">
-            <span v-if="row.dailyWinRate[day] != null" :class="row.dailyWinRate[day] >= 0.5 ? 'text-success' : 'text-danger'">
-              {{ (row.dailyWinRate[day] * 100).toFixed(1) }}%
-            </span>
-            <span v-else class="text-muted">-</span>
+      <el-collapse class="turnover-collapse">
+        <el-collapse-item title="候选换手率分析" name="turnover">
+          <el-button type="primary" size="small" :loading="turnoverLoading" @click="runTurnover">分析换手率</el-button>
+          <template v-if="turnover">
+            <div class="turnover-meta">
+              <span>信号日：{{ turnover.signal_days }}</span>
+              <span>平均换手：{{ (turnover.avg_turnover * 100).toFixed(2) }}%</span>
+              <span>最高：{{ (turnover.max_turnover * 100).toFixed(2) }}%</span>
+              <span>最低：{{ (turnover.min_turnover * 100).toFixed(2) }}%</span>
+            </div>
+            <el-table v-if="turnover.daily_turnover.length" :data="turnover.daily_turnover" size="small" stripe border max-height="320">
+              <el-table-column prop="trade_date" label="信号日" min-width="110" />
+              <el-table-column label="换手率" min-width="100">
+                <template #default="{ row }">{{ (row.turnover * 100).toFixed(2) }}%</template>
+              </el-table-column>
+              <el-table-column prop="new_count" label="新进数" min-width="80" />
+              <el-table-column prop="exit_count" label="退出数" min-width="80" />
+            </el-table>
+            <p class="turnover-note">{{ turnover.note }}</p>
           </template>
-        </el-table-column>
-        <el-table-column label="操作" width="80">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="showDetail(row)">详情</el-button>
+        </el-collapse-item>
+        <el-collapse-item title="分段稳定性报告" name="stability">
+          <el-button type="primary" size="small" :loading="stabilityLoading" @click="runStability">分析稳定性</el-button>
+          <template v-if="stability">
+            <el-alert type="info" :closable="false" show-icon class="stability-verdict" :title="stability.verdict" />
+            <p class="turnover-meta">切分日：{{ stability.split_date }} · 持有期 T+{{ stability.holding_day }}</p>
+            <el-table :data="[stability.first_half, stability.second_half, stability.full_period]" size="small" stripe border>
+              <el-table-column prop="label" label="分段" min-width="80" />
+              <el-table-column prop="signal_days" label="信号日" width="80" />
+              <el-table-column prop="observations" label="观测数" width="80" />
+              <el-table-column label="平均收益" min-width="100">
+                <template #default="{ row }">{{ (row.avg_return * 100).toFixed(2) }}%</template>
+              </el-table-column>
+              <el-table-column label="盈利概率" min-width="90">
+                <template #default="{ row }">{{ (row.win_rate * 100).toFixed(2) }}%</template>
+              </el-table-column>
+              <el-table-column label="盈亏比" min-width="90">
+                <template #default="{ row }">{{ row.profit_loss_ratio.toFixed(2) }}</template>
+              </el-table-column>
+            </el-table>
+            <p class="turnover-note">{{ stability.note }}</p>
           </template>
-        </el-table-column>
-      </el-table>
-      <div class="pagination-box" v-if="dailyPageTotal > pageSize">
-        <el-pagination
-          v-model:current-page="dailyPageNum"
-          :page-size="pageSize"
-          :total="dailyPageTotal"
-          layout="prev, pager, next"
-          background
-          small
-        />
-      </div>
+        </el-collapse-item>
+      </el-collapse>
     </template>
-
-    <!-- 详情弹窗 -->
-    <el-dialog v-model="detailVisible" :title="'回测明细 - ' + detailDate" width="900px" destroy-on-close>
-      <el-table :data="detailStocks" stripe size="small" max-height="400">
-        <el-table-column prop="rankNo" label="排名" width="60" />
-        <el-table-column prop="stockCode" label="代码" width="100" />
-        <el-table-column prop="stockName" label="名称" width="100" />
-        <el-table-column prop="finalScore" label="得分" width="80" sortable />
-        <el-table-column prop="skipReason" label="跳过原因" min-width="140">
-          <template #default="{ row }">
-            <span v-if="row.skipReason">{{ formatSkipReason(row.skipReason) }}</span>
-            <span v-else class="text-muted">—</span>
-          </template>
-        </el-table-column>
-        <el-table-column v-for="day in form.holdingDays" :key="day" :label="'T+' + day" width="110">
-          <template #default="{ row: stock }">
-            <span v-if="stock.forwardReturns[day] != null" :class="stock.forwardReturns[day] >= 0 ? 'text-success' : 'text-danger'">
-              {{ (stock.forwardReturns[day] * 100).toFixed(2) }}%
-            </span>
-            <span v-else-if="stock.periodSkipReasons?.[day]" class="text-muted skip-hint">
-              {{ formatSkipReason(stock.periodSkipReasons[day]) }}
-            </span>
-            <span v-else class="text-muted">-</span>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-dialog>
-
-    <el-collapse class="turnover-collapse">
-      <el-collapse-item title="候选换手率分析" name="turnover">
-        <el-button type="primary" size="small" :loading="turnoverLoading" @click="runTurnover">分析换手率</el-button>
-        <template v-if="turnover">
-          <div class="turnover-meta">
-            <span>信号日：{{ turnover.signal_days }}</span>
-            <span>平均换手：{{ (turnover.avg_turnover * 100).toFixed(2) }}%</span>
-            <span>最高：{{ (turnover.max_turnover * 100).toFixed(2) }}%</span>
-            <span>最低：{{ (turnover.min_turnover * 100).toFixed(2) }}%</span>
-          </div>
-          <el-table v-if="turnover.daily_turnover.length" :data="turnover.daily_turnover" size="small" stripe border max-height="320">
-            <el-table-column prop="trade_date" label="信号日" min-width="110" />
-            <el-table-column label="换手率" min-width="100">
-              <template #default="{ row }">{{ (row.turnover * 100).toFixed(2) }}%</template>
-            </el-table-column>
-            <el-table-column prop="new_count" label="新进数" min-width="80" />
-            <el-table-column prop="exit_count" label="退出数" min-width="80" />
-          </el-table>
-          <p class="turnover-note">{{ turnover.note }}</p>
-        </template>
-      </el-collapse-item>
-      <el-collapse-item title="分段稳定性报告" name="stability">
-        <el-button type="primary" size="small" :loading="stabilityLoading" @click="runStability">分析稳定性</el-button>
-        <template v-if="stability">
-          <el-alert type="info" :closable="false" show-icon class="stability-verdict" :title="stability.verdict" />
-          <p class="turnover-meta">切分日：{{ stability.split_date }} · 持有期 T+{{ stability.holding_day }}</p>
-          <el-table :data="[stability.first_half, stability.second_half, stability.full_period]" size="small" stripe border>
-            <el-table-column prop="label" label="分段" min-width="80" />
-            <el-table-column prop="signal_days" label="信号日" width="80" />
-            <el-table-column prop="observations" label="观测数" width="80" />
-            <el-table-column label="平均收益" min-width="100">
-              <template #default="{ row }">{{ (row.avg_return * 100).toFixed(2) }}%</template>
-            </el-table-column>
-            <el-table-column label="胜率" min-width="90">
-              <template #default="{ row }">{{ (row.win_rate * 100).toFixed(2) }}%</template>
-            </el-table-column>
-            <el-table-column label="盈亏比" min-width="90">
-              <template #default="{ row }">{{ row.profit_loss_ratio.toFixed(2) }}</template>
-            </el-table-column>
-          </el-table>
-          <p class="turnover-note">{{ stability.note }}</p>
-        </template>
-      </el-collapse-item>
-    </el-collapse>
   </el-card>
 </template>
 
@@ -439,6 +523,7 @@ const turnover = ref<TurnoverResponse | null>(null)
 const turnoverLoading = ref(false)
 const stability = ref<StabilityResponse | null>(null)
 const stabilityLoading = ref(false)
+const activeTab = ref('overview')
 
 const form = reactive({
   strategyType: '',
@@ -447,6 +532,61 @@ const form = reactive({
   topN: 10,
   holdingDays: [3, 5, 10, 20],
   factorGroupCount: 5
+})
+
+// ===== 业务化格式化 =====
+function pct(v: number) { return Number.isFinite(v) ? (v * 100).toFixed(2) + '%' : '—' }
+function pct1(v: number) { return Number.isFinite(v) ? (v * 100).toFixed(1) + '%' : '—' }
+
+// IC 业务判定：<0.02 几乎无预测力 / <0.05 较弱 / <0.1 有效 / >=0.1 强
+function icVerdict(ic: number): { text: string; type: 'success' | 'warning' | 'danger' | 'info' } {
+  if (!Number.isFinite(ic)) return { text: '数据不足', type: 'info' }
+  const a = Math.abs(ic)
+  if (a < 0.02) return { text: '几乎无预测力', type: 'danger' }
+  if (a < 0.05) return { text: '预测力较弱', type: 'warning' }
+  if (a < 0.1) return { text: '预测有效', type: 'success' }
+  return { text: '预测力强', type: 'success' }
+}
+
+// ICIR 业务判定：<0.3 不稳定 / <0.5 一般 / >=0.5 较稳定
+function icirVerdict(icir: number): { text: string; type: 'success' | 'warning' | 'danger' | 'info' } {
+  if (!Number.isFinite(icir)) return { text: '数据不足', type: 'info' }
+  if (icir < 0.3) return { text: '不稳定', type: 'danger' }
+  if (icir < 0.5) return { text: '一般', type: 'warning' }
+  return { text: '较稳定', type: 'success' }
+}
+
+function codexFactorLabel(f: string): string {
+  return f === 'T' ? 'T 趋势' : f === 'F' ? 'F 财务' : f === 'R' ? 'R 风险' : f
+}
+
+// ===== 各持仓周期业务结论 =====
+const periodVerdicts = computed(() => {
+  const stats = response.value?.holdingPeriodStats
+  if (!stats) return []
+  return Object.keys(stats).map(Number).sort((a, b) => a - b).map((d) => {
+    const s = stats[d]
+    const wr = s.winRate
+    const ar = s.avgReturn
+    const plr = s.profitLossRatio
+    let verdictLabel = '表现一般'
+    let verdictType: 'success' | 'warning' | 'danger' | 'info' = 'info'
+    let conclusion = ''
+    if (ar > 0 && wr >= 0.5 && plr >= 1) {
+      verdictLabel = '表现较好'
+      verdictType = 'success'
+      conclusion = `持有 ${d} 个交易日后，选出的股票整体盈利：平均赚 ${pct(ar)}，${(wr * 100).toFixed(0)}% 的股票上涨，盈亏比 ${plr.toFixed(2)}（赚的比亏的多）。`
+    } else if (ar <= 0) {
+      verdictLabel = '表现不佳'
+      verdictType = 'danger'
+      conclusion = `持有 ${d} 个交易日后，选出的股票整体亏损：平均 ${pct(ar)}，仅 ${(wr * 100).toFixed(0)}% 上涨，盈亏比 ${plr.toFixed(2)}。`
+    } else {
+      verdictLabel = '表现一般'
+      verdictType = 'warning'
+      conclusion = `持有 ${d} 个交易日后平均收益 ${pct(ar)}，盈利概率 ${(wr * 100).toFixed(0)}%，盈亏比 ${plr.toFixed(2)}，表现中规中矩。`
+    }
+    return { day: d, ...s, verdictLabel, verdictType, conclusion }
+  })
 })
 
 const icByHoldingRows = computed(() => {
@@ -493,12 +633,6 @@ const codexFactorTableRows = computed(() => {
   }))
 })
 
-function codexSubIc(factor: string, holding: number) {
-  const v = response.value?.shortHorizonValidation?.codex_sub_factor_ic as Record<string, unknown> | undefined
-  if (!v) return null
-  return v[`${factor}_t${holding}_ic`]
-}
-
 function formatIcMean(v: unknown) {
   if (v == null || v === '') return '-'
   const n = Number(v)
@@ -523,20 +657,21 @@ function formatSkipReason(code: string) {
 }
 
 const assumptionLabels: Record<string, string> = {
-  entry: '买入成交',
-  exit: '卖出成交',
-  t_plus_one_sell: 'T+1 卖出',
+  entry: '买入成交价',
+  exit: '卖出成交价',
+  t_plus_one_sell: 'T+1 卖出限制',
   holding_period_semantics: '持有期语义',
-  commission_rate: '佣金费率',
-  sell_tax_rate: '卖出税费',
+  commission_rate: '买入佣金率',
+  sell_tax_rate: '卖出印花税',
   slippage_rate_each_side: '单边滑点',
   return_type: '收益口径',
-  limit_up_entry_blocked: '涨停开盘不买',
-  limit_down_exit_blocked: '跌停收盘不卖',
+  limit_up_entry_blocked: '涨停开盘不买入',
+  limit_down_exit_blocked: '跌停收盘不卖出',
   limit_pct_source: '涨跌停幅度来源',
   skip_reason_codes: '跳过原因码',
   selector_tradability: '选股可交易性假设',
-  short_horizon_research_focus: '短周期研究重点'
+  short_horizon_research_focus: '短周期研究重点',
+  codex_neutralization: '中性化处理'
 }
 
 const tradabilityAssumptionLabels: Record<string, string> = {
@@ -582,7 +717,33 @@ function formatAssumptionValue(value: unknown, key?: string): string {
   return String(value)
 }
 
-// 图表
+// 成交假设拆为「业务」与「技术细节」两组，避免一次性 dump 晦涩字段
+const businessAssumptions = computed(() => {
+  const a = response.value?.executionAssumptions as Record<string, unknown> | undefined
+  if (!a) return []
+  const keys = ['entry', 'exit', 't_plus_one_sell', 'commission_rate', 'sell_tax_rate',
+    'slippage_rate_each_side', 'return_type', 'limit_up_entry_blocked',
+    'limit_down_exit_blocked', 'selector_tradability']
+  return keys.filter((k) => a[k] !== undefined).map((k) => ({
+    key: k,
+    label: formatAssumptionKey(k),
+    value: formatAssumptionValue(a[k], k)
+  }))
+})
+
+const technicalAssumptions = computed(() => {
+  const a = response.value?.executionAssumptions as Record<string, unknown> | undefined
+  if (!a) return []
+  const keys = ['holding_period_semantics', 'limit_pct_source',
+    'short_horizon_research_focus', 'codex_neutralization', 'skip_reason_codes']
+  return keys.filter((k) => a[k] !== undefined).map((k) => ({
+    key: k,
+    label: formatAssumptionKey(k),
+    value: formatAssumptionValue(a[k], k)
+  }))
+})
+
+// ===== 图表 =====
 const chartRef = ref<HTMLElement>()
 const factorChartRef = ref<HTMLElement>()
 const icByHoldingChartRef = ref<HTMLElement>()
@@ -656,27 +817,27 @@ function renderIcByHoldingChart() {
     yAxis: [
       {
         type: 'value',
-        name: 'IC Mean',
+        name: '选股准确度',
         axisLabel: { color: '#9db1cc' },
         splitLine: { lineStyle: { color: 'rgba(145,196,255,0.08)' } }
       },
       {
         type: 'value',
-        name: 'Spread %',
+        name: '收益差 %',
         axisLabel: { color: '#9db1cc', formatter: '{value}%' },
         splitLine: { show: false }
       }
     ],
     series: [
       {
-        name: 'IC Mean',
+        name: '选股准确度',
         type: 'bar',
         data: rows.map((r) => +r.rankIcMean.toFixed(4)),
         itemStyle: { color: '#58b9ff' },
         barWidth: '35%'
       },
       {
-        name: '多空 Spread',
+        name: '高分减低分收益差',
         type: 'line',
         yAxisIndex: 1,
         data: rows.map((r) => +(r.longShortSpread * 100).toFixed(2)),
@@ -697,7 +858,7 @@ function renderIcSeriesChart() {
       formatter: (params: any[]) => {
         const p = params[0]
         const row = series[p.dataIndex]
-        return [`<b>${row.tradeDate}</b>`, `Rank IC：${row.rankIc.toFixed(4)}`, `样本：${row.sampleSize}`].join('<br/>')
+        return [`<b>${row.tradeDate}</b>`, `选股准确度：${row.rankIc.toFixed(4)}`, `样本：${row.sampleSize}`].join('<br/>')
       }
     },
     grid: { left: '8%', right: '8%', top: '10%', bottom: '14%' },
@@ -708,13 +869,13 @@ function renderIcSeriesChart() {
     },
     yAxis: {
       type: 'value',
-      name: 'Rank IC',
+      name: '选股准确度',
       axisLabel: { color: '#9db1cc' },
       splitLine: { lineStyle: { color: 'rgba(145,196,255,0.08)' } }
     },
     series: [
       {
-        name: 'Rank IC',
+        name: '选股准确度',
         type: 'line',
         data: series.map((d) => +d.rankIc.toFixed(4)),
         lineStyle: { color: '#1cd6a6', width: 2 },
@@ -742,27 +903,27 @@ function renderChart() {
       trigger: 'axis',
       formatter: (params: any[]) => {
         const day = params[0].name
-        const stat = stats[parseInt(day.replace('T+', ''))]
+        const stat = stats[parseInt(day.replace('持有', '').replace('日', ''))] ?? stats[parseInt(day.replace('T+', ''))]
         return [
           `<b>${day}</b>`,
-          `胜率：${(stat.winRate * 100).toFixed(1)}%`,
+          `盈利概率：${(stat.winRate * 100).toFixed(1)}%`,
           `平均收益：${(stat.avgReturn * 100).toFixed(2)}%`,
           `中位数：${(stat.medianReturn * 100).toFixed(2)}%`,
           `最大：${(stat.maxReturn * 100).toFixed(2)}%  /  最小：${(stat.minReturn * 100).toFixed(2)}%`,
-          `观测数：${stat.totalObservations}`
+          `样本数：${stat.totalObservations}`
         ].join('<br/>')
       }
     },
     grid: { left: '8%', right: '8%', top: '10%', bottom: '10%' },
     xAxis: {
       type: 'category',
-      data: days.map((d) => 'T+' + d),
+      data: days.map((d) => '持有' + d + '日'),
       axisLabel: { color: '#9db1cc' }
     },
     yAxis: [
       {
         type: 'value',
-        name: '胜率 (%)',
+        name: '盈利概率 (%)',
         min: 0,
         max: 100,
         axisLabel: { color: '#9db1cc', formatter: '{value}%' },
@@ -770,14 +931,14 @@ function renderChart() {
       },
       {
         type: 'value',
-        name: '收益 (%)',
+        name: '平均收益 (%)',
         axisLabel: { color: '#9db1cc', formatter: '{value}%' },
         splitLine: { show: false }
       }
     ],
     series: [
       {
-        name: '胜率',
+        name: '盈利概率',
         type: 'bar',
         data: winRates,
         itemStyle: {
@@ -814,12 +975,29 @@ function renderChart() {
   })
 }
 
-watch(response, () => {
+// tab 切换时按需渲染对应图表（避免隐藏 tab 内 echarts 0 尺寸问题）
+function handleTabChange(name: string | number) {
   nextTick(() => {
-    renderChart()
-    renderFactorChart()
-    renderIcByHoldingChart()
-    renderIcSeriesChart()
+    if (name === 'performance') {
+      renderChart()
+      chart?.resize()
+    } else if (name === 'factor') {
+      renderFactorChart()
+      renderIcByHoldingChart()
+      renderIcSeriesChart()
+      factorChart?.resize()
+      icByHoldingChart?.resize()
+      icSeriesChart?.resize()
+    }
+  })
+}
+
+watch(response, () => {
+  dailyPageNum.value = 1
+  activeTab.value = 'overview'
+  nextTick(() => {
+    // 概览页无图表；其余图表在切到对应 tab 时渲染
+    if (activeTab.value === 'performance') renderChart()
   })
 })
 
@@ -831,10 +1009,6 @@ const dailyPage = computed(() => {
   const details = response.value?.dailyDetails ?? []
   const start = (dailyPageNum.value - 1) * pageSize
   return details.slice(start, start + pageSize)
-})
-
-watch(response, () => {
-  dailyPageNum.value = 1
 })
 
 // 详情弹窗
@@ -994,6 +1168,13 @@ onBeforeUnmount(() => {
   color: var(--text-primary);
 }
 
+.section-hint {
+  margin: 4px 0 14px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
 .holding-form {
   margin-top: -4px;
 }
@@ -1011,20 +1192,116 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
 }
 
+.result-tabs {
+  margin-top: 12px;
+}
+
+/* 概览结论卡 */
+.verdict-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.verdict-card {
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  border: 1px solid rgba(145, 196, 255, 0.18);
+  background: rgba(9, 18, 34, 0.72);
+}
+
+.verdict-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.period-tag {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--accent-1);
+}
+
+.verdict-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  margin: 0 0 12px;
+}
+
+.verdict-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+}
+
+.vm {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vm-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.vm b {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 成交假设 */
+.assumptions-collapse {
+  margin-top: 8px;
+}
+
+.assumptions-clean {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.assumption-row {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.assumption-label {
+  color: var(--text-secondary);
+  min-width: 120px;
+  flex-shrink: 0;
+}
+
+.assumption-value {
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.tech-collapse {
+  margin-top: 10px;
+}
+
+/* 持仓表现 */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }
 
 .factor-ic-grid {
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
 }
 
 .stat-card {
   border-radius: var(--r-md);
   padding: 12px 14px;
+  border: 1px solid rgba(145, 196, 255, 0.18);
+  background: rgba(9, 18, 34, 0.72);
 }
 
 .stat-header {
@@ -1057,6 +1334,13 @@ onBeforeUnmount(() => {
   font-variant-numeric: tabular-nums;
 }
 
+.small-text {
+  font-size: 11px;
+  font-weight: normal;
+  line-height: 1.4;
+  text-align: right;
+}
+
 .text-success { color: var(--text-success); }
 .text-danger { color: var(--text-danger); }
 .text-muted { color: var(--text-dim); }
@@ -1077,17 +1361,6 @@ onBeforeUnmount(() => {
   margin-top: 8px;
 }
 
-.run-alert {
-  margin-bottom: 12px;
-}
-
-.assumptions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  font-size: 12px;
-}
-
 .formula-audit {
   font-size: 13px;
   line-height: 1.6;
@@ -1102,8 +1375,9 @@ onBeforeUnmount(() => {
   padding: 0;
 }
 
-.assumptions-alert :deep(.el-alert__content) {
-  width: 100%;
+.disclaimer-inline {
+  margin-top: 6px;
+  font-size: 11px;
 }
 
 .turnover-collapse {

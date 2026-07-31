@@ -1,6 +1,8 @@
 package com.quant.controller;
 
 import com.quant.dto.ApiResponse;
+import com.quant.entity.ExperimentRun;
+import com.quant.research.ExperimentService;
 import com.quant.research.HistoricalReplayService;
 import com.quant.research.LabelFactoryService;
 import com.quant.research.LogisticModelTrainer;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -30,6 +33,7 @@ public class ResearchController {
     private final LabelFactoryService labelFactoryService;
     private final ProbabilityCalibrationService probabilityCalibrationService;
     private final LogisticModelTrainer logisticModelTrainer;
+    private final ExperimentService experimentService;
 
     /**
      * QP-007：按交易日区间重放 PIT 历史股票池，生成数据集健康报告。
@@ -91,5 +95,64 @@ public class ResearchController {
             @RequestParam(defaultValue = "logistic_v1_t2") String modelVersion) {
         return ApiResponse.success(logisticModelTrainer.train(
                 trainStart, trainEnd, testStart, testEnd, labelVersion, horizon, modelVersion));
+    }
+
+    /**
+     * QP-015：注册一次实验运行（config/git_commit/seed/dataset_ids/windows/metrics/status）。
+     * 供完整追溯与复现。
+     */
+    @PostMapping("/experiments/register")
+    public ApiResponse<Map<String, Object>> registerExperiment(
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String config,
+            @RequestParam(required = false) String gitCommit,
+            @RequestParam(required = false) Long seed,
+            @RequestParam(required = false) String snapshotId,
+            @RequestParam(required = false) String labelVersion,
+            @RequestParam(required = false) String modelVersions,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate trainStart,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate trainEnd,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate testStart,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate testEnd,
+            @RequestParam(required = false) String metrics,
+            @RequestParam(defaultValue = "completed") String status) {
+        ExperimentRun run = experimentService.register(name, config, gitCommit, seed,
+                snapshotId, labelVersion, modelVersions, trainStart, trainEnd,
+                testStart, testEnd, metrics, status);
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("experiment_id", run.getExperimentId());
+        out.put("name", run.getName());
+        out.put("status", run.getStatus());
+        out.put("message", "实验已注册：" + run.getExperimentId());
+        return ApiResponse.success(out);
+    }
+
+    /** QP-015：最近 N 条实验。 */
+    @GetMapping("/experiments/list")
+    public ApiResponse<Map<String, Object>> listExperiments(
+            @RequestParam(defaultValue = "10") int limit) {
+        List<ExperimentRun> runs = experimentService.listLatest(limit);
+        List<Map<String, Object>> items = new java.util.ArrayList<>();
+        for (ExperimentRun r : runs) {
+            Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("experiment_id", r.getExperimentId());
+            m.put("name", r.getName());
+            m.put("git_commit", r.getGitCommit());
+            m.put("seed", r.getSeed());
+            m.put("snapshot_id", r.getSnapshotId());
+            m.put("label_version", r.getLabelVersion());
+            m.put("model_versions", r.getModelVersions());
+            m.put("train_start", r.getTrainStart() != null ? r.getTrainStart().toString() : "");
+            m.put("train_end", r.getTrainEnd() != null ? r.getTrainEnd().toString() : "");
+            m.put("test_start", r.getTestStart() != null ? r.getTestStart().toString() : "");
+            m.put("test_end", r.getTestEnd() != null ? r.getTestEnd().toString() : "");
+            m.put("status", r.getStatus());
+            m.put("created_at", r.getCreatedAt() != null ? r.getCreatedAt().toString() : "");
+            items.add(m);
+        }
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("total", runs.size());
+        out.put("items", items);
+        return ApiResponse.success(out);
     }
 }

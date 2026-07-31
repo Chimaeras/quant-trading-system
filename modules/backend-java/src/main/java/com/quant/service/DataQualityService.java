@@ -1,6 +1,8 @@
 package com.quant.service;
 
 import com.quant.repository.MarketDataRepository;
+import com.quant.repository.MarketPriceRawRepository;
+import com.quant.repository.AdjustFactorRepository;
 import com.quant.repository.StockInfoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +34,8 @@ public class DataQualityService {
     private static final long STALE_DAYS_THRESHOLD = 3L;
 
     private final MarketDataRepository marketDataRepository;
+    private final MarketPriceRawRepository marketPriceRawRepository;
+    private final AdjustFactorRepository adjustFactorRepository;
     private final StockInfoRepository stockInfoRepository;
 
     @Transactional(readOnly = true)
@@ -67,8 +71,54 @@ public class DataQualityService {
         adjust.put("warning", "前复权会因新增除权事件向后修正历史价格，回测结果可能随数据更新而变化");
         out.put("adjust_factor", adjust);
 
-        // 5. 整体健康度
+        // 5. QP-003：不复权行情与复权因子覆盖（PIT 数据底座进度披露）
+        out.put("raw_and_adjust", buildRawAndAdjustCoverage());
+
+        // 6. 整体健康度
         out.put("health", buildHealth(missingDays, staleness, listDateMissing));
+        return out;
+    }
+
+    /**
+     * QP-003c：不复权行情（market_price_raw）与复权因子（adjust_factor）覆盖统计，
+     * 用于数据质量页展示 PIT 数据底座建设进度与 source/reliability 审计。
+     */
+    private Map<String, Object> buildRawAndAdjustCoverage() {
+        Map<String, Object> out = new LinkedHashMap<>();
+
+        // 不复权行情覆盖
+        Map<String, Object> raw = new LinkedHashMap<>();
+        long rawRows = marketPriceRawRepository.countAll();
+        raw.put("total_rows", rawRows);
+        raw.put("distinct_stocks", marketPriceRawRepository.countDistinctStocks());
+        raw.put("distinct_trade_dates", marketPriceRawRepository.countDistinctTradeDates());
+        marketPriceRawRepository.findMinTradeDate()
+                .ifPresentOrElse(d -> raw.put("earliest_date", d.toString()), () -> raw.put("earliest_date", ""));
+        marketPriceRawRepository.findMaxTradeDate()
+                .ifPresentOrElse(d -> raw.put("latest_date", d.toString()), () -> raw.put("latest_date", ""));
+        raw.put("source", "东方财富 fqt=0 不复权");
+        raw.put("status", rawRows > 0 ? "已启用" : "未回填（可通过 /api/data/backfill-raw 回填）");
+        out.put("market_price_raw", raw);
+
+        // 复权因子覆盖
+        Map<String, Object> factor = new LinkedHashMap<>();
+        long factorRows = adjustFactorRepository.countAll();
+        factor.put("total_rows", factorRows);
+        factor.put("distinct_stocks", adjustFactorRepository.countDistinctStocks());
+        long derivedLocal = adjustFactorRepository.countBySource("derived_local");
+        long official = adjustFactorRepository.countBySource("official");
+        long limited = adjustFactorRepository.countByReliability("limited");
+        Map<String, Object> sourceBreakdown = new LinkedHashMap<>();
+        sourceBreakdown.put("derived_local", derivedLocal);
+        sourceBreakdown.put("official", official);
+        factor.put("by_source", sourceBreakdown);
+        Map<String, Object> reliabilityBreakdown = new LinkedHashMap<>();
+        reliabilityBreakdown.put("limited", limited);
+        factor.put("by_reliability", reliabilityBreakdown);
+        factor.put("status", factorRows > 0 ? "已启用（本地推算，可靠度 limited）" : "未生成");
+        factor.put("note", "factor = qfq_close / raw_close；本地推算可靠度受现有数据质量限制，后续接入官方源替换");
+        out.put("adjust_factor", factor);
+
         return out;
     }
 

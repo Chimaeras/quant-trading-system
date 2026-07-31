@@ -259,6 +259,44 @@ export const dataApi = {
     }
   },
 
+  /** QP-003c：回填不复权行情并推算复权因子（单只证券） */
+  async backfillRaw(params: {
+    stockCode: string
+    exchange: string
+    startDate: string
+    endDate: string
+  }): Promise<{
+    stock_code: string
+    raw_inserted: number
+    raw_skipped: number
+    factor_generated: number
+    factor_skipped: number
+    data_source: string
+    message: string
+  }> {
+    const res = await request.post<{
+      data: {
+        stock_code: string
+        raw_inserted: number
+        raw_skipped: number
+        factor_generated: number
+        factor_skipped: number
+        data_source: string
+        message: string
+      }
+    }>('/data/backfill-raw', null, { params })
+    const d = res.data
+    return {
+      stock_code: d?.stock_code ?? params.stockCode,
+      raw_inserted: d?.raw_inserted ?? 0,
+      raw_skipped: d?.raw_skipped ?? 0,
+      factor_generated: d?.factor_generated ?? 0,
+      factor_skipped: d?.factor_skipped ?? 0,
+      data_source: d?.data_source ?? '',
+      message: d?.message ?? ''
+    }
+  },
+
   /** 更新股票列表 */
   async updateStockList(): Promise<{ success: boolean; count: number }> {
     if (!mockDataEnabled) {

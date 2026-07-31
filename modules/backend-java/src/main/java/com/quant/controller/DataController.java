@@ -63,6 +63,21 @@ public class DataController {
         return ApiResponse.success(dataService.backfillListDateFromMarketData());
     }
 
+    /**
+     * QP-003c：回填不复权行情并推算复权因子（单只证券）。
+     * 拉取东方财富不复权日 K（fqt=0）写入 market_price_raw，并推算 adjust_factor；
+     * 已存在的 raw / factor 记录跳过（幂等）。双写并存，market_data 前复权保持不动。
+     */
+    @PostMapping("/backfill-raw")
+    public ApiResponse<Map<String, Object>> backfillRaw(
+            @RequestParam String stockCode,
+            @RequestParam String exchange,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return ApiResponse.success(
+                historicalDataService.backfillRawAndDeriveAdjustFactors(stockCode, exchange, startDate, endDate));
+    }
+
     /** 历史行情立即更新：按股票+日期范围拉取，仅补充缺失的交易日 */
     @PostMapping("/history/update")
     public ApiResponse<Map<String, Object>> updateHistory(

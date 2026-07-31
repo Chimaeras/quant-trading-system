@@ -5,6 +5,8 @@ import com.quant.repository.MarketPriceRawRepository;
 import com.quant.repository.AdjustFactorRepository;
 import com.quant.repository.SecurityMasterHistoryRepository;
 import com.quant.repository.StockInfoRepository;
+import com.quant.repository.TradingCalendarDayRepository;
+import com.quant.repository.IndexQuoteRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -12,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +41,8 @@ public class DataQualityService {
     private final MarketPriceRawRepository marketPriceRawRepository;
     private final AdjustFactorRepository adjustFactorRepository;
     private final SecurityMasterHistoryRepository securityMasterHistoryRepository;
+    private final TradingCalendarDayRepository tradingCalendarDayRepository;
+    private final IndexQuoteRepository indexQuoteRepository;
     private final StockInfoRepository stockInfoRepository;
 
     @Transactional(readOnly = true)
@@ -79,7 +84,13 @@ public class DataQualityService {
         // 6. QP-004：历史证券主数据覆盖（PIT ST/退市/行业变更消除进度）
         out.put("security_master", buildSecurityMasterCoverage());
 
-        // 7. 整体健康度
+        // 7. QP-005：真实交易日历覆盖与差异（替代自然日排除周末近似）
+        out.put("trading_calendar", buildTradingCalendarCoverage(minDate, maxDate));
+
+        // 8. QP-005：指数数据覆盖（沪深300/中证500/中证1000/上证指数）
+        out.put("index_data", buildIndexCoverage());
+
+        // 9. 整体健康度
         out.put("health", buildHealth(missingDays, staleness, listDateMissing));
         return out;
     }
@@ -155,6 +166,101 @@ public class DataQualityService {
         out.put("status", rows > 0 ? "已启用（当前快照，可靠度 limited，无历史变更记录）" : "未初始化（可通过 /api/data/security-master/init 初始化）");
         out.put("note", "当前用 stock_info 快照初始化单条 valid_from=上市日/valid_to=null 记录，无历史 ST/改名/行业变更；"
                 + "仅保证上市日至今状态不变标的的 PIT 查询正确，后续接入官方历史源替换");
+        return out;
+    }
+
+    /**
+     * QP-005：真实交易日历覆盖统计 + 与 market_data 实际交易日的差异（替代自然日排除周末近似）。
+     */
+    private Map<String, Object> buildTradingCalendarCoverage(LocalDate mdMin, LocalDate mdMax) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        long total = tradingCalendarDayRepository.count();
+        out.put("total_rows", total);
+        out.put("by_source", Map.of(
+                "eastmoney_derived", tradingCalendarDayRepository.countBySource("eastmoney_derived"),
+                "tushare", tradingCalendarDayRepository.countBySource("tushare")));
+        out.put("by_reliability", Map.of(
+                "limited", tradingCalendarDayRepository.countByReliability("limited"),
+                "official", tradingCalendarDayRepository.countByReliability("official")));
+        out.put("status", total > 0 ? "已启用（上证指数反推，可靠度 limited）" : "未初始化（可通过 /api/data/trading-calendar/init 初始化）");
+        out.put("note", "由上证指数日K反推真实交易日，覆盖法定节假日与临时休市，替代自然日排除周末近似；"
+                + "后续接入 Tushare trade_cal 替换为 official");
+        if (total > 0) {
+            tradingCalendarDayRepository.findMinTradeDate()
+                    .ifPresentOrElse(d -> out.put("earliest_date", d.toString()), () -> out.put("earliest_date", ""));
+            tradingCalendarDayRepository.findMaxTradeDate()
+                    .ifPresentOrElse(d -> out.put("latest_date", d.toString()), () -> out.put("latest_date", ""));
+        } else {
+            out.put("earliest_date", "");
+            out.put("latest_date", "");
+        }
+
+        // 真实交易日历 vs market_data 实际交易日差异
+        Map<String, Object> diff = new LinkedHashMap<>();
+        if (total == 0 || mdMin == null || mdMax == null) {
+            diff.put("calendar_days", 0);
+            diff.put("market_data_days", 0);
+            diff.put("missing_in_market_data", 0);
+            diff.put("missing_dates", List.of());
+            diff.put("note", "交易日历或行情数据为空，无法对比");
+        } else {
+            List<LocalDate> calendarDays = tradingCalendarDayRepository.findTradeDatesBetween(mdMin, mdMax);
+            List<LocalDate> mdDays = marketDataRepository.findDistinctTradeDatesBetween(mdMin, mdMax);
+            java.util.Set<LocalDate> mdSet = new java.util.HashSet<>(mdDays);
+            List<String> missing = calendarDays.stream()
+                    .filter(d -> !mdSet.contains(d))
+                    .map(LocalDate::toString)
+                    .toList();
+            diff.put("calendar_days", calendarDays.size());
+            diff.put("market_data_days", mdDays.size());
+            diff.put("missing_in_market_data", missing.size());
+            diff.put("missing_dates", missing.size() > 50 ? missing.subList(0, 50) : missing);
+            diff.put("note", "真实交易日历中 market_data 缺失的交易日（行情未入库）；非零提示需补拉行情");
+        }
+        out.put("diff_vs_market_data", diff);
+        return out;
+    }
+
+    /**
+     * QP-005：指数数据覆盖统计（沪深300/中证500/中证1000/上证指数）。
+     */
+    private Map<String, Object> buildIndexCoverage() {
+        Map<String, Object> out = new LinkedHashMap<>();
+        long total = indexQuoteRepository.count();
+        out.put("total_rows", total);
+        out.put("distinct_indices", indexQuoteRepository.countDistinctIndices());
+
+        String[][] indices = IndexDataService.SUPPORTED_INDICES;
+        List<Map<String, Object>> indexList = new ArrayList<>();
+        for (String[] meta : indices) {
+            String code = meta[1];
+            String name = meta[2];
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("index_code", code);
+            m.put("index_name", name);
+            long idxRows = indexQuoteRepository.countByIndex(code);
+            m.put("rows", idxRows);
+            if (idxRows > 0) {
+                indexQuoteRepository.findMinTradeDateByIndex(code)
+                        .ifPresentOrElse(d -> m.put("earliest_date", d.toString()), () -> m.put("earliest_date", ""));
+                indexQuoteRepository.findMaxTradeDateByIndex(code)
+                        .ifPresentOrElse(d -> m.put("latest_date", d.toString()), () -> m.put("latest_date", ""));
+            } else {
+                m.put("earliest_date", "");
+                m.put("latest_date", "");
+            }
+            indexList.add(m);
+        }
+        out.put("indices", indexList);
+        out.put("by_source", Map.of(
+                "eastmoney", indexQuoteRepository.countBySource("eastmoney"),
+                "tushare", indexQuoteRepository.countBySource("tushare")));
+        out.put("by_reliability", Map.of(
+                "limited", indexQuoteRepository.countByReliability("limited"),
+                "official", indexQuoteRepository.countByReliability("official")));
+        out.put("status", total > 0 ? "已启用（东方财富指数日K，可靠度 limited）" : "未拉取（可通过 /api/data/index/fetch 拉取）");
+        out.put("note", "接入沪深300/中证500/中证1000/上证指数，供市场环境分析与基准对比；"
+                + "后续接入 Tushare 指数接口可替换为 official");
         return out;
     }
 

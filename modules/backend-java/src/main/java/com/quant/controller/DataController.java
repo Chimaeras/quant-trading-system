@@ -34,6 +34,8 @@ public class DataController {
     private final StockMarginDailyRepository stockMarginDailyRepository;
     private final com.quant.service.DataQualityService dataQualityService;
     private final com.quant.research.SecurityMasterHistoryService securityMasterHistoryService;
+    private final com.quant.service.TradingCalendarService tradingCalendarService;
+    private final com.quant.service.IndexDataService indexDataService;
 
     @GetMapping("/overview")
     public ApiResponse<Map<String, Object>> getOverview(HttpServletResponse response) {
@@ -87,6 +89,53 @@ public class DataController {
     @PostMapping("/security-master/init")
     public ApiResponse<Map<String, Object>> initSecurityMaster() {
         return ApiResponse.success(securityMasterHistoryService.initializeFromStockInfoSnapshot());
+    }
+
+    /**
+     * QP-005：从上证指数日K反推真实交易日历（覆盖法定节假日与临时休市）。
+     * source=eastmoney_derived, reliability=limited；同 trade_date 已存在跳过（幂等）。
+     */
+    @PostMapping("/trading-calendar/init")
+    public ApiResponse<Map<String, Object>> initTradingCalendar(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return ApiResponse.success(tradingCalendarService.deriveFromShIndex(startDate, endDate));
+    }
+
+    /**
+     * QP-005：拉取指数行情（沪深300/中证500/中证1000/上证指数）。
+     * 不传 indexCode 时拉取全部 4 个；source=eastmoney, reliability=limited，幂等跳过已存在。
+     */
+    @PostMapping("/index/fetch")
+    public ApiResponse<Map<String, Object>> fetchIndex(
+            @RequestParam(required = false) String indexCode,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        if (indexCode != null && !indexCode.isBlank()) {
+            // 单指数拉取
+            String secId = null;
+            String name = null;
+            for (String[] meta : com.quant.service.IndexDataService.SUPPORTED_INDICES) {
+                if (meta[1].equals(indexCode)) {
+                    secId = meta[0];
+                    name = meta[2];
+                    break;
+                }
+            }
+            if (secId == null) {
+                return ApiResponse.error(400, "不支持的指数代码：" + indexCode);
+            }
+            return ApiResponse.success(indexDataService.fetchAndPersist(secId, indexCode, name, startDate, endDate));
+        }
+        // 全部 4 个指数
+        List<Map<String, Object>> results = new ArrayList<>();
+        for (String[] meta : com.quant.service.IndexDataService.SUPPORTED_INDICES) {
+            results.add(indexDataService.fetchAndPersist(meta[0], meta[1], meta[2], startDate, endDate));
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("results", results);
+        out.put("count", results.size());
+        return ApiResponse.success(out);
     }
 
     /** 历史行情立即更新：按股票+日期范围拉取，仅补充缺失的交易日 */

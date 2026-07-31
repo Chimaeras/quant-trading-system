@@ -1,10 +1,12 @@
 package com.quant.service;
 
 import com.quant.repository.AdjustFactorRepository;
+import com.quant.repository.IndexQuoteRepository;
 import com.quant.repository.MarketDataRepository;
 import com.quant.repository.MarketPriceRawRepository;
 import com.quant.repository.SecurityMasterHistoryRepository;
 import com.quant.repository.StockInfoRepository;
+import com.quant.repository.TradingCalendarDayRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -30,11 +32,16 @@ class DataQualityServiceTest {
     @Mock
     private SecurityMasterHistoryRepository securityMasterHistoryRepository;
     @Mock
+    private TradingCalendarDayRepository tradingCalendarDayRepository;
+    @Mock
+    private IndexQuoteRepository indexQuoteRepository;
+    @Mock
     private StockInfoRepository stockInfoRepository;
 
     private DataQualityService service() {
         return new DataQualityService(marketDataRepository, marketPriceRawRepository,
-                adjustFactorRepository, securityMasterHistoryRepository, stockInfoRepository);
+                adjustFactorRepository, securityMasterHistoryRepository,
+                tradingCalendarDayRepository, indexQuoteRepository, stockInfoRepository);
     }
 
     @Test
@@ -171,5 +178,81 @@ class DataQualityServiceTest {
         assertThat(rel.get("limited")).isEqualTo(4000L);
         assertThat(rel.get("official")).isEqualTo(0L);
         assertThat(sm.get("status")).asString().contains("已启用");
+    }
+
+    /**
+     * QP-005：质量报告须披露真实交易日历覆盖与 market_data 差异。
+     */
+    @Test
+    void qualityReportDisclosesTradingCalendarCoverage() {
+        LocalDate min = LocalDate.of(2025, 1, 2);
+        LocalDate max = LocalDate.of(2025, 1, 6);
+        when(marketDataRepository.findMinTradeDate()).thenReturn(Optional.of(min));
+        when(marketDataRepository.findMaxTradeDate()).thenReturn(Optional.of(max));
+        when(marketDataRepository.findDistinctTradeDatesBetween(min, max))
+                .thenReturn(List.of(min, max));  // market_data 只有 2 个交易日
+        when(stockInfoRepository.countByListDateIsNull()).thenReturn(0L);
+
+        when(tradingCalendarDayRepository.count()).thenReturn(3L);
+        when(tradingCalendarDayRepository.countBySource("eastmoney_derived")).thenReturn(3L);
+        when(tradingCalendarDayRepository.countBySource("tushare")).thenReturn(0L);
+        when(tradingCalendarDayRepository.countByReliability("limited")).thenReturn(3L);
+        when(tradingCalendarDayRepository.countByReliability("official")).thenReturn(0L);
+        when(tradingCalendarDayRepository.findMinTradeDate()).thenReturn(Optional.of(min));
+        when(tradingCalendarDayRepository.findMaxTradeDate()).thenReturn(Optional.of(max));
+        // 真实交易日历 3 个交易日，market_data 只有 2 个 → 缺 1 个
+        when(tradingCalendarDayRepository.findTradeDatesBetween(min, max))
+                .thenReturn(List.of(min, LocalDate.of(2025, 1, 3), max));
+
+        Map<String, Object> out = service().buildQualityReport();
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> tc = (Map<String, Object>) out.get("trading_calendar");
+        assertThat(tc).isNotNull();
+        assertThat(tc.get("total_rows")).isEqualTo(3L);
+        assertThat(tc.get("status")).asString().contains("已启用");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> diff = (Map<String, Object>) tc.get("diff_vs_market_data");
+        assertThat(diff.get("calendar_days")).isEqualTo(3);
+        assertThat(diff.get("market_data_days")).isEqualTo(2);
+        assertThat(diff.get("missing_in_market_data")).isEqualTo(1);
+    }
+
+    /**
+     * QP-005：质量报告须披露指数数据覆盖（4 指数）。
+     */
+    @Test
+    void qualityReportDisclosesIndexCoverage() {
+        when(marketDataRepository.findMinTradeDate()).thenReturn(Optional.empty());
+        when(marketDataRepository.findMaxTradeDate()).thenReturn(Optional.empty());
+        when(stockInfoRepository.countByListDateIsNull()).thenReturn(0L);
+
+        when(indexQuoteRepository.count()).thenReturn(1000L);
+        when(indexQuoteRepository.countDistinctIndices()).thenReturn(4L);
+        when(indexQuoteRepository.countByIndex("000300")).thenReturn(400L);
+        when(indexQuoteRepository.countByIndex("000905")).thenReturn(300L);
+        when(indexQuoteRepository.countByIndex("000852")).thenReturn(200L);
+        when(indexQuoteRepository.countByIndex("000001")).thenReturn(100L);
+        when(indexQuoteRepository.findMinTradeDateByIndex("000300")).thenReturn(Optional.of(LocalDate.of(2023, 1, 3)));
+        when(indexQuoteRepository.findMaxTradeDateByIndex("000300")).thenReturn(Optional.of(LocalDate.of(2025, 7, 31)));
+        when(indexQuoteRepository.countBySource("eastmoney")).thenReturn(1000L);
+        when(indexQuoteRepository.countBySource("tushare")).thenReturn(0L);
+        when(indexQuoteRepository.countByReliability("limited")).thenReturn(1000L);
+        when(indexQuoteRepository.countByReliability("official")).thenReturn(0L);
+
+        Map<String, Object> out = service().buildQualityReport();
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> idx = (Map<String, Object>) out.get("index_data");
+        assertThat(idx).isNotNull();
+        assertThat(idx.get("total_rows")).isEqualTo(1000L);
+        assertThat(idx.get("distinct_indices")).isEqualTo(4L);
+        assertThat(idx.get("status")).asString().contains("已启用");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> indices = (List<Map<String, Object>>) idx.get("indices");
+        assertThat(indices).hasSize(4);
+        assertThat(indices.get(0).get("index_code")).isEqualTo("000300");
+        assertThat(indices.get(0).get("rows")).isEqualTo(400L);
+        assertThat(indices.get(0).get("earliest_date")).isEqualTo("2023-01-03");
     }
 }

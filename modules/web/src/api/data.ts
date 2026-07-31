@@ -330,6 +330,48 @@ export const dataApi = {
     }
   },
 
+  /** QP-005：从上证指数日K反推真实交易日历（幂等） */
+  async initTradingCalendar(params: {
+    startDate: string
+    endDate: string
+  }): Promise<{
+    total_fetched: number
+    inserted: number
+    skipped_existing: number
+    source: string
+    reliability: string
+    note: string
+  }> {
+    const res = await request.post<{
+      data: {
+        total_fetched: number
+        inserted: number
+        skipped_existing: number
+        source: string
+        reliability: string
+        note: string
+      }
+    }>('/data/trading-calendar/init', null, { params })
+    const d = res.data
+    return {
+      total_fetched: d?.total_fetched ?? 0,
+      inserted: d?.inserted ?? 0,
+      skipped_existing: d?.skipped_existing ?? 0,
+      source: d?.source ?? '',
+      reliability: d?.reliability ?? '',
+      note: d?.note ?? ''
+    }
+  },
+
+  /** QP-005：拉取指数行情（沪深300/中证500/中证1000/上证指数，幂等） */
+  async fetchIndexData(params: {
+    indexCode?: string
+    startDate: string
+    endDate: string
+  }): Promise<any> {
+    return request.post('/data/index/fetch', null, { params })
+  },
+
   /** 更新股票列表 */
   async updateStockList(): Promise<{ success: boolean; count: number }> {
     if (!mockDataEnabled) {

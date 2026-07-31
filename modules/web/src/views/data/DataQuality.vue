@@ -122,6 +122,67 @@
               </template>
               <el-empty v-else description="无覆盖数据" :image-size="40" />
             </el-card>
+
+            <el-card shadow="never" class="q-card raw-card">
+              <template #header>
+                <div class="card-header-row">
+                  <span>真实交易日历（trading_calendar）</span>
+                  <el-button size="small" type="primary" @click="calendarDialogVisible = true">反推交易日历</el-button>
+                </div>
+              </template>
+              <template v-if="report.trading_calendar">
+                <div class="q-meta">
+                  <span>状态：{{ report.trading_calendar.status }}</span>
+                  <span>总行数：{{ report.trading_calendar.total_rows }}</span>
+                  <span>区间：{{ report.trading_calendar.earliest_date || '—' }} ~ {{ report.trading_calendar.latest_date || '—' }}</span>
+                  <span>指数反推：{{ report.trading_calendar.by_source?.eastmoney_derived ?? 0 }} 条</span>
+                  <span>Tushare：{{ report.trading_calendar.by_source?.tushare ?? 0 }} 条</span>
+                </div>
+                <p class="q-note">{{ report.trading_calendar.note }}</p>
+                <template v-if="report.trading_calendar.diff_vs_market_data">
+                  <div class="raw-section">
+                    <div class="raw-sub-title">真实交易日历 vs 行情数据差异</div>
+                    <div class="q-meta">
+                      <span>日历交易日：{{ report.trading_calendar.diff_vs_market_data.calendar_days }}</span>
+                      <span>行情交易日：{{ report.trading_calendar.diff_vs_market_data.market_data_days }}</span>
+                      <span :class="{ 'text-danger': report.trading_calendar.diff_vs_market_data.missing_in_market_data > 0 }">
+                        行情缺失：{{ report.trading_calendar.diff_vs_market_data.missing_in_market_data }}
+                      </span>
+                    </div>
+                    <p class="q-note">{{ report.trading_calendar.diff_vs_market_data.note }}</p>
+                  </div>
+                </template>
+              </template>
+              <el-empty v-else description="无覆盖数据" :image-size="40" />
+            </el-card>
+
+            <el-card shadow="never" class="q-card raw-card">
+              <template #header>
+                <div class="card-header-row">
+                  <span>指数数据（index_quote）</span>
+                  <el-button size="small" type="primary" @click="indexDialogVisible = true">拉取指数行情</el-button>
+                </div>
+              </template>
+              <template v-if="report.index_data">
+                <div class="q-meta">
+                  <span>状态：{{ report.index_data.status }}</span>
+                  <span>总行数：{{ report.index_data.total_rows }}</span>
+                  <span>覆盖指数：{{ report.index_data.distinct_indices }}</span>
+                  <span>东方财富：{{ report.index_data.by_source?.eastmoney ?? 0 }} 条</span>
+                  <span>Tushare：{{ report.index_data.by_source?.tushare ?? 0 }} 条</span>
+                </div>
+                <div class="raw-section">
+                  <div class="raw-sub-title">各指数覆盖</div>
+                  <div v-for="idx in report.index_data.indices" :key="idx.index_code" class="q-meta">
+                    <span>{{ idx.index_name }}（{{ idx.index_code }}）</span>
+                    <span>行数：{{ idx.rows }}</span>
+                    <span>区间：{{ idx.earliest_date || '—' }} ~ {{ idx.latest_date || '—' }}</span>
+                  </div>
+                </div>
+                <p class="q-note">{{ report.index_data.note }}</p>
+              </template>
+              <el-empty v-else description="无覆盖数据" :image-size="40" />
+            </el-card>
           </div>
         </template>
         <el-empty v-else-if="!loading" description="点击刷新查看数据质量报告" />
@@ -154,6 +215,53 @@
       <template #footer>
         <el-button @click="rawDialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="rawLoading" @click="runBackfillRaw">执行回填</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 交易日历反推对话框 -->
+    <el-dialog v-model="calendarDialogVisible" title="反推真实交易日历（上证指数）" width="420px">
+      <el-form label-width="90px">
+        <el-form-item label="起始日">
+          <el-date-picker v-model="calendarForm.startDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="截止日">
+          <el-date-picker v-model="calendarForm.endDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+        </el-form-item>
+      </el-form>
+      <p class="q-note">
+        将拉取上证指数日K，其 trade_date 集合即为真实交易日（覆盖法定节假日与临时休市）。已存在交易日自动跳过（幂等）。
+      </p>
+      <template #footer>
+        <el-button @click="calendarDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="calendarLoading" @click="runInitCalendar">执行反推</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 指数行情拉取对话框 -->
+    <el-dialog v-model="indexDialogVisible" title="拉取指数行情" width="420px">
+      <el-form label-width="90px">
+        <el-form-item label="指数">
+          <el-select v-model="indexForm.indexCode" style="width: 100%" placeholder="全部 4 个指数">
+            <el-option label="全部（沪深300/中证500/中证1000/上证指数）" value="" />
+            <el-option label="沪深300 (000300)" value="000300" />
+            <el-option label="中证500 (000905)" value="000905" />
+            <el-option label="中证1000 (000852)" value="000852" />
+            <el-option label="上证指数 (000001)" value="000001" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="起始日">
+          <el-date-picker v-model="indexForm.startDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="截止日">
+          <el-date-picker v-model="indexForm.endDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+        </el-form-item>
+      </el-form>
+      <p class="q-note">
+        从东方财富拉取指数日K写入 index_quote；已存在记录自动跳过（幂等）。
+      </p>
+      <template #footer>
+        <el-button @click="indexDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="indexLoading" @click="runFetchIndex">执行拉取</el-button>
       </template>
     </el-dialog>
   </div>
@@ -191,6 +299,24 @@ interface QualityReport {
     by_reliability?: { limited: number; official: number }
     status: string; note: string
   }
+  trading_calendar?: {
+    total_rows: number
+    earliest_date: string; latest_date: string
+    by_source?: { eastmoney_derived: number; tushare: number }
+    by_reliability?: { limited: number; official: number }
+    status: string; note: string
+    diff_vs_market_data?: {
+      calendar_days: number; market_data_days: number; missing_in_market_data: number
+      missing_dates: string[]; note: string
+    }
+  }
+  index_data?: {
+    total_rows: number; distinct_indices: number
+    indices?: Array<{ index_code: string; index_name: string; rows: number; earliest_date: string; latest_date: string }>
+    by_source?: { eastmoney: number; tushare: number }
+    by_reliability?: { limited: number; official: number }
+    status: string; note: string
+  }
   health: { status: string; verdict: string }
 }
 
@@ -208,6 +334,21 @@ const rawForm = reactive({
 })
 
 const smInitLoading = ref(false)
+
+const calendarDialogVisible = ref(false)
+const calendarLoading = ref(false)
+const calendarForm = reactive({
+  startDate: dayjs().subtract(2, 'year').format('YYYY-MM-DD'),
+  endDate: dayjs().format('YYYY-MM-DD')
+})
+
+const indexDialogVisible = ref(false)
+const indexLoading = ref(false)
+const indexForm = reactive({
+  indexCode: '',
+  startDate: dayjs().subtract(2, 'year').format('YYYY-MM-DD'),
+  endDate: dayjs().format('YYYY-MM-DD')
+})
 
 const healthType = computed<'success' | 'warning' | 'info'>(() => {
   if (!report.value) return 'info'
@@ -267,6 +408,54 @@ async function confirmInitSecurityMaster() {
     toast.error(e?.message || '历史证券主数据初始化失败')
   } finally {
     smInitLoading.value = false
+  }
+}
+
+async function runInitCalendar() {
+  if (!calendarForm.startDate || !calendarForm.endDate) {
+    toast.warning('请填写起止日期')
+    return
+  }
+  calendarLoading.value = true
+  try {
+    const res = await dataApi.initTradingCalendar({
+      startDate: calendarForm.startDate,
+      endDate: calendarForm.endDate
+    })
+    toast.success(`反推完成：拉取 ${res.total_fetched} 个交易日，新增 ${res.inserted} 条，跳过已存在 ${res.skipped_existing} 条`)
+    calendarDialogVisible.value = false
+    await load()
+  } catch (e: any) {
+    toast.error(e?.message || '交易日历反推失败')
+  } finally {
+    calendarLoading.value = false
+  }
+}
+
+async function runFetchIndex() {
+  if (!indexForm.startDate || !indexForm.endDate) {
+    toast.warning('请填写起止日期')
+    return
+  }
+  indexLoading.value = true
+  try {
+    const res = await dataApi.fetchIndexData({
+      indexCode: indexForm.indexCode || undefined,
+      startDate: indexForm.startDate,
+      endDate: indexForm.endDate
+    })
+    if (Array.isArray(res?.results)) {
+      const total = res.results.reduce((s: number, r: any) => s + (r.inserted ?? 0), 0)
+      toast.success(`拉取完成：共 ${res.results.length} 个指数，新增 ${total} 条`)
+    } else {
+      toast.success(`拉取完成：新增 ${res?.inserted ?? 0} 条，跳过 ${res?.skipped ?? 0} 条`)
+    }
+    indexDialogVisible.value = false
+    await load()
+  } catch (e: any) {
+    toast.error(e?.message || '指数行情拉取失败')
+  } finally {
+    indexLoading.value = false
   }
 }
 

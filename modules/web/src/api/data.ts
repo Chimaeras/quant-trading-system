@@ -297,6 +297,39 @@ export const dataApi = {
     }
   },
 
+  /** QP-004：从 stock_info 当前快照初始化历史证券主数据（幂等） */
+  async initSecurityMaster(): Promise<{
+    total_processed: number
+    initialized: number
+    skipped_existing: number
+    skipped_no_listdate: number
+    source: string
+    reliability: string
+    note: string
+  }> {
+    const res = await request.post<{
+      data: {
+        total_processed: number
+        initialized: number
+        skipped_existing: number
+        skipped_no_listdate: number
+        source: string
+        reliability: string
+        note: string
+      }
+    }>('/data/security-master/init')
+    const d = res.data
+    return {
+      total_processed: d?.total_processed ?? 0,
+      initialized: d?.initialized ?? 0,
+      skipped_existing: d?.skipped_existing ?? 0,
+      skipped_no_listdate: d?.skipped_no_listdate ?? 0,
+      source: d?.source ?? '',
+      reliability: d?.reliability ?? '',
+      note: d?.note ?? ''
+    }
+  },
+
   /** 更新股票列表 */
   async updateStockList(): Promise<{ success: boolean; count: number }> {
     if (!mockDataEnabled) {

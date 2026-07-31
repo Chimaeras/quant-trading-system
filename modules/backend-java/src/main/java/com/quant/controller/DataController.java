@@ -33,6 +33,7 @@ public class DataController {
     private final StockFinancialSnapshotRepository stockFinancialSnapshotRepository;
     private final StockMarginDailyRepository stockMarginDailyRepository;
     private final com.quant.service.DataQualityService dataQualityService;
+    private final com.quant.research.SecurityMasterHistoryService securityMasterHistoryService;
 
     @GetMapping("/overview")
     public ApiResponse<Map<String, Object>> getOverview(HttpServletResponse response) {
@@ -76,6 +77,16 @@ public class DataController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         return ApiResponse.success(
                 historicalDataService.backfillRawAndDeriveAdjustFactors(stockCode, exchange, startDate, endDate));
+    }
+
+    /**
+     * QP-004：从 stock_info 当前快照初始化历史证券主数据（security_master_history）。
+     * 为每只标的生成一条 valid_from=上市日 / valid_to=null 的记录（source=current_snapshot, reliability=limited）；
+     * list_date 为空跳过，同键已存在跳过（幂等）。后续接入官方历史源后替换 source 并拆分多条有效期记录。
+     */
+    @PostMapping("/security-master/init")
+    public ApiResponse<Map<String, Object>> initSecurityMaster() {
+        return ApiResponse.success(securityMasterHistoryService.initializeFromStockInfoSnapshot());
     }
 
     /** 历史行情立即更新：按股票+日期范围拉取，仅补充缺失的交易日 */

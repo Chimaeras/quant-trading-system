@@ -97,6 +97,31 @@
               </template>
               <el-empty v-else description="无覆盖数据" :image-size="40" />
             </el-card>
+
+            <el-card shadow="never" class="q-card raw-card">
+              <template #header>
+                <div class="card-header-row">
+                  <span>历史证券主数据（security_master_history）</span>
+                  <el-button size="small" type="primary" :loading="smInitLoading" @click="confirmInitSecurityMaster">
+                    从 stock_info 初始化
+                  </el-button>
+                </div>
+              </template>
+              <template v-if="report.security_master">
+                <div class="q-meta">
+                  <span>状态：{{ report.security_master.status }}</span>
+                  <span>总行数：{{ report.security_master.total_rows }}</span>
+                  <span>覆盖证券：{{ report.security_master.distinct_stocks }}</span>
+                  <span>当前快照：{{ report.security_master.by_source?.current_snapshot ?? 0 }} 条</span>
+                  <span>东方财富：{{ report.security_master.by_source?.eastmoney ?? 0 }} 条</span>
+                  <span>Tushare：{{ report.security_master.by_source?.tushare ?? 0 }} 条</span>
+                  <span>可靠度 limited：{{ report.security_master.by_reliability?.limited ?? 0 }} 条</span>
+                  <span>可靠度 official：{{ report.security_master.by_reliability?.official ?? 0 }} 条</span>
+                </div>
+                <p class="q-note">{{ report.security_master.note }}</p>
+              </template>
+              <el-empty v-else description="无覆盖数据" :image-size="40" />
+            </el-card>
           </div>
         </template>
         <el-empty v-else-if="!loading" description="点击刷新查看数据质量报告" />
@@ -137,6 +162,7 @@
 <script setup lang="ts">
 import { ref, computed, reactive, onMounted } from 'vue'
 import dayjs from 'dayjs'
+import { ElMessageBox } from 'element-plus'
 import { dataApi } from '@/api/data'
 import { useToast } from '@/composables/useToast'
 
@@ -159,6 +185,12 @@ interface QualityReport {
       status: string; note: string
     }
   }
+  security_master?: {
+    total_rows: number; distinct_stocks: number
+    by_source?: { current_snapshot: number; eastmoney: number; tushare: number }
+    by_reliability?: { limited: number; official: number }
+    status: string; note: string
+  }
   health: { status: string; verdict: string }
 }
 
@@ -174,6 +206,8 @@ const rawForm = reactive({
   startDate: dayjs().subtract(6, 'month').format('YYYY-MM-DD'),
   endDate: dayjs().format('YYYY-MM-DD')
 })
+
+const smInitLoading = ref(false)
 
 const healthType = computed<'success' | 'warning' | 'info'>(() => {
   if (!report.value) return 'info'
@@ -211,6 +245,28 @@ async function runBackfillRaw() {
     toast.error(e?.message || '不复权数据回填失败')
   } finally {
     rawLoading.value = false
+  }
+}
+
+async function confirmInitSecurityMaster() {
+  try {
+    await ElMessageBox.confirm(
+      '将用 stock_info 当前快照为每只标的生成一条 valid_from=上市日 / valid_to=null 的历史主数据记录（source=current_snapshot, reliability=limited）。无历史 ST/改名/行业变更数据，仅消除「上市日至今状态不变」标的的前视风险。同键已存在自动跳过（幂等）。是否继续？',
+      '初始化历史证券主数据',
+      { confirmButtonText: '执行初始化', cancelButtonText: '取消', type: 'warning' }
+    )
+  } catch {
+    return
+  }
+  smInitLoading.value = true
+  try {
+    const res = await dataApi.initSecurityMaster()
+    toast.success(`初始化完成：新增 ${res.initialized} 条，跳过已存在 ${res.skipped_existing} 条，跳过无上市日 ${res.skipped_no_listdate} 条`)
+    await load()
+  } catch (e: any) {
+    toast.error(e?.message || '历史证券主数据初始化失败')
+  } finally {
+    smInitLoading.value = false
   }
 }
 

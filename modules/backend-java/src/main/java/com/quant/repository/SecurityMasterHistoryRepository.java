@@ -37,4 +37,7 @@ public interface SecurityMasterHistoryRepository extends JpaRepository<SecurityM
 
     @Query("SELECT COUNT(h) FROM SecurityMasterHistory h WHERE h.source = :source")
     long countBySource(String source);
+
+    @Query("SELECT COUNT(h) FROM SecurityMasterHistory h WHERE h.reliability = :reliability")
+    long countByReliability(String reliability);
 }

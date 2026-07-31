@@ -3,6 +3,7 @@ package com.quant.service;
 import com.quant.repository.AdjustFactorRepository;
 import com.quant.repository.MarketDataRepository;
 import com.quant.repository.MarketPriceRawRepository;
+import com.quant.repository.SecurityMasterHistoryRepository;
 import com.quant.repository.StockInfoRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,10 +28,13 @@ class DataQualityServiceTest {
     @Mock
     private AdjustFactorRepository adjustFactorRepository;
     @Mock
+    private SecurityMasterHistoryRepository securityMasterHistoryRepository;
+    @Mock
     private StockInfoRepository stockInfoRepository;
 
     private DataQualityService service() {
-        return new DataQualityService(marketDataRepository, marketPriceRawRepository, adjustFactorRepository, stockInfoRepository);
+        return new DataQualityService(marketDataRepository, marketPriceRawRepository,
+                adjustFactorRepository, securityMasterHistoryRepository, stockInfoRepository);
     }
 
     @Test
@@ -132,5 +136,40 @@ class DataQualityServiceTest {
         assertThat(source.get("derived_local")).isEqualTo(1200L);
         assertThat(source.get("official")).isEqualTo(0L);
         assertThat(factor.get("status")).asString().contains("limited");
+    }
+
+    /**
+     * QP-004：质量报告须披露历史证券主数据覆盖进度与 source/reliability 审计。
+     */
+    @Test
+    void qualityReportDisclosesSecurityMasterCoverage() {
+        when(marketDataRepository.findMinTradeDate()).thenReturn(Optional.empty());
+        when(marketDataRepository.findMaxTradeDate()).thenReturn(Optional.empty());
+        when(stockInfoRepository.countByListDateIsNull()).thenReturn(0L);
+
+        when(securityMasterHistoryRepository.count()).thenReturn(4000L);
+        when(securityMasterHistoryRepository.countDistinctStocks()).thenReturn(4000L);
+        when(securityMasterHistoryRepository.countBySource("current_snapshot")).thenReturn(4000L);
+        when(securityMasterHistoryRepository.countBySource("eastmoney")).thenReturn(0L);
+        when(securityMasterHistoryRepository.countBySource("tushare")).thenReturn(0L);
+        when(securityMasterHistoryRepository.countByReliability("limited")).thenReturn(4000L);
+        when(securityMasterHistoryRepository.countByReliability("official")).thenReturn(0L);
+
+        Map<String, Object> out = service().buildQualityReport();
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> sm = (Map<String, Object>) out.get("security_master");
+        assertThat(sm).isNotNull();
+        assertThat(sm.get("total_rows")).isEqualTo(4000L);
+        assertThat(sm.get("distinct_stocks")).isEqualTo(4000L);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> src = (Map<String, Object>) sm.get("by_source");
+        assertThat(src.get("current_snapshot")).isEqualTo(4000L);
+        assertThat(src.get("eastmoney")).isEqualTo(0L);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> rel = (Map<String, Object>) sm.get("by_reliability");
+        assertThat(rel.get("limited")).isEqualTo(4000L);
+        assertThat(rel.get("official")).isEqualTo(0L);
+        assertThat(sm.get("status")).asString().contains("已启用");
     }
 }

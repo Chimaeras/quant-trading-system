@@ -3,6 +3,7 @@ package com.quant.service;
 import com.quant.repository.MarketDataRepository;
 import com.quant.repository.MarketPriceRawRepository;
 import com.quant.repository.AdjustFactorRepository;
+import com.quant.repository.SecurityMasterHistoryRepository;
 import com.quant.repository.StockInfoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +37,7 @@ public class DataQualityService {
     private final MarketDataRepository marketDataRepository;
     private final MarketPriceRawRepository marketPriceRawRepository;
     private final AdjustFactorRepository adjustFactorRepository;
+    private final SecurityMasterHistoryRepository securityMasterHistoryRepository;
     private final StockInfoRepository stockInfoRepository;
 
     @Transactional(readOnly = true)
@@ -74,7 +76,10 @@ public class DataQualityService {
         // 5. QP-003：不复权行情与复权因子覆盖（PIT 数据底座进度披露）
         out.put("raw_and_adjust", buildRawAndAdjustCoverage());
 
-        // 6. 整体健康度
+        // 6. QP-004：历史证券主数据覆盖（PIT ST/退市/行业变更消除进度）
+        out.put("security_master", buildSecurityMasterCoverage());
+
+        // 7. 整体健康度
         out.put("health", buildHealth(missingDays, staleness, listDateMissing));
         return out;
     }
@@ -119,6 +124,37 @@ public class DataQualityService {
         factor.put("note", "factor = qfq_close / raw_close；本地推算可靠度受现有数据质量限制，后续接入官方源替换");
         out.put("adjust_factor", factor);
 
+        return out;
+    }
+
+    /**
+     * QP-004：历史证券主数据（security_master_history）覆盖统计，
+     * 用于数据质量页展示 PIT 历史状态（ST/退市/行业变更）消除进度与 source/reliability 审计。
+     */
+    private Map<String, Object> buildSecurityMasterCoverage() {
+        Map<String, Object> out = new LinkedHashMap<>();
+        long rows = securityMasterHistoryRepository.count();
+        long distinctStocks = securityMasterHistoryRepository.countDistinctStocks();
+        long currentSnapshot = securityMasterHistoryRepository.countBySource("current_snapshot");
+        long eastmoney = securityMasterHistoryRepository.countBySource("eastmoney");
+        long tushare = securityMasterHistoryRepository.countBySource("tushare");
+        long reliabilityLimited = securityMasterHistoryRepository.countByReliability("limited");
+        long reliabilityOfficial = securityMasterHistoryRepository.countByReliability("official");
+
+        out.put("total_rows", rows);
+        out.put("distinct_stocks", distinctStocks);
+        Map<String, Object> sourceBreakdown = new LinkedHashMap<>();
+        sourceBreakdown.put("current_snapshot", currentSnapshot);
+        sourceBreakdown.put("eastmoney", eastmoney);
+        sourceBreakdown.put("tushare", tushare);
+        out.put("by_source", sourceBreakdown);
+        Map<String, Object> reliabilityBreakdown = new LinkedHashMap<>();
+        reliabilityBreakdown.put("limited", reliabilityLimited);
+        reliabilityBreakdown.put("official", reliabilityOfficial);
+        out.put("by_reliability", reliabilityBreakdown);
+        out.put("status", rows > 0 ? "已启用（当前快照，可靠度 limited，无历史变更记录）" : "未初始化（可通过 /api/data/security-master/init 初始化）");
+        out.put("note", "当前用 stock_info 快照初始化单条 valid_from=上市日/valid_to=null 记录，无历史 ST/改名/行业变更；"
+                + "仅保证上市日至今状态不变标的的 PIT 查询正确，后续接入官方历史源替换");
         return out;
     }
 

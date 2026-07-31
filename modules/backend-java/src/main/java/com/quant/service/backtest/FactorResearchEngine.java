@@ -33,6 +33,8 @@ public final class FactorResearchEngine {
             double rankIcStd,
             double rankIcIr,
             double rankIcPositiveRate,
+            double pearsonIcMean,
+            String monotonicity,
             List<DailyRankIc> dailyRankIc,
             List<GroupReturnStat> groupedReturns,
             double longShortSpread,
@@ -40,6 +42,23 @@ public final class FactorResearchEngine {
     ) {}
 
     private FactorResearchEngine() {}
+
+    /**
+     * Pearson 相关系数（线性 IC）；样本不足或方差为 0 时返回 NaN。
+     */
+    public static double pearsonCorrelation(List<Double> scores, List<Double> returns) {
+        if (scores == null || returns == null || scores.size() != returns.size() || scores.size() < 2) {
+            return Double.NaN;
+        }
+        int n = scores.size();
+        double[] x = new double[n];
+        double[] y = new double[n];
+        for (int i = 0; i < n; i++) {
+            x[i] = scores.get(i);
+            y[i] = returns.get(i);
+        }
+        return pearson(x, y);
+    }
 
     /**
      * Spearman 秩相关；样本不足或方差为 0 时返回 NaN。
@@ -106,6 +125,7 @@ public final class FactorResearchEngine {
             return emptySummary(holdingDays, groupCount, universeNote);
         }
         List<DailyRankIc> daily = new ArrayList<>();
+        List<Double> dailyPearson = new ArrayList<>();
         Map<Integer, List<Double>> bucketReturns = new LinkedHashMap<>();
         int totalObs = 0;
         for (int g = 1; g <= groupCount; g++) {
@@ -127,7 +147,11 @@ public final class FactorResearchEngine {
             if (!Double.isFinite(ic)) {
                 continue;
             }
+            double pic = pearsonCorrelation(scores, rets);
             daily.add(new DailyRankIc(e.getKey(), ic, obs.size()));
+            if (Double.isFinite(pic)) {
+                dailyPearson.add(pic);
+            }
             totalObs += obs.size();
 
             List<GroupReturnStat> dayGroups = groupedAverageReturns(obs, groupCount);
@@ -146,6 +170,8 @@ public final class FactorResearchEngine {
         double icStd = Math.sqrt(icVar);
         double icIr = icStd > 1e-12 ? icMean / icStd : 0;
         long icPos = icSeries.stream().filter(v -> v > 0).count();
+        double pearsonIcMean = dailyPearson.isEmpty() ? 0
+                : dailyPearson.stream().mapToDouble(Double::doubleValue).average().orElse(0);
 
         List<GroupReturnStat> grouped = new ArrayList<>();
         for (int g = 1; g <= groupCount; g++) {
@@ -155,6 +181,7 @@ public final class FactorResearchEngine {
         }
         double spread = grouped.isEmpty() ? 0
                 : grouped.get(grouped.size() - 1).avgReturn() - grouped.get(0).avgReturn();
+        String monotonicity = assessMonotonicity(grouped);
 
         return new FactorResearchSummary(
                 holdingDays,
@@ -165,6 +192,8 @@ public final class FactorResearchEngine {
                 icStd,
                 icIr,
                 (double) icPos / daily.size(),
+                pearsonIcMean,
+                monotonicity,
                 daily,
                 grouped,
                 spread,
@@ -175,10 +204,38 @@ public final class FactorResearchEngine {
     private static FactorResearchSummary emptySummary(int holdingDays, int groupCount, String note) {
         return new FactorResearchSummary(
                 holdingDays, groupCount, 0, 0,
-                0, 0, 0, 0,
+                0, 0, 0, 0, 0, "N/A",
                 List.of(), List.of(), 0,
                 note
         );
+    }
+
+    /**
+     * 分组单调性判断：G1→G5 收益是否单调递增（正向单调）或递减（负向单调）。
+     */
+    static String assessMonotonicity(List<GroupReturnStat> grouped) {
+        if (grouped == null || grouped.size() < 2) {
+            return "N/A";
+        }
+        boolean increasing = true;
+        boolean decreasing = true;
+        for (int i = 1; i < grouped.size(); i++) {
+            double prev = grouped.get(i - 1).avgReturn();
+            double cur = grouped.get(i).avgReturn();
+            if (cur < prev) {
+                increasing = false;
+            }
+            if (cur > prev) {
+                decreasing = false;
+            }
+        }
+        if (increasing) {
+            return "MONOTONIC_INCREASING";
+        }
+        if (decreasing) {
+            return "MONOTONIC_DECREASING";
+        }
+        return "NON_MONOTONIC";
     }
 
     private static String groupLabel(int groupNo, int groupCount) {

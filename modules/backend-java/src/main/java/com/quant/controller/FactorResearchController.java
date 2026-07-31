@@ -30,4 +30,13 @@ public class FactorResearchController {
             @RequestParam(required = false) Integer holdingDays) {
         return ApiResponse.success(factorResearchService.research(strategy, startDate, endDate, holdingDays));
     }
+
+    /** QP-010：统一因子研究报告（T+1/T+2/T+3/T+5 并列 Pearson IC/Rank IC/ICIR/正率/单调性/spread）。 */
+    @GetMapping("/unified-report")
+    public ApiResponse<Map<String, Object>> unifiedReport(
+            @RequestParam(required = false) String strategy,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return ApiResponse.success(factorResearchService.unifiedReport(strategy, startDate, endDate));
+    }
 }

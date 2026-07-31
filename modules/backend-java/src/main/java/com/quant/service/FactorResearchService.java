@@ -11,6 +11,7 @@ import com.quant.service.backtest.FactorResearchEngine.CrossSectionObservation;
 import com.quant.service.backtest.FactorResearchEngine.DailyRankIc;
 import com.quant.service.backtest.FactorResearchEngine.FactorResearchSummary;
 import com.quant.service.backtest.FactorResearchEngine.GroupReturnStat;
+import com.quant.research.ResearchConvention;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -107,6 +108,53 @@ public class FactorResearchService {
         out.put("group_bands", buildGroupBands(scores, 5));
         out.put("rank_ic", buildRankIc(latestPerKey, itemsByResultId, startDate, endDate, holding));
         out.put("note", "仅作因子研究评价（覆盖率/分布/分组/Rank IC），禁止据此直接调整因子权重");
+        return out;
+    }
+
+    /**
+     * QP-010：统一因子研究报告——对 T+1/T+2/T+3/T+5 持有期并列输出
+     * Pearson IC / Rank IC / ICIR / 正 IC 比例 / 分组单调性 / Top-bottom spread。
+     *
+     * <p>合并因子研究页与回测的 Rank IC 为统一报告，供统计研究基线评价。
+     * 每个 holding 独立计算 forward return，不混用不同持有期。
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> unifiedReport(String strategy, LocalDate startDate, LocalDate endDate) {
+        // 复用 research 的数据加载逻辑，对每个 holding 调用 buildRankIc
+        List<SelectorResult> results = selectorResultRepository
+                .findByTradeDateBetweenOrderByCreatedAtDesc(startDate, endDate);
+        if (strategy != null && !strategy.isBlank()) {
+            final String f = strategy;
+            results = results.stream().filter(r -> f.equals(r.getStrategyType())).toList();
+        }
+        Map<String, SelectorResult> latestPerKey = new LinkedHashMap<>();
+        for (SelectorResult r : results) {
+            latestPerKey.putIfAbsent(r.getStrategyType() + "|" + r.getTradeDate(), r);
+        }
+        List<String> resultIds = latestPerKey.values().stream().map(SelectorResult::getResultId).toList();
+        List<SelectorResultItem> allItems = resultIds.isEmpty()
+                ? List.of()
+                : selectorResultItemRepository.findByResultIdInOrderByRankNo(resultIds);
+        Map<String, List<SelectorResultItem>> itemsByResultId = new LinkedHashMap<>();
+        for (SelectorResultItem it : allItems) {
+            itemsByResultId.computeIfAbsent(it.getResultId(), k -> new ArrayList<>()).add(it);
+        }
+
+        List<Integer> horizons = List.of(1, 2, 3, 5);
+        List<Map<String, Object>> byHorizon = new ArrayList<>();
+        for (int h : horizons) {
+            byHorizon.add(buildRankIc(latestPerKey, itemsByResultId, startDate, endDate, h));
+        }
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("strategy", strategy != null ? strategy : "ALL");
+        out.put("start_date", startDate.toString());
+        out.put("end_date", endDate.toString());
+        out.put("horizons", horizons);
+        out.put("by_horizon", byHorizon);
+        out.put("convention", ResearchConvention.labelDefinition());
+        out.put("note", "统一因子研究报告：Pearson IC（线性）/ Rank IC（Spearman）/ ICIR / 正 IC 比例 / "
+                + "分组单调性 / Top-bottom spread，对 T+1/T+2/T+3/T+5 并列对比；禁止据此直接调整因子权重");
         return out;
     }
 
@@ -228,6 +276,8 @@ public class FactorResearchService {
         block.put("rank_ic_std", round4(summary.rankIcStd()));
         block.put("rank_ic_ir", round4(summary.rankIcIr()));
         block.put("rank_ic_positive_rate", round4(summary.rankIcPositiveRate()));
+        block.put("pearson_ic_mean", round4(summary.pearsonIcMean()));
+        block.put("monotonicity", summary.monotonicity());
         block.put("long_short_spread", round4(summary.longShortSpread()));
 
         List<Map<String, Object>> daily = new ArrayList<>();

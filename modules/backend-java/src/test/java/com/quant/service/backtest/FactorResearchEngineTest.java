@@ -80,4 +80,64 @@ class FactorResearchEngineTest {
         assertThat(summary.longShortSpread()).isGreaterThan(0);
         assertThat(summary.universeNote()).isEqualTo("test universe");
     }
+
+    @Test
+    void pearsonCorrelationReturnsOneForPerfectLinear() {
+        List<Double> scores = List.of(1.0, 2.0, 3.0, 4.0, 5.0);
+        List<Double> returns = List.of(0.01, 0.02, 0.03, 0.04, 0.05);
+        assertThat(FactorResearchEngine.pearsonCorrelation(scores, returns)).isCloseTo(1.0, offset(1e-9));
+    }
+
+    @Test
+    void pearsonCorrelationReturnsNaNForInsufficientSamples() {
+        assertThat(FactorResearchEngine.pearsonCorrelation(List.of(1.0), List.of(0.01))).isNaN();
+        assertThat(FactorResearchEngine.pearsonCorrelation(null, null)).isNaN();
+    }
+
+    @Test
+    void summarizeIncludesPearsonIcAndMonotonicity() {
+        Map<String, List<FactorResearchEngine.CrossSectionObservation>> byDate = new LinkedHashMap<>();
+        byDate.put("2025-01-02", List.of(
+                new FactorResearchEngine.CrossSectionObservation(10, 0.01),
+                new FactorResearchEngine.CrossSectionObservation(20, 0.02),
+                new FactorResearchEngine.CrossSectionObservation(30, 0.03),
+                new FactorResearchEngine.CrossSectionObservation(40, 0.04),
+                new FactorResearchEngine.CrossSectionObservation(50, 0.05),
+                new FactorResearchEngine.CrossSectionObservation(60, 0.06),
+                new FactorResearchEngine.CrossSectionObservation(70, 0.07),
+                new FactorResearchEngine.CrossSectionObservation(80, 0.08),
+                new FactorResearchEngine.CrossSectionObservation(90, 0.09),
+                new FactorResearchEngine.CrossSectionObservation(100, 0.10)
+        ));
+
+        FactorResearchEngine.FactorResearchSummary summary = FactorResearchEngine.summarize(
+                byDate, 5, 5, 10, "test");
+
+        assertThat(summary.pearsonIcMean()).isCloseTo(1.0, offset(1e-6));
+        assertThat(summary.monotonicity()).isEqualTo("MONOTONIC_INCREASING");
+    }
+
+    @Test
+    void monotonicityDetectsNonMonotonic() {
+        List<FactorResearchEngine.GroupReturnStat> nonMono = List.of(
+                new FactorResearchEngine.GroupReturnStat(1, "G1", 0.01, 10),
+                new FactorResearchEngine.GroupReturnStat(2, "G2", 0.05, 10),
+                new FactorResearchEngine.GroupReturnStat(3, "G3", 0.02, 10),
+                new FactorResearchEngine.GroupReturnStat(4, "G4", 0.04, 10),
+                new FactorResearchEngine.GroupReturnStat(5, "G5", 0.06, 10)
+        );
+        assertThat(FactorResearchEngine.assessMonotonicity(nonMono)).isEqualTo("NON_MONOTONIC");
+    }
+
+    @Test
+    void monotonicityDetectsDecreasing() {
+        List<FactorResearchEngine.GroupReturnStat> decreasing = List.of(
+                new FactorResearchEngine.GroupReturnStat(1, "G1", 0.05, 10),
+                new FactorResearchEngine.GroupReturnStat(2, "G2", 0.04, 10),
+                new FactorResearchEngine.GroupReturnStat(3, "G3", 0.03, 10),
+                new FactorResearchEngine.GroupReturnStat(4, "G4", 0.02, 10),
+                new FactorResearchEngine.GroupReturnStat(5, "G5", 0.01, 10)
+        );
+        assertThat(FactorResearchEngine.assessMonotonicity(decreasing)).isEqualTo("MONOTONIC_DECREASING");
+    }
 }

@@ -7,6 +7,8 @@ import com.quant.repository.MarketPriceRawRepository;
 import com.quant.repository.SecurityMasterHistoryRepository;
 import com.quant.repository.StockInfoRepository;
 import com.quant.repository.TradingCalendarDayRepository;
+import com.quant.entity.DataSnapshot;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -18,6 +20,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,11 +40,21 @@ class DataQualityServiceTest {
     private IndexQuoteRepository indexQuoteRepository;
     @Mock
     private StockInfoRepository stockInfoRepository;
+    @Mock
+    private DataSnapshotService dataSnapshotService;
 
     private DataQualityService service() {
         return new DataQualityService(marketDataRepository, marketPriceRawRepository,
                 adjustFactorRepository, securityMasterHistoryRepository,
-                tradingCalendarDayRepository, indexQuoteRepository, stockInfoRepository);
+                tradingCalendarDayRepository, indexQuoteRepository, stockInfoRepository,
+                dataSnapshotService);
+    }
+
+    @BeforeEach
+    void stubEmptySnapshotDefaults() {
+        // 默认快照注册表为空，避免 buildQualityReport 调用时 NPE
+        lenient().when(dataSnapshotService.count()).thenReturn(0L);
+        lenient().when(dataSnapshotService.listLatest(5)).thenReturn(List.of());
     }
 
     @Test
@@ -254,5 +267,37 @@ class DataQualityServiceTest {
         assertThat(indices.get(0).get("index_code")).isEqualTo("000300");
         assertThat(indices.get(0).get("rows")).isEqualTo(400L);
         assertThat(indices.get(0).get("earliest_date")).isEqualTo("2023-01-03");
+    }
+
+    /**
+     * QP-006：质量报告须披露数据快照注册表（最近快照 + 可复现性提示）。
+     */
+    @Test
+    void qualityReportDisclosesSnapshotRegistry() {
+        when(marketDataRepository.findMinTradeDate()).thenReturn(Optional.empty());
+        when(marketDataRepository.findMaxTradeDate()).thenReturn(Optional.empty());
+        when(stockInfoRepository.countByListDateIsNull()).thenReturn(0L);
+
+        when(dataSnapshotService.count()).thenReturn(3L);
+        DataSnapshot snap = new DataSnapshot();
+        snap.setSnapshotId("20250731-001");
+        snap.setCutoffTime(LocalDate.of(2025, 7, 31));
+        snap.setHash("abc123");
+        snap.setCreatedBy("manual");
+        snap.setRowCounts("{\"market_data\":100}");
+        when(dataSnapshotService.listLatest(5)).thenReturn(List.of(snap));
+
+        Map<String, Object> out = service().buildQualityReport();
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> reg = (Map<String, Object>) out.get("data_snapshot");
+        assertThat(reg).isNotNull();
+        assertThat(reg.get("total_snapshots")).isEqualTo(3L);
+        assertThat(reg.get("status")).asString().contains("已启用");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> latest = (List<Map<String, Object>>) reg.get("latest");
+        assertThat(latest).hasSize(1);
+        assertThat(latest.get(0).get("snapshot_id")).isEqualTo("20250731-001");
+        assertThat(latest.get(0).get("hash")).isEqualTo("abc123");
     }
 }

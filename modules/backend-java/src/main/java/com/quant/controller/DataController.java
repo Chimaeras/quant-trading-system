@@ -36,6 +36,7 @@ public class DataController {
     private final com.quant.research.SecurityMasterHistoryService securityMasterHistoryService;
     private final com.quant.service.TradingCalendarService tradingCalendarService;
     private final com.quant.service.IndexDataService indexDataService;
+    private final com.quant.service.DataSnapshotService dataSnapshotService;
 
     @GetMapping("/overview")
     public ApiResponse<Map<String, Object>> getOverview(HttpServletResponse response) {
@@ -135,6 +136,49 @@ public class DataController {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("results", results);
         out.put("count", results.size());
+        return ApiResponse.success(out);
+    }
+
+    /**
+     * QP-006：创建数据快照（收集各表行数/source分布/质量状态 + SHA-256 hash）。
+     * 不传 cutoff 时取 market_data 最新交易日；供历史重放与实验复现锁定数据版本。
+     */
+    @PostMapping("/snapshot/create")
+    public ApiResponse<Map<String, Object>> createSnapshot(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate cutoff) {
+        com.quant.entity.DataSnapshot snap = dataSnapshotService.createSnapshot(cutoff);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("snapshot_id", snap.getSnapshotId());
+        out.put("cutoff_time", snap.getCutoffTime().toString());
+        out.put("hash", snap.getHash());
+        out.put("row_counts", snap.getRowCounts());
+        out.put("source_versions", snap.getSourceVersions());
+        out.put("quality_status", snap.getQualityStatus());
+        out.put("created_by", snap.getCreatedBy());
+        out.put("message", "快照已创建：" + snap.getSnapshotId());
+        return ApiResponse.success(out);
+    }
+
+    /** QP-006：最近 N 条数据快照（默认 10 条）。 */
+    @GetMapping("/snapshot/list")
+    public ApiResponse<Map<String, Object>> listSnapshots(
+            @RequestParam(defaultValue = "10") int limit) {
+        List<com.quant.entity.DataSnapshot> snaps = dataSnapshotService.listLatest(limit);
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (com.quant.entity.DataSnapshot s : snaps) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("snapshot_id", s.getSnapshotId());
+            m.put("cutoff_time", s.getCutoffTime().toString());
+            m.put("hash", s.getHash());
+            m.put("created_by", s.getCreatedBy());
+            m.put("created_at", s.getCreatedAt() != null ? s.getCreatedAt().toString() : "");
+            m.put("row_counts", s.getRowCounts());
+            m.put("source_versions", s.getSourceVersions());
+            items.add(m);
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("total", snaps.size());
+        out.put("items", items);
         return ApiResponse.success(out);
     }
 

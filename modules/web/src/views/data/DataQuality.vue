@@ -183,6 +183,39 @@
               </template>
               <el-empty v-else description="无覆盖数据" :image-size="40" />
             </el-card>
+
+            <el-card shadow="never" class="q-card raw-card">
+              <template #header>
+                <div class="card-header-row">
+                  <span>数据快照注册表（data_snapshot）</span>
+                  <el-button size="small" type="primary" :loading="snapshotCreating" @click="runCreateSnapshot">创建快照</el-button>
+                </div>
+              </template>
+              <template v-if="report.data_snapshot">
+                <div class="q-meta">
+                  <span>状态：{{ report.data_snapshot.status }}</span>
+                  <span>快照总数：{{ report.data_snapshot.total_snapshots }}</span>
+                </div>
+                <p class="q-note">{{ report.data_snapshot.note }}</p>
+                <template v-if="report.data_snapshot.latest && report.data_snapshot.latest.length > 0">
+                  <div class="raw-section">
+                    <div class="raw-sub-title">最近快照</div>
+                    <el-table :data="report.data_snapshot.latest" size="small" border>
+                      <el-table-column prop="snapshot_id" label="快照ID" width="150" />
+                      <el-table-column prop="cutoff_time" label="截止日" width="110" />
+                      <el-table-column prop="hash" label="hash" show-overflow-tooltip>
+                        <template #default="{ row }">
+                          <span class="hash-cell">{{ row.hash }}</span>
+                        </template>
+                      </el-table-column>
+                      <el-table-column prop="created_by" label="来源" width="80" />
+                      <el-table-column prop="created_at" label="创建时间" width="170" />
+                    </el-table>
+                  </div>
+                </template>
+              </template>
+              <el-empty v-else description="无覆盖数据" :image-size="40" />
+            </el-card>
           </div>
         </template>
         <el-empty v-else-if="!loading" description="点击刷新查看数据质量报告" />
@@ -317,6 +350,11 @@ interface QualityReport {
     by_reliability?: { limited: number; official: number }
     status: string; note: string
   }
+  data_snapshot?: {
+    total_snapshots: number
+    status: string; note: string
+    latest?: Array<{ snapshot_id: string; cutoff_time: string; hash: string; created_by: string; created_at: string; row_counts: string }>
+  }
   health: { status: string; verdict: string }
 }
 
@@ -349,6 +387,8 @@ const indexForm = reactive({
   startDate: dayjs().subtract(2, 'year').format('YYYY-MM-DD'),
   endDate: dayjs().format('YYYY-MM-DD')
 })
+
+const snapshotCreating = ref(false)
 
 const healthType = computed<'success' | 'warning' | 'info'>(() => {
   if (!report.value) return 'info'
@@ -459,6 +499,19 @@ async function runFetchIndex() {
   }
 }
 
+async function runCreateSnapshot() {
+  snapshotCreating.value = true
+  try {
+    const res = await dataApi.createSnapshot()
+    toast.success(res.message || `快照已创建：${res.snapshot_id}`)
+    await load()
+  } catch (e: any) {
+    toast.error(e?.message || '数据快照创建失败')
+  } finally {
+    snapshotCreating.value = false
+  }
+}
+
 onMounted(() => load())
 </script>
 
@@ -520,5 +573,10 @@ onMounted(() => load())
   font-weight: 600;
   color: var(--accent-1);
   margin-bottom: 6px;
+}
+.hash-cell {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 </style>

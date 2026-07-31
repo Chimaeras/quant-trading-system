@@ -372,6 +372,65 @@ export const dataApi = {
     return request.post('/data/index/fetch', null, { params })
   },
 
+  /** QP-006：创建数据快照（行数/source/质量状态 + SHA-256 hash） */
+  async createSnapshot(cutoff?: string): Promise<{
+    snapshot_id: string
+    cutoff_time: string
+    hash: string
+    row_counts: string
+    source_versions: string
+    quality_status: string
+    created_by: string
+    message: string
+  }> {
+    const res = await request.post<{
+      data: {
+        snapshot_id: string
+        cutoff_time: string
+        hash: string
+        row_counts: string
+        source_versions: string
+        quality_status: string
+        created_by: string
+        message: string
+      }
+    }>('/data/snapshot/create', null, { params: cutoff ? { cutoff } : {} })
+    const d = res.data
+    return {
+      snapshot_id: d?.snapshot_id ?? '',
+      cutoff_time: d?.cutoff_time ?? '',
+      hash: d?.hash ?? '',
+      row_counts: d?.row_counts ?? '',
+      source_versions: d?.source_versions ?? '',
+      quality_status: d?.quality_status ?? '',
+      created_by: d?.created_by ?? '',
+      message: d?.message ?? ''
+    }
+  },
+
+  /** QP-006：最近 N 条数据快照 */
+  async listSnapshots(limit = 10): Promise<{
+    total: number
+    items: Array<{
+      snapshot_id: string
+      cutoff_time: string
+      hash: string
+      created_by: string
+      created_at: string
+      row_counts: string
+      source_versions: string
+    }>
+  }> {
+    const res = await request.get<{ data: { total: number; items: any[] } }>('/data/snapshot/list', {
+      params: { limit }
+    })
+    const d = res.data
+    return {
+      total: d?.total ?? 0,
+      items: d?.items ?? []
+    }
+  },
+
   /** 更新股票列表 */
   async updateStockList(): Promise<{ success: boolean; count: number }> {
     if (!mockDataEnabled) {

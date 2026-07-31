@@ -7,6 +7,7 @@ import com.quant.repository.SecurityMasterHistoryRepository;
 import com.quant.repository.StockInfoRepository;
 import com.quant.repository.TradingCalendarDayRepository;
 import com.quant.repository.IndexQuoteRepository;
+import com.quant.entity.DataSnapshot;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -44,6 +45,7 @@ public class DataQualityService {
     private final TradingCalendarDayRepository tradingCalendarDayRepository;
     private final IndexQuoteRepository indexQuoteRepository;
     private final StockInfoRepository stockInfoRepository;
+    private final DataSnapshotService dataSnapshotService;
 
     @Transactional(readOnly = true)
     public Map<String, Object> buildQualityReport() {
@@ -90,7 +92,10 @@ public class DataQualityService {
         // 8. QP-005：指数数据覆盖（沪深300/中证500/中证1000/上证指数）
         out.put("index_data", buildIndexCoverage());
 
-        // 9. 整体健康度
+        // 9. QP-006：数据快照注册表（可复现性 / lineage）
+        out.put("data_snapshot", buildSnapshotRegistry());
+
+        // 10. 整体健康度
         out.put("health", buildHealth(missingDays, staleness, listDateMissing));
         return out;
     }
@@ -261,6 +266,32 @@ public class DataQualityService {
         out.put("status", total > 0 ? "已启用（东方财富指数日K，可靠度 limited）" : "未拉取（可通过 /api/data/index/fetch 拉取）");
         out.put("note", "接入沪深300/中证500/中证1000/上证指数，供市场环境分析与基准对比；"
                 + "后续接入 Tushare 指数接口可替换为 official");
+        return out;
+    }
+
+    /**
+     * QP-006：数据快照注册表（最近 N 条快照 + 可复现性提示）。
+     */
+    private Map<String, Object> buildSnapshotRegistry() {
+        Map<String, Object> out = new LinkedHashMap<>();
+        long total = dataSnapshotService.count();
+        out.put("total_snapshots", total);
+        List<DataSnapshot> latest = dataSnapshotService.listLatest(5);
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (DataSnapshot s : latest) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("snapshot_id", s.getSnapshotId());
+            m.put("cutoff_time", s.getCutoffTime().toString());
+            m.put("hash", s.getHash());
+            m.put("created_by", s.getCreatedBy());
+            m.put("created_at", s.getCreatedAt() != null ? s.getCreatedAt().toString() : "");
+            m.put("row_counts", s.getRowCounts());
+            items.add(m);
+        }
+        out.put("latest", items);
+        out.put("status", total > 0 ? "已启用（元数据快照：行数/source/质量状态 + SHA-256 hash）" : "未创建快照（可通过 /api/data/snapshot/create 创建）");
+        out.put("note", "快照记录数据底座行数/source分布/质量状态与 content hash，供历史重放与实验复现；"
+                + "同一 snapshotId 重跑 hash 一致即数据底座未变更，当前为元数据快照非完整数据内容 hash");
         return out;
     }
 

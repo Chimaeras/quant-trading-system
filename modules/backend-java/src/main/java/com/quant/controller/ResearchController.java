@@ -3,6 +3,7 @@ package com.quant.controller;
 import com.quant.dto.ApiResponse;
 import com.quant.research.HistoricalReplayService;
 import com.quant.research.LabelFactoryService;
+import com.quant.research.LogisticModelTrainer;
 import com.quant.research.ProbabilityCalibrationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -28,6 +29,7 @@ public class ResearchController {
     private final HistoricalReplayService historicalReplayService;
     private final LabelFactoryService labelFactoryService;
     private final ProbabilityCalibrationService probabilityCalibrationService;
+    private final LogisticModelTrainer logisticModelTrainer;
 
     /**
      * QP-007：按交易日区间重放 PIT 历史股票池，生成数据集健康报告。
@@ -72,5 +74,22 @@ public class ResearchController {
             @RequestParam(defaultValue = "label_v1") String labelVersion,
             @RequestParam(defaultValue = "2") int horizon) {
         return ApiResponse.success(probabilityCalibrationService.calibrate(startDate, endDate, labelVersion, horizon));
+    }
+
+    /**
+     * QP-013：训练 Logistic T+2/T+3 模型（带 L2 正则，版本化训练和解释）。
+     * 时间顺序 train/test split + purged embargo；注册到 model_registry。
+     */
+    @PostMapping("/logistic/train")
+    public ApiResponse<Map<String, Object>> trainLogistic(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate trainStart,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate trainEnd,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate testStart,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate testEnd,
+            @RequestParam(defaultValue = "label_v1") String labelVersion,
+            @RequestParam(defaultValue = "2") int horizon,
+            @RequestParam(defaultValue = "logistic_v1_t2") String modelVersion) {
+        return ApiResponse.success(logisticModelTrainer.train(
+                trainStart, trainEnd, testStart, testEnd, labelVersion, horizon, modelVersion));
     }
 }

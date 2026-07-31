@@ -216,6 +216,48 @@
               </template>
               <el-empty v-else description="无覆盖数据" :image-size="40" />
             </el-card>
+
+            <el-card shadow="never" class="q-card raw-card">
+              <template #header>
+                <div class="card-header-row">
+                  <span>历史重放（PIT 股票池健康）</span>
+                  <el-button size="small" type="primary" :loading="replayLoading" @click="runReplay">执行重放</el-button>
+                </div>
+              </template>
+              <div class="replay-form">
+                <span>起始日</span>
+                <el-date-picker v-model="replayForm.startDate" type="date" value-format="YYYY-MM-DD" size="small" style="width: 150px" />
+                <span>截止日</span>
+                <el-date-picker v-model="replayForm.endDate" type="date" value-format="YYYY-MM-DD" size="small" style="width: 150px" />
+              </div>
+              <p class="q-note">按交易日区间重放 PIT 股票池（PIT 证券主数据 ∩ 当日有行情），统计每日池规模与缺失；幂等只读。</p>
+              <template v-if="replayResult">
+                <div class="raw-section" v-if="replayResult.summary">
+                  <div class="raw-sub-title">汇总</div>
+                  <div class="q-meta">
+                    <span>交易日数：{{ replayResult.trading_days_count }}</span>
+                    <span>平均池规模：{{ replayResult.summary.avg_pool_size }}</span>
+                    <span>PIT 缺失合计：{{ replayResult.summary.total_pit_missing }}</span>
+                    <span>行情缺失合计：{{ replayResult.summary.total_market_data_missing }}</span>
+                    <span>有池日数：{{ replayResult.summary.days_with_pool }}</span>
+                  </div>
+                  <p class="q-note">{{ replayResult.summary.note }}</p>
+                </div>
+                <div class="raw-section" v-if="replayResult.daily && replayResult.daily.length > 0">
+                  <div class="raw-sub-title">每日明细（前 20 日）</div>
+                  <el-table :data="replayResult.daily.slice(0, 20)" size="small" border>
+                    <el-table-column prop="date" label="日期" width="110" />
+                    <el-table-column prop="pit_master_count" label="PIT主数据" width="100" />
+                    <el-table-column prop="market_data_count" label="行情数" width="90" />
+                    <el-table-column prop="pool_size" label="池规模" width="80" />
+                    <el-table-column prop="pit_missing" label="PIT缺失" width="80" />
+                    <el-table-column prop="market_data_missing" label="行情缺失" width="90" />
+                  </el-table>
+                </div>
+                <p class="q-note">{{ replayResult.note }}</p>
+              </template>
+              <el-empty v-else-if="!replayLoading" description="点击执行重放查看股票池健康报告" :image-size="40" />
+            </el-card>
           </div>
         </template>
         <el-empty v-else-if="!loading" description="点击刷新查看数据质量报告" />
@@ -390,6 +432,13 @@ const indexForm = reactive({
 
 const snapshotCreating = ref(false)
 
+const replayLoading = ref(false)
+const replayResult = ref<any>(null)
+const replayForm = reactive({
+  startDate: dayjs().subtract(1, 'month').format('YYYY-MM-DD'),
+  endDate: dayjs().format('YYYY-MM-DD')
+})
+
 const healthType = computed<'success' | 'warning' | 'info'>(() => {
   if (!report.value) return 'info'
   return report.value.health.status === 'ok' ? 'success' : 'warning'
@@ -512,6 +561,29 @@ async function runCreateSnapshot() {
   }
 }
 
+async function runReplay() {
+  if (!replayForm.startDate || !replayForm.endDate) {
+    toast.warning('请填写起止日期')
+    return
+  }
+  replayLoading.value = true
+  try {
+    replayResult.value = await dataApi.runReplay({
+      startDate: replayForm.startDate,
+      endDate: replayForm.endDate
+    })
+    if (replayResult.value?.status === 'no_calendar') {
+      toast.warning('交易日历未初始化，请先反推交易日历')
+    } else {
+      toast.success(`重放完成：${replayResult.value?.trading_days_count ?? 0} 个交易日`)
+    }
+  } catch (e: any) {
+    toast.error(e?.message || '历史重放失败')
+  } finally {
+    replayLoading.value = false
+  }
+}
+
 onMounted(() => load())
 </script>
 
@@ -578,5 +650,14 @@ onMounted(() => load())
   font-family: monospace;
   font-size: 12px;
   color: var(--text-muted);
+}
+.replay-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
 }
 </style>

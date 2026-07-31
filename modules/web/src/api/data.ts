@@ -431,6 +431,14 @@ export const dataApi = {
     }
   },
 
+  /** QP-007：历史重放（PIT 股票池健康报告，幂等只读） */
+  async runReplay(params: {
+    startDate: string
+    endDate: string
+  }): Promise<any> {
+    return request.post('/research/replay', null, { params })
+  },
+
   /** 更新股票列表 */
   async updateStockList(): Promise<{ success: boolean; count: number }> {
     if (!mockDataEnabled) {

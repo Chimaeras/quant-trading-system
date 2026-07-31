@@ -31,4 +31,13 @@ public interface LabelSnapshotRepository extends JpaRepository<LabelSnapshot, Lo
 
     @Query("SELECT l FROM LabelSnapshot l WHERE l.labelVersion = :version ORDER BY l.signalDate DESC")
     List<LabelSnapshot> findLatestByVersion(@Param("version") String labelVersion, int limit);
+
+    @Query("SELECT l FROM LabelSnapshot l WHERE l.labelVersion = :version AND l.horizon = :horizon " +
+            "AND l.signalDate BETWEEN :start AND :end AND l.execStatus = 'FILLED' " +
+            "ORDER BY l.signalDate ASC")
+    List<LabelSnapshot> findFilledByVersionAndHorizonBetween(
+            @Param("version") String labelVersion,
+            @Param("horizon") int horizon,
+            @Param("start") LocalDate start,
+            @Param("end") LocalDate end);
 }

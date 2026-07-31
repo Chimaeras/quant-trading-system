@@ -3,6 +3,7 @@ package com.quant.controller;
 import com.quant.dto.ApiResponse;
 import com.quant.research.HistoricalReplayService;
 import com.quant.research.LabelFactoryService;
+import com.quant.research.ProbabilityCalibrationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,7 +18,7 @@ import java.util.Map;
 /**
  * 历史重放与标签工厂研究接口（QP-007+）。
  *
- * <p>当前暴露股票池健康重放（QP-007）与 T+2/T+3 标签工厂（QP-008）。
+ * <p>当前暴露股票池健康重放（QP-007）、T+2/T+3 标签工厂（QP-008）、概率校准 baseline（QP-012）。
  */
 @RestController
 @RequestMapping("/api/research")
@@ -26,6 +27,7 @@ public class ResearchController {
 
     private final HistoricalReplayService historicalReplayService;
     private final LabelFactoryService labelFactoryService;
+    private final ProbabilityCalibrationService probabilityCalibrationService;
 
     /**
      * QP-007：按交易日区间重放 PIT 历史股票池，生成数据集健康报告。
@@ -56,5 +58,19 @@ public class ResearchController {
     public ApiResponse<Map<String, Object>> labelCoverage(
             @RequestParam(defaultValue = "label_v1") String labelVersion) {
         return ApiResponse.success(labelFactoryService.buildCoverage(labelVersion));
+    }
+
+    /**
+     * QP-012：规则分数概率校准 baseline。
+     * 基于 selector_result_item(rule score) + label_snapshot(y_label) 计算校准指标
+     * （Brier/log loss/ECE/可靠性图/sigmoid+isotonic 映射），验证 rule score 与上涨概率的校准关系。
+     */
+    @GetMapping("/calibration")
+    public ApiResponse<Map<String, Object>> calibration(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(defaultValue = "label_v1") String labelVersion,
+            @RequestParam(defaultValue = "2") int horizon) {
+        return ApiResponse.success(probabilityCalibrationService.calibrate(startDate, endDate, labelVersion, horizon));
     }
 }

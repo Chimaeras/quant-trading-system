@@ -140,4 +140,60 @@ class FactorResearchEngineTest {
         );
         assertThat(FactorResearchEngine.assessMonotonicity(decreasing)).isEqualTo("MONOTONIC_DECREASING");
     }
+
+    @Test
+    void neweyWestHacStdHandlesIndependentSeries() {
+        // 独立同分布序列，HAC std 应接近普通 std/sqrt(n)
+        List<Double> values = List.of(0.1, -0.05, 0.08, -0.03, 0.12, -0.07, 0.09, -0.02, 0.11, -0.04);
+        double hacStd = FactorResearchEngine.neweyWestHacStd(values);
+        double mean = values.stream().mapToDouble(Double::doubleValue).average().orElse(0);
+        double var = values.stream().mapToDouble(v -> (v - mean) * (v - mean)).average().orElse(0);
+        double expectedStd = Math.sqrt(var / values.size());
+        assertThat(hacStd).isCloseTo(expectedStd, offset(0.01));
+    }
+
+    @Test
+    void neweyWestHacStdReturnsZeroForInsufficientData() {
+        assertThat(FactorResearchEngine.neweyWestHacStd(List.of(0.1))).isEqualTo(0);
+        assertThat(FactorResearchEngine.neweyWestHacStd(null)).isEqualTo(0);
+    }
+
+    @Test
+    void blockBootstrapCiProducesValidInterval() {
+        List<Double> values = List.of(0.1, 0.12, 0.08, 0.11, 0.09, 0.13, 0.07, 0.10, 0.12, 0.08);
+        double[] ci = FactorResearchEngine.blockBootstrapCi(values, 2, 1000, 42L);
+        assertThat(ci[0]).isLessThanOrEqualTo(ci[1]);
+        assertThat(ci[0]).isGreaterThan(0.05); // 均值约 0.10，下界应 > 0.05
+        assertThat(ci[1]).isLessThan(0.15); // 上界应 < 0.15
+    }
+
+    @Test
+    void blockBootstrapCiReturnsZerosForInsufficientData() {
+        double[] ci = FactorResearchEngine.blockBootstrapCi(List.of(0.1), 2, 1000, 42L);
+        assertThat(ci[0]).isEqualTo(0);
+        assertThat(ci[1]).isEqualTo(0);
+    }
+
+    @Test
+    void summarizeIncludesHacStdAndConfidenceInterval() {
+        Map<String, List<FactorResearchEngine.CrossSectionObservation>> byDate = new LinkedHashMap<>();
+        byDate.put("2025-01-02", List.of(
+                new FactorResearchEngine.CrossSectionObservation(10, 0.01),
+                new FactorResearchEngine.CrossSectionObservation(20, 0.02),
+                new FactorResearchEngine.CrossSectionObservation(30, 0.03),
+                new FactorResearchEngine.CrossSectionObservation(40, 0.04),
+                new FactorResearchEngine.CrossSectionObservation(50, 0.05),
+                new FactorResearchEngine.CrossSectionObservation(60, 0.06),
+                new FactorResearchEngine.CrossSectionObservation(70, 0.07),
+                new FactorResearchEngine.CrossSectionObservation(80, 0.08),
+                new FactorResearchEngine.CrossSectionObservation(90, 0.09),
+                new FactorResearchEngine.CrossSectionObservation(100, 0.10)
+        ));
+
+        FactorResearchEngine.FactorResearchSummary summary = FactorResearchEngine.summarize(
+                byDate, 5, 5, 10, "test");
+
+        assertThat(summary.hacStd()).isGreaterThanOrEqualTo(0);
+        assertThat(summary.ciLower()).isLessThanOrEqualTo(summary.ciUpper());
+    }
 }

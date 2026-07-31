@@ -35,6 +35,9 @@ public final class FactorResearchEngine {
             double rankIcPositiveRate,
             double pearsonIcMean,
             String monotonicity,
+            double hacStd,
+            double ciLower,
+            double ciUpper,
             List<DailyRankIc> dailyRankIc,
             List<GroupReturnStat> groupedReturns,
             double longShortSpread,
@@ -183,6 +186,10 @@ public final class FactorResearchEngine {
                 : grouped.get(grouped.size() - 1).avgReturn() - grouped.get(0).avgReturn();
         String monotonicity = assessMonotonicity(grouped);
 
+        // QP-011：HAC 标准误 + block bootstrap 置信区间（处理重叠持有期序列相关）
+        double hacStd = neweyWestHacStd(icSeries);
+        double[] ci = blockBootstrapCi(icSeries, Math.max(1, holdingDays), 1000, 42L);
+
         return new FactorResearchSummary(
                 holdingDays,
                 groupCount,
@@ -194,6 +201,9 @@ public final class FactorResearchEngine {
                 (double) icPos / daily.size(),
                 pearsonIcMean,
                 monotonicity,
+                hacStd,
+                ci[0],
+                ci[1],
                 daily,
                 grouped,
                 spread,
@@ -204,7 +214,7 @@ public final class FactorResearchEngine {
     private static FactorResearchSummary emptySummary(int holdingDays, int groupCount, String note) {
         return new FactorResearchSummary(
                 holdingDays, groupCount, 0, 0,
-                0, 0, 0, 0, 0, "N/A",
+                0, 0, 0, 0, 0, "N/A", 0, 0, 0,
                 List.of(), List.of(), 0,
                 note
         );
@@ -305,5 +315,71 @@ public final class FactorResearchEngine {
             return Double.NaN;
         }
         return num / Math.sqrt(vx * vy);
+    }
+
+    /**
+     * Newey-West HAC 标准误（处理每日重叠持有期造成的序列相关）。
+     * 滞后阶数 L = floor(n^(1/3))，权重 1 - l/(L+1)。
+     */
+    public static double neweyWestHacStd(List<Double> values) {
+        if (values == null || values.size() < 2) {
+            return 0;
+        }
+        int n = values.size();
+        double mean = values.stream().mapToDouble(Double::doubleValue).average().orElse(0);
+        double[] dev = new double[n];
+        for (int i = 0; i < n; i++) {
+            dev[i] = values.get(i) - mean;
+        }
+        int lag = (int) Math.floor(Math.pow(n, 1.0 / 3.0));
+        lag = Math.max(1, Math.min(lag, n - 1));
+        double gamma0 = 0;
+        for (double d : dev) {
+            gamma0 += d * d;
+        }
+        gamma0 /= n;
+        double hacVar = gamma0;
+        for (int l = 1; l <= lag; l++) {
+            double weight = 1.0 - (double) l / (lag + 1);
+            double gammaL = 0;
+            for (int i = l; i < n; i++) {
+                gammaL += dev[i] * dev[i - l];
+            }
+            gammaL /= n;
+            hacVar += 2 * weight * gammaL;
+        }
+        return Math.sqrt(Math.max(hacVar / n, 0));
+    }
+
+    /**
+     * Block bootstrap 置信区间（处理序列相关，块大小 = 持有期 h）。
+     * 返回 [ciLower, ciUpper]，95% 置信区间。
+     */
+    public static double[] blockBootstrapCi(List<Double> values, int blockSize, int iterations, long seed) {
+        if (values == null || values.size() < 2 || iterations < 100) {
+            return new double[]{0, 0};
+        }
+        int n = values.size();
+        int bs = Math.max(1, Math.min(blockSize, n));
+        java.util.Random rng = new java.util.Random(seed);
+        double[] bootMeans = new double[iterations];
+        for (int b = 0; b < iterations; b++) {
+            double sum = 0;
+            int count = 0;
+            while (count < n) {
+                int start = rng.nextInt(n - bs + 1);
+                for (int j = 0; j < bs && count < n; j++) {
+                    sum += values.get(start + j);
+                    count++;
+                }
+            }
+            bootMeans[b] = sum / n;
+        }
+        Arrays.sort(bootMeans);
+        int lo = (int) Math.floor(iterations * 0.025);
+        int hi = (int) Math.ceil(iterations * 0.975) - 1;
+        lo = Math.max(0, Math.min(lo, iterations - 1));
+        hi = Math.max(0, Math.min(hi, iterations - 1));
+        return new double[]{bootMeans[lo], bootMeans[hi]};
     }
 }

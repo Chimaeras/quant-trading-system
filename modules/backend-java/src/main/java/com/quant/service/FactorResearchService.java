@@ -278,6 +278,9 @@ public class FactorResearchService {
         block.put("rank_ic_positive_rate", round4(summary.rankIcPositiveRate()));
         block.put("pearson_ic_mean", round4(summary.pearsonIcMean()));
         block.put("monotonicity", summary.monotonicity());
+        block.put("hac_std", round4(summary.hacStd()));
+        block.put("ci_lower", round4(summary.ciLower()));
+        block.put("ci_upper", round4(summary.ciUpper()));
         block.put("long_short_spread", round4(summary.longShortSpread()));
 
         List<Map<String, Object>> daily = new ArrayList<>();

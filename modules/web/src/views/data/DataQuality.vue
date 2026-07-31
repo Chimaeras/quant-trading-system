@@ -258,6 +258,46 @@
               </template>
               <el-empty v-else-if="!replayLoading" description="点击执行重放查看股票池健康报告" :image-size="40" />
             </el-card>
+
+            <el-card shadow="never" class="q-card raw-card">
+              <template #header>
+                <div class="card-header-row">
+                  <span>T+2/T+3 标签工厂（label_snapshot）</span>
+                  <el-button size="small" type="primary" :loading="labelBuilding" @click="runBuildLabels">生成标签</el-button>
+                </div>
+              </template>
+              <div class="replay-form">
+                <span>起始日</span>
+                <el-date-picker v-model="labelForm.startDate" type="date" value-format="YYYY-MM-DD" size="small" style="width: 150px" />
+                <span>截止日</span>
+                <el-date-picker v-model="labelForm.endDate" type="date" value-format="YYYY-MM-DD" size="small" style="width: 150px" />
+                <span>版本</span>
+                <el-input v-model="labelForm.labelVersion" size="small" style="width: 120px" placeholder="label_v1" />
+              </div>
+              <p class="q-note">基于 PIT 股票池生成 T+2/T+3 标签（净收益/二分类/成交状态），保留所有拒单样本不净化；幂等跳过已存在。</p>
+              <template v-if="labelResult">
+                <div class="raw-section">
+                  <div class="raw-sub-title">生成结果</div>
+                  <div class="q-meta">
+                    <span>状态：{{ labelResult.status }}</span>
+                    <span>版本：{{ labelResult.label_version }}</span>
+                    <span>交易日数：{{ labelResult.trading_days }}</span>
+                    <span>生成：{{ labelResult.generated }} 条</span>
+                    <span>跳过已存在：{{ labelResult.skipped_existing }} 条</span>
+                  </div>
+                  <template v-if="labelResult.exec_status_counts">
+                    <div class="q-meta" style="margin-top: 6px">
+                      <span>FILLED：{{ labelResult.exec_status_counts.FILLED ?? 0 }}</span>
+                      <span>NOT_BUYABLE：{{ labelResult.exec_status_counts.NOT_BUYABLE ?? 0 }}</span>
+                      <span>SUSPENDED：{{ labelResult.exec_status_counts.SUSPENDED ?? 0 }}</span>
+                      <span>NOT_SELLABLE：{{ labelResult.exec_status_counts.NOT_SELLABLE ?? 0 }}</span>
+                      <span>DELISTED：{{ labelResult.exec_status_counts.DELISTED ?? 0 }}</span>
+                    </div>
+                  </template>
+                </div>
+              </template>
+              <el-empty v-else-if="!labelBuilding" description="点击生成标签查看成交状态分布" :image-size="40" />
+            </el-card>
           </div>
         </template>
         <el-empty v-else-if="!loading" description="点击刷新查看数据质量报告" />
@@ -439,6 +479,14 @@ const replayForm = reactive({
   endDate: dayjs().format('YYYY-MM-DD')
 })
 
+const labelBuilding = ref(false)
+const labelResult = ref<any>(null)
+const labelForm = reactive({
+  startDate: dayjs().subtract(1, 'month').format('YYYY-MM-DD'),
+  endDate: dayjs().format('YYYY-MM-DD'),
+  labelVersion: 'label_v1'
+})
+
 const healthType = computed<'success' | 'warning' | 'info'>(() => {
   if (!report.value) return 'info'
   return report.value.health.status === 'ok' ? 'success' : 'warning'
@@ -581,6 +629,30 @@ async function runReplay() {
     toast.error(e?.message || '历史重放失败')
   } finally {
     replayLoading.value = false
+  }
+}
+
+async function runBuildLabels() {
+  if (!labelForm.startDate || !labelForm.endDate) {
+    toast.warning('请填写起止日期')
+    return
+  }
+  labelBuilding.value = true
+  try {
+    labelResult.value = await dataApi.buildLabels({
+      startDate: labelForm.startDate,
+      endDate: labelForm.endDate,
+      labelVersion: labelForm.labelVersion
+    })
+    if (labelResult.value?.status === 'no_calendar') {
+      toast.warning('交易日历未初始化，请先反推交易日历')
+    } else {
+      toast.success(`标签生成完成：${labelResult.value?.generated ?? 0} 条`)
+    }
+  } catch (e: any) {
+    toast.error(e?.message || '标签生成失败')
+  } finally {
+    labelBuilding.value = false
   }
 }
 

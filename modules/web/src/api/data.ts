@@ -439,6 +439,22 @@ export const dataApi = {
     return request.post('/research/replay', null, { params })
   },
 
+  /** QP-008：生成 T+2/T+3 标签（基于 PIT 股票池，保留拒单样本，幂等） */
+  async buildLabels(params: {
+    startDate: string
+    endDate: string
+    labelVersion?: string
+  }): Promise<any> {
+    return request.post('/research/labels/build', null, {
+      params: { ...params, labelVersion: params.labelVersion || 'label_v1' }
+    })
+  },
+
+  /** QP-008：标签覆盖率统计 */
+  async getLabelCoverage(labelVersion = 'label_v1'): Promise<any> {
+    return request.get('/research/labels/coverage', { params: { labelVersion } })
+  },
+
   /** 更新股票列表 */
   async updateStockList(): Promise<{ success: boolean; count: number }> {
     if (!mockDataEnabled) {

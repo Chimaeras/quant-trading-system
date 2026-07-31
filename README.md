@@ -162,6 +162,7 @@ quant-trading-system/
 Cursor 示例：`/loop 30s` + `@docs/Cursor量化系统持续优化执行手册.md`  
 Codex 示例：长期目标 + `@docs/Codex量化系统持续优化执行协议.md` + `@docs/选股迭代优先方向.md`
 
+
 ## 许可证
 
 MIT License

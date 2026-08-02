@@ -3,6 +3,7 @@ package com.quant.service;
 import com.quant.dto.ScoringBacktestRequest;
 import com.quant.dto.ScoringBacktestResponse;
 import com.quant.dto.ScoringBacktestResponse.PeriodStat;
+import com.quant.repository.IndexQuoteRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -20,9 +21,11 @@ class BacktestStabilityServiceTest {
 
     @Mock
     private ScoringBacktestService scoringBacktestService;
+    @Mock
+    private IndexQuoteRepository indexQuoteRepository;
 
     private BacktestStabilityService service() {
-        return new BacktestStabilityService(scoringBacktestService);
+        return new BacktestStabilityService(scoringBacktestService, indexQuoteRepository);
     }
 
     private static ScoringBacktestResponse resp(int signalDays, double avgReturn, double winRate, int obs) {

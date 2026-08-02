@@ -56,6 +56,7 @@ const navGroups = computed(() => [
       { path: "/market/stock", label: "股票详情" },
       { path: "/market/kline", label: "K线图" },
       { path: "/market/stock-picker", label: "选股打分" },
+      { path: "/market/t1-candidate", label: "T+1 次日候选" },
       { path: "/screener", label: "条件选股" }
     ]
   },
@@ -65,7 +66,8 @@ const navGroups = computed(() => [
       { path: "/backtest/scoring", label: "打分回测" },
       { path: "/backtest/strategy", label: "策略回测" },
       { path: "/backtest/walk-forward", label: "Walk-Forward" },
-      { path: "/factor/research", label: "因子研究" }
+      { path: "/factor/research", label: "因子研究" },
+      { path: "/research/probability", label: "概率研究" }
     ]
   },
   {

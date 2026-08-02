@@ -71,6 +71,8 @@ export interface FactorIcSummary {
 }
 
 export interface ScoringBacktestResponse {
+  /** 回测运行标识（已持久化，可按此回溯历史结果） */
+  resultId?: string
   strategyType: string
   startDate: string
   endDate: string
@@ -86,6 +88,18 @@ export interface ScoringBacktestResponse {
   codexFactorIcByHolding?: Record<number, Record<string, FactorIcSummary>>
 }
 
+/** 历史回测运行摘要（列表项） */
+export interface BacktestRunSummary {
+  result_id: string
+  strategy_type: string
+  start_date: string
+  end_date: string
+  top_n: number
+  latest_data_date?: string | null
+  created_at?: string | null
+  summary?: { totalTradingDays?: number; holdingPeriodStats?: Record<number, PeriodStat> }
+}
+
 export const backtestApi = {
   async runBacktest(body: ScoringBacktestRequest) {
     const res = await request.post<{ data: ScoringBacktestResponse }>(
@@ -99,6 +113,18 @@ export const backtestApi = {
   async getStrategies() {
     const res = await request.get<{ data: string[] }>('/backtest/scoring/strategies')
     return (res as { data?: string[] })?.data ?? []
+  },
+
+  async getRuns(limit = 20) {
+    const res = await request.get<{ data: BacktestRunSummary[] }>('/backtest/scoring/runs', {
+      params: { limit }
+    })
+    return (res as { data?: BacktestRunSummary[] })?.data ?? []
+  },
+
+  async getRun(resultId: string) {
+    const res = await request.get<{ data: ScoringBacktestResponse }>(`/backtest/scoring/run/${resultId}`)
+    return (res as { data?: ScoringBacktestResponse })?.data as ScoringBacktestResponse
   },
 
   async runStrategyBacktest(body: StrategyBacktestRequest) {
@@ -127,6 +153,8 @@ export interface StrategyBacktestRequest {
   longPeriod?: number
   bollPeriod?: number
   bollStdDev?: number
+  macdFast?: number
+  macdSlow?: number
 }
 
 export interface StrategyBacktestResponse {
@@ -187,6 +215,22 @@ export interface StabilitySegment {
   observations: number
 }
 
+export interface StabilityBenchmark {
+  available: boolean
+  index_code?: string
+  index_name?: string
+  index_return?: number
+  strategy_avg_return?: number
+  outperform?: boolean
+  note?: string
+}
+
+export interface MarketSegment {
+  days: number
+  avg_win_rate: number
+  index_return: number
+}
+
 export interface StabilityResponse {
   strategy: string
   start_date: string
@@ -197,6 +241,8 @@ export interface StabilityResponse {
   first_half: StabilitySegment
   second_half: StabilitySegment
   full_period: StabilitySegment
+  benchmark?: StabilityBenchmark
+  market_segments?: { bull: MarketSegment; bear: MarketSegment }
   verdict: string
   note: string
 }

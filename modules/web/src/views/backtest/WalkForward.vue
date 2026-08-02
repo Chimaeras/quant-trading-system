@@ -35,6 +35,9 @@
         <template v-if="result">
           <el-alert type="info" :closable="false" show-icon class="note-alert" :title="result.note" />
 
+          <div class="toolbar-row">
+            <el-button v-if="result.window_stats.length" size="small" @click="exportCsv">导出窗口统计 CSV</el-button>
+          </div>
           <el-table :data="result.window_stats" size="small" stripe border>
             <el-table-column prop="window_no" label="窗口" width="70" />
             <el-table-column label="区间" min-width="200">
@@ -102,6 +105,29 @@ const verdict = computed(() => {
   if (ratio <= 0.25) return `多数窗口（${valid.length - positive}/${valid.length}）平均收益为负，策略分段表现偏弱`
   return `正负窗口接近（${positive}/${valid.length}），分段稳定性一般，需结合更多样本`
 })
+
+function exportCsv() {
+  if (!result.value || !result.value.window_stats.length) return
+  const r = result.value
+  const lines: string[] = [
+    `strategy,${r.strategy}`,
+    `range,${r.start_date} ~ ${r.end_date}`,
+    `windows,${r.windows}`,
+    `top_n,${r.top_n}`,
+    `holding_day,${r.holding_day}`,
+    '',
+    ['window_no', 'start_date', 'end_date', 'signal_days', 'observations', 'avg_return', 'win_rate'].join(','),
+    ...r.window_stats.map((s) =>
+      [s.window_no, s.start_date, s.end_date, s.signal_days, s.observations, s.avg_return, s.win_rate].join(','))
+  ]
+  const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `walk-forward-${r.strategy}-${r.start_date}_${r.end_date}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 async function run() {
   if (!strategy.value) {

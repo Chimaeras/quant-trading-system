@@ -291,5 +291,11 @@ export const scoringApi = {
   async clearPendingUnifiedScoringTasks() {
     const res = await request.post<{ data: UnifiedScoringTaskActionResult }>('/scoring/unified/tasks/clear-pending')
     return (res as { data?: UnifiedScoringTaskActionResult })?.data as UnifiedScoringTaskActionResult
+  },
+
+  /** 近期打分任务列表（供「历史结果」tab）。 */
+  async getRecentUnifiedTasks() {
+    const res = await request.get<{ data: Array<{ task_id: string; strategy: string; status: string; result_id?: string; created_at?: string }> }>('/scoring/unified/tasks/recent')
+    return (res as { data?: Array<{ task_id: string; strategy: string; status: string; result_id?: string; created_at?: string }> })?.data ?? []
   }
 }

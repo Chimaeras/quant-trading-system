@@ -14,6 +14,8 @@ export interface ScreenerResponse {
   page: number
   size: number
   total_before_filter: number
+  total_after_filter: number
+  total_pages: number
   returned: number
   items: ScreenerItem[]
   filters: {

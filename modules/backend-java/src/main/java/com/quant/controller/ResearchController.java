@@ -30,6 +30,8 @@ public class ResearchController {
     private final LabelFactoryService labelFactoryService;
     private final ProbabilityCalibrationService probabilityCalibrationService;
     private final LogisticModelTrainer logisticModelTrainer;
+    private final com.quant.repository.ModelVersionRepository modelVersionRepository;
+    private final com.quant.service.scoring.LimitUpEcologyService limitUpEcologyService;
 
     /**
      * QP-007：按交易日区间重放 PIT 历史股票池，生成数据集健康报告。
@@ -53,6 +55,31 @@ public class ResearchController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(defaultValue = "label_v1") String labelVersion) {
         return ApiResponse.success(labelFactoryService.buildLabels(startDate, endDate, labelVersion));
+    }
+
+    /** T+1 次日方向标签（close-to-close，与 T+2/T+3 成交口径标签并行）。 */
+    @GetMapping("/t1/ecology")
+    public ApiResponse<Map<String, Object>> t1Ecology(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tradeDate,
+            @RequestParam(defaultValue = "30") int lookbackDays) {
+        return ApiResponse.success(limitUpEcologyService.ecology(tradeDate, lookbackDays));
+    }
+
+    /** 涨停次日溢价统计（涨停股在次日的表现，用于候选解释与验证）。 */
+    @GetMapping("/t1/premium")
+    public ApiResponse<Map<String, Object>> t1Premium(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tradeDate,
+            @RequestParam(defaultValue = "50") int topLimitUpCount) {
+        return ApiResponse.success(limitUpEcologyService.nextDayPremium(tradeDate, topLimitUpCount));
+    }
+
+    /** T+1 次日方向标签（close-to-close，与 T+2/T+3 成交口径标签并行）。 */
+    @PostMapping("/labels/build-t1")
+    public ApiResponse<Map<String, Object>> buildT1Labels(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(defaultValue = "label_v1") String labelVersion) {
+        return ApiResponse.success(labelFactoryService.buildT1Labels(startDate, endDate, labelVersion));
     }
 
     /** QP-008：标签覆盖率统计（exec_status 分布）。 */
@@ -80,6 +107,29 @@ public class ResearchController {
      * QP-013：训练 Logistic T+2/T+3 模型（带 L2 正则，版本化训练和解释）。
      * 时间顺序 train/test split + purged embargo；注册到 model_registry。
      */
+    /** QP-013：模型注册表（最近 20 条，供前端模型列表）。 */
+    @GetMapping("/models")
+    public ApiResponse<java.util.List<Map<String, Object>>> models() {
+        java.util.List<Map<String, Object>> out = new java.util.ArrayList<>();
+        for (com.quant.entity.ModelVersion mv : modelVersionRepository.findTop20ByOrderByCreatedAtDesc()) {
+            Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("model_version", mv.getModelVersion());
+            m.put("algorithm", mv.getAlgorithm());
+            m.put("feature_version", mv.getFeatureVersion());
+            m.put("label_version", mv.getLabelVersion());
+            m.put("horizon", mv.getHorizon());
+            m.put("train_start", mv.getTrainStart());
+            m.put("train_end", mv.getTrainEnd());
+            m.put("test_start", mv.getTestStart());
+            m.put("test_end", mv.getTestEnd());
+            m.put("stage", mv.getStage());
+            m.put("metrics", mv.getMetrics());
+            m.put("created_at", mv.getCreatedAt());
+            out.add(m);
+        }
+        return ApiResponse.success(out);
+    }
+
     @PostMapping("/logistic/train")
     public ApiResponse<Map<String, Object>> trainLogistic(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate trainStart,

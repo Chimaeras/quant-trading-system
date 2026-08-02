@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/backtest/scoring")
@@ -28,5 +29,21 @@ public class ScoringBacktestController {
     @GetMapping("/strategies")
     public ApiResponse<List<String>> strategies() {
         return ApiResponse.success(scoringBacktestService.getAvailableStrategies());
+    }
+
+    /** 历史回测运行列表（摘要）。 */
+    @GetMapping("/runs")
+    public ApiResponse<List<Map<String, Object>>> runs(@RequestParam(defaultValue = "20") int limit) {
+        return ApiResponse.success(scoringBacktestService.listRuns(limit));
+    }
+
+    /** 按 resultId 回溯一次历史回测的完整结果。 */
+    @GetMapping("/run/{resultId}")
+    public ApiResponse<ScoringBacktestResponse> getRun(@PathVariable String resultId) {
+        ScoringBacktestResponse resp = scoringBacktestService.getRun(resultId);
+        if (resp == null) {
+            return ApiResponse.error(404, "未找到该回测记录: " + resultId);
+        }
+        return ApiResponse.success(resp);
     }
 }

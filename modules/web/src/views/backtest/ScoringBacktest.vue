@@ -50,6 +50,12 @@
       <el-form-item>
         <el-button type="primary" :loading="running" @click="runBacktest">执行回测</el-button>
       </el-form-item>
+      <el-form-item label="历史回测">
+        <el-select v-model="historyResultId" placeholder="按 result_id 回溯历史回测" clearable filterable style="width: 300px" @change="loadRun">
+          <el-option v-for="r in runs" :key="r.result_id" :label="`${r.strategy_type} ${r.start_date}~${r.end_date} (${r.result_id})`" :value="r.result_id" />
+        </el-select>
+        <el-button link type="primary" :loading="runsLoading" @click="loadRuns">刷新</el-button>
+      </el-form-item>
     </el-form>
 
     <el-alert
@@ -72,7 +78,16 @@
         <span>日期：{{ response.startDate }} ~ {{ response.endDate }}</span>
         <span>覆盖交易日：{{ response.totalTradingDays }} 天</span>
         <span>每日前 {{ response.topN }} 只</span>
+        <span v-if="response.resultId" class="result-id-chip">结果ID：{{ response.resultId }}</span>
       </div>
+      <el-alert
+        v-if="response.resultId"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="run-alert"
+        title="该结果已按当时的数据口径与假设持久化；若之后行情更新，重跑可能得到不同结果，以本结果ID记录为准。"
+      />
 
       <el-tabs v-model="activeTab" class="result-tabs" @tab-change="handleTabChange">
         <!-- ============ Tab 1：回测概览 ============ -->
@@ -498,6 +513,32 @@
                 <template #default="{ row }">{{ row.profit_loss_ratio.toFixed(2) }}</template>
               </el-table-column>
             </el-table>
+            <!-- 基准对照 + 牛/熊市场分段 -->
+            <template v-if="stability.benchmark?.available">
+              <el-divider content-position="left">vs {{ stability.benchmark.index_name }}（{{ stability.benchmark.index_code }}）</el-divider>
+              <div class="benchmark-row">
+                <span>策略平均收益：<b :class="(stability.benchmark.strategy_avg_return ?? 0) >= 0 ? 'text-success' : 'text-danger'">{{ pct(stability.benchmark.strategy_avg_return ?? 0) }}</b></span>
+                <span>指数收益：<b :class="(stability.benchmark.index_return ?? 0) >= 0 ? 'text-success' : 'text-danger'">{{ pct(stability.benchmark.index_return ?? 0) }}</b></span>
+                <span v-if="stability.benchmark.outperform != null">
+                  <el-tag :type="stability.benchmark.outperform ? 'success' : 'warning'" size="small">{{ stability.benchmark.outperform ? '跑赢基准' : '未跑赢基准' }}</el-tag>
+                </span>
+              </div>
+              <el-table :data="stability.market_segments ? [stability.market_segments.bull, stability.market_segments.bear] : []" size="small" stripe border style="margin-top: 8px">
+                <el-table-column label="市场状态" min-width="90">
+                  <template #default="{ row }">{{ row === stability.market_segments?.bull ? '牛市（指数上涨日）' : '熊市（指数下跌日）' }}</template>
+                </el-table-column>
+                <el-table-column label="信号日数" width="90">
+                  <template #default="{ row }">{{ row.days }}</template>
+                </el-table-column>
+                <el-table-column label="平均胜率" min-width="100">
+                  <template #default="{ row }">{{ (row.avg_win_rate * 100).toFixed(2) }}%</template>
+                </el-table-column>
+                <el-table-column label="指数累计收益" min-width="120">
+                  <template #default="{ row }">{{ (row.index_return * 100).toFixed(2) }}%</template>
+                </el-table-column>
+              </el-table>
+            </template>
+            <el-alert v-else-if="stability.benchmark && !stability.benchmark.available" type="info" :closable="false" show-icon :title="stability.benchmark.note || ''" />
             <p class="turnover-note">{{ stability.note }}</p>
           </template>
         </el-collapse-item>
@@ -518,6 +559,9 @@ const running = ref(false)
 const errorMsg = ref('')
 const strategies = ref<string[]>([])
 const strategiesLoading = ref(false)
+const runs = ref<Array<{ result_id: string; strategy_type: string; start_date: string; end_date: string; created_at?: string | null }>>([])
+const runsLoading = ref(false)
+const historyResultId = ref('')
 const response = ref<ScoringBacktestResponse | null>(null)
 const turnover = ref<TurnoverResponse | null>(null)
 const turnoverLoading = ref(false)
@@ -1069,22 +1113,88 @@ async function loadStrategies() {
   }
 }
 
+async function loadRuns() {
+  runsLoading.value = true
+  try {
+    runs.value = await backtestApi.getRuns(20)
+  } catch {
+    // silent
+  } finally {
+    runsLoading.value = false
+  }
+}
+
+async function loadRun(resultId: string) {
+  if (!resultId) return
+  running.value = true
+  errorMsg.value = ''
+  try {
+    const data = await backtestApi.getRun(resultId)
+    if (!data) {
+      errorMsg.value = '未找到该回测记录'
+      return
+    }
+    response.value = data
+    // 同步表单参数，便于在历史结果基础上修改后重跑
+    form.strategyType = data.strategyType ?? ''
+    form.startDate = data.startDate
+    form.endDate = data.endDate
+    form.topN = data.topN || 10
+  } catch (e: any) {
+    errorMsg.value = e?.message || '回溯历史回测失败'
+    toast.error(errorMsg.value)
+  } finally {
+    running.value = false
+  }
+}
+
 function exportCsv() {
   if (!response.value) return
-  const details = response.value.dailyDetails
-  if (!details.length) return
+  const resp = response.value
+  const details = resp.dailyDetails
   const holdingDays = form.holdingDays
-  const headers = ['tradeDate', ...holdingDays.map((d) => 'T+' + d + '_winRate')]
-  const lines = [headers.join(',')]
-  for (const row of details) {
-    const cells = [row.tradeDate, ...holdingDays.map((d) => row.dailyWinRate[d] ?? '')]
-    lines.push(cells.join(','))
+  const lines: string[] = []
+
+  // 1. 运行元信息与假设
+  lines.push('== 回测运行元信息 ==')
+  lines.push(`result_id,${resp.resultId ?? ''}`)
+  lines.push(`strategy,${resp.strategyType || ''}`)
+  lines.push(`start_date,${resp.startDate}`)
+  lines.push(`end_date,${resp.endDate}`)
+  lines.push(`top_n,${resp.topN}`)
+  lines.push(`total_trading_days,${resp.totalTradingDays}`)
+  for (const [k, v] of Object.entries(resp.executionAssumptions || {})) {
+    lines.push(`assumption_${k},${typeof v === 'object' ? JSON.stringify(v) : v}`)
   }
+  lines.push('')
+
+  // 2. 每日胜率汇总
+  lines.push('== 每日胜率 ==')
+  lines.push(['tradeDate', ...holdingDays.map((d) => 'T+' + d + '_winRate')].join(','))
+  for (const row of details) {
+    lines.push([row.tradeDate, ...holdingDays.map((d) => row.dailyWinRate[d] ?? '')].join(','))
+  }
+  lines.push('')
+
+  // 3. 个股明细（code/name/rank/score/entry/forward returns/skip reason）
+  lines.push('== 个股明细 ==')
+  lines.push(['tradeDate', 'stockCode', 'stockName', 'rankNo', 'finalScore', 'entryDate', 'entryPrice',
+    ...holdingDays.map((d) => 'T+' + d + '_forwardReturn'), 'skipReason'].join(','))
+  for (const row of details) {
+    for (const s of row.topStocks || []) {
+      lines.push([
+        row.tradeDate, s.stockCode, `"${s.stockName ?? ''}"`, s.rankNo, s.finalScore, s.entryDate ?? '', s.entryPrice ?? '',
+        ...holdingDays.map((d) => (s.forwardReturns?.[d] ?? s.periodSkipReasons?.[d] ?? '')),
+        s.skipReason ?? ''
+      ].join(','))
+    }
+  }
+
   const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `backtest-${response.value.strategyType || 'all'}-${response.value.startDate}_${response.value.endDate}.csv`
+  a.download = `backtest-${resp.strategyType || 'all'}-${resp.startDate}_${resp.endDate}.csv`
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -1136,6 +1246,7 @@ async function runStability() {
 
 onMounted(() => {
   loadStrategies()
+  loadRuns()
   window.addEventListener('resize', onResize)
 })
 

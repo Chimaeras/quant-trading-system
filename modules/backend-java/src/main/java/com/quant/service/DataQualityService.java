@@ -95,8 +95,8 @@ public class DataQualityService {
         // 9. QP-006：数据快照注册表（可复现性 / lineage）
         out.put("data_snapshot", buildSnapshotRegistry());
 
-        // 10. 整体健康度
-        out.put("health", buildHealth(missingDays, staleness, listDateMissing));
+        // 10. 整体健康度（纳入 PIT 数据底座是否初始化）
+        out.put("health", buildHealth(missingDays, staleness, listDateMissing, out));
         return out;
     }
 
@@ -350,13 +350,22 @@ public class DataQualityService {
         return m;
     }
 
-    private Map<String, Object> buildHealth(Map<String, Object> missingDays, Map<String, Object> staleness, long listDateMissing) {
+    private Map<String, Object> buildHealth(Map<String, Object> missingDays, Map<String, Object> staleness,
+                                            long listDateMissing, Map<String, Object> report) {
         boolean stale = Boolean.TRUE.equals(staleness.get("stale"));
         int missingCount = ((Number) missingDays.getOrDefault("missing_count", 0)).intValue();
+
+        // PIT 数据底座：任一未初始化（status 以「未」开头）→ 健康度 warn（研究基座不完整）
+        java.util.List<String> unready = new java.util.ArrayList<>();
+        collectBaseStatus(report, unready, "raw_and_adjust.market_price_raw.status");
+        collectBaseStatus(report, unready, "raw_and_adjust.adjust_factor.status");
+        collectBaseStatus(report, unready, "security_master.status");
+        collectBaseStatus(report, unready, "trading_calendar.status");
+        collectBaseStatus(report, unready, "index_data.status");
+        collectBaseStatus(report, unready, "data_snapshot.status");
+
         String status;
-        if (stale || listDateMissing > 0) {
-            status = "warn";
-        } else if (missingCount > 0) {
+        if (stale || listDateMissing > 0 || missingCount > 0 || !unready.isEmpty()) {
             status = "warn";
         } else {
             status = "ok";
@@ -364,7 +373,30 @@ public class DataQualityService {
         Map<String, Object> h = new LinkedHashMap<>();
         h.put("status", status);
         h.put("verdict", "ok".equals(status) ? "数据质量良好"
-                : "warn".equals(status) ? "存在数据质量提示，请关注告警项" : "数据质量异常");
+                : "warn".equals(status)
+                ? "存在数据质量提示，请关注告警项" + (unready.isEmpty() ? "" : "（含未初始化的研究数据底座）")
+                : "数据质量异常");
+        if (!unready.isEmpty()) {
+            h.put("unready_bases", unready);
+        }
         return h;
+    }
+
+    private static void collectBaseStatus(Map<String, Object> report, java.util.List<String> unready, String dottedPath) {
+        String status = digString(report, dottedPath);
+        if (status != null && status.startsWith("未")) {
+            unready.add(dottedPath.substring(dottedPath.lastIndexOf('.') + 1) + ": " + status);
+        }
+    }
+
+    private static String digString(Map<String, Object> map, String dottedPath) {
+        Object cur = map;
+        for (String part : dottedPath.split("\\.")) {
+            if (!(cur instanceof Map)) {
+                return null;
+            }
+            cur = ((Map<?, ?>) cur).get(part);
+        }
+        return cur instanceof String ? (String) cur : null;
     }
 }

@@ -13,4 +13,7 @@ public interface ModelVersionRepository extends JpaRepository<ModelVersion, Long
     List<ModelVersion> findByAlgorithmOrderByCreatedAtDesc(String algorithm);
 
     List<ModelVersion> findByStageOrderByCreatedAtDesc(String stage);
+
+    /** 最近注册的 N 条模型版本（供模型注册表页面展示）。 */
+    List<ModelVersion> findTop20ByOrderByCreatedAtDesc();
 }

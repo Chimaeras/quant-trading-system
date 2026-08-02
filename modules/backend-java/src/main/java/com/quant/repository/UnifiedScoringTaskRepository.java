@@ -24,4 +24,7 @@ public interface UnifiedScoringTaskRepository extends JpaRepository<UnifiedScori
     Optional<UnifiedScoringTask> findFirstByStrategyAndRequestFingerprintAndStatusInOrderByCreatedAtDesc(
             String strategy, String requestFingerprint, Collection<String> status
     );
+
+    /** 最近创建的 N 条任务（供选股工作台「历史结果」列表）。 */
+    List<UnifiedScoringTask> findTop20ByOrderByCreatedAtDesc();
 }

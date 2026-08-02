@@ -29,6 +29,14 @@
                   缺失：{{ report.trading_days.missing_count }}
                 </span>
               </div>
+              <template v-if="report.trading_days.missing_dates?.length">
+                <el-button link type="primary" size="small" @click="showMissingDates = !showMissingDates">
+                  {{ showMissingDates ? '收起' : '查看缺失日期明细' }}（{{ report.trading_days.missing_dates.length }} 条）
+                </el-button>
+                <div v-if="showMissingDates" class="date-list">
+                  <el-tag v-for="d in report.trading_days.missing_dates" :key="d" size="small" class="date-tag">{{ d }}</el-tag>
+                </div>
+              </template>
               <p class="q-note">{{ report.trading_days.note }}</p>
             </el-card>
 
@@ -149,6 +157,14 @@
                         行情缺失：{{ report.trading_calendar.diff_vs_market_data.missing_in_market_data }}
                       </span>
                     </div>
+                    <template v-if="report.trading_calendar.diff_vs_market_data.missing_dates?.length">
+                      <el-button link type="primary" size="small" @click="showCalendarDiffMissing = !showCalendarDiffMissing">
+                        {{ showCalendarDiffMissing ? '收起' : '查看行情缺失日期明细' }}（{{ report.trading_calendar.diff_vs_market_data.missing_dates.length }} 条）
+                      </el-button>
+                      <div v-if="showCalendarDiffMissing" class="date-list">
+                        <el-tag v-for="d in report.trading_calendar.diff_vs_market_data.missing_dates" :key="d" size="small" class="date-tag">{{ d }}</el-tag>
+                      </div>
+                    </template>
                     <p class="q-note">{{ report.trading_calendar.diff_vs_market_data.note }}</p>
                   </div>
                 </template>
@@ -443,6 +459,8 @@ interface QualityReport {
 const toast = useToast()
 const loading = ref(false)
 const report = ref<QualityReport | null>(null)
+const showMissingDates = ref(false)
+const showCalendarDiffMissing = ref(false)
 
 const rawDialogVisible = ref(false)
 const rawLoading = ref(false)
@@ -694,6 +712,15 @@ onMounted(() => load())
   font-size: 12px;
   color: var(--text-muted);
   line-height: 1.5;
+}
+.date-list {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.date-tag {
+  font-family: monospace;
 }
 .text-danger { color: #f56c6c; }
 .text-success { color: #67c23a; }

@@ -23,6 +23,7 @@
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="loading" @click="run">研究</el-button>
+          <el-button :loading="unifiedLoading" @click="runUnified">多周期 IC 对比</el-button>
         </el-form-item>
       </el-form>
 
@@ -121,13 +122,57 @@
         </template>
         <el-empty v-else-if="!loading" description="选择区间与策略后点击研究" />
       </div>
+
+      <!-- 多周期 IC 对比（统一因子报告） -->
+      <div v-loading="unifiedLoading" class="unified-block">
+        <template v-if="unifiedResult">
+          <div class="unified-toolbar">
+            <el-button size="small" @click="exportUnifiedCsv">导出多周期 IC CSV</el-button>
+          </div>
+          <el-alert type="info" :closable="false" show-icon class="note-alert" :title="unifiedResult.note || ''" />
+          <el-table :data="unifiedResult.by_horizon" size="small" stripe border max-height="420">
+            <el-table-column prop="holding_days" label="持有期" width="70">
+              <template #default="{ row }">T+{{ row.holding_days }}</template>
+            </el-table-column>
+            <el-table-column label="Rank IC" width="90">
+              <template #default="{ row }">{{ fmt4(row.rank_ic_mean) }}</template>
+            </el-table-column>
+            <el-table-column label="Pearson IC" width="100">
+              <template #default="{ row }">{{ fmt4(row.pearson_ic_mean) }}</template>
+            </el-table-column>
+            <el-table-column label="ICIR" width="80">
+              <template #default="{ row }">{{ fmt4(row.rank_ic_ir) }}</template>
+            </el-table-column>
+            <el-table-column label="正IC率" width="80">
+              <template #default="{ row }">{{ pct(row.rank_ic_positive_rate) }}</template>
+            </el-table-column>
+            <el-table-column label="单调性" width="150">
+              <template #default="{ row }">{{ row.monotonicity }}</template>
+            </el-table-column>
+            <el-table-column label="多空 spread" width="100">
+              <template #default="{ row }">{{ pct(row.long_short_spread) }}</template>
+            </el-table-column>
+            <el-table-column label="净收益 IC (可执行)" width="130">
+              <template #default="{ row }">{{ row.executable_net_ic ? fmt4(row.executable_net_ic.rank_ic_mean) : '—' }}</template>
+            </el-table-column>
+            <el-table-column label="HAC 95%CI" min-width="130">
+              <template #default="{ row }">{{ fmt4(row.ci_lower) }} ~ {{ fmt4(row.ci_upper) }}</template>
+            </el-table-column>
+          </el-table>
+          <div class="unified-notes">
+            <p v-if="unifiedResult.by_horizon[0]?.basis_note">毛收益口径：{{ unifiedResult.by_horizon[0].basis_note }}</p>
+            <p v-if="unifiedResult.by_horizon[0]?.net_basis_note">净收益口径：{{ unifiedResult.by_horizon[0].net_basis_note }}</p>
+            <p v-if="unifiedResult.by_horizon[0]?.embargo_note">Embargo：{{ unifiedResult.by_horizon[0].embargo_note }}</p>
+          </div>
+        </template>
+      </div>
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { getFactorResearch, type FactorResearchResponse } from '@/api/factor'
+import { getFactorResearch, getUnifiedFactorReport, type FactorResearchResponse, type UnifiedFactorReport } from '@/api/factor'
 import { useToast } from '@/composables/useToast'
 import dayjs from 'dayjs'
 
@@ -146,6 +191,8 @@ const startDate = ref(dayjs().subtract(30, 'day').format('YYYY-MM-DD'))
 const endDate = ref(dayjs().format('YYYY-MM-DD'))
 const holdingDays = ref(5)
 const result = ref<FactorResearchResponse | null>(null)
+const unifiedLoading = ref(false)
+const unifiedResult = ref<UnifiedFactorReport | null>(null)
 
 function strategyLabel(s: string): string {
   if (s === 'ALL') return '全部策略'
@@ -205,6 +252,48 @@ async function run() {
   }
 }
 
+async function runUnified() {
+  if (!startDate.value || !endDate.value) {
+    toast.warning('请选择起止日期')
+    return
+  }
+  unifiedLoading.value = true
+  try {
+    unifiedResult.value = await getUnifiedFactorReport({
+      strategy: strategy.value || undefined,
+      startDate: startDate.value,
+      endDate: endDate.value
+    })
+  } catch (e: any) {
+    toast.error(e?.message || '多周期 IC 研究失败')
+  } finally {
+    unifiedLoading.value = false
+  }
+}
+
+function exportUnifiedCsv() {
+  if (!unifiedResult.value || !unifiedResult.value.by_horizon.length) return
+  const r = unifiedResult.value
+  const lines: string[] = [
+    `strategy,${r.strategy}`,
+    `range,${r.start_date} ~ ${r.end_date}`,
+    '',
+    ['holding_days', 'rank_ic', 'pearson_ic', 'icir', 'positive_rate', 'monotonicity', 'spread', 'net_ic', 'hac_std', 'ci_lower', 'ci_upper'].join(','),
+    ...r.by_horizon.map((row) => [
+      row.holding_days, row.rank_ic_mean, row.pearson_ic_mean, row.rank_ic_ir,
+      row.rank_ic_positive_rate, row.monotonicity, row.long_short_spread,
+      row.executable_net_ic?.rank_ic_mean ?? '', row.hac_std, row.ci_lower, row.ci_upper
+    ].join(','))
+  ]
+  const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `unified-factor-ic-${r.start_date}_${r.end_date}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 onMounted(() => run())
 </script>
 
@@ -218,6 +307,18 @@ onMounted(() => run())
 }
 .note-alert {
   margin-bottom: 16px;
+}
+.unified-block {
+  margin-top: 16px;
+}
+.unified-toolbar {
+  margin-bottom: 8px;
+}
+.unified-notes {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #aab8cc;
+  line-height: 1.6;
 }
 .grid {
   display: grid;

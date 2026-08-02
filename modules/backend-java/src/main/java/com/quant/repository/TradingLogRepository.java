@@ -6,8 +6,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public interface TradingLogRepository extends JpaRepository<TradingLog, Long> {
+
+    /** 最近成交记录（按时间倒序，供账户订单历史）。 */
+    List<TradingLog> findTop50ByAccountIdOrderByTradeTimeDesc(Long accountId);
 
     @Query("""
             SELECT COALESCE(SUM(t.tradeVolume), 0) FROM TradingLog t

@@ -31,6 +31,11 @@ public class UnifiedScoringController {
         return ApiResponse.success(unifiedScoringService.createTask(request != null ? request : Map.of()));
     }
 
+    @GetMapping("/tasks/recent")
+    public ApiResponse<java.util.List<Map<String, Object>>> recentTasks() {
+        return ApiResponse.success(unifiedScoringService.recentTasks());
+    }
+
     @GetMapping("/tasks/{taskId}")
     public ResponseEntity<ApiResponse<Map<String, Object>>> task(@PathVariable String taskId) {
         Map<String, Object> data = unifiedScoringService.getTask(taskId);

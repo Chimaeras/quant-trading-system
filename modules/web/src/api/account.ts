@@ -23,6 +23,20 @@ export interface PositionRow {
   profitRate: number
 }
 
+export interface OrderHistoryRow {
+  orderId: string
+  stockCode: string
+  stockName?: string
+  exchangeType: string
+  action: 'buy' | 'sell'
+  price: number
+  volume: number
+  amount: number
+  commission?: number
+  stampDuty?: number
+  tradeTime: string
+}
+
 export const accountApi = {
   async getInfo(userId?: number) {
     const res = await request.get<{ data: AccountInfo }>('/account/info', { params: userId ? { userId } : {} })
@@ -32,6 +46,11 @@ export const accountApi = {
   async listPositions(userId?: number) {
     const res = await request.get<{ data: PositionRow[] }>('/position/list', { params: userId ? { userId } : {} })
     return (res as { data?: PositionRow[] })?.data ?? []
+  },
+
+  async getOrderHistory(userId?: number) {
+    const res = await request.get<{ data: OrderHistoryRow[] }>('/order/history', { params: userId ? { userId } : {} })
+    return (res as { data?: OrderHistoryRow[] })?.data ?? []
   },
 
   async placeOrder(body: {

@@ -69,6 +69,28 @@ public class SimAccountService {
         return list;
     }
 
+    /** 账户订单/成交历史（最近 50 条，按时间倒序）。 */
+    public List<Map<String, Object>> orderHistory(Long userId) {
+        UserAccount account = resolveAccount(userId);
+        List<Map<String, Object>> list = new ArrayList<>();
+        for (TradingLog t : tradingLogRepository.findTop50ByAccountIdOrderByTradeTimeDesc(account.getId())) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("orderId", t.getOrderId());
+            m.put("stockCode", t.getStockCode());
+            m.put("stockName", t.getStockName());
+            m.put("exchangeType", t.getExchangeType());
+            m.put("action", t.getTradeType() != null && t.getTradeType() == 1 ? "buy" : "sell");
+            m.put("price", t.getTradePrice());
+            m.put("volume", t.getTradeVolume());
+            m.put("amount", t.getTradeAmount());
+            m.put("commission", t.getCommission());
+            m.put("stampDuty", t.getStampDuty());
+            m.put("tradeTime", t.getTradeTime());
+            list.add(m);
+        }
+        return list;
+    }
+
     @Transactional
     public Map<String, Object> placeOrder(Long userId, Map<String, Object> request) {
         UserAccount account = resolveAccount(userId);

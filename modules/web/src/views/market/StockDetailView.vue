@@ -40,7 +40,10 @@
     <div class="chart-toolbar">
       <el-radio-group v-model="period" size="small">
         <el-radio-button value="day">日K</el-radio-button>
+        <el-radio-button value="week">周K</el-radio-button>
+        <el-radio-button value="month">月K</el-radio-button>
       </el-radio-group>
+      <span class="adj-note">前复权</span>
       <el-date-picker
         v-model="dateRange"
         type="daterange"
@@ -164,6 +167,34 @@ const loading = ref(false)
 const realtimeLoading = ref(false)
 const detail = ref<Partial<StockDetail>>({})
 const klineData = ref<KLineItem[]>([])
+
+/** 按周期重采样：日K原样；周/月K聚合 OHLCV（open=首、high=max、low=min、close=末、volume=和）。 */
+const displayKline = computed(() => {
+  const data = klineData.value
+  if (period.value === 'day' || data.length === 0) return data
+  const keyFn = period.value === 'week'
+    ? (d: string) => {
+        const dt = new Date(d + 'T00:00:00')
+        const start = new Date(dt.getFullYear(), 0, 1)
+        const week = Math.ceil((((dt.getTime() - start.getTime()) / 86400000) + start.getDay() + 1) / 7)
+        return `${dt.getFullYear()}-W${String(week).padStart(2, '0')}`
+      }
+    : (d: string) => d.slice(0, 7)
+  const map = new Map<string, KLineItem>()
+  for (const bar of data) {
+    const k = keyFn(bar.date)
+    const agg = map.get(k)
+    if (!agg) {
+      map.set(k, { ...bar, volume: bar.volume ?? 0 })
+    } else {
+      agg.high = Math.max(agg.high, bar.high)
+      agg.low = Math.min(agg.low, bar.low)
+      agg.close = bar.close
+      agg.volume = (agg.volume ?? 0) + (bar.volume ?? 0)
+    }
+  }
+  return [...map.values()]
+})
 const dateRange = ref<[string, string] | null>(null)
 const period = ref('day')
 const quickCode = ref('')
@@ -195,7 +226,7 @@ const priceChangeClass = computed(() => {
 const maPeriods = [5, 10, 20, 30]
 const maColors: Record<number, string> = { 5: '#f5a623', 10: '#2e7d32', 20: '#1976d2', 30: '#7b1fa2' }
 const maList = computed(() => {
-  const data = klineData.value
+  const data = displayKline.value
   if (data.length === 0) return []
   return maPeriods.map(period => {
     const slice = data.slice(-period)
@@ -313,7 +344,7 @@ async function analyzeStock() {
 }
 
 function renderChart() {
-  const data = klineData.value
+  const data = displayKline.value
   if (!chartRef.value || data.length === 0) return
 
   if (!chart) chart = echarts.init(chartRef.value)
@@ -419,6 +450,9 @@ watch(() => route.query.code, (code) => {
     loadData()
   }
 })
+watch(period, () => {
+  renderChart()
+})
 const onResize = () => chart?.resize()
 
 onBeforeUnmount(() => {
@@ -460,6 +494,7 @@ onMounted(() => {
 
 .quick-search { margin-bottom: 12px; }
 .chart-toolbar { margin-bottom: 16px; display: flex; align-items: center; }
+.adj-note { margin-left: 10px; font-size: 12px; color: var(--text-muted); }
 
 .chart-content { display: flex; gap: 24px; }
 .chart-main { flex: 1; min-width: 0; position: relative; }

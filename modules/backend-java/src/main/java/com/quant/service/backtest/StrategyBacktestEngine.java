@@ -2,6 +2,7 @@ package com.quant.service.backtest;
 
 import com.quant.entity.MarketData;
 import com.quant.research.ResearchConvention;
+import com.quant.service.scoring.ScoringConstants;
 import com.quant.service.scoring.TechnicalIndicators;
 
 import java.util.ArrayList;
@@ -90,7 +91,8 @@ public final class StrategyBacktestEngine {
             int bollPeriod,
             double bollStdDev
     ) {
-        return run(bars, strategy, initialCapital, shortPeriod, longPeriod, bollPeriod, bollStdDev, DEFAULT_LIMIT_PCT);
+        return run(bars, strategy, initialCapital, shortPeriod, longPeriod, bollPeriod, bollStdDev,
+                ScoringConstants.MACD_FAST, ScoringConstants.MACD_SLOW, DEFAULT_LIMIT_PCT);
     }
 
     public static BacktestMetrics run(
@@ -101,6 +103,22 @@ public final class StrategyBacktestEngine {
             int longPeriod,
             int bollPeriod,
             double bollStdDev,
+            double limitPct
+    ) {
+        return run(bars, strategy, initialCapital, shortPeriod, longPeriod, bollPeriod, bollStdDev,
+                ScoringConstants.MACD_FAST, ScoringConstants.MACD_SLOW, limitPct);
+    }
+
+    public static BacktestMetrics run(
+            List<MarketData> bars,
+            StrategySignalType strategy,
+            double initialCapital,
+            int shortPeriod,
+            int longPeriod,
+            int bollPeriod,
+            double bollStdDev,
+            int macdFast,
+            int macdSlow,
             double limitPct
     ) {
         // 过滤缺收盘价/收盘价非正的 K 线：避免把 null 当 0 纳入均线/MACD，污染技术信号
@@ -116,7 +134,7 @@ public final class StrategyBacktestEngine {
         double[] close = clean.stream()
                 .mapToDouble(b -> b.getClosePrice().doubleValue())
                 .toArray();
-        TechnicalIndicators.MacdResult macd = TechnicalIndicators.macd(close);
+        TechnicalIndicators.MacdResult macd = TechnicalIndicators.macd(close, macdFast, macdSlow, ScoringConstants.MACD_SIGNAL);
 
         double cash = initialCapital;
         int position = 0;

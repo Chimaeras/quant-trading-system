@@ -21,9 +21,11 @@ class WalkForwardServiceTest {
 
     @Mock
     private ScoringBacktestService scoringBacktestService;
+    @Mock
+    private TradingCalendarService tradingCalendarService;
 
     private WalkForwardService service() {
-        return new WalkForwardService(scoringBacktestService);
+        return new WalkForwardService(scoringBacktestService, tradingCalendarService);
     }
 
     private static ScoringBacktestResponse mockResponse(int signalDays, double avgReturn, double winRate, int obs) {
@@ -44,7 +46,14 @@ class WalkForwardServiceTest {
                 .thenReturn(mockResponse(3, 0.0123, 0.6, 30));
 
         LocalDate start = LocalDate.of(2025, 1, 2);
-        LocalDate end = LocalDate.of(2025, 1, 12);
+        LocalDate end = LocalDate.of(2025, 1, 10); // 周五（交易日），便于末窗口截止日 == end
+        // 模拟交易日（工作日连续，无周末间隔，便于断言窗口连续 +1 天）
+        when(tradingCalendarService.findTradingDays(start, end))
+                .thenReturn(List.of(
+                        LocalDate.of(2025, 1, 2), LocalDate.of(2025, 1, 3),
+                        LocalDate.of(2025, 1, 6), LocalDate.of(2025, 1, 7),
+                        LocalDate.of(2025, 1, 8), LocalDate.of(2025, 1, 9),
+                        LocalDate.of(2025, 1, 10)));
         Map<String, Object> out = service().run("CLASSIC_SELECTOR", start, end, 3, 10, 5);
 
         assertThat(out.get("strategy")).isEqualTo("CLASSIC_SELECTOR");

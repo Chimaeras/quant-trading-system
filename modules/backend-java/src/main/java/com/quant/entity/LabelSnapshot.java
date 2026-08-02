@@ -50,9 +50,16 @@ public class LabelSnapshot {
     @Column(nullable = false, length = 20)
     private String exchangeType;
 
-    /** 持有期（交易日）：2 或 3。 */
+    /** 持有期（交易日）：1（T+1 方向）或 2/3（T+2/T+3 成交口径）。 */
     @Column(nullable = false)
     private Integer horizon;
+
+    /**
+     * 标签类型：TRADED（成交口径：开入场→持有期收盘退出，扣成本，用于 T+2/T+3）；
+     * T1_DIRECTION（T+1 次日方向：close[t+1]/close[t]−1，无成本，仅预测次日收盘方向）。
+     */
+    @Column(nullable = false, length = 20)
+    private String labelType = "TRADED";
 
     /** 二分类标签：1=上涨(net_return>阈值)，0=未上涨；拒单样本为 null。 */
     private Integer yLabel;

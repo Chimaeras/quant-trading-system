@@ -1,10 +1,14 @@
 package com.quant.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quant.dto.ScoringBacktestRequest;
 import com.quant.dto.ScoringBacktestResponse;
+import com.quant.entity.BacktestRun;
+import org.mockito.ArgumentCaptor;
 import com.quant.entity.MarketData;
 import com.quant.entity.SelectorResult;
 import com.quant.entity.SelectorResultItem;
+import com.quant.repository.BacktestRunRepository;
 import com.quant.repository.MarketDataRepository;
 import com.quant.repository.SelectorResultItemRepository;
 import com.quant.repository.SelectorResultRepository;
@@ -20,9 +24,17 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ScoringBacktestServiceTest {
+
+    /** 带 JavaTimeModule 的 ObjectMapper（序列化 LocalDate 需要），与 Spring 注入行为一致。 */
+    private static ObjectMapper objectMapper() {
+        return com.fasterxml.jackson.databind.json.JsonMapper.builder()
+                .addModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
+                .build();
+    }
 
     @Test
     void entersAtNextTradingDayOpenInsteadOfSignalDayClose() {
@@ -30,7 +42,8 @@ class ScoringBacktestServiceTest {
         SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
         ScoringBacktestService service =
-                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository);
+                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
         LocalDate entryDate = LocalDate.of(2025, 1, 3);
@@ -81,12 +94,73 @@ class ScoringBacktestServiceTest {
     }
 
     @Test
+    void runPersistsBacktestResultAndSupportsRecallByResultId() {
+        SelectorResultRepository resultRepository = mock(SelectorResultRepository.class);
+        SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
+        MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
+        BacktestRunRepository runRepository = mock(BacktestRunRepository.class);
+        ScoringBacktestService service =
+                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                        runRepository, objectMapper());
+
+        LocalDate signalDate = LocalDate.of(2025, 1, 2);
+        LocalDate entryDate = LocalDate.of(2025, 1, 3);
+        LocalDate exitDate = LocalDate.of(2025, 1, 6);
+        SelectorResult result = new SelectorResult();
+        result.setResultId("R1");
+        result.setTradeDate(signalDate);
+        result.setStrategyType("CLASSIC_SELECTOR");
+        SelectorResultItem item = new SelectorResultItem();
+        item.setResultId("R1");
+        item.setRankNo(1);
+        item.setStockCode("000001");
+        item.setExchangeType("SZSE");
+        item.setStockName("测试股票");
+        item.setFinalScore(80.0);
+
+        when(resultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(any(), any()))
+                .thenReturn(List.of(result));
+        when(itemRepository.findByResultIdInOrderByRankNo(any())).thenReturn(List.of(item));
+        when(marketDataRepository.findDistinctTradeDatesBetween(any(), any()))
+                .thenReturn(List.of(signalDate, entryDate, exitDate));
+        when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
+                .thenReturn(List.of(bar(signalDate, 100, 100), bar(entryDate, 80, 88), bar(exitDate, 88, 88)));
+        when(marketDataRepository.findMaxTradeDate()).thenReturn(java.util.Optional.of(exitDate));
+
+        ScoringBacktestRequest request = new ScoringBacktestRequest();
+        request.setStrategyType("CLASSIC_SELECTOR");
+        request.setStartDate(signalDate);
+        request.setEndDate(signalDate);
+        request.setTopN(5);
+
+        ScoringBacktestResponse response = service.run(request);
+
+        // 响应携带 resultId，且已落库
+        assertThat(response.getResultId()).isNotNull().startsWith("BT-");
+        ArgumentCaptor<BacktestRun> captor = ArgumentCaptor.forClass(BacktestRun.class);
+        verify(runRepository).save(captor.capture());
+        BacktestRun saved = captor.getValue();
+        assertThat(saved.getStrategyType()).isEqualTo("CLASSIC_SELECTOR");
+        assertThat(saved.getLatestDataDate()).isEqualTo(exitDate);
+        assertThat(saved.getResponse()).contains("BT-");
+        assertThat(saved.getSummary()).contains("totalTradingDays");
+
+        // 按 resultId 回溯：mock 返回刚保存的 run，getRun 反序列化并回填 resultId
+        when(runRepository.findByResultId(saved.getResultId())).thenReturn(java.util.Optional.of(saved));
+        ScoringBacktestResponse recalled = service.getRun(saved.getResultId());
+        assertThat(recalled).isNotNull();
+        assertThat(recalled.getResultId()).isEqualTo(saved.getResultId());
+        assertThat(recalled.getStrategyType()).isEqualTo("CLASSIC_SELECTOR");
+    }
+
+    @Test
     void holdingPeriodOneExitsOnNextTradingDayCloseNotSameDay() {
         SelectorResultRepository resultRepository = mock(SelectorResultRepository.class);
         SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
         ScoringBacktestService service =
-                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository);
+                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
         LocalDate entryDate = LocalDate.of(2025, 1, 3);
@@ -139,7 +213,8 @@ class ScoringBacktestServiceTest {
         SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
         ScoringBacktestService service =
-                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository);
+                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
         LocalDate entryDate = LocalDate.of(2025, 1, 3);
@@ -193,7 +268,8 @@ class ScoringBacktestServiceTest {
         SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
         ScoringBacktestService service =
-                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository);
+                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
         LocalDate entryDate = LocalDate.of(2025, 1, 3);
@@ -241,7 +317,8 @@ class ScoringBacktestServiceTest {
         SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
         ScoringBacktestService service =
-                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository);
+                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
         LocalDate entryDate = LocalDate.of(2025, 1, 3);
@@ -296,7 +373,8 @@ class ScoringBacktestServiceTest {
         SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
         ScoringBacktestService service =
-                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository);
+                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
         LocalDate entryDate = LocalDate.of(2025, 1, 3);
@@ -356,7 +434,8 @@ class ScoringBacktestServiceTest {
         SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
         ScoringBacktestService service =
-                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository);
+                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
         LocalDate entryDate = LocalDate.of(2025, 1, 3);
@@ -414,7 +493,8 @@ class ScoringBacktestServiceTest {
         SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
         ScoringBacktestService service =
-                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository);
+                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
         LocalDate entryDate = LocalDate.of(2025, 1, 3);
@@ -466,7 +546,8 @@ class ScoringBacktestServiceTest {
         SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
         ScoringBacktestService service =
-                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository);
+                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
         LocalDate entryDate = LocalDate.of(2025, 1, 3);
@@ -587,7 +668,8 @@ class ScoringBacktestServiceTest {
         SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
         ScoringBacktestService service =
-                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository);
+                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
         LocalDate entryDate = LocalDate.of(2025, 1, 3);

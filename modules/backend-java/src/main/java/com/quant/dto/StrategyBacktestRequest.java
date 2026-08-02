@@ -16,4 +16,6 @@ public class StrategyBacktestRequest {
     private Integer longPeriod = 20;
     private Integer bollPeriod = 20;
     private Double bollStdDev = 2.0;
+    private Integer macdFast = 12;
+    private Integer macdSlow = 26;
 }

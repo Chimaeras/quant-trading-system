@@ -49,14 +49,13 @@ class DataServiceTest {
         s1.setStockCode("000001");
         s1.setExchangeType("SZSE");
         s1.setStockName("测试一");
-        when(stockInfoRepo.findByStockCodeAndExchangeType("000001", "SZSE")).thenReturn(Optional.of(s1));
-
         StockInfo s2 = new StockInfo();
         s2.setStockCode("000002");
         s2.setExchangeType("SZSE");
         s2.setStockName("测试二");
         s2.setListDate(LocalDate.of(2015, 1, 1));
-        when(stockInfoRepo.findByStockCodeAndExchangeType("000002", "SZSE")).thenReturn(Optional.of(s2));
+        // 批量查询一次返回全部候选（替代逐条 findByStockCodeAndExchangeType）
+        when(stockInfoRepo.findByStockKeyIn(any())).thenReturn(List.of(s1, s2));
 
         Map<String, Object> result = dataService.backfillListDateFromMarketData();
 
@@ -67,9 +66,11 @@ class DataServiceTest {
         assertThat(result.get("missing_after")).isEqualTo(1L);
         assertThat(result.get("source")).isEqualTo("market_data_earliest_trade_date");
 
-        ArgumentCaptor<StockInfo> captor = ArgumentCaptor.forClass(StockInfo.class);
-        verify(stockInfoRepo, times(1)).save(captor.capture());
-        assertThat(captor.getValue().getListDate()).isEqualTo(LocalDate.of(2010, 6, 1));
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<StockInfo>> captor = ArgumentCaptor.forClass(List.class);
+        verify(stockInfoRepo, times(1)).saveAll(captor.capture());
+        assertThat(captor.getValue()).hasSize(1);
+        assertThat(captor.getValue().get(0).getListDate()).isEqualTo(LocalDate.of(2010, 6, 1));
     }
 
     @Test

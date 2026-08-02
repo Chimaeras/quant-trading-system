@@ -37,4 +37,12 @@ axiosInstance.interceptors.response.use(
 // 响应拦截器已把 AxiosResponse 解包为后端 ApiResponse，向调用方暴露解包后的类型。
 const request = axiosInstance as unknown as ApiClient
 
+/**
+ * 从 ApiResponse 响应中解包 data 字段。
+ * 拦截器返回 {code, message, data}，这里取 .data；避免在各处散落裸 `as { data?: T }`。
+ */
+export function unwrap<T>(res: unknown): T {
+  return (res as { data?: T })?.data as T
+}
+
 export default request

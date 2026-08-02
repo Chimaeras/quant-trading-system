@@ -8,6 +8,7 @@
         <el-option label="北交所" value="BSE" />
       </el-select>
       <el-button type="primary" style="margin-left: 12px" @click="search">搜索</el-button>
+      <el-tag v-if="dataSource === 'local'" type="warning" size="small" style="margin-left: 12px">本地 IndexedDB 数据（后端不可用时降级）</el-tag>
     </template>
     <el-table v-loading="loading" :data="stockList" stripe style="width: 100%">
       <el-table-column prop="stock_code" label="股票代码" min-width="95" />
@@ -44,11 +45,12 @@ const loading = ref(false)
 const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
+const dataSource = ref<'backend' | 'local'>('backend')
 
 const loadStocks = async () => {
   loading.value = true
   try {
-    // 优先使用后端 API（MySQL 数据），失败则回退到 IndexedDB
+    // 优先使用后端 API（MySQL 数据），失败则回退到 IndexedDB 并标注来源
     try {
       const res = await marketApi.getStockList({
         page: page.value,
@@ -59,6 +61,7 @@ const loadStocks = async () => {
       const data = (res as { data?: { list?: unknown[]; total?: number } })?.data
       stockList.value = data?.list ?? []
       total.value = data?.total ?? 0
+      dataSource.value = 'backend'
     } catch {
       const res = await dataApi.getStockList({
         page: page.value,
@@ -68,6 +71,7 @@ const loadStocks = async () => {
       })
       stockList.value = res.list
       total.value = res.total
+      dataSource.value = 'local'
     }
   } finally {
     loading.value = false

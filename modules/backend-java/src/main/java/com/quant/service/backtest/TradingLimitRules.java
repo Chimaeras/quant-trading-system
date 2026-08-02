@@ -61,6 +61,22 @@ public final class TradingLimitRules {
             return "";
         }
         String code = stockCode.trim();
-        return code.startsWith("0") && code.length() > 6 ? code.replaceFirst("^0+", "") : code;
+        // A 股证券代码为 6 位数字：提取数字并取末尾 6 位。
+        // 兼容 "000001"、"SZ000001"、"sh600000"、"0000001"(多余前导零) 等输入形式，
+        // 使板块推断基于确定性的 6 位代码，不依赖前导零剥离的巧合。
+        StringBuilder digits = new StringBuilder(code.length());
+        for (int i = 0; i < code.length(); i++) {
+            char ch = code.charAt(i);
+            if (ch >= '0' && ch <= '9') {
+                digits.append(ch);
+            }
+        }
+        if (digits.length() == 0) {
+            return "";
+        }
+        if (digits.length() > 6) {
+            return digits.substring(digits.length() - 6);
+        }
+        return digits.toString();
     }
 }

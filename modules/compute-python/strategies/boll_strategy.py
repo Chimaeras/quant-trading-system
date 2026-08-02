@@ -25,8 +25,9 @@ class BOLLStrategy(BaseStrategy):
             return 'hold'
 
         # 计算中轨(MA)、上轨、下轨
+        # 标准差用样本标准差（ddof=1），与 Java TechnicalIndicators / utils.indicators 口径一致
         ma = sum(self.price_history[-period:]) / period
-        variance = sum((p - ma) ** 2 for p in self.price_history[-period:]) / period
+        variance = sum((p - ma) ** 2 for p in self.price_history[-period:]) / (period - 1)
         std = math.sqrt(variance) if variance > 0 else 0
         std_mult = self.params.get('std_dev', 2.0)
         upper = ma + std_mult * std

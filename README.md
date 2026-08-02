@@ -91,13 +91,22 @@ quant-trading-system/
 - K 线图（ECharts）
 - 单股实时行情（东财 API，手动触发）
 
-### 选股打分（5 种策略，统一工作台）
-- **经典多因子**：趋势 + 动量 + 量价 - 风险惩罚
+### 选股打分（多策略，统一工作台）
+- **经典多因子**：趋势 + 动量 + 量价 - 风险惩罚（支持短周期 profile）
 - **超跌反弹**：趋势确认 + 成交量验证 + 超跌程度
 - **趋势打分**：趋势/乖离/量能/支撑/MACD/RSI 六维
 - **综合三维度**：技术30 + 基本40 + 情绪30
 - **多维度 v1**：纯库内 K 线 + PE + 行业聚合
+- **Codex 短周期**：截面中性化 + 稳健 Z 评分（`rule_score` 为截面百分位，非上涨概率）
 - 异步任务队列、断点续跑、模板管理、结果导出
+
+### 因子研究 / 概率选股研究（QP 线）
+- **因子研究面板**：覆盖率 / 截面分布 / 分组 / Rank IC / Pearson IC / 单调性 / 多空 spread
+- **统一因子报告**：T+1/T+2/T+3/T+5 并列输出毛收益 IC + 可执行净收益 IC（含 HAC 标准误与 block bootstrap CI）
+- **T+2/T+3 标签工厂**：按研究口径（次开入场 + 持有期收盘 + 扣费）生成标签，保留拒单样本
+- **规则分数概率校准**：sigmoid/isotonic 校准（train/holdout 拆分，样本外报告 Brier/ECE/BSS）
+- **Logistic 模型**：L2 正则，版本化训练 + 注册（特征 min/max 标准化仅在训练窗拟合）
+- **历史逐日重放**：PIT 股票池健康报告（含可交易性闸过滤）
 
 ### 打分回测
 - 基于历史选股结果的持有期收益统计（1/3/5/10/20 天）
@@ -129,7 +138,13 @@ quant-trading-system/
 | 选股 | `GET /api/selector/templates` | 选股模板管理 |
 | 回测 | `POST /api/backtest/scoring/run` | 打分结果回测 |
 | 回测 | `POST /api/backtest/strategy/run` | 经典策略回测 |
-| 认证 | `POST /api/auth/login` | 登录（JWT 可选） |
+| 因子 | `GET /api/factor/research` | 因子研究面板 |
+| 因子 | `GET /api/factor/unified-report` | 统一因子报告（多持仓期 IC） |
+| 研究 | `POST /api/research/replay` | 历史逐日重放（PIT 股票池健康） |
+| 研究 | `POST /api/research/labels/build` | 生成 T+2/T+3 标签 |
+| 研究 | `GET /api/research/calibration` | 规则分数概率校准 |
+| 研究 | `POST /api/research/logistic/train` | Logistic 模型训练 + 注册 |
+| 认证 | `POST /api/auth/login` | 登录（JWT；docker 默认开启，本地 dev 默认关闭） |
 | 账户 | `GET /api/account/info` | 模拟账户概览 |
 | 持仓 | `GET /api/position/list` | 持仓列表 |
 | 订单 | `POST /api/order/place` | 模拟下单 |

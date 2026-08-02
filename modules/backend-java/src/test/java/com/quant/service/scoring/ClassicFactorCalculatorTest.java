@@ -1,6 +1,7 @@
 package com.quant.service.scoring;
 
 import com.quant.entity.MarketData;
+import com.quant.service.scoring.model.CandidateScore;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -13,6 +14,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ClassicFactorCalculatorTest {
 
     private final ClassicFactorCalculator calculator = new ClassicFactorCalculator();
+
+    @Test
+    void normalizeCrossSectionIsCrossSectionalAndSkipsNearConstantFactors() {
+        List<CandidateScore> candidates = new ArrayList<>();
+        for (double m : new double[]{20, 50, 80}) {
+            CandidateScore c = new CandidateScore();
+            c.setStockCode("C" + (int) m);
+            c.setMomentumScore(m);
+            c.setRiskPenalty(30.0); // 所有候选相同 → 近零方差
+            candidates.add(c);
+        }
+        calculator.normalizeCrossSection(candidates, 1e-6);
+
+        // momentum 被 z-score 归一化：均值 ≈ 50，且高分仍高
+        double meanMomentum = candidates.stream()
+                .mapToDouble(CandidateScore::getMomentumScore).average().orElse(0);
+        assertThat(meanMomentum).isCloseTo(50.0, org.assertj.core.data.Offset.offset(0.01));
+        assertThat(candidates.get(2).getMomentumScore()).isGreaterThan(candidates.get(0).getMomentumScore());
+
+        // riskPenalty 近零方差 → 不做 Z-Score，保留原始值 30（不放大噪声）
+        assertThat(candidates.get(0).getRiskPenalty()).isEqualTo(30.0);
+    }
 
     @Test
     void excludesStaleBarsWhenTradeDateMisaligned() {
@@ -120,6 +143,18 @@ class ClassicFactorCalculatorTest {
         );
 
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    void shortProfileFinalScoreNormalizesWeightsAndClamps() {
+        // 满分 → 100；全差且风险满 → 0；正权重和为 1、风险同比例缩放，分数落在 [0,100]
+        assertThat(ClassicFactorCalculator.shortProfileFinalScore(100, 100, 100, 0)).isEqualTo(100.0);
+        assertThat(ClassicFactorCalculator.shortProfileFinalScore(0, 0, 0, 100)).isZero();
+        double mid = ClassicFactorCalculator.shortProfileFinalScore(50, 50, 50, 20);
+        assertThat(mid).isBetween(0.0, 100.0);
+        // 与旧公式等比例：old = 0.40*sh+0.25*mom+0.20*vol-0.25*risk，new = old/0.85（clamp 前）
+        double old = 0.40 * 50 + 0.25 * 50 + 0.20 * 50 - 0.25 * 20;
+        assertThat(mid).isCloseTo(old / 0.85, org.assertj.core.data.Offset.offset(1e-9));
     }
 
     @Test

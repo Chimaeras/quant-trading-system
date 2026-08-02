@@ -62,7 +62,7 @@ export interface DailyReportResponse {
 
 /** 拉取选股日报；tradeDate 省略时取各策略最新结果 */
 export function getDailyReport(tradeDate?: string): Promise<DailyReportResponse> {
-  return request.get('/api/report/daily', { params: tradeDate ? { tradeDate } : {} })
+  return request.get('/report/daily', { params: tradeDate ? { tradeDate } : {} })
 }
 
 /** 多日趋势单日 */
@@ -85,5 +85,5 @@ export interface TrendReportResponse {
 
 /** 拉取多日信号趋势 */
 export function getTrendReport(startDate: string, endDate: string): Promise<TrendReportResponse> {
-  return request.get('/api/report/trend', { params: { startDate, endDate } })
+  return request.get('/report/trend', { params: { startDate, endDate } })
 }

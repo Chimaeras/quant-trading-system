@@ -76,8 +76,8 @@ class WatchlistAlertServiceTest {
         );
         when(watchlistItemRepository.findByUserIdOrderByCreatedAtDesc(1L))
                 .thenReturn(List.of(item("000001", "SZSE", "平安银行")));
-        when(marketDataRepository.findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
-                eq("000001"), eq("SZSE"), any(), any())).thenReturn(bars);
+        when(marketDataRepository.findByStockKeyInAndTradeDateBetween(any(), any(), any()))
+                .thenReturn(bars);
 
         Map<String, Object> out = service().scan(1L, null, null, null);
 
@@ -98,8 +98,8 @@ class WatchlistAlertServiceTest {
     void scanSkipsStocksWithNoQuote() {
         when(watchlistItemRepository.findByUserIdOrderByCreatedAtDesc(1L))
                 .thenReturn(List.of(item("000002", "SZSE", "万科A")));
-        when(marketDataRepository.findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
-                eq("000002"), eq("SZSE"), any(), any())).thenReturn(List.of());
+        when(marketDataRepository.findByStockKeyInAndTradeDateBetween(any(), any(), any()))
+                .thenReturn(List.of());
 
         Map<String, Object> out = service().scan(1L, null, null, null);
         assertThat(out.get("total_scanned")).isEqualTo(1);
@@ -119,8 +119,8 @@ class WatchlistAlertServiceTest {
         );
         when(watchlistItemRepository.findByUserIdOrderByCreatedAtDesc(1L))
                 .thenReturn(List.of(item("000001", "SZSE", "平安银行")));
-        when(marketDataRepository.findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
-                eq("000001"), eq("SZSE"), any(), any())).thenReturn(bars);
+        when(marketDataRepository.findByStockKeyInAndTradeDateBetween(any(), any(), any()))
+                .thenReturn(bars);
 
         Map<String, Object> out = service().scan(1L, null, null, null);
         assertThat(out.get("total_alerted")).isEqualTo(0);

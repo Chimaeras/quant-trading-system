@@ -1,4 +1,4 @@
-“””
+"""
 超跌反弹机会筛选打分系统（Python 版本）
 
 与后端 Java OversoldReboundScoringService 口径保持一致：
@@ -7,7 +7,7 @@
 - 超跌维度: 30分（RSI+布林带+历史分位）
 - 确认信号: 15分（底背离+量能确认+反转K线）
 - 加权得分 = (trend/40)*100*0.35 + (volume/30)*100*0.25 + (oversold/30)*100*0.25 + (confirm/15)*100*0.15
-“””
+"""
 
 from __future__ import annotations
 
@@ -34,20 +34,20 @@ class ScoreResult:
 
 
 def score_oversold_rebound(df: pd.DataFrame) -> Optional[ScoreResult]:
-    “””
+    """
     输入 df 需包含至少 260 条日线，且包含列：
     - date（可选，用于周K统计；若无则跳过周K分）
     - open, high, low, close, volume, amount（amount 用于确认信号）
-    “””
+    """
     if df is None or len(df) < 260:
         return None
 
-    close = df[“close”].astype(float).reset_index(drop=True)
-    open_ = df[“open”].astype(float).reset_index(drop=True)
-    high = df[“high”].astype(float).reset_index(drop=True) if “high” in df.columns else open_
-    low = df[“low”].astype(float).reset_index(drop=True) if “low” in df.columns else open_
-    volume = df[“volume”].astype(float).fillna(0).reset_index(drop=True)
-    amount = df[“amount”].astype(float).fillna(0).reset_index(drop=True) if “amount” in df.columns else volume * close
+    close = df["close"].astype(float).reset_index(drop=True)
+    open_ = df["open"].astype(float).reset_index(drop=True)
+    high = df["high"].astype(float).reset_index(drop=True) if "high" in df.columns else open_
+    low = df["low"].astype(float).reset_index(drop=True) if "low" in df.columns else open_
+    volume = df["volume"].astype(float).fillna(0).reset_index(drop=True)
+    amount = df["amount"].astype(float).fillna(0).reset_index(drop=True) if "amount" in df.columns else volume * close
 
     n = len(close)
     last_close = float(close.iloc[-1])
@@ -64,18 +64,18 @@ def score_oversold_rebound(df: pd.DataFrame) -> Optional[ScoreResult]:
 
     # 周K连续阴线（如果有 date）
     bear_weeks = 0
-    if “date” in df.columns:
-        d = pd.to_datetime(df[“date”])
+    if "date" in df.columns:
+        d = pd.to_datetime(df["date"])
         tmp = df.copy()
-        tmp[“date”] = d
-        tmp[“iso_year”] = tmp[“date”].dt.isocalendar().year.astype(int)
-        tmp[“iso_week”] = tmp[“date”].dt.isocalendar().week.astype(int)
-        g = tmp.groupby([“iso_year”, “iso_week”], sort=True)
-        week_open = g[“open”].first()
-        week_close = g[“close”].last()
-        wk = pd.DataFrame({“open”: week_open, “close”: week_close}).reset_index(drop=True)
+        tmp["date"] = d
+        tmp["iso_year"] = tmp["date"].dt.isocalendar().year.astype(int)
+        tmp["iso_week"] = tmp["date"].dt.isocalendar().week.astype(int)
+        g = tmp.groupby(["iso_year", "iso_week"], sort=True)
+        week_open = g["open"].first()
+        week_close = g["close"].last()
+        wk = pd.DataFrame({"open": week_open, "close": week_close}).reset_index(drop=True)
         for i in range(len(wk) - 1, -1, -1):
-            if float(wk.loc[i, “close”]) < float(wk.loc[i, “open”]):
+            if float(wk.loc[i, "close"]) < float(wk.loc[i, "open"]):
                 bear_weeks += 1
             else:
                 break
@@ -156,12 +156,12 @@ def score_oversold_rebound(df: pd.DataFrame) -> Optional[ScoreResult]:
     down = end < start
     if down and v_second > v_first * 1.05:
         volume_score += 10
-        vp_type = “DOWN_VOL_EXPAND”
+        vp_type = "DOWN_VOL_EXPAND"
     elif down and (v_second < v_first * 0.95) and (v_last5 > v_prev5 * 1.05):
         volume_score += 5
-        vp_type = “DOWN_VOL_SHRINK_THEN_WARM_EXPAND”
+        vp_type = "DOWN_VOL_SHRINK_THEN_WARM_EXPAND"
     else:
-        vp_type = “DOWN_VOL_SHRINK”
+        vp_type = "DOWN_VOL_SHRINK"
 
     # --- 超跌维度（30分）---
     oversold = 0
@@ -196,24 +196,24 @@ def score_oversold_rebound(df: pd.DataFrame) -> Optional[ScoreResult]:
         weighted = min(weighted, 70.0)
 
     detail = {
-        “ret20_pct”: round(ret20, 2),
-        “ret60_pct”: round(ret60, 2),
-        “ret120_pct”: round(ret120, 2),
-        “avg_amount20”: round(avg_amount20, 2),
-        “ma20”: round(ma20, 2),
-        “ma60”: round(ma60, 2),
-        “ma120”: round(ma120, 2),
-        “consecutive_bear_weeks”: int(bear_weeks),
-        “vol_ratio_5_30”: round(v_ratio, 2),
-        “volume_price_type”: vp_type,
-        “rsi14”: round(rsi14, 2),
-        “boll_mid”: round(boll_mid, 2),
-        “boll_lower”: round(boll_lower, 2),
-        “boll_lower_extreme”: round(boll_lower_extreme, 2),
-        “percentile_1y”: round(float(percentile), 4),
-        “confirmation_score”: confirm_score,
-        “confirmation_summary”: confirm_summary,
-        “confirmation_has_signal”: confirm_has,
+        "ret20_pct": round(ret20, 2),
+        "ret60_pct": round(ret60, 2),
+        "ret120_pct": round(ret120, 2),
+        "avg_amount20": round(avg_amount20, 2),
+        "ma20": round(ma20, 2),
+        "ma60": round(ma60, 2),
+        "ma120": round(ma120, 2),
+        "consecutive_bear_weeks": int(bear_weeks),
+        "vol_ratio_5_30": round(v_ratio, 2),
+        "volume_price_type": vp_type,
+        "rsi14": round(rsi14, 2),
+        "boll_mid": round(boll_mid, 2),
+        "boll_lower": round(boll_lower, 2),
+        "boll_lower_extreme": round(boll_lower_extreme, 2),
+        "percentile_1y": round(float(percentile), 4),
+        "confirmation_score": confirm_score,
+        "confirmation_summary": confirm_summary,
+        "confirmation_has_signal": confirm_has,
     }
 
     return ScoreResult(
@@ -232,32 +232,32 @@ def score_oversold_rebound(df: pd.DataFrame) -> Optional[ScoreResult]:
 def _score_confirmation(
     close: pd.Series, open_: pd.Series, high: pd.Series, low: pd.Series, amount: pd.Series
 ) -> tuple:
-    “””确认信号评分（与 Java ReboundConfirmationScorer 一致）”””
+    """确认信号评分（与 Java ReboundConfirmationScorer 一致）"""
     n = len(close)
     if n < 35:
-        return 0, False, “数据不足”
+        return 0, False, "数据不足"
 
     pts = 0
     parts = []
 
     if _macd_bottom_divergence(close, n):
         pts += 6
-        parts.append(“MACD底背离”)
+        parts.append("MACD底背离")
     if _volume_confirmation(amount, n):
         pts += 5
-        parts.append(“量能确认”)
+        parts.append("量能确认")
     if _hammer_or_morning_star(open_, high, low, close, n):
         pts += 4
-        parts.append(“反转K线”)
+        parts.append("反转K线")
 
     pts = min(pts, 15)
     has = pts >= 5
-    summary = “+”.join(parts) if parts else “无确认信号”
+    summary = "+".join(parts) if parts else "无确认信号"
     return pts, has, summary
 
 
 def _macd_bottom_divergence(close: pd.Series, n: int) -> bool:
-    “””MACD底背离检测”””
+    """MACD底背离检测"""
     if n < 35:
         return False
     close_arr = close.to_numpy()
@@ -270,8 +270,8 @@ def _macd_bottom_divergence(close: pd.Series, n: int) -> bool:
     lookback = min(20, n - 5)
     # 找最近两个低点的位置
     segment = close_arr[n - lookback:n - 3]
-    low1 = float(“inf”)
-    low2 = float(“inf”)
+    low1 = float("inf")
+    low2 = float("inf")
     idx1 = -1
     idx2 = -1
     for i, val in enumerate(segment):
@@ -290,7 +290,7 @@ def _macd_bottom_divergence(close: pd.Series, n: int) -> bool:
 
 
 def _volume_confirmation(amount: pd.Series, n: int) -> bool:
-    “””量能确认：近3日均量 > 前10日均量的1.2倍”””
+    """量能确认：近3日均量 > 前10日均量的1.2倍"""
     if n < 13:
         return False
     recent3 = float(amount.iloc[n - 3:].mean())
@@ -301,7 +301,7 @@ def _volume_confirmation(amount: pd.Series, n: int) -> bool:
 def _hammer_or_morning_star(
     open_: pd.Series, high: pd.Series, low: pd.Series, close: pd.Series, n: int
 ) -> bool:
-    “””锤子线或启明星形态检测”””
+    """锤子线或启明星形态检测"""
     if n < 3:
         return False
 
@@ -332,7 +332,7 @@ def _hammer_or_morning_star(
 
 
 def _ema(values: np.ndarray, span: int) -> np.ndarray:
-    “””EMA 计算，使用前 span 根 SMA 作为种子值（与 Java 对齐）”””
+    """EMA 计算，使用前 span 根 SMA 作为种子值（与 Java 对齐）"""
     alpha = 2.0 / (span + 1)
     out = np.zeros_like(values)
     seed_len = min(span, len(values))

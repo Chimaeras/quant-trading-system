@@ -32,6 +32,20 @@ class TradingLimitRulesTest {
     }
 
     @Test
+    void normalizeCodeIsDeterministicForPrefixedAndZeroPaddedForms() {
+        assertThat(TradingLimitRules.normalizeCode("000001")).isEqualTo("000001");
+        assertThat(TradingLimitRules.normalizeCode("SZ000001")).isEqualTo("000001");
+        assertThat(TradingLimitRules.normalizeCode("sh600000")).isEqualTo("600000");
+        assertThat(TradingLimitRules.normalizeCode("0000001")).isEqualTo("000001"); // 多余前导零 → 取末尾 6 位
+        assertThat(TradingLimitRules.normalizeCode("300001")).isEqualTo("300001");
+        assertThat(TradingLimitRules.normalizeCode(null)).isEmpty();
+        assertThat(TradingLimitRules.normalizeCode("abc")).isEmpty();
+        // 确定性代码参与板块推断：带前缀的创业板代码仍判 20%
+        assertThat(TradingLimitRules.resolveLimitPct("SZ300001", "SZSE", "特锐德"))
+                .isEqualTo(TradingLimitRules.CHINEXT_STAR_LIMIT_PCT);
+    }
+
+    @Test
     void stOnRegistrationBoardsKeepsBoardLimitNotFivePct() {
         // 创业板（300/301/302）ST 涨跌停仍为 20%
         assertThat(TradingLimitRules.resolveLimitPct("300001", "SZSE", "*ST创业板"))

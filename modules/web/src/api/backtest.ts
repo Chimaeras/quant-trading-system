@@ -175,7 +175,7 @@ export function analyzeTurnover(params: {
   endDate: string
   topN?: number
 }): Promise<TurnoverResponse> {
-  return request.get('/api/backtest/turnover', { params })
+  return request.get('/backtest/turnover', { params })
 }
 
 export interface StabilitySegment {
@@ -208,5 +208,5 @@ export function analyzeStability(params: {
   topN?: number
   holdingDay?: number
 }): Promise<StabilityResponse> {
-  return request.get('/api/backtest/stability', { params })
+  return request.get('/backtest/stability', { params })
 }

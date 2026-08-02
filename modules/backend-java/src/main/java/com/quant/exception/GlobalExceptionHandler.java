@@ -60,11 +60,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ApiResponse<Void> handleGeneric(Exception e) {
-        log.error("系统异常", e);
-        String msg = e.getMessage();
-        if (msg == null || msg.isBlank()) {
-            msg = e.getClass().getSimpleName();
-        }
-        return ApiResponse.error(500, "服务器内部错误: " + msg);
+        // 完整堆栈仅记录服务端日志；响应不回传 e.getMessage()，避免泄露 SQL/类名/内部细节
+        log.error("系统异常: {}", e.getMessage(), e);
+        return ApiResponse.error(500, "服务器内部错误，请稍后重试");
     }
 }

@@ -295,6 +295,21 @@ public class DataService {
         int updated = 0;
         int skippedNoMatch = 0;
 
+        // 一次批量查询全部候选 stock_info（替代逐条 findByStockCodeAndExchangeType 的 N+1）
+        List<String> keys = new java.util.ArrayList<>();
+        for (Object[] row : candidates) {
+            if (row == null || row.length < 3 || row[0] == null || row[1] == null || row[2] == null) {
+                continue;
+            }
+            keys.add(String.valueOf(row[0]) + "|" + String.valueOf(row[1]));
+        }
+        Map<String, StockInfo> infoByKey = new HashMap<>();
+        if (!keys.isEmpty()) {
+            for (StockInfo s : stockInfoRepo.findByStockKeyIn(keys)) {
+                infoByKey.put(s.getStockCode() + "|" + s.getExchangeType(), s);
+            }
+        }
+        List<StockInfo> toUpdate = new java.util.ArrayList<>();
         for (Object[] row : candidates) {
             if (row == null || row.length < 3 || row[0] == null || row[1] == null || row[2] == null) {
                 continue;
@@ -305,15 +320,17 @@ public class DataService {
             if (earliest == null) {
                 continue;
             }
-            Optional<StockInfo> infoOpt = stockInfoRepo.findByStockCodeAndExchangeType(stockCode, exchangeType);
-            if (infoOpt.isEmpty() || infoOpt.get().getListDate() != null) {
+            StockInfo info = infoByKey.get(stockCode + "|" + exchangeType);
+            if (info == null || info.getListDate() != null) {
                 skippedNoMatch++;
                 continue;
             }
-            StockInfo info = infoOpt.get();
             info.setListDate(earliest);
-            stockInfoRepo.save(info);
+            toUpdate.add(info);
             updated++;
+        }
+        if (!toUpdate.isEmpty()) {
+            stockInfoRepo.saveAll(toUpdate);
         }
 
         long missingAfter = stockInfoRepo.countByListDateIsNull();

@@ -65,5 +65,5 @@ export function getFactorResearch(params: {
   endDate: string
   holdingDays?: number
 }): Promise<FactorResearchResponse> {
-  return request.get('/api/factor/research', { params })
+  return request.get('/factor/research', { params })
 }

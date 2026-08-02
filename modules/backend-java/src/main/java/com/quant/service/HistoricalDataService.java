@@ -260,7 +260,7 @@ public class HistoricalDataService {
                 return null;
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            log.warn("HTTP 请求失败: {}", e.getMessage());
             return null;
         }
     }

@@ -17,7 +17,28 @@ public class ClassicFactorCalculator {
     public static final String FACTOR_VERSION = "classic_v3_short_horizon";
     public static final String HORIZON_MEDIUM = StrategyFormulaRegistry.HORIZON_MEDIUM_TREND;
     public static final String HORIZON_SHORT = StrategyFormulaRegistry.HORIZON_SHORT_3_5D;
+    /** 短周期合成公式版本：正权重归一化（和为 1）+ 风险同比例扣减，分数落在 [0,100]。 */
+    public static final String SHORT_FORMULA_VERSION = "classic_short_v1_normalized";
     private static final int MIN_BARS = 70;
+
+    // 短周期权重：0.40/0.25/0.20/0.25；正权重和 0.85，归一化时按 /0.85 统一缩放（相对排序不变）
+    private static final double SHORT_W_TREND = 0.40;
+    private static final double SHORT_W_MOMENTUM = 0.25;
+    private static final double SHORT_W_VOLUME = 0.20;
+    private static final double SHORT_W_RISK = 0.25;
+
+    /**
+     * 短周期合成：正权重归一化到和为 1，风险扣减同比例缩放，最终 clamp 到 [0,100]。
+     * 与长周期/Codex 的「分数落在 [0,100]」语义一致；相对排序与旧 0.40/0.25/0.20/0.25 公式一致（均匀缩放）。
+     */
+    static double shortProfileFinalScore(double shortHorizonScore, double momentum, double volumeScore, double riskPenalty) {
+        double posSum = SHORT_W_TREND + SHORT_W_MOMENTUM + SHORT_W_VOLUME;
+        double fs = (SHORT_W_TREND / posSum) * shortHorizonScore
+                + (SHORT_W_MOMENTUM / posSum) * momentum
+                + (SHORT_W_VOLUME / posSum) * volumeScore
+                - (SHORT_W_RISK / posSum) * riskPenalty;
+        return ScoringUtils.clamp(fs, 0, 100);
+    }
 
     /** 权重优先从 YAML 读取，缺失时使用硬编码默认值 */
     private static double weightTrend() {
@@ -177,7 +198,7 @@ public class ClassicFactorCalculator {
 
         double finalScore;
         if (shortProfile) {
-            finalScore = 0.40 * shortHorizonScore + 0.25 * momentum + 0.20 * volumeScore - 0.25 * riskPenalty;
+            finalScore = shortProfileFinalScore(shortHorizonScore, momentum, volumeScore, riskPenalty);
         } else {
             finalScore = weightTrend() * trend + weightMomentum() * momentum
                     + weightVolume() * volumeScore - weightRiskPenalty() * riskPenalty;
@@ -212,6 +233,8 @@ public class ClassicFactorCalculator {
 
         Map<String, Object> reasons = new LinkedHashMap<>();
         reasons.put("horizon_profile", shortProfile ? HORIZON_SHORT : HORIZON_MEDIUM);
+        reasons.put("score_formula_version",
+                shortProfile ? SHORT_FORMULA_VERSION : "classic_medium_config_weights_v1");
         if (shortProfile && shortHorizon != null) {
             reasons.put("short_horizon_score", ScoringUtils.round2(shortHorizonScore));
             reasons.putAll(shortHorizon.breakdown());
@@ -232,13 +255,21 @@ public class ClassicFactorCalculator {
 
     /**
      * 截面 Z-Score 标准化后重算 finalScore，并输出因子共线性检测日志。
+     *
+     * <p><strong>单一交易日不变式</strong>：本方法把整个 candidates 列表当作同一个信号日（trade_date）
+     * 的横截面做标准化——均值/标准差来自当批全部候选，属「当日截面」口径。
+     * 调用方必须保证 candidates 全部来自同一 trade_date（当前 {@code StockSelectorService} 按单日运行，
+     * 天然满足）；若跨多日混批，mean/std 会看到其他日期的分布，构成前视/泄漏，禁止混用。
+     *
+     * <p>{@code minStd}：因子截面标准差低于该阈值时视为近零方差，不做 Z-Score（避免噪声放大），
+     * 保持原始分值参与合成。
      */
     public void normalizeCrossSection(List<CandidateScore> candidates, double minStd) {
         if (candidates == null || candidates.size() < 2) return;
-        zScoreAndRescore(candidates, CandidateScore::getTrendScore, CandidateScore::setTrendScore);
-        zScoreAndRescore(candidates, CandidateScore::getMomentumScore, CandidateScore::setMomentumScore);
-        zScoreAndRescore(candidates, CandidateScore::getVolumeScore, CandidateScore::setVolumeScore);
-        zScoreAndRescore(candidates, CandidateScore::getRiskPenalty, CandidateScore::setRiskPenalty);
+        zScoreAndRescore(candidates, CandidateScore::getTrendScore, CandidateScore::setTrendScore, minStd);
+        zScoreAndRescore(candidates, CandidateScore::getMomentumScore, CandidateScore::setMomentumScore, minStd);
+        zScoreAndRescore(candidates, CandidateScore::getVolumeScore, CandidateScore::setVolumeScore, minStd);
+        zScoreAndRescore(candidates, CandidateScore::getRiskPenalty, CandidateScore::setRiskPenalty, minStd);
         // 因子共线性检测（仅日志告警，不阻断计算）
         FactorCollinearityChecker.logVifReport(candidates);
         for (CandidateScore c : candidates) {
@@ -252,7 +283,7 @@ public class ClassicFactorCalculator {
             if (shortProfile) {
                 Object shObj = c.getReasons().get("short_horizon_score");
                 double sh = shObj instanceof Number num ? num.doubleValue() : c.getMomentumScore();
-                fs = 0.40 * sh + 0.25 * c.getMomentumScore() + 0.20 * c.getVolumeScore() - 0.25 * c.getRiskPenalty();
+                fs = shortProfileFinalScore(sh, c.getMomentumScore(), c.getVolumeScore(), c.getRiskPenalty());
             } else {
                 fs = weightTrend() * c.getTrendScore()
                         + weightMomentum() * c.getMomentumScore()
@@ -270,7 +301,8 @@ public class ClassicFactorCalculator {
     private void zScoreAndRescore(
             List<CandidateScore> candidates,
             java.util.function.ToDoubleFunction<CandidateScore> getter,
-            java.util.function.BiConsumer<CandidateScore, Double> setter
+            java.util.function.BiConsumer<CandidateScore, Double> setter,
+            double minStd
     ) {
         double[] values = candidates.stream().mapToDouble(getter).toArray();
         double mean = Arrays.stream(values).average().orElse(0);
@@ -279,7 +311,10 @@ public class ClassicFactorCalculator {
             var += (v - mean) * (v - mean);
         }
         double std = values.length > 1 ? Math.sqrt(var / values.length) : 0;
-        if (std < 1e-6) std = 1e-6;
+        // 近零方差：不做 Z-Score，保留原始分值（避免微小标准差把噪声放大为 ±15 的归一化差异）
+        if (std < minStd) {
+            return;
+        }
 
         for (int i = 0; i < candidates.size(); i++) {
             double z = (values[i] - mean) / std;

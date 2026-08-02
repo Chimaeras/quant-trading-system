@@ -41,6 +41,11 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+### Python ###
+**/__pycache__/
+**/.venv/
+*.pyc
+
 ### VS Code ###
 .vscode/
 

@@ -34,7 +34,7 @@ export function reconcilePosition(
   topN = 10,
   userId?: number
 ): Promise<ReconcileResponse> {
-  return request.get('/api/reconcile/position', {
+  return request.get('/reconcile/position', {
     params: { resultId, topN, ...(userId ? { userId } : {}) }
   })
 }

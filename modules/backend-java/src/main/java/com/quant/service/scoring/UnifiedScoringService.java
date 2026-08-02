@@ -632,7 +632,8 @@ public class UnifiedScoringService {
         }
         try {
             return objectMapper.readValue(requestJson, new TypeReference<Map<String, Object>>() {});
-        } catch (Exception ignore) {
+        } catch (Exception e) {
+            log.warn("读取续跑请求 JSON 失败，按空配置处理: {}", e.getMessage());
             return new HashMap<>();
         }
     }
@@ -856,11 +857,12 @@ public class UnifiedScoringService {
             }
             selectorResultItemRepository.save(toUnifiedItem(resultId, rank++, strategy, item));
             success++;
+            // 进度字段在内存累积，循环结束后一次性 save(sr)，避免对同一父行反复 UPDATE 的写放大；
+            // 断点续跑以 item 是否已存在（existing 集合）为准，不依赖父表进度字段
             sr.setProcessedCandidates(processed);
             sr.setSuccessCandidates(success);
             sr.setFailedCandidates(Math.max(0, processed - success));
             sr.setLastProcessedKey(stockKey);
-            selectorResultRepository.save(sr);
         }
         sr.setProcessedCandidates(processed);
         sr.setSuccessCandidates(success);

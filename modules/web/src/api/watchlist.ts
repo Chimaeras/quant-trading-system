@@ -11,7 +11,7 @@ export interface WatchlistItem {
 }
 
 export function listWatchlist(userId?: number): Promise<WatchlistItem[]> {
-  return request.get('/api/watchlist/list', { params: userId ? { userId } : {} })
+  return request.get('/watchlist/list', { params: userId ? { userId } : {} })
 }
 
 export function addWatchlist(
@@ -20,7 +20,7 @@ export function addWatchlist(
   note?: string,
   userId?: number
 ): Promise<WatchlistItem> {
-  return request.post('/api/watchlist/add', {
+  return request.post('/watchlist/add', {
     stockCode,
     exchangeType,
     note,
@@ -37,7 +37,7 @@ export interface BatchAddResult {
 }
 
 export function batchAddWatchlist(text: string, userId?: number): Promise<BatchAddResult> {
-  return request.post('/api/watchlist/batch-add', {
+  return request.post('/watchlist/batch-add', {
     text,
     ...(userId ? { userId } : {})
   })
@@ -48,7 +48,7 @@ export function removeWatchlist(
   exchangeType: string,
   userId?: number
 ): Promise<{ deleted: boolean }> {
-  return request.post('/api/watchlist/remove', {
+  return request.post('/watchlist/remove', {
     stockCode,
     exchangeType,
     ...(userId ? { userId } : {})
@@ -82,7 +82,7 @@ export function scanWatchlistAlerts(params?: {
   volumeRatioThreshold?: number
   lookbackDays?: number
 }): Promise<WatchlistAlertScan> {
-  return request.get('/api/watchlist/alerts', { params: params || {} })
+  return request.get('/watchlist/alerts', { params: params || {} })
 }
 
 export interface SignalHit {
@@ -109,5 +109,5 @@ export interface SignalCoverageResponse {
 }
 
 export function getWatchlistSignalCoverage(userId?: number): Promise<SignalCoverageResponse> {
-  return request.get('/api/watchlist/signal-coverage', { params: userId ? { userId } : {} })
+  return request.get('/watchlist/signal-coverage', { params: userId ? { userId } : {} })
 }

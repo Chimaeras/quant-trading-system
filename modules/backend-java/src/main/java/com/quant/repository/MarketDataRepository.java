@@ -83,6 +83,20 @@ public interface MarketDataRepository extends JpaRepository<MarketData, Long> {
             """, nativeQuery = true)
     long countBackfillableListDateCandidates();
 
+    /**
+     * 批量拉取多个证券在区间内的行情（按 "code|exchange" key 匹配），
+     * 用于自选股扫描等按股票分组场景，替代逐股 N+1 查询。
+     */
+    @Query("""
+            select m from MarketData m
+            where concat(m.stockCode, '|', m.exchangeType) in :keys
+              and m.tradeDate between :startDate and :endDate
+            order by m.tradeDate asc
+            """)
+    List<MarketData> findByStockKeyInAndTradeDateBetween(@Param("keys") List<String> keys,
+                                                         @Param("startDate") LocalDate startDate,
+                                                         @Param("endDate") LocalDate endDate);
+
     /** 区间内各证券最早交易日（用于 bulkFetch=false 时上市时长 pair 预过滤）。 */
     @Query(value = """
             SELECT m.stock_code, m.exchange_type, MIN(m.trade_date)

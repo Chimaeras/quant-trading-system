@@ -360,7 +360,10 @@ public final class FactorResearchEngine {
             return new double[]{0, 0};
         }
         int n = values.size();
-        int bs = Math.max(1, Math.min(blockSize, n));
+        // 块大小 = min(blockSize, floor(sqrt(n)), n-1)：避免块大小接近/等于样本量时
+        // rng.nextInt(n-bs+1) 恒为 0，bootstrap 退化为对同一序列的点估计，输出伪收敛区间
+        int sqrtBlock = (int) Math.floor(Math.sqrt(n));
+        int bs = Math.max(1, Math.min(Math.min(blockSize, sqrtBlock), n - 1));
         java.util.Random rng = new java.util.Random(seed);
         double[] bootMeans = new double[iterations];
         for (int b = 0; b < iterations; b++) {

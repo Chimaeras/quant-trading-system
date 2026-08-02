@@ -1,6 +1,7 @@
 package com.quant.controller;
 
 import com.quant.dto.ApiResponse;
+import com.quant.security.UserIdResolver;
 import com.quant.service.WatchlistAlertService;
 import com.quant.service.WatchlistService;
 import lombok.RequiredArgsConstructor;
@@ -19,32 +20,33 @@ public class WatchlistController {
 
     private final WatchlistService watchlistService;
     private final WatchlistAlertService watchlistAlertService;
+    private final UserIdResolver userIdResolver;
 
     @GetMapping("/list")
     public ApiResponse<List<Map<String, Object>>> list(@RequestParam(required = false) Long userId) {
-        return ApiResponse.success(watchlistService.list(userId != null ? userId : 1L));
+        return ApiResponse.success(watchlistService.list(userIdResolver.resolve(userId)));
     }
 
     @PostMapping("/add")
     public ApiResponse<Map<String, Object>> add(@RequestBody Map<String, Object> body) {
-        Long userId = body.get("userId") != null ? Long.valueOf(String.valueOf(body.get("userId"))) : 1L;
+        Long userId = body.get("userId") != null ? Long.valueOf(String.valueOf(body.get("userId"))) : null;
         String stockCode = String.valueOf(body.getOrDefault("stockCode", ""));
         String exchangeType = String.valueOf(body.getOrDefault("exchangeType", ""));
         String note = body.get("note") != null ? String.valueOf(body.get("note")) : null;
-        return ApiResponse.success(watchlistService.add(userId, stockCode, exchangeType, note));
+        return ApiResponse.success(watchlistService.add(userIdResolver.resolve(userId), stockCode, exchangeType, note));
     }
 
     @PostMapping("/remove")
     public ApiResponse<Map<String, Object>> remove(@RequestBody Map<String, Object> body) {
-        Long userId = body.get("userId") != null ? Long.valueOf(String.valueOf(body.get("userId"))) : 1L;
+        Long userId = body.get("userId") != null ? Long.valueOf(String.valueOf(body.get("userId"))) : null;
         String stockCode = String.valueOf(body.getOrDefault("stockCode", ""));
         String exchangeType = String.valueOf(body.getOrDefault("exchangeType", ""));
-        return ApiResponse.success(watchlistService.remove(userId, stockCode, exchangeType));
+        return ApiResponse.success(watchlistService.remove(userIdResolver.resolve(userId), stockCode, exchangeType));
     }
 
     @PostMapping("/batch-add")
     public ApiResponse<Map<String, Object>> batchAdd(@RequestBody Map<String, Object> body) {
-        Long userId = body.get("userId") != null ? Long.valueOf(String.valueOf(body.get("userId"))) : 1L;
+        Long userId = body.get("userId") != null ? Long.valueOf(String.valueOf(body.get("userId"))) : null;
         Object text = body.get("text");
         List<String[]> pairs = new java.util.ArrayList<>();
         if (text instanceof String s) {
@@ -56,7 +58,7 @@ public class WatchlistController {
                 pairs.add(parts);
             }
         }
-        return ApiResponse.success(watchlistService.batchAdd(userId, pairs));
+        return ApiResponse.success(watchlistService.batchAdd(userIdResolver.resolve(userId), pairs));
     }
 
     @GetMapping("/alerts")
@@ -66,11 +68,11 @@ public class WatchlistController {
             @RequestParam(required = false) Double volumeRatioThreshold,
             @RequestParam(required = false) Integer lookbackDays) {
         return ApiResponse.success(watchlistAlertService.scan(
-                userId != null ? userId : 1L, pctThreshold, volumeRatioThreshold, lookbackDays));
+                userIdResolver.resolve(userId), pctThreshold, volumeRatioThreshold, lookbackDays));
     }
 
     @GetMapping("/signal-coverage")
     public ApiResponse<Map<String, Object>> signalCoverage(@RequestParam(required = false) Long userId) {
-        return ApiResponse.success(watchlistService.signalCoverage(userId != null ? userId : 1L));
+        return ApiResponse.success(watchlistService.signalCoverage(userIdResolver.resolve(userId)));
     }
 }

@@ -29,7 +29,7 @@ export function runWalkForward(params: {
   topN?: number
   holdingDay?: number
 }): Promise<WalkForwardResponse> {
-  return request.get('/api/backtest/walk-forward', {
+  return request.get('/backtest/walk-forward', {
     params: {
       strategy: params.strategy,
       startDate: params.startDate,

@@ -68,13 +68,25 @@ public class WatchlistAlertService {
 
         LocalDate end = LocalDate.now();
         LocalDate start = end.minusDays(lookback + CALENDAR_PADDING);
+
+        // 一次批量拉取全部自选股区间行情，按 "code|exchange" 分组（替代逐股 N+1 查询）
+        List<String> keys = items.stream()
+                .map(i -> i.getStockCode() + "|" + i.getExchangeType())
+                .toList();
+        Map<String, List<MarketData>> barsByKey = new LinkedHashMap<>();
+        if (!keys.isEmpty()) {
+            for (MarketData bar : marketDataRepository.findByStockKeyInAndTradeDateBetween(keys, start, end)) {
+                barsByKey.computeIfAbsent(bar.getStockCode() + "|" + bar.getExchangeType(),
+                        k -> new ArrayList<>()).add(bar);
+            }
+        }
+
         List<Map<String, Object>> alerts = new ArrayList<>();
         LocalDate latestSignalDate = null;
 
         for (WatchlistItem item : items) {
-            List<MarketData> bars = marketDataRepository
-                    .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
-                            item.getStockCode(), item.getExchangeType(), start, end);
+            List<MarketData> bars = barsByKey.getOrDefault(
+                    item.getStockCode() + "|" + item.getExchangeType(), List.of());
             if (bars.isEmpty()) {
                 continue;
             }

@@ -1,6 +1,7 @@
 """
-技术指标计算
+技术指标计算（口径与 Java TechnicalIndicators 对齐）
 """
+import numpy as np
 import pandas as pd
 from typing import Optional
 
@@ -11,8 +12,22 @@ def sma(series: pd.Series, period: int) -> pd.Series:
 
 
 def ema(series: pd.Series, period: int) -> pd.Series:
-    """指数移动平均"""
-    return series.ewm(span=period, adjust=False).mean()
+    """指数移动平均（与 Java TechnicalIndicators.ema 口径一致）：
+    用前 span 根 SMA 作为种子值，之后按 alpha=2/(span+1) 递推。
+    注意：pandas ewm(adjust=False) 的种子是首个值而非 SMA，与 Java 不一致，故不用 ewm。
+    """
+    alpha = 2.0 / (period + 1)
+    vals = series.to_numpy(dtype=float)
+    n = len(vals)
+    if n == 0:
+        return pd.Series(dtype=float)
+    seed_len = min(period, n)
+    seed = float(np.sum(vals[:seed_len]) / seed_len) if seed_len > 0 else float("nan")
+    out = np.empty(n)
+    out[0] = seed
+    for i in range(1, n):
+        out[i] = alpha * vals[i] + (1 - alpha) * out[i - 1]
+    return pd.Series(out, index=series.index)
 
 
 def bollinger_bands(series: pd.Series, period: int = 20, std_dev: float = 2.0) -> tuple:
@@ -25,12 +40,14 @@ def bollinger_bands(series: pd.Series, period: int = 20, std_dev: float = 2.0) -
 
 
 def macd(series: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> tuple:
-    """MACD"""
+    """MACD（与 Java TechnicalIndicators.macd 口径一致）：
+    dif=EMA(fast)-EMA(slow)；dea=EMA(dif, signal)；柱线 macd=(dif-dea)*2。
+    """
     ema_fast = ema(series, fast)
     ema_slow = ema(series, slow)
     macd_line = ema_fast - ema_slow
     signal_line = ema(macd_line, signal)
-    histogram = macd_line - signal_line
+    histogram = (macd_line - signal_line) * 2
     return macd_line, signal_line, histogram
 
 

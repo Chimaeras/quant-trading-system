@@ -175,6 +175,17 @@ class FactorResearchEngineTest {
     }
 
     @Test
+    void blockBootstrapCiDoesNotDegenerateWhenBlockSizeCloseToSampleSize() {
+        // 块大小 ≥ 样本量时，块大小被压到 min(blockSize, floor(sqrt(n)), n-1)，CI 仍非点估计
+        List<Double> values = List.of(0.10, 0.12, 0.08, 0.11, 0.09, 0.13, 0.07, 0.10, 0.12, 0.08);
+        double[] ci = FactorResearchEngine.blockBootstrapCi(values, 10, 1000, 42L); // blockSize=10 == n
+        assertThat(ci[0]).isLessThanOrEqualTo(ci[1]);
+        assertThat(ci[1]).isGreaterThan(ci[0]);
+        assertThat(ci[0]).isGreaterThan(0.05);
+        assertThat(ci[1]).isLessThan(0.15);
+    }
+
+    @Test
     void summarizeIncludesHacStdAndConfidenceInterval() {
         Map<String, List<FactorResearchEngine.CrossSectionObservation>> byDate = new LinkedHashMap<>();
         byDate.put("2025-01-02", List.of(

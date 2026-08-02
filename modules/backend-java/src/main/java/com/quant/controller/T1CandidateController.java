@@ -47,4 +47,12 @@ public class T1CandidateController {
     public ApiResponse<List<Map<String, Object>>> recent(@RequestParam(defaultValue = "20") int limit) {
         return ApiResponse.success(t1CandidateService.recentCandidates(limit));
     }
+
+    /** T+1 策略历史累计绩效（命中率/平均涨幅/每日命中序列 + vs 沪深300）。 */
+    @GetMapping("/stats")
+    public ApiResponse<Map<String, Object>> stats(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return ApiResponse.success(t1CandidateService.strategyStats(startDate, endDate));
+    }
 }

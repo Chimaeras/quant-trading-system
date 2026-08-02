@@ -6,7 +6,7 @@
       </template>
 
       <el-alert type="info" :closable="false" show-icon class="note-alert"
-        title="工作流：T 日收盘生成次日上涨候选 → 次日结束后核销。评分为规则分（涨停基因+短期动量+量能+趋势），非概率；涨停股次日可能一字板买不进。" />
+        :title="result?.score_type === 'probability' ? '已按真实上涨概率排序（模型 ' + (result.score_model ?? '') + '）' : '工作流：T 日收盘生成次日上涨候选 → 次日结束后核销。评分为规则分（涨停基因+短期动量+量能+趋势），非概率；可在概率研究页生成 T+1 标签并训练后按真实概率排序；涨停股次日可能一字板买不进。'" />
 
       <el-form inline>
         <el-form-item label="信号日 T">
@@ -18,6 +18,7 @@
         <el-form-item>
           <el-button type="primary" :loading="genLoading" @click="generate">生成 T+1 候选</el-button>
           <el-button :loading="settleLoading" :disabled="!result || result.candidates.length === 0" @click="settle">次日核销</el-button>
+          <el-button :disabled="!tableData.length" @click="exportOperationList">导出次日操作清单</el-button>
           <el-button :loading="recentLoading" @click="loadRecent">最近清单</el-button>
         </el-form-item>
       </el-form>
@@ -44,8 +45,12 @@
         <el-table-column type="index" label="#" width="46" :index="(i: number) => i + 1" />
         <el-table-column prop="stock_code" label="代码" width="90" />
         <el-table-column prop="stock_name" label="名称" min-width="100" />
-        <el-table-column label="评分" width="80">
-          <template #default="{ row }"><b>{{ fmt1(row.score) }}</b></template>
+        <el-table-column label="评分" width="90">
+          <template #default="{ row }">
+            <b v-if="row.score_type === 'probability'">{{ pct(row.score) }}</b>
+            <b v-else>{{ fmt1(row.score) }}</b>
+            <el-tag v-if="row.score_type === 'probability'" type="success" size="small" class="prob-tag">概率</el-tag>
+          </template>
         </el-table-column>
         <el-table-column label="涨停" width="70">
           <template #default="{ row }">
@@ -87,6 +92,17 @@
             <span v-else>—</span>
           </template>
         </el-table-column>
+        <el-table-column label="可买性" width="110">
+          <template #default="{ row }">
+            <el-tag :type="buyabilityType(row.buyability)" size="small">{{ row.buyability || '可买' }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="风险" min-width="140">
+          <template #default="{ row }">
+            <el-tag v-for="(r, i) in (row.risk_tags || [])" :key="i" type="warning" size="small" class="reason-tag">{{ r }}</el-tag>
+            <span v-if="!(row.risk_tags || []).length">—</span>
+          </template>
+        </el-table-column>
         <el-table-column label="触发原因" min-width="200">
           <template #default="{ row }">
             <el-tag v-for="(r, i) in row.reasons" :key="i" size="small" class="reason-tag">{{ r }}</el-tag>
@@ -114,13 +130,57 @@
           </el-table-column>
         </el-table>
       </template>
+
+      <!-- 策略绩效（历史累计验证） -->
+      <el-divider content-position="left">策略绩效（历史累计）</el-divider>
+      <el-form inline>
+        <el-form-item label="起">
+          <el-date-picker v-model="statsStart" type="date" value-format="YYYY-MM-DD" />
+        </el-form-item>
+        <el-form-item label="止">
+          <el-date-picker v-model="statsEnd" type="date" value-format="YYYY-MM-DD" />
+        </el-form-item>
+        <el-form-item>
+          <el-button :loading="statsLoading" @click="loadStats">统计绩效</el-button>
+        </el-form-item>
+      </el-form>
+
+      <template v-if="stats">
+        <div class="kpi-row">
+          <div class="kpi"><span>已核销天数</span><b>{{ stats.days }}</b></div>
+          <div class="kpi"><span>样本数</span><b>{{ stats.total_settled ?? 0 }}</b></div>
+          <div class="kpi"><span>命中率</span><b :class="(stats.hit_rate ?? 0) >= 0.5 ? 'text-success' : 'text-danger'">{{ pct(stats.hit_rate) }}</b></div>
+          <div class="kpi"><span>平均次日涨幅</span><b :class="(stats.avg_next_ret ?? 0) >= 0 ? 'text-success' : 'text-danger'">{{ pct(stats.avg_next_ret) }}</b></div>
+          <div class="kpi"><span>平均高开</span><b>{{ pct(stats.avg_gap) }}</b></div>
+          <div v-if="stats.benchmark?.available" class="kpi">
+            <span>vs 沪深300 日均</span>
+            <b :class="stats.benchmark.outperform ? 'text-success' : 'text-danger'">
+              {{ pct(stats.benchmark.index_avg_daily_return) }}（{{ stats.benchmark.outperform ? '跑赢' : '跑输' }}）
+            </b>
+          </div>
+        </div>
+        <el-table v-if="stats.daily_series?.length" :data="stats.daily_series" size="small" stripe border max-height="280" class="mt">
+          <el-table-column prop="trade_date" label="信号日" min-width="110" />
+          <el-table-column prop="settled" label="样本" width="70" />
+          <el-table-column prop="hit_count" label="命中" width="70" />
+          <el-table-column label="命中率" width="90">
+            <template #default="{ row }">{{ pct(row.hit_rate) }}</template>
+          </el-table-column>
+          <el-table-column label="平均次日涨幅" min-width="110">
+            <template #default="{ row }">
+              <span :class="(row.avg_next_ret ?? 0) >= 0 ? 'text-success' : 'text-danger'">{{ pct(row.avg_next_ret) }}</span>
+            </template>
+          </el-table-column>
+        </el-table>
+        <p class="note-line" v-if="stats.note">{{ stats.note }}</p>
+      </template>
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { generateT1Candidates, settleT1Candidates, getT1Candidates, getT1Recent, type T1CandidatesResponse } from '@/api/research'
+import { generateT1Candidates, settleT1Candidates, getT1Candidates, getT1Recent, getT1Stats, type T1CandidatesResponse, type T1StatsResponse } from '@/api/research'
 import { useToast } from '@/composables/useToast'
 import dayjs from 'dayjs'
 
@@ -132,6 +192,10 @@ const settleLoading = ref(false)
 const recentLoading = ref(false)
 const result = ref<T1CandidatesResponse | null>(null)
 const recent = ref<Array<{ trade_date: string; top_n: number; settled: boolean }>>([])
+const statsStart = ref(dayjs().subtract(30, 'day').format('YYYY-MM-DD'))
+const statsEnd = ref(dayjs().format('YYYY-MM-DD'))
+const statsLoading = ref(false)
+const stats = ref<T1StatsResponse | null>(null)
 
 const loading = computed(() => genLoading.value || settleLoading.value)
 
@@ -146,6 +210,35 @@ function fmt1(v: number | undefined | null): string {
 }
 function pct(v: number | undefined | null): string {
   return v == null || !Number.isFinite(v) ? '—' : `${(v * 100).toFixed(2)}%`
+}
+function buyabilityType(b: string | undefined): 'success' | 'warning' | 'danger' | 'info' {
+  if (b === '可买') return 'success'
+  if (b === '高开追高谨慎') return 'warning'
+  if (b === '大概率买不进') return 'danger'
+  return 'info'
+}
+
+/** 导出次日操作清单 CSV（含可买性/风险/触发原因）。 */
+function exportOperationList() {
+  const rows = tableData.value
+  if (!rows.length) return
+  const lines: string[] = [
+    `信号日,${tradeDate.value}`,
+    '',
+    ['stock_code', 'stock_name', 'score', 'is_limit_up', 'lianban_days', 'volume_ratio', 'change_pct', 'buyability', 'risks', 'reasons'].join(','),
+    ...rows.map((r) => [
+      r.stock_code, `"${r.stock_name ?? ''}"`, r.score ?? '', r.is_limit_up ?? '', r.lianban_days ?? '',
+      r.volume_ratio ?? '', r.change_pct ?? '', r.buyability ?? '', (r.risk_tags || []).join('|'),
+      (r.reasons || []).join('|')
+    ].join(','))
+  ]
+  const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `t1-operation-list-${tradeDate.value}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 async function generate() {
@@ -211,6 +304,21 @@ async function loadRecent() {
   }
 }
 
+async function loadStats() {
+  if (!statsStart.value || !statsEnd.value) {
+    toast.warning('请选择绩效统计区间')
+    return
+  }
+  statsLoading.value = true
+  try {
+    stats.value = await getT1Stats({ startDate: statsStart.value, endDate: statsEnd.value })
+  } catch (e: any) {
+    toast.error(e?.message || '绩效统计失败')
+  } finally {
+    statsLoading.value = false
+  }
+}
+
 onMounted(loadRecent)
 </script>
 
@@ -219,4 +327,11 @@ onMounted(loadRecent)
 .note-alert { margin-bottom: 14px; }
 .ecology-row { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; }
 .reason-tag { margin-right: 4px; }
+.prob-tag { margin-left: 4px; }
+.kpi-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+.kpi { display: flex; flex-direction: column; background: rgba(9, 18, 34, 0.72); border: 1px solid rgba(145, 196, 255, 0.18); border-radius: 8px; padding: 8px 12px; min-width: 100px; }
+.kpi span { font-size: 12px; color: var(--text-muted); }
+.kpi b { font-size: 15px; }
+.note-line { font-size: 12px; color: var(--text-muted); margin: 8px 0 0; }
+.mt { margin-top: 10px; }
 </style>

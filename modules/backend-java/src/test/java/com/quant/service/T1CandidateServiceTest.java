@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quant.entity.MarketData;
 import com.quant.entity.StockInfo;
 import com.quant.entity.T1Candidate;
+import com.quant.repository.IndexQuoteRepository;
 import com.quant.repository.MarketDataRepository;
+import com.quant.repository.ModelVersionRepository;
 import com.quant.repository.StockInfoRepository;
 import com.quant.repository.T1CandidateRepository;
 import com.quant.service.scoring.LimitUpEcologyService;
@@ -41,13 +43,17 @@ class T1CandidateServiceTest {
     private LimitUpEcologyService limitUpEcologyService;
     @Mock
     private TradingCalendarService tradingCalendarService;
+    @Mock
+    private ModelVersionRepository modelVersionRepository;
+    @Mock
+    private IndexQuoteRepository indexQuoteRepository;
 
     private T1CandidateService service() {
         ObjectMapper om = com.fasterxml.jackson.databind.json.JsonMapper.builder()
                 .addModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
                 .build();
         return new T1CandidateService(marketDataRepository, stockInfoRepository, t1CandidateRepository,
-                limitUpEcologyService, tradingCalendarService, om);
+                limitUpEcologyService, tradingCalendarService, modelVersionRepository, indexQuoteRepository, om);
     }
 
     @Test
@@ -67,6 +73,10 @@ class T1CandidateServiceTest {
                 .thenReturn(Map.of("is_limit_up", true, "lianban_days", 1,
                         "volume_ratio", 2.0, "turnover_rate", 5.0, "change_pct", 10.0));
         when(limitUpEcologyService.ecology(any(), anyInt())).thenReturn(Map.of("limit_up_count", 1));
+        when(limitUpEcologyService.nextDayPremium(any(), anyInt()))
+                .thenReturn(Map.of("avg_gap", 0.01, "high_open_rate", 0.6));
+        when(modelVersionRepository.findFirstByHorizonAndStageOrderByCreatedAtDesc(any(), any()))
+                .thenReturn(Optional.empty());
         when(t1CandidateRepository.findByTradeDate(d)).thenReturn(Optional.empty());
 
         Map<String, Object> out = service().generateCandidates(d, 5);
@@ -78,6 +88,52 @@ class T1CandidateServiceTest {
         assertThat(candidates.get(0).get("stock_code")).isEqualTo("000001");
         assertThat(candidates.get(0).get("score_type")).isEqualTo("rule_score");
         assertThat((double) candidates.get(0).get("score")).isGreaterThan(0);
+        // 次日可买性预判：涨停（非连板）→ 高开追高谨慎
+        assertThat(candidates.get(0).get("buyability")).isEqualTo("高开追高谨慎");
+    }
+
+    @Test
+    void generateCandidatesUsesProbabilityWhenT1ModelAvailable() {
+        LocalDate d = LocalDate.of(2025, 1, 2);
+        List<MarketData> rangeBars = rangeBars("000001", "SZSE", d, 35);
+        when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
+                .thenReturn(rangeBars);
+        when(marketDataRepository.findByTradeDate(d)).thenReturn(List.of(rangeBars.get(rangeBars.size() - 1)));
+        StockInfo info = new StockInfo();
+        info.setStockCode("000001");
+        info.setExchangeType("SZSE");
+        info.setStockName("测试股份");
+        info.setListDate(d.minusDays(500));
+        when(stockInfoRepository.findAll()).thenReturn(List.of(info));
+        when(limitUpEcologyService.stockLimitUpFeatures(any(), any(), any()))
+                .thenReturn(Map.of("is_limit_up", false, "lianban_days", 0,
+                        "volume_ratio", 1.2, "turnover_rate", 3.0, "change_pct", 3.0));
+        when(limitUpEcologyService.ecology(any(), anyInt())).thenReturn(Map.of("limit_up_count", 0));
+        when(limitUpEcologyService.nextDayPremium(any(), anyInt()))
+                .thenReturn(Map.of("avg_gap", 0.01, "high_open_rate", 0.5));
+        // horizon=1 模型存在：artifact 含权重 1.0 / bias 0 / min 0 / max 100
+        com.quant.entity.ModelVersion mv = new com.quant.entity.ModelVersion();
+        mv.setModelVersion("logistic_v1_t1");
+        mv.setHorizon(1);
+        mv.setStage("champion");
+        mv.setArtifact("{\"weights\":[1.0],\"bias\":0.0,\"features\":[\"rule_score\"],"
+                + "\"preprocessor\":{\"type\":\"min_max\",\"fit_window\":\"train_only\",\"min\":[0.0],\"max\":[100.0]}}");
+        when(modelVersionRepository.findFirstByHorizonAndStageOrderByCreatedAtDesc(any(), any()))
+                .thenReturn(Optional.of(mv));
+        when(t1CandidateRepository.findByTradeDate(d)).thenReturn(Optional.empty());
+
+        Map<String, Object> out = service().generateCandidates(d, 5);
+
+        assertThat(out.get("score_type")).isEqualTo("probability");
+        assertThat(out.get("score_model")).isEqualTo("logistic_v1_t1");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> candidates = (List<Map<String, Object>>) out.get("candidates");
+        assertThat(candidates).hasSize(1);
+        assertThat(candidates.get(0).get("score_type")).isEqualTo("probability");
+        assertThat(candidates.get(0).get("is_probability")).isEqualTo(true);
+        // ruleScore ∈ (0,100) → 概率 ∈ (0,1)，且保留 rule_score 字段
+        assertThat((double) candidates.get(0).get("score")).isBetween(0.0, 1.0);
+        assertThat(candidates.get(0).get("rule_score")).isNotNull();
     }
 
     @Test

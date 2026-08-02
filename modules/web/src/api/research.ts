@@ -105,6 +105,8 @@ export interface T1CandidateItem {
   ret5?: number
   ma_pos?: number
   reasons?: string[]
+  buyability?: '可买' | '高开追高谨慎' | '大概率买不进'
+  risk_tags?: string[]
   next_ret?: number | null
   next_high_ret?: number | null
   gap?: number | null
@@ -134,6 +136,8 @@ export interface T1CandidatesResponse {
   ecology?: Record<string, unknown>
   summary?: T1SettleSummary
   results?: T1CandidateItem[]
+  score_type?: 'rule_score' | 'probability'
+  score_model?: string
   note?: string
   found?: boolean
 }
@@ -152,4 +156,30 @@ export function getT1Candidates(tradeDate: string): Promise<T1CandidatesResponse
 
 export function getT1Recent(): Promise<Array<{ trade_date: string; top_n: number; settled: boolean }>> {
   return request.get('/research/t1/recent')
+}
+
+export interface T1StatsResponse {
+  start_date: string
+  end_date: string
+  days: number
+  total_candidates?: number
+  total_settled?: number
+  hit_count?: number
+  hit_rate?: number
+  avg_next_ret?: number
+  avg_gap?: number
+  daily_series?: Array<{ trade_date: string; settled: number; hit_count: number; hit_rate: number; avg_next_ret: number }>
+  benchmark?: {
+    available: boolean
+    index_code?: string
+    index_name?: string
+    index_return?: number
+    index_avg_daily_return?: number
+    outperform?: boolean
+  }
+  note?: string
+}
+
+export function getT1Stats(params: { startDate: string; endDate: string }): Promise<T1StatsResponse> {
+  return request.get('/research/t1/stats', { params })
 }

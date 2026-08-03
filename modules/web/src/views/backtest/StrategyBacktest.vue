@@ -90,8 +90,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import dayjs from 'dayjs'
-import * as echarts from 'echarts'
-import { CHART_THEME } from '@/utils/echartsTheme'
+import { echarts, CHART_THEME } from '@/utils/echartsTheme'
 import { backtestApi, type StrategyBacktestResponse } from '@/api/backtest'
 
 const running = ref(false)

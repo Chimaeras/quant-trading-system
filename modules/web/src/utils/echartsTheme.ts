@@ -1,10 +1,36 @@
 /**
- * ECharts 全局主题 —— 与设计令牌对齐
+ * ECharts 全局主题与按需注册 —— 与设计令牌对齐
+ *
+ * 仅引入项目实际使用的图表/组件/渲染器，替代全量 `import * as echarts from 'echarts'`。
+ * 视图统一从此模块导入 `echarts` 命名空间与色常量。
  *
  * 注册 'quant-dark' 主题，所有图表 init 时传 'quant-dark' 即可获得统一配色。
  * A 股惯例：红涨绿跌（upColor=红、downColor=绿）。
  */
-import * as echarts from 'echarts'
+import * as echarts from 'echarts/core'
+import { BarChart, LineChart, CandlestickChart } from 'echarts/charts'
+import {
+  GridComponent,
+  TooltipComponent,
+  DataZoomComponent,
+  LegendComponent,
+  TitleComponent
+} from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
+
+echarts.use([
+  BarChart,
+  LineChart,
+  CandlestickChart,
+  GridComponent,
+  TooltipComponent,
+  DataZoomComponent,
+  LegendComponent,
+  TitleComponent,
+  CanvasRenderer
+])
+
+export { echarts }
 
 const PALETTE = [
   '#58b9ff', // --chart-c1

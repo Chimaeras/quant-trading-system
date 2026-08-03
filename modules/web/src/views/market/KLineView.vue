@@ -22,8 +22,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import * as echarts from 'echarts'
-import { CHART_THEME, CHART_C1 } from '@/utils/echartsTheme'
+import { echarts, CHART_THEME, CHART_C1 } from '@/utils/echartsTheme'
 import { dataApi } from '@/api/data'
 import { marketApi } from '@/api/market'
 import type { KLineItem } from '@/api/market'

@@ -549,8 +549,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import * as echarts from 'echarts'
-import { CHART_THEME, CHART_UP, CHART_DOWN, CHART_C1, CHART_C2 } from '@/utils/echartsTheme'
+import { echarts, CHART_THEME, CHART_UP, CHART_DOWN, CHART_C1, CHART_C2 } from '@/utils/echartsTheme'
 import dayjs from 'dayjs'
 import { backtestApi, analyzeTurnover, analyzeStability, type ScoringBacktestResponse, type DailyDetail, type StockReturn, type TurnoverResponse, type StabilityResponse } from '@/api/backtest'
 import { useToast } from '@/composables/useToast'

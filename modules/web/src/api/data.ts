@@ -3,7 +3,6 @@
  */
 import dayjs from 'dayjs'
 import { getDB } from '@/utils/db'
-import { generateMockStocks, generateMockKLine } from '@/utils/mock'
 import request from './request'
 import type { DataOverview } from '@/types'
 
@@ -465,6 +464,7 @@ export const dataApi = {
       throw new Error('未配置真实股票列表更新接口；Mock 数据默认关闭')
     }
     const db = await getDB()
+    const { generateMockStocks } = await import('@/utils/mock')
     const stocks = generateMockStocks(200)
     const tx = db.transaction('stocks', 'readwrite')
     for (const s of stocks) {
@@ -480,6 +480,7 @@ export const dataApi = {
     const db = await getDB()
     let stocks = await db.getAll('stocks')
     if (stocks.length === 0 && mockDataEnabled) {
+      const { generateMockStocks } = await import('@/utils/mock')
       stocks = generateMockStocks(500)
       const tx = db.transaction('stocks', 'readwrite')
       for (const s of stocks) {
@@ -508,6 +509,7 @@ export const dataApi = {
     const db = await getDB()
     let data = await db.getAllFromIndex('market_data', 'by-stock', stockCode)
     if (data.length === 0 && mockDataEnabled) {
+      const { generateMockKLine } = await import('@/utils/mock')
       const kline = generateMockKLine(stockCode, 250)
       const tx = db.transaction('market_data', 'readwrite')
       for (const k of kline) {

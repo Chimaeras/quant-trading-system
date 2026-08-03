@@ -155,8 +155,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import * as echarts from 'echarts'
-import { CHART_THEME, CHART_C1, CHART_C2, CHART_C3, CHART_C4 } from '@/utils/echartsTheme'
+import { echarts, CHART_THEME, CHART_C1, CHART_C2, CHART_C3, CHART_C4 } from '@/utils/echartsTheme'
 import { marketApi, type StockDetail, type KLineItem, type StockAnalysisResult } from '@/api/market'
 import dayjs from 'dayjs'
 import { useToast } from '@/composables/useToast'

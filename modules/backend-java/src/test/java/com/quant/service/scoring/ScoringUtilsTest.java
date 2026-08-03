@@ -164,6 +164,21 @@ class ScoringUtilsTest {
     }
 
     @Test
+    void avgAmount20AveragesOverAvailableDaysWhenFewerThanTwenty() {
+        // 仅 5 个有效成交日：按实际天数求平均，不直接归零
+        List<MarketData> shortSeries = sampleAmountBars(5, 80_000_000);
+        assertThat(ScoringUtils.avgAmount20(shortSeries)).isEqualTo(80_000_000.0);
+        assertThat(ScoringUtils.passesMinAvgAmount(shortSeries, 60_000_000)).isTrue();
+
+        // 零有效成交日 → 0
+        List<MarketData> allZero = sampleAmountBars(10, 80_000_000);
+        for (MarketData bar : allZero) {
+            bar.setVolume(0L);
+        }
+        assertThat(ScoringUtils.avgAmount20(allZero)).isZero();
+    }
+
+    @Test
     void isActiveStockStatusAllowsNormalOrMissingOnly() {
         assertThat(ScoringUtils.isActiveStockStatus(1)).isTrue();
         assertThat(ScoringUtils.isActiveStockStatus(null)).isTrue();

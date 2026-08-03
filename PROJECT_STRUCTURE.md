@@ -1,5 +1,7 @@
 # 项目目录结构
 
+> ⚠ 本文件已过时（引用部分已不存在的文件/目录）。实际结构以 [README.md](README.md) 与 [docs/审查发现与修复记录.md](docs/审查发现与修复记录.md) 为准。
+
 ```
 quant-trading-system/
 ├── modules/

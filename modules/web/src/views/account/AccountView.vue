@@ -12,6 +12,7 @@
       <div class="stat-card"><div class="label">可用资金</div><div>{{ fmtMoney(account.cash) }}</div></div>
       <div class="stat-card"><div class="label">持仓市值</div><div>{{ fmtMoney(account.positionValue) }}</div></div>
       <div class="stat-card"><div class="label">浮动盈亏</div><div :class="pnlClass(account.totalProfit)">{{ fmtMoney(account.totalProfit) }}</div></div>
+      <div class="stat-card"><div class="label">今日盈亏</div><div :class="pnlClass(account.todayPnl)">{{ fmtMoney(account.todayPnl) }}</div></div>
       <div class="stat-card"><div class="label">持仓数</div><div>{{ account.positionCount }}</div></div>
     </div>
 
@@ -55,12 +56,35 @@
         </template>
       </el-table-column>
     </el-table>
+
+    <div class="section-title">订单历史（最近 50 条）</div>
+    <el-table v-loading="ordersLoading" :data="orders" stripe size="small" max-height="320">
+      <el-table-column prop="tradeTime" label="成交时间" min-width="160" />
+      <el-table-column prop="stockCode" label="代码" width="90" />
+      <el-table-column prop="stockName" label="名称" min-width="100" />
+      <el-table-column label="方向" width="80">
+        <template #default="{ row }">
+          <span :class="row.action === 'buy' ? 'text-success' : 'text-danger'">{{ row.action === 'buy' ? '买入' : '卖出' }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="价格" width="90">
+        <template #default="{ row }">{{ Number(row.price).toFixed(2) }}</template>
+      </el-table-column>
+      <el-table-column prop="volume" label="数量" width="90" />
+      <el-table-column label="金额" width="110">
+        <template #default="{ row }">{{ fmtMoney(Number(row.amount)) }}</template>
+      </el-table-column>
+      <el-table-column label="佣金" width="90">
+        <template #default="{ row }">{{ Number(row.commission ?? 0).toFixed(2) }}</template>
+      </el-table-column>
+      <el-table-column prop="orderId" label="订单号" min-width="150" />
+    </el-table>
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { accountApi, type AccountInfo, type PositionRow } from '@/api/account'
+import { accountApi, type AccountInfo, type PositionRow, type OrderHistoryRow } from '@/api/account'
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
@@ -68,6 +92,8 @@ const loading = ref(false)
 const placing = ref(false)
 const account = ref<AccountInfo | null>(null)
 const positions = ref<PositionRow[]>([])
+const orders = ref<OrderHistoryRow[]>([])
+const ordersLoading = ref(false)
 
 const order = reactive({
   symbol: '000001',
@@ -102,10 +128,22 @@ async function loadAll() {
   try {
     account.value = await accountApi.getInfo()
     positions.value = await accountApi.listPositions()
+    await loadOrders()
   } catch (e: any) {
     toast.error(e?.message || '加载失败')
   } finally {
     loading.value = false
+  }
+}
+
+async function loadOrders() {
+  ordersLoading.value = true
+  try {
+    orders.value = await accountApi.getOrderHistory()
+  } catch {
+    // silent
+  } finally {
+    ordersLoading.value = false
   }
 }
 

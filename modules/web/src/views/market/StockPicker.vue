@@ -157,6 +157,12 @@
       <el-form-item>
         <el-button @click="queryByResultId">查询结果</el-button>
       </el-form-item>
+      <el-form-item label="历史任务">
+        <el-select v-model="historyTaskId" placeholder="选择近期任务载入" clearable filterable style="width: 300px" @change="loadHistoryTask">
+          <el-option v-for="t in recentTasks" :key="t.task_id" :label="`${t.strategy} ${t.status} ${t.created_at || ''}`" :value="t.task_id" />
+        </el-select>
+        <el-button link type="primary" :loading="recentTasksLoading" @click="loadRecentTasks">刷新</el-button>
+      </el-form-item>
     </el-form>
 
     <div v-if="lastTaskSummary" class="meta">
@@ -186,6 +192,8 @@
       <el-form-item>
         <el-button type="primary" :disabled="!results.length" @click="applyFocusSelection">生成关注清单</el-button>
         <el-button :disabled="!displayedResults.length" @click="exportCsv">导出当前视图</el-button>
+        <el-button link type="primary" :disabled="!resultMeta.result_id" @click="saveFocusSnapshot">保存关注快照</el-button>
+        <el-button link type="primary" @click="loadFocusSnapshot">载入快照</el-button>
       </el-form-item>
     </el-form>
 
@@ -415,6 +423,9 @@ const pendingAhead = ref(0)
 const runningCount = ref(0)
 const queryTaskId = ref('')
 const queryResultId = ref('')
+const recentTasks = ref<Array<{ task_id: string; strategy: string; status: string; result_id?: string; created_at?: string }>>([])
+const recentTasksLoading = ref(false)
+const historyTaskId = ref('')
 const lastTaskSummary = ref<{
   taskId: string
   strategy: string
@@ -962,6 +973,75 @@ async function queryByResultId() {
   }
 }
 
+async function loadRecentTasks() {
+  recentTasksLoading.value = true
+  try {
+    recentTasks.value = await scoringApi.getRecentUnifiedTasks()
+  } catch {
+    // silent
+  } finally {
+    recentTasksLoading.value = false
+  }
+}
+
+async function loadHistoryTask(taskId: string) {
+  if (!taskId) return
+  try {
+    const t = await scoringApi.getUnifiedScoringTask(taskId)
+    setTaskState(t)
+    taskId = t.task_id ?? taskId
+    if (t.result_id) {
+      resultMeta.result_id = t.result_id
+      queryResultId.value = t.result_id
+      await refreshResultData()
+      toast.success('已载入历史结果')
+    } else {
+      toast.info('该任务尚无完成的结果')
+    }
+  } catch (e: any) {
+    toast.error(e?.message || '载入历史任务失败')
+  }
+}
+
+const FOCUS_SNAPSHOT_KEY = 'quant_stock_picker_focus_snapshot'
+
+/** 保存「结果ID + 关注清单配置」到本地，刷新后仍可回看同一结果。 */
+function saveFocusSnapshot() {
+  if (!resultMeta.result_id) {
+    toast.warning('请先运行或查询一个结果')
+    return
+  }
+  const snapshot = {
+    result_id: resultMeta.result_id,
+    topN: focusForm.topN,
+    minScore: focusForm.minScore,
+    savedAt: new Date().toISOString()
+  }
+  localStorage.setItem(FOCUS_SNAPSHOT_KEY, JSON.stringify(snapshot))
+  toast.success('关注快照已保存到本地')
+}
+
+/** 载入最近一次保存的关注快照并定位到该结果。 */
+async function loadFocusSnapshot() {
+  const raw = localStorage.getItem(FOCUS_SNAPSHOT_KEY)
+  if (!raw) {
+    toast.info('暂无已保存的关注快照')
+    return
+  }
+  try {
+    const snapshot = JSON.parse(raw)
+    focusForm.topN = Number(snapshot.topN) || 10
+    focusForm.minScore = Number(snapshot.minScore) || 0
+    if (snapshot.result_id) {
+      queryResultId.value = snapshot.result_id
+      await queryByResultId()
+    }
+    toast.success('已载入关注快照')
+  } catch {
+    toast.error('关注快照数据损坏')
+  }
+}
+
 function currentStrategy(): UnifiedScoringStrategy {
   const map: Record<ModeType, UnifiedScoringStrategy> = {
     classic: 'CLASSIC_SELECTOR',
@@ -1357,6 +1437,7 @@ function onModeChange() {
 onMounted(async () => {
   await loadTemplates()
   await loadLatest()
+  await loadRecentTasks()
 })
 
 onBeforeUnmount(() => {

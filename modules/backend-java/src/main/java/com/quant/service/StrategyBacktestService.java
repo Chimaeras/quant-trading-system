@@ -52,6 +52,8 @@ public class StrategyBacktestService {
         int longP = req.getLongPeriod() != null ? req.getLongPeriod() : 20;
         int bollP = req.getBollPeriod() != null ? req.getBollPeriod() : 20;
         double bollStd = req.getBollStdDev() != null ? req.getBollStdDev() : 2.0;
+        int macdFast = req.getMacdFast() != null ? req.getMacdFast() : 12;
+        int macdSlow = req.getMacdSlow() != null ? req.getMacdSlow() : 26;
 
         String stockName = stockInfoRepository.findByStockCodeAndExchangeType(code, exchange)
                 .map(StockInfo::getStockName)
@@ -59,7 +61,7 @@ public class StrategyBacktestService {
         double limitPct = TradingLimitRules.resolveLimitPct(code, exchange, stockName);
 
         StrategyBacktestEngine.BacktestMetrics metrics = StrategyBacktestEngine.run(
-                bars, strategy, initial, shortP, longP, bollP, bollStd, limitPct
+                bars, strategy, initial, shortP, longP, bollP, bollStd, macdFast, macdSlow, limitPct
         );
 
         List<Map<String, Object>> trades = metrics.trades().stream().map(t -> {

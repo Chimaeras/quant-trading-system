@@ -11,7 +11,8 @@ services:
       - "3306:3306"
     volumes:
       - mysql-data:/var/lib/mysql
-      - ../modules/database/init_db.sql:/docker-entrypoint-initdb.d/init.sql
+      # 权威 schema：后端实际使用的表（其余表由 Hibernate ddl-auto:update 补齐）
+      - ../modules/database/01_init_schema.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - quant-network
     healthcheck:
@@ -32,9 +33,18 @@ services:
       DB_HOST: mysql
       DB_USERNAME: ${DB_USERNAME:-root}
       DB_PASSWORD: ${DB_PASSWORD:-123456}
+      # 容器部署默认开启 JWT 鉴权（本地 dev 保持关闭）；可用 AUTH_ENABLED=false 关闭
+      AUTH_ENABLED: ${AUTH_ENABLED:-true}
     depends_on:
       mysql:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/api/data/overview || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
     networks:
       - quant-network
 

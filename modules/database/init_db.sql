@@ -1,3 +1,9 @@
+-- ============================================
+-- ⚠ 已废弃：本文件为早期 legacy 表结构（account/position/order/strategy/backtest_record）。
+-- 权威 schema 请使用 01_init_schema.sql（后端实际使用 user/user_account/position_info 等表）。
+-- 保留本文件仅用于兼容旧脚本/旧库迁移；新部署请以 01_init_schema.sql 为准。
+-- ============================================
+
 -- 量化交易系统数据库初始化脚本
 -- MySQL 8.0+
 

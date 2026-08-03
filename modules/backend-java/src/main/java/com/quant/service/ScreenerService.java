@@ -50,13 +50,13 @@ public class ScreenerService {
         LocalDate ref = referenceDate != null ? referenceDate : LocalDate.now();
         int p = Math.max(1, page);
         int s = Math.min(200, Math.max(10, size));
-        Pageable pageable = PageRequest.of(p - 1, s);
         boolean skipSt = Boolean.TRUE.equals(excludeSt);
 
-        Page<StockInfo> raw = stockInfoRepository.search(keyword, exchange, pageable);
+        // 先取全部关键字/交易所匹配，再在内存过滤 industry/minListingDays/excludeSt，
+        // 最后内存分页——避免「先分页后过滤」导致计数口径误导与漏结果
+        Page<StockInfo> raw = stockInfoRepository.search(keyword, exchange, Pageable.unpaged());
 
-        // 在内存中按 industry / minListingDays / excludeSt 过滤（search 未覆盖这三个条件）
-        List<Map<String, Object>> filtered = raw.getContent().stream()
+        List<Map<String, Object>> allFiltered = raw.getContent().stream()
                 .filter(info -> industry == null || industry.isBlank()
                         || industry.equalsIgnoreCase(info.getIndustry()))
                 .filter(info -> {
@@ -69,20 +69,30 @@ public class ScreenerService {
                 .map(this::toMap)
                 .toList();
 
+        int totalAfterFilter = allFiltered.size();
+        int totalPages = Math.max(1, (int) Math.ceil((double) totalAfterFilter / s));
+        int from = Math.min(totalAfterFilter, (p - 1) * s);
+        int to = Math.min(totalAfterFilter, from + s);
+        List<Map<String, Object>> items = totalAfterFilter > 0
+                ? allFiltered.subList(from, to)
+                : List.of();
+
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("reference_date", ref.toString());
         out.put("page", p);
         out.put("size", s);
         out.put("total_before_filter", raw.getTotalElements());
-        out.put("returned", filtered.size());
-        out.put("items", filtered);
+        out.put("total_after_filter", totalAfterFilter);
+        out.put("total_pages", totalPages);
+        out.put("returned", items.size());
+        out.put("items", items);
         out.put("filters", Map.of(
                 "keyword", keyword != null ? keyword : "",
                 "exchange", exchange != null ? exchange : "",
                 "industry", industry != null ? industry : "",
                 "min_listing_days", minListingDays != null ? minListingDays : 0,
                 "exclude_st", skipSt));
-        out.put("note", "条件选股器，基于 stock_info 筛选；实时行情过滤为后续扩展");
+        out.put("note", "条件选股器，基于 stock_info 筛选；实时行情过滤为后续扩展（暂不可用）");
         return out;
     }
 

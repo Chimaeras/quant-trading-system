@@ -3,3 +3,14 @@ spring:
     url: jdbc:mysql://${DB_HOST:mysql}:3306/quant_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:123456}
+
+# 生产/容器部署：默认开启 JWT 鉴权（可 AUTH_ENABLED=false 关闭），关闭 SQL/DEBUG 日志
+quant:
+  auth:
+    enabled: ${AUTH_ENABLED:true}
+
+logging:
+  level:
+    root: INFO
+    com.quant: INFO
+    org.hibernate.SQL: WARN

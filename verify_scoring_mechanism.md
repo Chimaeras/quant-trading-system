@@ -159,8 +159,8 @@ public class MultiDimScoringServiceIntegrationTest {
 
 2. **测试API接口**
    - 使用Postman或curl测试多维度打分API
-   - 发送GET请求到 `/api/multi-dim-scoring/list` 获取评分列表
-   - 发送POST请求到 `/api/multi-dim-scoring/run` 运行打分计算
+   - 发送POST请求到 `/api/scoring/multi-dim/run` 运行打分计算
+   - 发送GET请求到 `/api/scoring/multi-dim/scores` 获取评分列表（`/api/multi-dim-scoring/list` 为旧路径，已废弃）
 
 3. **验证结果**
    - 检查返回的评分结果是否包含所有必要的字段

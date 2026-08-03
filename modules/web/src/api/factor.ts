@@ -65,5 +65,52 @@ export function getFactorResearch(params: {
   endDate: string
   holdingDays?: number
 }): Promise<FactorResearchResponse> {
-  return request.get('/api/factor/research', { params })
+  return request.get('/factor/research', { params })
+}
+
+/** 统一因子报告：T+1/2/3/5 多周期并列（Pearson/Rank IC/ICIR/单调性/多空 spread + 可执行净收益 IC）。 */
+export interface UnifiedReportHorizonRow {
+  holding_days: number
+  basis_note?: string
+  net_basis_note?: string
+  embargo_note?: string
+  cross_section_days: number
+  total_observations: number
+  rank_ic_mean: number
+  rank_ic_std: number
+  rank_ic_ir: number
+  rank_ic_positive_rate: number
+  pearson_ic_mean: number
+  monotonicity: string
+  hac_std: number
+  ci_lower: number
+  ci_upper: number
+  long_short_spread: number
+  executable_net_ic?: {
+    cross_section_days: number
+    total_observations: number
+    rank_ic_mean: number
+    rank_ic_std: number
+    rank_ic_ir: number
+    rank_ic_positive_rate: number
+    pearson_ic_mean: number
+    long_short_spread: number
+  }
+}
+
+export interface UnifiedFactorReport {
+  strategy: string
+  start_date: string
+  end_date: string
+  horizons: number[]
+  by_horizon: UnifiedReportHorizonRow[]
+  note?: string
+}
+
+export function getUnifiedFactorReport(params: {
+  strategy?: string
+  startDate: string
+  endDate: string
+}): Promise<UnifiedFactorReport> {
+  return request.get('/factor/unified-report', { params })
 }

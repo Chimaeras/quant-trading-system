@@ -213,7 +213,8 @@ public final class ScoringUtils {
 
     /**
      * 最近 20 个<strong>有成交</strong>交易日的日均成交额（元）。
-     * 零成交量（停牌代理）日不计入样本；不足 20 个有效样本时返回 0。
+     * 零成交量（停牌代理）日不计入样本；不足 20 个有效样本时按实际有效日数求平均，
+     * 不再直接归零——避免停牌偏多的小票被 minAvgAmount 误杀（上市时长另由 minListingDays 闸把关）。
      */
     public static double avgAmount20(List<MarketData> bars) {
         if (bars == null || bars.isEmpty()) {
@@ -229,7 +230,7 @@ public final class ScoringUtils {
             sum += bar.getAmount() != null ? bar.getAmount().doubleValue() : 0;
             count++;
         }
-        return count >= 20 ? sum / 20.0 : 0;
+        return count > 0 ? sum / count : 0;
     }
 
     /** 当 minAvgAmount &gt; 0 时，要求 avgAmount20 不低于该阈值。 */

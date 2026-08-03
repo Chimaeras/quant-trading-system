@@ -26,7 +26,7 @@
           <el-switch v-model="form.excludeSt" />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :loading="loading" @click="run">筛选</el-button>
+          <el-button type="primary" :loading="loading" @click="resetPageAndRun">筛选</el-button>
         </el-form-item>
         <el-form-item label="模板名">
           <el-input v-model="templateName" placeholder="保存当前条件" style="width: 150px" clearable />
@@ -44,11 +44,12 @@
         <template v-if="result">
           <div class="meta">
             <span>参考日：{{ result.reference_date }}</span>
-            <span>筛选前：{{ result.total_before_filter }}</span>
-            <span>返回：{{ result.returned }}</span>
+            <span>关键字/交易所匹配：{{ result.total_before_filter }}</span>
+            <span>过滤后：{{ result.total_after_filter }}</span>
+            <span>当前页：{{ result.returned }} 条</span>
           </div>
           <el-table :data="result.items" size="small" stripe border>
-            <el-table-column type="index" label="#" width="56" />
+            <el-table-column type="index" label="#" width="56" :index="(i: number) => (page - 1) * pageSize + i + 1" />
             <el-table-column prop="stock_code" label="代码" min-width="90" />
             <el-table-column prop="exchange_type" label="交易所" min-width="80" />
             <el-table-column prop="stock_name" label="名称" min-width="100" />
@@ -57,6 +58,15 @@
             <el-table-column prop="listing_days" label="上市天数" min-width="90" />
           </el-table>
           <el-empty v-if="!result.items.length" description="无符合条件的标的" />
+          <el-pagination
+            v-if="result.total_after_filter > pageSize"
+            v-model:current-page="page"
+            :page-size="pageSize"
+            :total="result.total_after_filter"
+            layout="total, prev, pager, next"
+            style="margin-top: 12px; justify-content: flex-end"
+            @current-change="run"
+          />
         </template>
         <el-empty v-else-if="!loading" description="设置条件后点击筛选" />
       </div>
@@ -94,6 +104,8 @@ import { useToast } from '@/composables/useToast'
 const toast = useToast()
 const loading = ref(false)
 const result = ref<ScreenerResponse | null>(null)
+const page = ref(1)
+const pageSize = ref(50)
 const templateName = ref('')
 const saving = ref(false)
 const loadingTpl = ref(false)
@@ -117,14 +129,19 @@ async function run() {
       industry: form.industry || undefined,
       minListingDays: form.minListingDays || undefined,
       excludeSt: form.excludeSt || undefined,
-      page: 1,
-      size: 50
+      page: page.value,
+      size: pageSize.value
     })
   } catch (e: any) {
     toast.error(e?.message || '筛选失败')
   } finally {
     loading.value = false
   }
+}
+
+function resetPageAndRun() {
+  page.value = 1
+  run()
 }
 
 function formatTime(value: string): string {

@@ -52,7 +52,16 @@ public class FactorResearchService {
     private static final String RANK_IC_UNIVERSE_NOTE =
             "基于 persisted 全截面候选（通过质量闸的全部条目，非 TopN 子集）；未复现历史时点股票池，存在幸存者偏差";
     private static final String RANK_IC_BASIS_NOTE =
-            "forward return = close[t+h]/close[t]-1，未计费用/滑点/涨跌停可成交性；与回测可执行收益口径不同，仅用于因子方向预测力评价";
+            "毛收益 IC：forward return = close[t+h]/close[t]-1，未计费用/滑点/涨跌停可成交性；"
+                    + "与回测可执行收益口径不同，仅用于因子方向预测力评价";
+    private static final String RANK_IC_NET_BASIS_NOTE =
+            "可执行净收益 IC：entry = open[t+1]×(1+佣金+滑点)，exit = close[t+1+h]×(1-佣金-印花税-滑点)，"
+                    + "与 ResearchConvention / LabelFactory 成交口径一致；不含涨跌停/停牌拒单过滤，仅作可执行口径下的因子预测力对照";
+    private static final String RANK_IC_EMBARGO_NOTE =
+            "信号日接近数据末端（forward 区间未形成）自动跳过，不外推、不使用未来数据；"
+                    + "重叠持有期 IC 序列的显著性以 HAC 标准误与 block bootstrap CI 为准";
+    private static final List<Integer> UNIFIED_HORIZONS = List.of(1, 2, 3, 5);
+    private static final int UNIFIED_MAX_HORIZON = 5;
 
     private final SelectorResultRepository selectorResultRepository;
     private final SelectorResultItemRepository selectorResultItemRepository;
@@ -95,6 +104,10 @@ public class FactorResearchService {
         }
         Collections.sort(scores);
 
+        // 行情一次性预加载（close+open），供 Rank IC 复用，避免逐股/逐持仓期重复查询
+        LocalDate calEnd = endDate.plusDays(holding * 2L);
+        PriceCache prices = loadPriceCache(itemsByResultId, startDate, calEnd);
+
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("strategy", strategy != null ? strategy : "ALL");
         out.put("start_date", startDate.toString());
@@ -106,7 +119,7 @@ public class FactorResearchService {
                 : Math.round(validCount * 10000.0 / allItems.size()) / 100.0);
         out.put("distribution", buildDistribution(scores));
         out.put("group_bands", buildGroupBands(scores, 5));
-        out.put("rank_ic", buildRankIc(latestPerKey, itemsByResultId, startDate, endDate, holding));
+        out.put("rank_ic", buildRankIc(latestPerKey, itemsByResultId, startDate, endDate, holding, prices));
         out.put("note", "仅作因子研究评价（覆盖率/分布/分组/Rank IC），禁止据此直接调整因子权重");
         return out;
     }
@@ -140,17 +153,20 @@ public class FactorResearchService {
             itemsByResultId.computeIfAbsent(it.getResultId(), k -> new ArrayList<>()).add(it);
         }
 
-        List<Integer> horizons = List.of(1, 2, 3, 5);
+        // 行情按最大持仓期一次性预加载，供所有 holding 复用（消除 4× 重复拉取）
+        LocalDate calEnd = endDate.plusDays(UNIFIED_MAX_HORIZON * 2L);
+        PriceCache prices = loadPriceCache(itemsByResultId, startDate, calEnd);
+
         List<Map<String, Object>> byHorizon = new ArrayList<>();
-        for (int h : horizons) {
-            byHorizon.add(buildRankIc(latestPerKey, itemsByResultId, startDate, endDate, h));
+        for (int h : UNIFIED_HORIZONS) {
+            byHorizon.add(buildRankIc(latestPerKey, itemsByResultId, startDate, endDate, h, prices));
         }
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("strategy", strategy != null ? strategy : "ALL");
         out.put("start_date", startDate.toString());
         out.put("end_date", endDate.toString());
-        out.put("horizons", horizons);
+        out.put("horizons", UNIFIED_HORIZONS);
         out.put("by_horizon", byHorizon);
         out.put("convention", ResearchConvention.labelDefinition());
         out.put("note", "统一因子研究报告：Pearson IC（线性）/ Rank IC（Spearman）/ ICIR / 正 IC 比例 / "
@@ -161,20 +177,26 @@ public class FactorResearchService {
     /**
      * Rank IC 研究块：复用 {@link FactorResearchEngine} 计算信号日得分与 forward return 的 Spearman 秩相关。
      *
-     * <p>forward return 口径：close[t+h] / close[t] - 1，t 为信号日，h 为持仓交易日数；
-     * 信号日 t 在交易日历中的位置 baseIdx，退出日 exitIdx = baseIdx + h，若 exitIdx 超出可用日历
-     * （信号日过接近数据末端，forward 区间尚未形成）则该日跳过，不外推、不使用未来数据。
+     * <p>毛收益口径：forward return = close[t+h] / close[t] - 1（t 为信号日，h 为持仓交易日数）。
+     * 可执行净收益口径（与 {@link ResearchConvention} 对齐）：entry = open[t+1]×(1+佣金+滑点)，
+     * exit = close[t+1+h]×(1-佣金-印花税-滑点)，即次日开盘入场、持有 h 个交易日收盘退出并扣费。
+     * 两个口径各自独立汇总输出，供并列对比；信号日接近数据末端（forward 区间未形成）自动跳过，不外推。
+     *
+     * <p>行情由调用方通过 {@code prices} 一次性预加载（close+open 查找表），本方法不再逐股查询。
      */
     private Map<String, Object> buildRankIc(
             Map<String, SelectorResult> latestPerKey,
             Map<String, List<SelectorResultItem>> itemsByResultId,
             LocalDate startDate,
             LocalDate endDate,
-            int holdingDays) {
+            int holdingDays,
+            PriceCache prices) {
         Map<String, Object> block = new LinkedHashMap<>();
         block.put("holding_days", holdingDays);
         block.put("group_count", RANK_IC_GROUP_COUNT);
         block.put("basis_note", RANK_IC_BASIS_NOTE);
+        block.put("net_basis_note", RANK_IC_NET_BASIS_NOTE);
+        block.put("embargo_note", RANK_IC_EMBARGO_NOTE);
         block.put("universe_note", RANK_IC_UNIVERSE_NOTE);
 
         if (latestPerKey.isEmpty()) {
@@ -187,6 +209,7 @@ public class FactorResearchService {
             block.put("long_short_spread", 0.0);
             block.put("daily_rank_ic", List.of());
             block.put("grouped_returns", List.of());
+            block.put("executable_net_ic", emptyNetIcBlock());
             return block;
         }
 
@@ -199,71 +222,71 @@ public class FactorResearchService {
             dayIndex.put(tradingDays.get(i), i);
         }
 
-        // 收集候选涉及的证券，按证券批量拉取区间行情，构建 close 查找表（避免 N+1）
-        Map<String, BigDecimal> closeMap = new HashMap<>();
-        Map<String, Map<LocalDate, BigDecimal>> perStockDates = new HashMap<>();
-        for (List<SelectorResultItem> items : itemsByResultId.values()) {
-            for (SelectorResultItem it : items) {
-                String stockKey = it.getStockCode() + "|" + it.getExchangeType();
-                perStockDates.computeIfAbsent(stockKey, k -> new HashMap<>());
-            }
-        }
-        for (String stockKey : perStockDates.keySet()) {
-            int sep = stockKey.indexOf('|');
-            String code = stockKey.substring(0, sep);
-            String ex = stockKey.substring(sep + 1);
-            List<MarketData> bars = marketDataRepository
-                    .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(code, ex, calStart, calEnd);
-            Map<LocalDate, BigDecimal> dates = perStockDates.get(stockKey);
-            for (MarketData bar : bars) {
-                if (bar.getClosePrice() != null) {
-                    dates.put(bar.getTradeDate(), bar.getClosePrice());
-                    closeMap.put(stockKey + "|" + bar.getTradeDate(), bar.getClosePrice());
-                }
-            }
-        }
-
-        // 逐信号日构建截面观测
-        Map<String, List<CrossSectionObservation>> observationsByDate = new LinkedHashMap<>();
+        // 逐信号日构建截面观测（毛收益 + 可执行净收益，两个独立口径）
+        Map<String, List<CrossSectionObservation>> grossObsByDate = new LinkedHashMap<>();
+        Map<String, List<CrossSectionObservation>> netObsByDate = new LinkedHashMap<>();
         for (SelectorResult result : latestPerKey.values()) {
             LocalDate signalDate = result.getTradeDate();
             Integer baseIdx = dayIndex.get(signalDate);
             if (baseIdx == null) {
                 continue;
             }
-            int exitIdx = baseIdx + holdingDays;
-            if (exitIdx >= tradingDays.size()) {
-                // forward 区间尚未形成，跳过该日（不外推、不用未来数据）
-                continue;
-            }
-            LocalDate exitDate = tradingDays.get(exitIdx);
+            int grossExitIdx = baseIdx + holdingDays;
+            int netEntryIdx = baseIdx + 1;
+            int netExitIdx = netEntryIdx + holdingDays;
+
             List<SelectorResultItem> items = itemsByResultId.getOrDefault(result.getResultId(), List.of());
-            List<CrossSectionObservation> obs = new ArrayList<>();
+            List<CrossSectionObservation> grossObs = new ArrayList<>();
+            List<CrossSectionObservation> netObs = new ArrayList<>();
             for (SelectorResultItem it : items) {
                 if (it.getFinalScore() == null || it.getFinalScore() <= 0) {
                     continue;
                 }
                 String stockKey = it.getStockCode() + "|" + it.getExchangeType();
-                BigDecimal closeSignal = closeMap.get(stockKey + "|" + signalDate);
-                BigDecimal closeExit = closeMap.get(stockKey + "|" + exitDate);
-                if (closeSignal == null || closeExit == null) {
-                    continue;
+                double score = it.getFinalScore();
+
+                // 毛收益：close[t+h] / close[t] - 1
+                if (grossExitIdx < tradingDays.size()) {
+                    LocalDate exitDate = tradingDays.get(grossExitIdx);
+                    BigDecimal closeSignal = prices.close().get(stockKey + "|" + signalDate);
+                    BigDecimal closeExit = prices.close().get(stockKey + "|" + exitDate);
+                    if (closeSignal != null && closeExit != null
+                            && closeSignal.doubleValue() > 0 && closeExit.doubleValue() > 0) {
+                        double forwardReturn = closeExit.doubleValue() / closeSignal.doubleValue() - 1.0;
+                        grossObs.add(new CrossSectionObservation(score, forwardReturn));
+                    }
                 }
-                double cs = closeSignal.doubleValue();
-                double ce = closeExit.doubleValue();
-                if (cs <= 0 || ce <= 0) {
-                    continue;
+
+                // 可执行净收益：open[t+1]×(1+佣金+滑点) 入场 → close[t+1+h]×(1-佣金-印花税-滑点) 退出
+                if (netExitIdx < tradingDays.size()) {
+                    LocalDate entryDate = tradingDays.get(netEntryIdx);
+                    LocalDate exitDate = tradingDays.get(netExitIdx);
+                    BigDecimal openEntry = prices.open().get(stockKey + "|" + entryDate);
+                    BigDecimal closeExit = prices.close().get(stockKey + "|" + exitDate);
+                    if (openEntry != null && closeExit != null
+                            && openEntry.doubleValue() > 0 && closeExit.doubleValue() > 0) {
+                        double entryPrice = openEntry.doubleValue()
+                                * (1 + ResearchConvention.DEFAULT_SLIPPAGE_RATE);
+                        double entryCost = entryPrice * (1 + ResearchConvention.DEFAULT_COMMISSION_RATE);
+                        double exitPrice = closeExit.doubleValue()
+                                * (1 - ResearchConvention.DEFAULT_SLIPPAGE_RATE);
+                        double exitProceeds = exitPrice
+                                * (1 - ResearchConvention.DEFAULT_COMMISSION_RATE - ResearchConvention.DEFAULT_SELL_TAX_RATE);
+                        double netReturn = exitProceeds / entryCost - 1.0;
+                        netObs.add(new CrossSectionObservation(score, netReturn));
+                    }
                 }
-                double forwardReturn = ce / cs - 1.0;
-                obs.add(new CrossSectionObservation(it.getFinalScore(), forwardReturn));
             }
-            if (!obs.isEmpty()) {
-                observationsByDate.put(signalDate.toString(), obs);
+            if (!grossObs.isEmpty()) {
+                grossObsByDate.put(signalDate.toString(), grossObs);
+            }
+            if (!netObs.isEmpty()) {
+                netObsByDate.put(signalDate.toString(), netObs);
             }
         }
 
         FactorResearchSummary summary = FactorResearchEngine.summarize(
-                observationsByDate,
+                grossObsByDate,
                 holdingDays,
                 RANK_IC_GROUP_COUNT,
                 RANK_IC_MIN_CROSS_SECTION_SIZE,
@@ -303,8 +326,90 @@ public class FactorResearchService {
             grouped.add(row);
         }
         block.put("grouped_returns", grouped);
+
+        // 可执行净收益 IC（与标签/回测成交口径对齐的对照列）
+        block.put("executable_net_ic", buildNetIcBlock(
+                FactorResearchEngine.summarize(
+                        netObsByDate,
+                        holdingDays,
+                        RANK_IC_GROUP_COUNT,
+                        RANK_IC_MIN_CROSS_SECTION_SIZE,
+                        RANK_IC_UNIVERSE_NOTE)));
         return block;
     }
+
+    private Map<String, Object> emptyNetIcBlock() {
+        Map<String, Object> net = new LinkedHashMap<>();
+        net.put("basis_note", RANK_IC_NET_BASIS_NOTE);
+        net.put("cross_section_days", 0);
+        net.put("total_observations", 0);
+        net.put("rank_ic_mean", 0.0);
+        net.put("rank_ic_std", 0.0);
+        net.put("rank_ic_ir", 0.0);
+        net.put("rank_ic_positive_rate", 0.0);
+        net.put("pearson_ic_mean", 0.0);
+        net.put("hac_std", 0.0);
+        net.put("ci_lower", 0.0);
+        net.put("ci_upper", 0.0);
+        net.put("long_short_spread", 0.0);
+        net.put("note", "可执行净收益 IC（next-open 入场 + 持有期收盘退出 + 扣费）；与毛收益 IC 窗口差一日（次日开盘入场），并列仅作口径对照");
+        return net;
+    }
+
+    private Map<String, Object> buildNetIcBlock(FactorResearchSummary s) {
+        Map<String, Object> net = new LinkedHashMap<>();
+        net.put("basis_note", RANK_IC_NET_BASIS_NOTE);
+        net.put("cross_section_days", s.crossSectionDays());
+        net.put("total_observations", s.totalObservations());
+        net.put("rank_ic_mean", round4(s.rankIcMean()));
+        net.put("rank_ic_std", round4(s.rankIcStd()));
+        net.put("rank_ic_ir", round4(s.rankIcIr()));
+        net.put("rank_ic_positive_rate", round4(s.rankIcPositiveRate()));
+        net.put("pearson_ic_mean", round4(s.pearsonIcMean()));
+        net.put("monotonicity", s.monotonicity());
+        net.put("hac_std", round4(s.hacStd()));
+        net.put("ci_lower", round4(s.ciLower()));
+        net.put("ci_upper", round4(s.ciUpper()));
+        net.put("long_short_spread", round4(s.longShortSpread()));
+        net.put("note", "可执行净收益 IC（next-open 入场 + 持有期收盘退出 + 扣费）；与毛收益 IC 窗口差一日（次日开盘入场），并列仅作口径对照");
+        return net;
+    }
+
+    /**
+     * 一次性预加载所有候选证券在 [calStart, calEnd] 的 close/open 查找表（key = "code|ex|date"）。
+     * 供各持仓期复用，避免逐股/逐持仓期重复查询。
+     */
+    private PriceCache loadPriceCache(Map<String, List<SelectorResultItem>> itemsByResultId,
+                                      LocalDate calStart, LocalDate calEnd) {
+        Map<String, BigDecimal> close = new HashMap<>();
+        Map<String, BigDecimal> open = new HashMap<>();
+        java.util.Set<String> stockKeys = new java.util.LinkedHashSet<>();
+        for (List<SelectorResultItem> items : itemsByResultId.values()) {
+            for (SelectorResultItem it : items) {
+                stockKeys.add(it.getStockCode() + "|" + it.getExchangeType());
+            }
+        }
+        for (String stockKey : stockKeys) {
+            int sep = stockKey.indexOf('|');
+            String code = stockKey.substring(0, sep);
+            String ex = stockKey.substring(sep + 1);
+            List<MarketData> bars = marketDataRepository
+                    .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(code, ex, calStart, calEnd);
+            for (MarketData bar : bars) {
+                String key = stockKey + "|" + bar.getTradeDate();
+                if (bar.getClosePrice() != null) {
+                    close.put(key, bar.getClosePrice());
+                }
+                if (bar.getOpenPrice() != null) {
+                    open.put(key, bar.getOpenPrice());
+                }
+            }
+        }
+        return new PriceCache(close, open);
+    }
+
+    /** 预加载的行情查找表（close/open，key = "code|ex|date"）。 */
+    private record PriceCache(Map<String, BigDecimal> close, Map<String, BigDecimal> open) {}
 
     private static int resolveHoldingDays(Integer holdingDays) {
         if (holdingDays == null || holdingDays < 1) {

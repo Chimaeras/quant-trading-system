@@ -14,6 +14,8 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ScoringBacktestResponse {
+    /** 回测运行标识（已持久化，可按此回溯历史结果）；未持久化时为空。 */
+    private String resultId;
     private String strategyType;
     private LocalDate startDate;
     private LocalDate endDate;

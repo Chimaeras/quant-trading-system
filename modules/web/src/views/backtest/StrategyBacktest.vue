@@ -30,6 +30,14 @@
         <el-input-number v-model="form.shortPeriod" :min="2" :max="60" /> /
         <el-input-number v-model="form.longPeriod" :min="5" :max="250" />
       </el-form-item>
+      <el-form-item v-if="form.strategyType === 'BOLL'" label="布林带周期/倍数">
+        <el-input-number v-model="form.bollPeriod" :min="5" :max="120" /> /
+        <el-input-number v-model="form.bollStdDev" :min="0.5" :max="4" :step="0.1" />
+      </el-form-item>
+      <el-form-item v-if="form.strategyType === 'MACD'" label="MACD 快/慢线">
+        <el-input-number v-model="form.macdFast" :min="2" :max="60" /> /
+        <el-input-number v-model="form.macdSlow" :min="10" :max="120" />
+      </el-form-item>
       <el-form-item>
         <el-button type="primary" :loading="running" @click="run">执行回测</el-button>
       </el-form-item>
@@ -100,7 +108,11 @@ const form = reactive({
   endDate: dayjs().format('YYYY-MM-DD'),
   initialCapital: 100000,
   shortPeriod: 5,
-  longPeriod: 20
+  longPeriod: 20,
+  bollPeriod: 20,
+  bollStdDev: 2.0,
+  macdFast: 12,
+  macdSlow: 26
 })
 
 function fmtPct(v?: number) {

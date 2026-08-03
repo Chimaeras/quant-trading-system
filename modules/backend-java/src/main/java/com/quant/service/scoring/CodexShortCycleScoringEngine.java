@@ -367,6 +367,7 @@ public class CodexShortCycleScoringEngine {
         long weakLogMvCount = raws.stream()
                 .filter(r -> !CrossSectionNeutralizer.isReliableLogMvSource(r.logMvSource()))
                 .count();
+        long reliableMvCount = raws.size() - weakLogMvCount;
 
         List<ScoredRow> rows = new ArrayList<>(raws.size());
         for (int i = 0; i < raws.size(); i++) {
@@ -383,9 +384,6 @@ public class CodexShortCycleScoringEngine {
             bd.put("neutralization_industries", neutCtx != null ? neutCtx.industryCount() : 0);
             bd.put("preprocessing", "winsorize→OLS(lnMV+industry)→robustZ(MAD,no二次winsorize)");
             bd.put("G_market", ScoringUtils.round4(g));
-            long reliableMvCount = raws.stream()
-                    .filter(rf -> CrossSectionNeutralizer.isReliableLogMvSource(rf.logMvSource()))
-                    .count();
             String gWeighting = reliableMvCount == raws.size()
                     ? "value_weighted_by_exp_logMv"
                     : "mixed_reliable_mv_or_equal_weight";

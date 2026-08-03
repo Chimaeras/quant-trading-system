@@ -1,6 +1,7 @@
 package com.quant.service.backtest;
 
 import com.quant.entity.MarketData;
+import com.quant.research.ResearchConvention;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -70,7 +71,8 @@ class StrategyBacktestEngineTest {
                     .orElseThrow();
             double open = bar.getOpenPrice().doubleValue();
             double close = bar.getClosePrice().doubleValue();
-            assertThat(buy.price()).isCloseTo(open * 1.001, org.assertj.core.data.Offset.offset(1e-6));
+            double buyWithSlippage = open * (1 + ResearchConvention.DEFAULT_SLIPPAGE_RATE);
+            assertThat(buy.price()).isCloseTo(buyWithSlippage, org.assertj.core.data.Offset.offset(1e-6));
             assertThat(buy.price()).isNotEqualTo(close);
         }
     }
@@ -102,6 +104,19 @@ class StrategyBacktestEngineTest {
         assertThat(assumptions.get("t_plus_one_sell")).isEqualTo(true);
         assertThat(assumptions.get("limit_up_entry_blocked")).isEqualTo(true);
         assertThat(assumptions.get("entry")).isEqualTo("SAME_DAY_OPEN");
+    }
+
+    @Test
+    void costConstantsMatchResearchConvention() {
+        var assumptions = StrategyBacktestEngine.executionAssumptions();
+        assertThat(assumptions.get("commission_rate"))
+                .isEqualTo(ResearchConvention.DEFAULT_COMMISSION_RATE);
+        assertThat(assumptions.get("stamp_duty_rate"))
+                .isEqualTo(ResearchConvention.DEFAULT_SELL_TAX_RATE);
+        assertThat(assumptions.get("slippage_rate_each_side"))
+                .isEqualTo(ResearchConvention.DEFAULT_SLIPPAGE_RATE);
+        assertThat(String.valueOf(assumptions.get("costs_source")))
+                .contains(ResearchConvention.CONVENTION_VERSION);
     }
 
     private static List<MarketData> macdOscillationSeries() {

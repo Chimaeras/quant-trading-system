@@ -17,3 +17,9 @@ CREATE INDEX idx_trade_time_range ON trading_log(trade_time, order_status);
 
 -- 4. 策略交易统计
 CREATE INDEX idx_strategy_trades ON trading_log(strategy_id, trade_time);
+
+-- 5. 按上市日查询（list_date 回填/证券主数据初始化常按上市日筛选）
+CREATE INDEX idx_stock_info_list_date ON stock_info(list_date);
+
+-- 6. 单股按日期区间查询（K线/回测/因子研究按 code+date 高频访问）
+CREATE INDEX idx_market_data_stock_date ON market_data(stock_code, exchange_type, trade_date);

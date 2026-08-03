@@ -14,6 +14,8 @@ export interface ScreenerResponse {
   page: number
   size: number
   total_before_filter: number
+  total_after_filter: number
+  total_pages: number
   returned: number
   items: ScreenerItem[]
   filters: {
@@ -35,7 +37,7 @@ export function runScreener(params: {
   page?: number
   size?: number
 }): Promise<ScreenerResponse> {
-  return request.get('/api/screener/run', { params })
+  return request.get('/screener/run', { params })
 }
 
 export interface ScreenerTemplate {
@@ -59,13 +61,13 @@ export function saveScreenerTemplate(params: {
   excludeSt?: boolean
   userId?: number
 }): Promise<ScreenerTemplate> {
-  return request.post('/api/screener/templates/save', params)
+  return request.post('/screener/templates/save', params)
 }
 
 export function listScreenerTemplates(userId?: number): Promise<ScreenerTemplate[]> {
-  return request.get('/api/screener/templates/list', { params: userId ? { userId } : {} })
+  return request.get('/screener/templates/list', { params: userId ? { userId } : {} })
 }
 
 export function deleteScreenerTemplate(id: number, userId?: number): Promise<{ deleted: boolean }> {
-  return request.post('/api/screener/templates/delete', { id, ...(userId ? { userId } : {}) })
+  return request.post('/screener/templates/delete', { id, ...(userId ? { userId } : {}) })
 }

@@ -55,10 +55,11 @@ scoring:
 quant:
   auth:
     enabled: false
-    jwt-secret: quant-dev-secret-change-me-in-production-32b
+    # 生产环境必须通过环境变量覆盖；下方仅为开发默认值，启动时若沿用会打印告警
+    jwt-secret: ${JWT_SECRET:quant-dev-secret-change-me-in-production-32b}
     jwt-expiration-hours: 72
-    default-admin-username: admin
-    default-admin-password: admin123
+    default-admin-username: ${DEFAULT_ADMIN_USERNAME:admin}
+    default-admin-password: ${DEFAULT_ADMIN_PASSWORD:admin123}
     default-sim-cash: 1000000
   scoring:
     cross-section:

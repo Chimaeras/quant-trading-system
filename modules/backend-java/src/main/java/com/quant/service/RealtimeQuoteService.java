@@ -87,7 +87,8 @@ public class RealtimeQuoteService {
 
             return result;
         } catch (Exception e) {
-            log.debug("获取实时行情失败: {} {} - {}", code, exchangeType, e.getMessage());
+            // 用 warn 而非 debug：拉取失败会影响实时行情可用性，INFO 级别下应可见
+            log.warn("获取实时行情失败: {} {} - {}", code, exchangeType, e.getMessage());
             return Map.of();
         }
     }

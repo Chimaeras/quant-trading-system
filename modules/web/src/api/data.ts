@@ -37,6 +37,10 @@ export interface HotStocksResponse {
 }
 
 const mockDataEnabled = import.meta.env.DEV && import.meta.env.VITE_ENABLE_MOCK_DATA === 'true'
+if (mockDataEnabled) {
+  // 醒目告警：Mock 数据开启时页面可能显示模拟行情而非真实后端数据，避免被误判为线上数据
+  console.warn('⚠ Mock 数据已启用（VITE_ENABLE_MOCK_DATA=true，仅本地开发）。页面将显示模拟行情，非真实后端数据。')
+}
 
 /** 计算两个日期之间的交易日数量（去除周末） */
 function tradingDaysBetween(start: string, end: string): number {

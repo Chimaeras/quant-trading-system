@@ -144,6 +144,10 @@ public class MultiDimScoringService {
         SectorIndustryMaps sim = buildSectorRankAndIndustryRet5(pairs, infoByKey, grouped);
         IndustryAvgs indAvgs = mergeIndustryRet(indPe, sim.industryAvgRet5());
 
+        // 市场环境统一计算一次（全市场查询较重），传入每股打分线程复用，避免 O(股票数) 次全表加载
+        MarketEnvironmentAnalyzer.MarketIndicators marketIndicators =
+                marketEnvironmentAnalyzer.analyze(tradeDate, 60);
+
         List<StockMultiDimScore> rows = Collections.synchronizedList(new ArrayList<>());
         AtomicInteger skipped = new AtomicInteger(0);
 
@@ -159,7 +163,7 @@ public class MultiDimScoringService {
                 String stockCode = p > 0 ? key.substring(0, p) : key;
                 String exchangeType = p > 0 ? key.substring(p + 1) : "";
                 scoreAndAdd(key, stockCode, exchangeType, tradeDate, grouped.getOrDefault(key, List.of()),
-                        mdToday.get(key), infoByKey.get(key), indAvgs, sim, rows, skipped, excludeST, minListingDays, minAvgAmount);
+                        mdToday.get(key), infoByKey.get(key), indAvgs, sim, rows, skipped, excludeST, minListingDays, minAvgAmount, marketIndicators);
             }
         } else {
             ExecutorService pool = Executors.newFixedThreadPool(threads, r -> {
@@ -172,13 +176,14 @@ public class MultiDimScoringService {
             final boolean finalExcludeST = excludeST;
             final int finalMinListingDays = minListingDays;
             final double finalMinAvgAmount = minAvgAmount;
+            final MarketEnvironmentAnalyzer.MarketIndicators finalMarketIndicators = marketIndicators;
             for (String key : keys) {
                 cs.submit(() -> {
                     int p = key.indexOf('|');
                     String stockCode = p > 0 ? key.substring(0, p) : key;
                     String exchangeType = p > 0 ? key.substring(p + 1) : "";
                     scoreAndAdd(key, stockCode, exchangeType, tradeDate, grouped.getOrDefault(key, List.of()),
-                            mdToday.get(key), infoByKey.get(key), indAvgs, sim, rows, skipped, finalExcludeST, finalMinListingDays, finalMinAvgAmount);
+                            mdToday.get(key), infoByKey.get(key), indAvgs, sim, rows, skipped, finalExcludeST, finalMinListingDays, finalMinAvgAmount, finalMarketIndicators);
                     return null;
                 });
             }
@@ -187,6 +192,8 @@ public class MultiDimScoringService {
                     cs.take().get();
                 } catch (Exception e) {
                     skipped.incrementAndGet();
+                    // 记录根因，避免打分任务整体失败原因不可见
+                    log.warn("多维度打分个股任务失败: {} - {}", e.getCause() != null ? e.getCause().getMessage() : e.getMessage(), e.getClass().getSimpleName());
                 }
             }
             ExecutorLifecycle.shutdownGracefully(pool);
@@ -235,7 +242,8 @@ public class MultiDimScoringService {
             AtomicInteger skipped,
             boolean excludeST,
             int minListingDays,
-            double minAvgAmount) {
+            double minAvgAmount,
+            MarketEnvironmentAnalyzer.MarketIndicators marketIndicators) {
 
         if (bars == null || bars.size() < MIN_BARS) {
             skipped.incrementAndGet();
@@ -313,9 +321,7 @@ public class MultiDimScoringService {
             }
         }
 
-        // 使用真实市场环境分析
-        MarketEnvironmentAnalyzer.MarketIndicators marketIndicators =
-                marketEnvironmentAnalyzer.analyze(tradeDate, 60);
+        // 市场环境由 run() 统一计算一次后传入（避免每股线程内重复全市场查询）
         String marketEnvironment = marketIndicators.marketEnvironment();
         DynamicWeightingService.MarketEnvironment marketWeights =
                 DynamicWeightingService.getMarketEnvironmentWeights(marketEnvironment);

@@ -38,5 +38,5 @@ export interface CompareResponse {
 }
 
 export function compareStrategies(tradeDate: string, topN = 10): Promise<CompareResponse> {
-  return request.get('/api/compare/strategies', { params: { tradeDate, topN } })
+  return request.get('/compare/strategies', { params: { tradeDate, topN } })
 }

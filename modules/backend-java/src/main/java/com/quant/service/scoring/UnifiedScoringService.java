@@ -291,6 +291,21 @@ public class UnifiedScoringService {
         return out;
     }
 
+    /** 近期打分任务列表（供选股工作台「历史结果」tab，轻量摘要，不含明细）。 */
+    public List<Map<String, Object>> recentTasks() {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (com.quant.entity.UnifiedScoringTask task : unifiedScoringTaskRepository.findTop20ByOrderByCreatedAtDesc()) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("task_id", task.getTaskId());
+            m.put("strategy", task.getStrategy());
+            m.put("status", task.getStatus());
+            m.put("result_id", nvl(task.getResultId(), ""));
+            m.put("created_at", task.getCreatedAt() != null ? task.getCreatedAt().toString() : "");
+            out.add(m);
+        }
+        return out;
+    }
+
     @Transactional
     public Map<String, Object> cancelTask(String taskId) {
         com.quant.entity.UnifiedScoringTask task = unifiedScoringTaskRepository.findByTaskId(taskId).orElse(null);
@@ -632,7 +647,8 @@ public class UnifiedScoringService {
         }
         try {
             return objectMapper.readValue(requestJson, new TypeReference<Map<String, Object>>() {});
-        } catch (Exception ignore) {
+        } catch (Exception e) {
+            log.warn("读取续跑请求 JSON 失败，按空配置处理: {}", e.getMessage());
             return new HashMap<>();
         }
     }
@@ -856,11 +872,12 @@ public class UnifiedScoringService {
             }
             selectorResultItemRepository.save(toUnifiedItem(resultId, rank++, strategy, item));
             success++;
+            // 进度字段在内存累积，循环结束后一次性 save(sr)，避免对同一父行反复 UPDATE 的写放大；
+            // 断点续跑以 item 是否已存在（existing 集合）为准，不依赖父表进度字段
             sr.setProcessedCandidates(processed);
             sr.setSuccessCandidates(success);
             sr.setFailedCandidates(Math.max(0, processed - success));
             sr.setLastProcessedKey(stockKey);
-            selectorResultRepository.save(sr);
         }
         sr.setProcessedCandidates(processed);
         sr.setSuccessCandidates(success);

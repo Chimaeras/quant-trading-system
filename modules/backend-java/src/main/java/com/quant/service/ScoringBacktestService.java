@@ -1,5 +1,7 @@
 package com.quant.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.quant.dto.ScoringBacktestRequest;
 import com.quant.dto.ScoringBacktestResponse;
 import com.quant.dto.ScoringBacktestResponse.DailyDetail;
@@ -9,9 +11,11 @@ import com.quant.dto.ScoringBacktestResponse.FactorIcSummary;
 import com.quant.dto.ScoringBacktestResponse.GroupReturnStat;
 import com.quant.dto.ScoringBacktestResponse.PeriodStat;
 import com.quant.dto.ScoringBacktestResponse.StockReturn;
+import com.quant.entity.BacktestRun;
 import com.quant.entity.MarketData;
 import com.quant.entity.SelectorResult;
 import com.quant.entity.SelectorResultItem;
+import com.quant.repository.BacktestRunRepository;
 import com.quant.repository.MarketDataRepository;
 import com.quant.repository.SelectorResultItemRepository;
 import com.quant.repository.SelectorResultRepository;
@@ -56,6 +60,8 @@ public class ScoringBacktestService {
     private final SelectorResultRepository resultRepo;
     private final SelectorResultItemRepository itemRepo;
     private final MarketDataRepository marketDataRepo;
+    private final BacktestRunRepository backtestRunRepository;
+    private final ObjectMapper objectMapper;
 
     public ScoringBacktestResponse run(ScoringBacktestRequest req) {
         log.info("开始打分回测: strategy={}, range=[{} -> {}], topN={}, holdingDays={}",
@@ -377,7 +383,7 @@ public class ScoringBacktestService {
         Map<String, Object> shortValidation = buildShortHorizonValidation(factorIcByHolding, factorSummary);
         mergeCodexFactorValidation(shortValidation, codexFactorIcByHolding);
 
-        return ScoringBacktestResponse.builder()
+        ScoringBacktestResponse response = ScoringBacktestResponse.builder()
                 .strategyType(req.getStrategyType())
                 .startDate(req.getStartDate())
                 .endDate(req.getEndDate())
@@ -392,6 +398,94 @@ public class ScoringBacktestService {
                 .shortHorizonValidation(shortValidation)
                 .codexFactorIcByHolding(codexFactorIcByHolding)
                 .build();
+        persistRun(req, response);
+        return response;
+    }
+
+    /**
+     * 持久化回测运行记录（参数+假设+数据截止日+完整结果），供按 resultId 回溯/分享。
+     * 持久化失败不阻断回测主流程，仅告警。
+     */
+    private void persistRun(ScoringBacktestRequest req, ScoringBacktestResponse response) {
+        try {
+            if (response.getTotalTradingDays() == 0) {
+                return; // 无有效回测数据不落库，避免污染历史列表
+            }
+            BacktestRun run = new BacktestRun();
+            run.setResultId(generateResultId());
+            run.setStrategyType(req.getStrategyType() != null ? req.getStrategyType() : "ALL");
+            run.setStartDate(req.getStartDate());
+            run.setEndDate(req.getEndDate());
+            run.setTopN(response.getTopN());
+            run.setHoldingDays(toJson(req.getHoldingDays()));
+            run.setCommissionRate(BigDecimal.valueOf(req.getCommissionRate() != null ? req.getCommissionRate() : 0.0003));
+            run.setSellTaxRate(BigDecimal.valueOf(req.getSellTaxRate() != null ? req.getSellTaxRate() : 0.0005));
+            run.setSlippageRate(BigDecimal.valueOf(req.getSlippageRate() != null ? req.getSlippageRate() : 0.0002));
+            run.setLatestDataDate(marketDataRepo.findMaxTradeDate().orElse(null));
+            run.setAssumptions(toJson(response.getExecutionAssumptions()));
+            Map<String, Object> summary = new LinkedHashMap<>();
+            summary.put("totalTradingDays", response.getTotalTradingDays());
+            summary.put("holdingPeriodStats", response.getHoldingPeriodStats());
+            run.setSummary(toJson(summary));
+            // 先回填 resultId 再序列化，保证存储 JSON 自包含（含 result_id）
+            response.setResultId(run.getResultId());
+            run.setResponse(toJson(response));
+            backtestRunRepository.save(run);
+        } catch (Exception e) {
+            log.warn("回测结果持久化失败: {}", e.getMessage());
+        }
+    }
+
+    /** 最近的历史回测运行列表（摘要，不含完整明细）。 */
+    public List<Map<String, Object>> listRuns(int limit) {
+        int n = Math.max(1, Math.min(limit > 0 ? limit : 20, 100));
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (BacktestRun r : backtestRunRepository.findAllByOrderByCreatedAtDesc(
+                org.springframework.data.domain.PageRequest.of(0, n))) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("result_id", r.getResultId());
+            m.put("strategy_type", r.getStrategyType());
+            m.put("start_date", r.getStartDate());
+            m.put("end_date", r.getEndDate());
+            m.put("top_n", r.getTopN());
+            m.put("latest_data_date", r.getLatestDataDate());
+            m.put("created_at", r.getCreatedAt());
+            try {
+                m.put("summary", objectMapper.readValue(r.getSummary(), new TypeReference<Map<String, Object>>() {}));
+            } catch (Exception ignore) {
+                // summary 损坏时不影响列表
+            }
+            out.add(m);
+        }
+        return out;
+    }
+
+    /** 按 resultId 回溯完整回测结果；不存在返回 null。 */
+    public ScoringBacktestResponse getRun(String resultId) {
+        return backtestRunRepository.findByResultId(resultId).map(r -> {
+            try {
+                ScoringBacktestResponse resp = objectMapper.readValue(r.getResponse(), ScoringBacktestResponse.class);
+                resp.setResultId(r.getResultId());
+                return resp;
+            } catch (Exception e) {
+                log.warn("回溯回测结果反序列化失败 resultId={}: {}", resultId, e.getMessage());
+                return null;
+            }
+        }).orElse(null);
+    }
+
+    private static String generateResultId() {
+        String ts = java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss").format(java.time.LocalDateTime.now());
+        return "BT-" + ts + "-" + String.format("%04d", java.util.concurrent.ThreadLocalRandom.current().nextInt(10000));
+    }
+
+    private String toJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception e) {
+            log.warn("JSON 序列化失败: {}", e.getMessage());
+            return "{}";
+        }
     }
 
     static void mergeCodexFactorValidation(

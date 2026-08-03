@@ -62,6 +62,15 @@ class FactorResearchServiceTest {
         return m;
     }
 
+    private static MarketData openBar(String code, String ex, LocalDate date, double open) {
+        MarketData m = new MarketData();
+        m.setStockCode(code);
+        m.setExchangeType(ex);
+        m.setTradeDate(date);
+        m.setOpenPrice(BigDecimal.valueOf(open));
+        return m;
+    }
+
     @Test
     void researchComputesCoverageAndDistribution() {
         LocalDate d = LocalDate.of(2025, 1, 2);
@@ -110,6 +119,58 @@ class FactorResearchServiceTest {
         assertThat(rankIc.get("holding_days")).isEqualTo(5);
         assertThat(rankIc.get("cross_section_days")).isEqualTo(0);
         assertThat(rankIc.get("basis_note")).asString().contains("close[t+h]");
+    }
+
+    @Test
+    void unifiedReportComputesExecutableNetIc() {
+        // 4 个交易日 t..t3；h=2 时毛收益退出日=t2，可执行净收益 next-open 入场=t1、退出日=t3
+        LocalDate t = LocalDate.of(2025, 1, 2);
+        LocalDate t1 = LocalDate.of(2025, 1, 3);
+        LocalDate t2 = LocalDate.of(2025, 1, 4);
+        LocalDate t3 = LocalDate.of(2025, 1, 5);
+        when(selectorResultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(t, t))
+                .thenReturn(List.of(result("R1", "CLASSIC_SELECTOR", t)));
+
+        List<SelectorResultItem> items = new ArrayList<>();
+        List<String> codes = List.of("000001", "000002", "000003", "000004", "000005",
+                "600519", "600518", "600517", "600516", "600515");
+        for (int i = 0; i < 10; i++) {
+            items.add(item("R1", 10.0 * (i + 1), codes.get(i), i < 5 ? "SZSE" : "SSE"));
+        }
+        when(selectorResultItemRepository.findByResultIdInOrderByRankNo(any())).thenReturn(items);
+        when(marketDataRepository.findDistinctTradeDatesBetween(any(), any()))
+                .thenAnswer(inv -> List.of(t, t1, t2, t3));
+        when(marketDataRepository.findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
+                any(), any(), any(), any()))
+                .thenAnswer(inv -> {
+                    String code = inv.getArgument(0);
+                    String ex = inv.getArgument(1);
+                    int i = codes.indexOf(code);
+                    List<MarketData> bars = new ArrayList<>();
+                    bars.add(bar(code, ex, t, 10.0));             // close@t
+                    bars.add(openBar(code, ex, t1, 10.0));        // open@t1 (净收益入场)
+                    bars.add(bar(code, ex, t2, 10.0 + i * 0.01)); // close@t2 (毛收益退出)
+                    bars.add(bar(code, ex, t3, 10.0 + i * 0.01)); // close@t3 (净收益退出)
+                    return bars;
+                });
+
+        Map<String, Object> out = service().unifiedReport("CLASSIC_SELECTOR", t, t);
+
+        assertThat(out.get("horizons")).isEqualTo(List.of(1, 2, 3, 5));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> byHorizon = (List<Map<String, Object>>) out.get("by_horizon");
+        assertThat(byHorizon).hasSize(4);
+        for (Map<String, Object> hb : byHorizon) {
+            assertThat(hb.get("net_basis_note")).asString().contains("佣金");
+            assertThat(hb.get("embargo_note")).asString().contains("不外推");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> net = (Map<String, Object>) hb.get("executable_net_ic");
+            assertThat(net.get("basis_note")).asString().contains("open[t+1]");
+            if (Integer.valueOf(2).equals(hb.get("holding_days"))) {
+                // h=2：netEntry=t1(open 有值)、netExit=t3(close 有值) → 有净收益观测
+                assertThat((int) net.get("cross_section_days")).isGreaterThan(0);
+            }
+        }
     }
 
     @Test

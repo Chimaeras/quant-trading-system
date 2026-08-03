@@ -91,24 +91,41 @@ quant-trading-system/
 - K 线图（ECharts）
 - 单股实时行情（东财 API，手动触发）
 
-### 选股打分（5 种策略，统一工作台）
-- **经典多因子**：趋势 + 动量 + 量价 - 风险惩罚
+### 选股打分（多策略，统一工作台）
+- **经典多因子**：趋势 + 动量 + 量价 - 风险惩罚（支持短周期 profile）
 - **超跌反弹**：趋势确认 + 成交量验证 + 超跌程度
 - **趋势打分**：趋势/乖离/量能/支撑/MACD/RSI 六维
 - **综合三维度**：技术30 + 基本40 + 情绪30
 - **多维度 v1**：纯库内 K 线 + PE + 行业聚合
+- **Codex 短周期**：截面中性化 + 稳健 Z 评分（`rule_score` 为截面百分位，非上涨概率）
 - 异步任务队列、断点续跑、模板管理、结果导出
+
+### T+1 次日选股闭环（核心工作流）
+- **T+1 次日候选**：T 日收盘生成「次日上涨候选 TopN」（默认 Top10），评分=涨停基因（涨停/连板/量比/换手）+ 短期动量 + 量能 + 趋势位置（rule_score 非概率）
+- **涨停基因 / 短线情绪生态**：涨停家数、跌停家数、最高连板、晋级率、炸板率、涨停次日溢价——全部从本地 K 线推导（无外部数据）
+- **次日核销**：T+1 结束后回填每只候选的次日涨幅/高开/涨停并聚合命中率，历史清单可回溯
+- **T+1 概率研究**：T+1 方向标签（`close[t+1]/close[t]`）可生成，校准/Logistic 模型支持 horizon=1，与 T+2/T+3 并行
+
+### 因子研究 / 概率选股研究（QP 线）
+- **因子研究面板**：覆盖率 / 截面分布 / 分组 / Rank IC / Pearson IC / 单调性 / 多空 spread
+- **统一因子报告**：T+1/T+2/T+3/T+5 并列输出毛收益 IC + 可执行净收益 IC（含 HAC 标准误与 block bootstrap CI），前端「多周期 IC 对比」tab 展示
+- **概率研究页**（前端）：规则分数校准（Brier/ECE/BSS + 可靠性图）+ Logistic 训练 + 模型注册表
+- **T+2/T+3 标签工厂**：按研究口径（次开入场 + 持有期收盘 + 扣费）生成标签，保留拒单样本
+- **Logistic 模型**：L2 正则，版本化训练 + 注册（特征 min/max 标准化仅在训练窗拟合）
+- **历史逐日重放**：PIT 股票池健康报告（含可交易性闸过滤）
 
 ### 打分回测
 - 基于历史选股结果的持有期收益统计（1/3/5/10/20 天）
+- **结果持久化**：每次回测生成 `result_id` 落库，可按 ID 回溯历史结果、浏览历史列表（结果随行情更新漂移时以记录口径为准）
+- 分段稳定性报告含 **vs 沪深300 基准** 与 **牛/熊市场分段**（按指数当日涨跌划分）
 
 ### 经典策略回测
-- 单股 MA 交叉 / 布林带 / MACD 策略回测
+- 单股 MA 交叉 / 布林带 / MACD 策略回测（各策略参数可调）
 - 收益率、最大回撤、夏普比率、权益曲线
 
 ### 模拟账户（JWT 可选）
-- 账户资产概览、持仓列表、模拟下单
-- 默认 admin/admin123，鉴权默认关闭
+- 账户资产概览（含今日盈亏）、持仓列表、模拟下单、**订单历史**
+- 默认 admin/admin123，docker 部署默认开启鉴权（本地 dev 默认关闭）
 
 ## API 概览（已实现）
 
@@ -129,7 +146,13 @@ quant-trading-system/
 | 选股 | `GET /api/selector/templates` | 选股模板管理 |
 | 回测 | `POST /api/backtest/scoring/run` | 打分结果回测 |
 | 回测 | `POST /api/backtest/strategy/run` | 经典策略回测 |
-| 认证 | `POST /api/auth/login` | 登录（JWT 可选） |
+| 因子 | `GET /api/factor/research` | 因子研究面板 |
+| 因子 | `GET /api/factor/unified-report` | 统一因子报告（多持仓期 IC） |
+| 研究 | `POST /api/research/replay` | 历史逐日重放（PIT 股票池健康） |
+| 研究 | `POST /api/research/labels/build` | 生成 T+2/T+3 标签 |
+| 研究 | `GET /api/research/calibration` | 规则分数概率校准 |
+| 研究 | `POST /api/research/logistic/train` | Logistic 模型训练 + 注册 |
+| 认证 | `POST /api/auth/login` | 登录（JWT；docker 默认开启，本地 dev 默认关闭） |
 | 账户 | `GET /api/account/info` | 模拟账户概览 |
 | 持仓 | `GET /api/position/list` | 持仓列表 |
 | 订单 | `POST /api/order/place` | 模拟下单 |

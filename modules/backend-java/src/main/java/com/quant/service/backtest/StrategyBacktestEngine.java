@@ -1,6 +1,8 @@
 package com.quant.service.backtest;
 
 import com.quant.entity.MarketData;
+import com.quant.research.ResearchConvention;
+import com.quant.service.scoring.ScoringConstants;
 import com.quant.service.scoring.TechnicalIndicators;
 
 import java.util.ArrayList;
@@ -10,12 +12,17 @@ import java.util.Map;
 
 /**
  * 单股经典策略信号引擎（MA 交叉 / 布林带 / MACD）。
+ *
+ * <p>成交成本统一引用 {@link ResearchConvention} 单一真相源（佣金万三 / 印花税万五 / 单边滑点万二），
+ * 不再散落硬编码。本引擎为「前日收盘产生信号、当日开盘成交」的自洽交易模型，买卖均在当日开盘成交
+ * （entry/exit = SAME_DAY_OPEN），与标签/持有期回测的 HOLDING_PERIOD_CLOSE 口径不同——两者各自成立，
+ * 但在对外输出时必须标注本引擎的时序假设，避免与持有期收益口径混淆。
  */
 public final class StrategyBacktestEngine {
 
-    private static final double COMMISSION = 0.0003;
-    private static final double SLIPPAGE = 0.001;
-    private static final double STAMP_DUTY = 0.001;
+    private static final double COMMISSION = ResearchConvention.DEFAULT_COMMISSION_RATE;
+    private static final double SLIPPAGE = ResearchConvention.DEFAULT_SLIPPAGE_RATE;
+    private static final double STAMP_DUTY = ResearchConvention.DEFAULT_SELL_TAX_RATE;
     /** 主板默认涨跌停幅度（10%），用于判断开盘是否封板不可成交 */
     private static final double DEFAULT_LIMIT_PCT = 0.10;
     /** 涨停/跌停价容差，覆盖四舍五入与最小报价单位 */
@@ -36,6 +43,10 @@ public final class StrategyBacktestEngine {
         assumptions.put("commission_rate", COMMISSION);
         assumptions.put("stamp_duty_rate", STAMP_DUTY);
         assumptions.put("slippage_rate_each_side", SLIPPAGE);
+        assumptions.put("costs_source", "ResearchConvention." + ResearchConvention.CONVENTION_VERSION);
+        assumptions.put("exit_note",
+                "策略引擎自洽口径：信号于前日收盘产生，买卖均在当日开盘成交；"
+                        + "不同于标签/持有期回测的 HOLDING_PERIOD_CLOSE 口径");
         assumptions.put("t_plus_one_sell", true);
         assumptions.put("limit_up_entry_blocked", true);
         assumptions.put("limit_down_exit_blocked", true);
@@ -80,7 +91,8 @@ public final class StrategyBacktestEngine {
             int bollPeriod,
             double bollStdDev
     ) {
-        return run(bars, strategy, initialCapital, shortPeriod, longPeriod, bollPeriod, bollStdDev, DEFAULT_LIMIT_PCT);
+        return run(bars, strategy, initialCapital, shortPeriod, longPeriod, bollPeriod, bollStdDev,
+                ScoringConstants.MACD_FAST, ScoringConstants.MACD_SLOW, DEFAULT_LIMIT_PCT);
     }
 
     public static BacktestMetrics run(
@@ -93,14 +105,36 @@ public final class StrategyBacktestEngine {
             double bollStdDev,
             double limitPct
     ) {
-        if (bars == null || bars.size() < 30) {
+        return run(bars, strategy, initialCapital, shortPeriod, longPeriod, bollPeriod, bollStdDev,
+                ScoringConstants.MACD_FAST, ScoringConstants.MACD_SLOW, limitPct);
+    }
+
+    public static BacktestMetrics run(
+            List<MarketData> bars,
+            StrategySignalType strategy,
+            double initialCapital,
+            int shortPeriod,
+            int longPeriod,
+            int bollPeriod,
+            double bollStdDev,
+            int macdFast,
+            int macdSlow,
+            double limitPct
+    ) {
+        // 过滤缺收盘价/收盘价非正的 K 线：避免把 null 当 0 纳入均线/MACD，污染技术信号
+        List<MarketData> clean = (bars == null || bars.isEmpty())
+                ? bars
+                : bars.stream()
+                        .filter(b -> b.getClosePrice() != null && b.getClosePrice().doubleValue() > 0)
+                        .toList();
+        if (clean == null || clean.size() < 30) {
             throw new IllegalArgumentException("K 线数据不足，至少需要 30 根");
         }
 
-        double[] close = bars.stream()
-                .mapToDouble(b -> b.getClosePrice() != null ? b.getClosePrice().doubleValue() : 0)
+        double[] close = clean.stream()
+                .mapToDouble(b -> b.getClosePrice().doubleValue())
                 .toArray();
-        TechnicalIndicators.MacdResult macd = TechnicalIndicators.macd(close);
+        TechnicalIndicators.MacdResult macd = TechnicalIndicators.macd(close, macdFast, macdSlow, ScoringConstants.MACD_SIGNAL);
 
         double cash = initialCapital;
         int position = 0;
@@ -114,9 +148,9 @@ public final class StrategyBacktestEngine {
         int winningTrades = 0;
         int lastBuyBarIndex = -1;
 
-        for (int i = 1; i < bars.size(); i++) {
-            MarketData bar = bars.get(i);
-            MarketData prevBar = bars.get(i - 1);
+        for (int i = 1; i < clean.size(); i++) {
+            MarketData bar = clean.get(i);
+            MarketData prevBar = clean.get(i - 1);
             double markPrice = close[i];
             // 信号基于前一交易日收盘数据，在当日开盘成交（避免同日收盘价成交的未来函数）
             String signal = detectSignal(strategy, close, macd, i - 1, shortPeriod, longPeriod, bollPeriod, bollStdDev);

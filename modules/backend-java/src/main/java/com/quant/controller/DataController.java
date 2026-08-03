@@ -27,6 +27,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class DataController {
 
+    /** 批量导入单次条数上限，防止超大请求打爆内存/事务。 */
+    private static final int MAX_BULK_IMPORT_SIZE = 50_000;
+
     private final DataService dataService;
     private final HistoricalDataService historicalDataService;
     private final HistoricalDataUpdateService historicalDataUpdateService;
@@ -263,6 +266,9 @@ public class DataController {
         if (items == null || items.isEmpty()) {
             return ApiResponse.success(Map.of("saved", 0));
         }
+        if (items.size() > MAX_BULK_IMPORT_SIZE) {
+            return ApiResponse.error(400, "批量导入条数超上限: " + MAX_BULK_IMPORT_SIZE);
+        }
         List<StockFinancialSnapshot> rows = new ArrayList<>();
         for (FinancialItem it : items) {
             if (it.getStockCode() == null || it.getExchangeType() == null || it.getReportPeriod() == null) {
@@ -293,6 +299,9 @@ public class DataController {
     public ApiResponse<Map<String, Object>> bulkMargin(@RequestBody List<MarginItem> items) {
         if (items == null || items.isEmpty()) {
             return ApiResponse.success(Map.of("saved", 0));
+        }
+        if (items.size() > MAX_BULK_IMPORT_SIZE) {
+            return ApiResponse.error(400, "批量导入条数超上限: " + MAX_BULK_IMPORT_SIZE);
         }
         List<StockMarginDaily> rows = new ArrayList<>();
         for (MarginItem it : items) {

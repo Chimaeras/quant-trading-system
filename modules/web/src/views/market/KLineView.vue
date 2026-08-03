@@ -15,7 +15,7 @@
       </span>
     </div>
     <div ref="chartRef" style="height: 500px" />
-    <div class="legend">📊 基于本地历史数据 · 点击「获取实时」可拉取最新价</div>
+    <div class="legend">📊 {{ dataSource === 'backend' ? '数据来源：后端 MySQL 行情' : '数据来源：本地 IndexedDB（后端不可用时降级）' }} · 点击「获取实时」可拉取最新价</div>
   </el-card>
 </template>
 
@@ -25,6 +25,7 @@ import { useRoute } from 'vue-router'
 import * as echarts from 'echarts'
 import { dataApi } from '@/api/data'
 import { marketApi } from '@/api/market'
+import type { KLineItem } from '@/api/market'
 import { useToast } from '@/composables/useToast'
 
 const route = useRoute()
@@ -33,6 +34,7 @@ const chartRef = ref<HTMLElement>()
 const dateRange = ref<[Date, Date] | null>(null)
 const realtime = ref<{ close_price?: number; change_pct?: number } | null>(null)
 const realtimeLoading = ref(false)
+const dataSource = ref<'backend' | 'local'>('backend')
 let chart: echarts.ECharts | null = null
 
 async function loadRealtime() {
@@ -55,7 +57,22 @@ const loadData = async () => {
   const code = route.query.code as string
   if (!code) return
   const [start, end] = dateRange.value || [new Date(Date.now() - 365 * 24 * 3600 * 1000), new Date()]
-  const data = await dataApi.getKLine(code, start.toISOString().slice(0, 10), end.toISOString().slice(0, 10))
+  const startDate = start.toISOString().slice(0, 10)
+  const endDate = end.toISOString().slice(0, 10)
+  // 优先真实后端行情，失败回退本地 IndexedDB（并标注来源，避免误把离线/Mock 当线上数据）
+  let data: KLineItem[] = []
+  try {
+    const res = await marketApi.getKline(code, {
+      exchange: route.query.exchange as string,
+      startDate,
+      endDate
+    })
+    data = ((res as { data?: KLineItem[] })?.data ?? []) as KLineItem[]
+    dataSource.value = 'backend'
+  } catch {
+    data = (await dataApi.getKLine(code, startDate, endDate)) as KLineItem[]
+    dataSource.value = 'local'
+  }
   if (!Array.isArray(data) || data.length === 0) return
   const dates = data.map((d: { date: string }) => d.date)
   const ohlc = data.map((d: { open: number; high: number; low: number; close: number }) => [d.open, d.close, d.low, d.high])

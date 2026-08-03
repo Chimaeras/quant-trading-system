@@ -1,8 +1,6 @@
 package com.quant.controller;
 
 import com.quant.dto.ApiResponse;
-import com.quant.entity.ExperimentRun;
-import com.quant.research.ExperimentService;
 import com.quant.research.HistoricalReplayService;
 import com.quant.research.LabelFactoryService;
 import com.quant.research.LogisticModelTrainer;
@@ -16,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -33,7 +30,8 @@ public class ResearchController {
     private final LabelFactoryService labelFactoryService;
     private final ProbabilityCalibrationService probabilityCalibrationService;
     private final LogisticModelTrainer logisticModelTrainer;
-    private final ExperimentService experimentService;
+    private final com.quant.repository.ModelVersionRepository modelVersionRepository;
+    private final com.quant.service.scoring.LimitUpEcologyService limitUpEcologyService;
 
     /**
      * QP-007：按交易日区间重放 PIT 历史股票池，生成数据集健康报告。
@@ -57,6 +55,31 @@ public class ResearchController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(defaultValue = "label_v1") String labelVersion) {
         return ApiResponse.success(labelFactoryService.buildLabels(startDate, endDate, labelVersion));
+    }
+
+    /** T+1 次日方向标签（close-to-close，与 T+2/T+3 成交口径标签并行）。 */
+    @GetMapping("/t1/ecology")
+    public ApiResponse<Map<String, Object>> t1Ecology(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tradeDate,
+            @RequestParam(defaultValue = "30") int lookbackDays) {
+        return ApiResponse.success(limitUpEcologyService.ecology(tradeDate, lookbackDays));
+    }
+
+    /** 涨停次日溢价统计（涨停股在次日的表现，用于候选解释与验证）。 */
+    @GetMapping("/t1/premium")
+    public ApiResponse<Map<String, Object>> t1Premium(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tradeDate,
+            @RequestParam(defaultValue = "50") int topLimitUpCount) {
+        return ApiResponse.success(limitUpEcologyService.nextDayPremium(tradeDate, topLimitUpCount));
+    }
+
+    /** T+1 次日方向标签（close-to-close，与 T+2/T+3 成交口径标签并行）。 */
+    @PostMapping("/labels/build-t1")
+    public ApiResponse<Map<String, Object>> buildT1Labels(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(defaultValue = "label_v1") String labelVersion) {
+        return ApiResponse.success(labelFactoryService.buildT1Labels(startDate, endDate, labelVersion));
     }
 
     /** QP-008：标签覆盖率统计（exec_status 分布）。 */
@@ -84,6 +107,29 @@ public class ResearchController {
      * QP-013：训练 Logistic T+2/T+3 模型（带 L2 正则，版本化训练和解释）。
      * 时间顺序 train/test split + purged embargo；注册到 model_registry。
      */
+    /** QP-013：模型注册表（最近 20 条，供前端模型列表）。 */
+    @GetMapping("/models")
+    public ApiResponse<java.util.List<Map<String, Object>>> models() {
+        java.util.List<Map<String, Object>> out = new java.util.ArrayList<>();
+        for (com.quant.entity.ModelVersion mv : modelVersionRepository.findTop20ByOrderByCreatedAtDesc()) {
+            Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("model_version", mv.getModelVersion());
+            m.put("algorithm", mv.getAlgorithm());
+            m.put("feature_version", mv.getFeatureVersion());
+            m.put("label_version", mv.getLabelVersion());
+            m.put("horizon", mv.getHorizon());
+            m.put("train_start", mv.getTrainStart());
+            m.put("train_end", mv.getTrainEnd());
+            m.put("test_start", mv.getTestStart());
+            m.put("test_end", mv.getTestEnd());
+            m.put("stage", mv.getStage());
+            m.put("metrics", mv.getMetrics());
+            m.put("created_at", mv.getCreatedAt());
+            out.add(m);
+        }
+        return ApiResponse.success(out);
+    }
+
     @PostMapping("/logistic/train")
     public ApiResponse<Map<String, Object>> trainLogistic(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate trainStart,
@@ -95,64 +141,5 @@ public class ResearchController {
             @RequestParam(defaultValue = "logistic_v1_t2") String modelVersion) {
         return ApiResponse.success(logisticModelTrainer.train(
                 trainStart, trainEnd, testStart, testEnd, labelVersion, horizon, modelVersion));
-    }
-
-    /**
-     * QP-015：注册一次实验运行（config/git_commit/seed/dataset_ids/windows/metrics/status）。
-     * 供完整追溯与复现。
-     */
-    @PostMapping("/experiments/register")
-    public ApiResponse<Map<String, Object>> registerExperiment(
-            @RequestParam(required = false) String name,
-            @RequestParam(required = false) String config,
-            @RequestParam(required = false) String gitCommit,
-            @RequestParam(required = false) Long seed,
-            @RequestParam(required = false) String snapshotId,
-            @RequestParam(required = false) String labelVersion,
-            @RequestParam(required = false) String modelVersions,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate trainStart,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate trainEnd,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate testStart,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate testEnd,
-            @RequestParam(required = false) String metrics,
-            @RequestParam(defaultValue = "completed") String status) {
-        ExperimentRun run = experimentService.register(name, config, gitCommit, seed,
-                snapshotId, labelVersion, modelVersions, trainStart, trainEnd,
-                testStart, testEnd, metrics, status);
-        Map<String, Object> out = new java.util.LinkedHashMap<>();
-        out.put("experiment_id", run.getExperimentId());
-        out.put("name", run.getName());
-        out.put("status", run.getStatus());
-        out.put("message", "实验已注册：" + run.getExperimentId());
-        return ApiResponse.success(out);
-    }
-
-    /** QP-015：最近 N 条实验。 */
-    @GetMapping("/experiments/list")
-    public ApiResponse<Map<String, Object>> listExperiments(
-            @RequestParam(defaultValue = "10") int limit) {
-        List<ExperimentRun> runs = experimentService.listLatest(limit);
-        List<Map<String, Object>> items = new java.util.ArrayList<>();
-        for (ExperimentRun r : runs) {
-            Map<String, Object> m = new java.util.LinkedHashMap<>();
-            m.put("experiment_id", r.getExperimentId());
-            m.put("name", r.getName());
-            m.put("git_commit", r.getGitCommit());
-            m.put("seed", r.getSeed());
-            m.put("snapshot_id", r.getSnapshotId());
-            m.put("label_version", r.getLabelVersion());
-            m.put("model_versions", r.getModelVersions());
-            m.put("train_start", r.getTrainStart() != null ? r.getTrainStart().toString() : "");
-            m.put("train_end", r.getTrainEnd() != null ? r.getTrainEnd().toString() : "");
-            m.put("test_start", r.getTestStart() != null ? r.getTestStart().toString() : "");
-            m.put("test_end", r.getTestEnd() != null ? r.getTestEnd().toString() : "");
-            m.put("status", r.getStatus());
-            m.put("created_at", r.getCreatedAt() != null ? r.getCreatedAt().toString() : "");
-            items.add(m);
-        }
-        Map<String, Object> out = new java.util.LinkedHashMap<>();
-        out.put("total", runs.size());
-        out.put("items", items);
-        return ApiResponse.success(out);
     }
 }

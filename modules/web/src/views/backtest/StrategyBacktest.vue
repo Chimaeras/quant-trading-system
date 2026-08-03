@@ -64,13 +64,13 @@
           </span>
         </div>
       </el-alert>
-      <div class="stats-grid">
-        <div class="stat-card"><div class="label">总收益率</div><div :class="pctClass(result.totalReturn)">{{ fmtPct(result.totalReturn) }}</div></div>
-        <div class="stat-card"><div class="label">最大回撤</div><div class="text-danger">{{ fmtPct(result.maxDrawdown) }}</div></div>
-        <div class="stat-card"><div class="label">夏普比率</div><div>{{ result.sharpeRatio?.toFixed(2) }}</div></div>
-        <div class="stat-card"><div class="label">胜率</div><div>{{ fmtPct(result.winRate) }}</div></div>
-        <div class="stat-card"><div class="label">最终资金</div><div>{{ result.finalCapital?.toLocaleString() }}</div></div>
-        <div class="stat-card"><div class="label">交易次数</div><div>{{ result.totalTrades }}</div></div>
+      <div class="stat-grid">
+        <div class="stat-card compact"><div class="label">总收益率</div><div class="value" :class="pctClass(result.totalReturn)">{{ fmtPct(result.totalReturn) }}</div></div>
+        <div class="stat-card compact"><div class="label">最大回撤</div><div class="value text-down">{{ fmtPct(result.maxDrawdown) }}</div></div>
+        <div class="stat-card compact"><div class="label">夏普比率</div><div class="value">{{ result.sharpeRatio?.toFixed(2) }}</div></div>
+        <div class="stat-card compact"><div class="label">胜率</div><div class="value">{{ fmtPct(result.winRate) }}</div></div>
+        <div class="stat-card compact"><div class="label">最终资金</div><div class="value">{{ result.finalCapital?.toLocaleString() }}</div></div>
+        <div class="stat-card compact"><div class="label">交易次数</div><div class="value">{{ result.totalTrades }}</div></div>
       </div>
 
       <div ref="chartRef" class="chart-box" />
@@ -91,6 +91,7 @@
 import { nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import dayjs from 'dayjs'
 import * as echarts from 'echarts'
+import { CHART_THEME } from '@/utils/echartsTheme'
 import { backtestApi, type StrategyBacktestResponse } from '@/api/backtest'
 
 const running = ref(false)
@@ -121,7 +122,7 @@ function fmtPct(v?: number) {
 }
 
 function pctClass(v?: number) {
-  return v != null && v >= 0 ? 'text-success' : 'text-danger'
+  return v != null && v >= 0 ? 'text-up' : 'text-down'
 }
 
 const assumptionLabels: Record<string, string> = {
@@ -166,7 +167,7 @@ async function run() {
 function renderChart() {
   if (!chartRef.value || !result.value?.equityCurve?.length) return
   chart?.dispose()
-  chart = echarts.init(chartRef.value)
+  chart = echarts.init(chartRef.value, CHART_THEME)
   const dates = result.value.equityCurve.map((d) => String(d.trade_date))
   const equity = result.value.equityCurve.map((d) => Number(d.equity))
   chart.setOption({
@@ -192,11 +193,6 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .meta { display: flex; gap: 16px; flex-wrap: wrap; margin: 12px 0; color: var(--text-secondary); font-size: 13px; }
-.stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-bottom: 16px; }
-.stat-card { padding: 12px; border-radius: 8px; background: rgba(9, 18, 34, 0.55); border: 1px solid rgba(145, 196, 255, 0.15); }
-.stat-card .label { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
-.text-success { color: #ef5350; }
-.text-danger { color: #26a69a; }
 .chart-box { height: 280px; margin-bottom: 16px; }
 .section-title { margin: 12px 0 8px; font-weight: 600; }
 .run-alert { margin-bottom: 12px; }

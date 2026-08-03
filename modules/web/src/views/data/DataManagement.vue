@@ -13,32 +13,32 @@
           刷新
         </el-button>
       </template>
-      <div v-loading="loading" class="overview-grid">
-        <div class="stat-item">
+      <div v-loading="loading" class="stat-grid">
+        <div class="stat-card compact">
           <span class="label">股票数量</span>
           <span class="value">{{ overview?.stock_count ?? '-' }}</span>
         </div>
-        <div class="stat-item">
+        <div class="stat-card compact">
           <span class="label">最早日期</span>
           <span class="value">{{ overview?.earliest_date ?? '-' }}</span>
         </div>
-        <div class="stat-item">
+        <div class="stat-card compact">
           <span class="label">最新日期</span>
           <span class="value">{{ overview?.latest_date ?? '-' }}</span>
         </div>
-        <div class="stat-item">
+        <div class="stat-card compact">
           <span class="label">数据完整性</span>
           <span class="value">{{ overview?.completeness != null ? overview.completeness + '%' : '-' }}</span>
         </div>
-        <div class="stat-item">
+        <div class="stat-card compact">
           <span class="label">存储空间</span>
           <span class="value">{{ overview?.storage_size ?? '-' }}</span>
         </div>
-        <div class="stat-item">
+        <div class="stat-card compact">
           <span class="label">上市日缺失</span>
           <span class="value">{{ overview?.list_date_missing_count ?? '-' }}</span>
         </div>
-        <div class="stat-item">
+        <div class="stat-card compact">
           <span class="label">可回填上市日</span>
           <span class="value">{{ overview?.list_date_backfillable_count ?? '-' }}</span>
         </div>
@@ -631,33 +631,10 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.overview-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 20px;
-}
-.stat-item {
-  padding: 16px;
-  background: rgba(9, 18, 34, 0.72);
-  border: 1px solid rgba(145, 196, 255, 0.18);
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.stat-item .label {
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-.stat-item .value {
-  font-size: 18px;
-  font-weight: bold;
-  color: var(--text-primary);
-}
 .list-date-backfill {
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid rgba(145, 196, 255, 0.12);
+  border-top: 1px solid var(--hairline);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -710,10 +687,10 @@ onMounted(async () => {
   color: var(--text-primary);
 }
 .price-up {
-  color: #f56c6c;
+  color: var(--up);
 }
 .price-down {
-  color: #67c23a;
+  color: var(--down);
 }
 .update-form { margin-bottom: 8px; }
 .task-hint {

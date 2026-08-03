@@ -156,6 +156,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import * as echarts from 'echarts'
+import { CHART_THEME, CHART_C1, CHART_C2, CHART_C3, CHART_C4 } from '@/utils/echartsTheme'
 import { marketApi, type StockDetail, type KLineItem, type StockAnalysisResult } from '@/api/market'
 import dayjs from 'dayjs'
 import { useToast } from '@/composables/useToast'
@@ -224,7 +225,7 @@ const priceChangeClass = computed(() => {
 
 // MA 均线计算
 const maPeriods = [5, 10, 20, 30]
-const maColors: Record<number, string> = { 5: '#f5a623', 10: '#2e7d32', 20: '#1976d2', 30: '#7b1fa2' }
+const maColors: Record<number, string> = { 5: CHART_C3, 10: CHART_C2, 20: CHART_C1, 30: CHART_C4 }
 const maList = computed(() => {
   const data = displayKline.value
   if (data.length === 0) return []
@@ -347,7 +348,7 @@ function renderChart() {
   const data = displayKline.value
   if (!chartRef.value || data.length === 0) return
 
-  if (!chart) chart = echarts.init(chartRef.value)
+  if (!chart) chart = echarts.init(chartRef.value, CHART_THEME)
 
   const dates = data.map(d => d.date)
   const ohlc = data.map(d => [d.open, d.close, d.low, d.high])
@@ -383,12 +384,12 @@ function renderChart() {
       { left: 60, right: 50, top: '70%', height: '18%' }
     ],
     xAxis: [
-      { type: 'category', data: dates, gridIndex: 0, axisLine: { lineStyle: { color: '#444' } }, axisLabel: { color: '#999' } },
-      { type: 'category', data: dates, gridIndex: 1, axisLine: { lineStyle: { color: '#444' } }, axisLabel: { color: '#999' } }
+      { type: 'category', data: dates, gridIndex: 0 },
+      { type: 'category', data: dates, gridIndex: 1 }
     ],
     yAxis: [
-      { type: 'value', gridIndex: 0, splitLine: { lineStyle: { color: '#2a2b2c' } }, axisLabel: { color: '#999' }, scale: true },
-      { type: 'value', gridIndex: 1, splitLine: { show: false }, axisLabel: { color: '#999' } }
+      { type: 'value', gridIndex: 0, scale: true },
+      { type: 'value', gridIndex: 1, splitLine: { show: false } }
     ],
     dataZoom: [
       { type: 'inside', xAxisIndex: [0, 1], start: Math.max(0, 100 - 25000 / data.length), end: 100 },
@@ -399,13 +400,7 @@ function renderChart() {
         type: 'candlestick',
         data: ohlc,
         xAxisIndex: 0,
-        yAxisIndex: 0,
-        itemStyle: {
-          color: '#ef5350',
-          color0: '#26a69a',
-          borderColor: '#ef5350',
-          borderColor0: '#26a69a'
-        }
+        yAxisIndex: 0
       },
       ...maSeries.map(s => ({
         type: 'line' as const,
@@ -420,7 +415,7 @@ function renderChart() {
         type: 'bar',
         data: volumes.map((v, i) => ({
           value: v,
-          itemStyle: { color: (closes[i] >= (data[i]?.open ?? 0) ? '#ef5350' : '#26a69a') + '40' }
+          itemStyle: { color: (closes[i] >= (data[i]?.open ?? 0) ? '#f23645' : '#089981') + '40' }
         })),
         xAxisIndex: 1,
         yAxisIndex: 1
@@ -468,11 +463,11 @@ onMounted(() => {
 
 <style scoped>
 .stock-detail {
-  background: rgba(9, 18, 34, 0.72);
+  background: var(--surface-2);
   border-radius: 8px;
   padding: 20px;
   min-height: 600px;
-  border: 1px solid rgba(145, 196, 255, 0.2);
+  border: 1px solid var(--glass-border);
 }
 .stock-header {
   display: flex;
@@ -480,15 +475,15 @@ onMounted(() => {
   align-items: flex-start;
   margin-bottom: 20px;
   padding-bottom: 16px;
-  border-bottom: 1px solid rgba(145, 196, 255, 0.2);
+  border-bottom: 1px solid var(--glass-border);
 }
 .stock-title { display: flex; align-items: center; gap: 12px; }
 .stock-title .name { font-size: 22px; font-weight: 600; color: var(--text-primary); }
 .stock-title .code { font-size: 14px; color: var(--text-secondary); }
 .exchange-tag { margin-left: 4px; }
 .stock-price { font-size: 28px; font-weight: 600; }
-.stock-price.up { color: #ef5350; }
-.stock-price.down { color: #26a69a; }
+.stock-price.up { color: var(--up); }
+.stock-price.down { color: var(--down); }
 .stock-price .change { font-size: 16px; margin-left: 12px; }
 .stock-price .pct { font-size: 14px; opacity: 0.9; }
 
@@ -505,25 +500,25 @@ onMounted(() => {
 .info-panel {
   width: 200px;
   flex-shrink: 0;
-  background: rgba(9, 18, 34, 0.72);
+  background: var(--surface-2);
   border-radius: 8px;
   padding: 16px;
   height: fit-content;
-  border: 1px solid rgba(145, 196, 255, 0.2);
+  border: 1px solid var(--glass-border);
 }
 .info-title { font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px; }
 .info-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
 .info-row .label { color: var(--text-secondary); }
 .info-row .val { color: var(--text-primary); }
 .info-row .val.highlight { color: var(--text-primary); }
-.info-row .val.up { color: #ef5350; }
-.info-row .val.down { color: #26a69a; }
+.info-row .val.up { color: var(--up); }
+.info-row .val.down { color: var(--down); }
 
 .history-section { margin-top: 24px; }
 .analysis-section { margin-top: 24px; }
 .section-title { font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px; }
 .history-table { background: transparent; border-radius: 8px; overflow: hidden; }
-.text-up { color: #ef5350; }
-.text-down { color: #26a69a; }
+.text-up { color: var(--up); }
+.text-down { color: var(--down); }
 .reasons { margin: 0; padding-left: 18px; color: var(--text-secondary); }
 </style>

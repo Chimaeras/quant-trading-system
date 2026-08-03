@@ -343,7 +343,7 @@ onMounted(() => {
 .signal-tag {
   margin: 0 4px 4px 0;
 }
-.text-danger { color: #f56c6c; }
-.text-success { color: #67c23a; }
+.text-danger { color: var(--up); }
+.text-success { color: var(--down); }
 .text-muted { color: var(--text-muted); }
 </style>

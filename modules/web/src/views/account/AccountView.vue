@@ -7,13 +7,13 @@
       </div>
     </template>
 
-    <div v-if="account" class="stats-grid">
-      <div class="stat-card"><div class="label">总资产</div><div>{{ fmtMoney(account.totalAsset) }}</div></div>
-      <div class="stat-card"><div class="label">可用资金</div><div>{{ fmtMoney(account.cash) }}</div></div>
-      <div class="stat-card"><div class="label">持仓市值</div><div>{{ fmtMoney(account.positionValue) }}</div></div>
-      <div class="stat-card"><div class="label">浮动盈亏</div><div :class="pnlClass(account.totalProfit)">{{ fmtMoney(account.totalProfit) }}</div></div>
-      <div class="stat-card"><div class="label">今日盈亏</div><div :class="pnlClass(account.todayPnl)">{{ fmtMoney(account.todayPnl) }}</div></div>
-      <div class="stat-card"><div class="label">持仓数</div><div>{{ account.positionCount }}</div></div>
+    <div v-if="account" class="stat-grid">
+      <div class="stat-card compact"><div class="label">总资产</div><div class="value">{{ fmtMoney(account.totalAsset) }}</div></div>
+      <div class="stat-card compact"><div class="label">可用资金</div><div class="value">{{ fmtMoney(account.cash) }}</div></div>
+      <div class="stat-card compact"><div class="label">持仓市值</div><div class="value">{{ fmtMoney(account.positionValue) }}</div></div>
+      <div class="stat-card compact"><div class="label">浮动盈亏</div><div class="value" :class="pnlClass(account.totalProfit)">{{ fmtMoney(account.totalProfit) }}</div></div>
+      <div class="stat-card compact"><div class="label">今日盈亏</div><div class="value" :class="pnlClass(account.todayPnl)">{{ fmtMoney(account.todayPnl) }}</div></div>
+      <div class="stat-card compact"><div class="label">持仓数</div><div class="value">{{ account.positionCount }}</div></div>
     </div>
 
     <div class="section-title">下单</div>
@@ -171,11 +171,6 @@ onMounted(loadAll)
 
 <style scoped>
 .header-row { display: flex; justify-content: space-between; align-items: center; }
-.stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
-.stat-card { padding: 12px; border-radius: 8px; background: rgba(9, 18, 34, 0.55); border: 1px solid rgba(145, 196, 255, 0.15); }
-.stat-card .label { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
 .section-title { margin: 12px 0 8px; font-weight: 600; }
 .frozen-hint { margin-left: 4px; font-size: 12px; color: var(--text-secondary); }
-.text-success { color: #ef5350; }
-.text-danger { color: #26a69a; }
 </style>

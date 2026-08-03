@@ -317,7 +317,7 @@ onMounted(() => run())
 .unified-notes {
   margin-top: 10px;
   font-size: 12px;
-  color: #aab8cc;
+  color: var(--text-dim);
   line-height: 1.6;
 }
 .grid {
@@ -326,8 +326,8 @@ onMounted(() => run())
   gap: 16px;
 }
 .q-card {
-  background: rgba(9, 18, 34, 0.72);
-  border: 1px solid rgba(145, 196, 255, 0.18);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline-strong);
 }
 .q-meta {
   display: flex;
@@ -336,9 +336,9 @@ onMounted(() => run())
   font-size: 13px;
   color: var(--text-secondary);
 }
-.text-danger { color: #f56c6c; }
-.text-success { color: #67c23a; }
-.text-warning { color: #e6a23c; }
+.text-danger { color: var(--up); }
+.text-success { color: var(--down); }
+.text-warning { color: var(--warning); }
 .rank-ic-card {
   grid-column: 1 / -1;
 }

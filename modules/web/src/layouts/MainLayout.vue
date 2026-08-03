@@ -2,8 +2,15 @@
   <div class="main-layout">
     <header class="topbar glass">
       <div class="brand">
-        <strong>QUANT TERMINAL</strong>
-        <span>量化选股系统</span>
+        <span class="brand-mark">Q</span>
+        <div class="brand-text">
+          <strong>QUANT TERMINAL</strong>
+          <span>量化选股系统</span>
+        </div>
+      </div>
+      <div class="topbar-meta">
+        <span class="status-dot" />
+        <span class="status-label">{{ statusLabel }}</span>
       </div>
     </header>
     <nav class="tabs glass">
@@ -32,6 +39,15 @@ import { useRoute, useRouter } from "vue-router"
 
 const route = useRoute()
 const router = useRouter()
+
+const statusLabel = computed(() => {
+  const h = new Date().getHours()
+  if (h < 5) return "夜盘"
+  if (h < 9) return "盘前"
+  if (h < 15) return "交易中"
+  if (h < 17) return "盘后"
+  return "休市"
+})
 
 const navGroups = computed(() => [
   {
@@ -84,7 +100,7 @@ const navGroups = computed(() => [
 <style scoped>
 .main-layout {
   height: 100vh;
-  padding: var(--sp-4);
+  padding: var(--sp-3);
   display: grid;
   grid-template-rows: var(--topbar-h) var(--tab-h) 1fr;
   gap: var(--sp-3);
@@ -100,25 +116,67 @@ const navGroups = computed(() => [
 
 .brand {
   display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  background: var(--accent-grad);
+  color: #032237;
+  font-weight: 800;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(88, 185, 255, 0.3);
+}
+
+.brand-text {
+  display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
-.brand strong {
+.brand-text strong {
   font-size: var(--fz-md);
-  letter-spacing: 1px;
+  letter-spacing: 1.5px;
 }
 
-.brand span {
+.brand-text span {
   font-size: var(--fz-xs);
   color: var(--text-secondary);
 }
 
+.topbar-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--text-secondary);
+  font-size: var(--fz-xs);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--success);
+  box-shadow: 0 0 8px var(--success);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 .tabs {
   border-radius: var(--r-md);
-  padding: 8px;
+  padding: 6px var(--sp-3);
   display: flex;
-  gap: 12px;
+  gap: var(--sp-4);
   overflow: auto;
   align-items: center;
 }
@@ -126,14 +184,16 @@ const navGroups = computed(() => [
 .nav-group {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   min-width: max-content;
 }
 
 .group-title {
   font-size: var(--fz-xs);
-  color: var(--text-muted);
-  margin-right: 4px;
+  color: var(--text-dim);
+  margin-right: 6px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
 
 .tab-item {
@@ -141,25 +201,29 @@ const navGroups = computed(() => [
   border-radius: var(--r-sm);
   background: transparent;
   color: var(--text-secondary);
-  padding: 0 12px;
+  padding: 0 var(--sp-3);
+  height: 30px;
   min-width: max-content;
   cursor: pointer;
-  transition: all var(--dur-mid);
+  font-size: var(--fz-sm);
+  transition: all var(--dur-fast) var(--ease);
 }
 
 .tab-item:hover {
   color: var(--text-primary);
-  background: rgba(88, 185, 255, 0.1);
+  background: var(--accent-soft);
 }
 
 .tab-item.active {
   color: var(--text-primary);
-  border-color: rgba(88, 185, 255, 0.5);
-  background: rgba(88, 185, 255, 0.16);
+  border-color: var(--glass-border-strong);
+  background: var(--accent-soft);
+  font-weight: 600;
 }
 
 .page-main {
   min-height: 0;
   overflow: auto;
+  border-radius: var(--r-md);
 }
 </style>

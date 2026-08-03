@@ -178,6 +178,6 @@ onMounted(() => run())
   font-size: 13px;
   color: var(--text-secondary);
 }
-.text-danger { color: #f56c6c; }
-.text-success { color: #67c23a; }
+.text-danger { color: var(--up); }
+.text-success { color: var(--down); }
 </style>

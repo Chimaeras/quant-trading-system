@@ -3,9 +3,11 @@
 """
 from .data_engine import DataEngine
 from .oversold_rebound_scorer import score_oversold_rebound, ScoreResult
+from .tradability import tradability_check
 
 __all__ = [
     'DataEngine',
     'score_oversold_rebound',
     'ScoreResult',
+    'tradability_check',
 ]

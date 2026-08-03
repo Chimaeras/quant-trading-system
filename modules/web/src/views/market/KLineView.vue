@@ -23,6 +23,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import * as echarts from 'echarts'
+import { CHART_THEME, CHART_C1 } from '@/utils/echartsTheme'
 import { dataApi } from '@/api/data'
 import { marketApi } from '@/api/market'
 import type { KLineItem } from '@/api/market'
@@ -78,7 +79,7 @@ const loadData = async () => {
   const ohlc = data.map((d: { open: number; high: number; low: number; close: number }) => [d.open, d.close, d.low, d.high])
   const volumes = data.map((d: { volume?: number }) => d.volume ?? 0)
   if (!chartRef.value) return
-  if (!chart) chart = echarts.init(chartRef.value)
+  if (!chart) chart = echarts.init(chartRef.value, CHART_THEME)
   chart.setOption({
     tooltip: { trigger: 'axis' },
     xAxis: [{ type: 'category', data: dates, gridIndex: 0 }, { type: 'category', data: dates, gridIndex: 1 }],
@@ -89,7 +90,7 @@ const loadData = async () => {
     grid: [{ left: '10%', right: '8%', height: '60%' }, { left: '10%', right: '8%', top: '75%', height: '18%' }],
     series: [
       { type: 'candlestick', data: ohlc, xAxisIndex: 0, yAxisIndex: 0 },
-      { type: 'bar', data: volumes, xAxisIndex: 1, yAxisIndex: 1, itemStyle: { color: '#5470c6' } }
+      { type: 'bar', data: volumes, xAxisIndex: 1, yAxisIndex: 1, itemStyle: { color: CHART_C1, opacity: 0.6 } }
     ]
   })
 }
@@ -113,9 +114,9 @@ watch(() => route.query.code, (code) => {
   padding: 8px 0;
   font-size: 14px;
 }
-.realtime-bar .label { color: #888; }
+.realtime-bar .label { color: var(--text-dim); }
 .realtime-bar .price { font-weight: 600; font-size: 18px; }
-.realtime-bar .up { color: #ef5350; }
-.realtime-bar .down { color: #26a69a; }
+.realtime-bar .up { color: var(--up); }
+.realtime-bar .down { color: var(--down); }
 .legend { margin-top: 12px; color: var(--text-secondary); font-size: 12px; }
 </style>

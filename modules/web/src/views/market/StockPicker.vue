@@ -1514,8 +1514,8 @@ onBeforeUnmount(() => {
 .json-box {
   margin: 0;
   white-space: pre-wrap;
-  background: rgba(9, 18, 34, 0.72);
-  border: 1px solid rgba(145, 196, 255, 0.2);
+  background: var(--surface-2);
+  border: 1px solid var(--glass-border);
   border-radius: 6px;
   padding: 8px;
   max-height: 220px;

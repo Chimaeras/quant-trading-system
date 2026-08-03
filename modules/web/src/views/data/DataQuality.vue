@@ -697,8 +697,8 @@ onMounted(() => load())
   gap: 16px;
 }
 .q-card {
-  background: rgba(9, 18, 34, 0.72);
-  border: 1px solid rgba(145, 196, 255, 0.18);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline-strong);
 }
 .q-meta {
   display: flex;
@@ -722,9 +722,9 @@ onMounted(() => load())
 .date-tag {
   font-family: monospace;
 }
-.text-danger { color: #f56c6c; }
-.text-success { color: #67c23a; }
-.text-warning { color: #e6a23c; }
+.text-danger { color: var(--up); }
+.text-success { color: var(--down); }
+.text-warning { color: var(--warning); }
 .raw-card {
   grid-column: 1 / -1;
 }

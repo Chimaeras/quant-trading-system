@@ -255,8 +255,8 @@ onMounted(() => {
   gap: 16px;
 }
 .strategy-card {
-  background: rgba(9, 18, 34, 0.72);
-  border: 1px solid rgba(145, 196, 255, 0.18);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline-strong);
 }
 .strategy-card.no-opportunity {
   opacity: 0.7;
@@ -286,7 +286,7 @@ onMounted(() => {
 .concentration {
   margin-bottom: 10px;
   padding: 8px 10px;
-  background: rgba(0, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.2);
   border-radius: 4px;
 }
 .concentration-header {
@@ -300,7 +300,7 @@ onMounted(() => {
 .concentration-warning {
   margin: 0 0 6px;
   font-size: 12px;
-  color: #e6a23c;
+  color: var(--warning);
 }
 .concentration-bars {
   display: flex;

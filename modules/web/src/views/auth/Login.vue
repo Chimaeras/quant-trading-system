@@ -1,17 +1,27 @@
 <template>
   <div class="login-page">
-    <el-card class="login-card" shadow="hover">
-      <template #header><span>登录量化系统</span></template>
-      <el-form @submit.prevent="submit">
-        <el-form-item label="用户名"><el-input v-model="username" /></el-form-item>
-        <el-form-item label="密码"><el-input v-model="password" type="password" show-password /></el-form-item>
-        <el-form-item>
+    <div class="login-card glass">
+      <div class="login-header">
+        <span class="brand-mark">Q</span>
+        <div>
+          <h1 class="login-title">量化选股系统</h1>
+          <p class="login-subtitle">Quant Trading Terminal</p>
+        </div>
+      </div>
+      <el-form @submit.prevent="submit" label-position="top">
+        <el-form-item label="用户名">
+          <el-input v-model="username" placeholder="admin" />
+        </el-form-item>
+        <el-form-item label="密码">
+          <el-input v-model="password" type="password" show-password placeholder="••••••••" />
+        </el-form-item>
+        <div class="login-actions">
           <el-button type="primary" :loading="loading" @click="submit">登录</el-button>
           <el-button @click="register">注册</el-button>
-        </el-form-item>
+        </div>
       </el-form>
       <p class="tip">默认账户 admin / admin123（首次启动自动创建）。鉴权默认关闭，可在 application.yml 开启 quant.auth.enabled。</p>
-    </el-card>
+    </div>
   </div>
 </template>
 
@@ -55,7 +65,67 @@ async function register() {
 </script>
 
 <style scoped>
-.login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
-.login-card { width: 420px; max-width: 100%; }
-.tip { font-size: 12px; color: var(--text-secondary); margin: 0; }
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-6);
+}
+
+.login-card {
+  width: 420px;
+  max-width: 100%;
+  padding: var(--sp-7);
+  border-radius: var(--r-lg);
+}
+
+.login-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-6);
+}
+
+.brand-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--r-md);
+  background: var(--accent-grad);
+  color: #032237;
+  font-weight: 800;
+  font-size: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 18px rgba(88, 185, 255, 0.35);
+  flex-shrink: 0;
+}
+
+.login-title {
+  margin: 0;
+  font-size: var(--fz-xl);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.login-subtitle {
+  margin: 2px 0 0;
+  font-size: var(--fz-xs);
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+.login-actions {
+  display: flex;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+}
+
+.tip {
+  font-size: var(--fz-xs);
+  color: var(--text-dim);
+  margin: var(--sp-5) 0 0;
+  line-height: var(--lh-normal);
+}
 </style>

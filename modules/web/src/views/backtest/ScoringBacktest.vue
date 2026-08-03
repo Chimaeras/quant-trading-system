@@ -148,7 +148,7 @@
         <el-tab-pane label="持仓周期表现" name="performance">
           <div class="section-hint">各持仓周期的详细收益分布与盈亏统计。</div>
           <div class="stats-grid">
-            <div v-for="(stat, day) in response.holdingPeriodStats" :key="day" class="stat-card glass">
+            <div v-for="(stat, day) in response.holdingPeriodStats" :key="day" class="period-card glass">
               <div class="stat-header">持有 {{ day }} 个交易日</div>
               <div class="stat-body">
                 <div class="stat-item">
@@ -214,7 +214,7 @@
             <template v-if="response.factorAnalysis">
               <div class="section-title">选股排序预测力（持有 {{ response.factorAnalysis.holdingDays }} 个交易日）</div>
               <div class="stats-grid factor-ic-grid">
-                <div class="stat-card glass">
+                <div class="period-card glass">
                   <div class="stat-header">选股排序准确度</div>
                   <div class="stat-body">
                     <div class="stat-item">
@@ -235,7 +235,7 @@
                     </div>
                   </div>
                 </div>
-                <div class="stat-card glass">
+                <div class="period-card glass">
                   <div class="stat-header">预测稳定性</div>
                   <div class="stat-body">
                     <div class="stat-item">
@@ -254,7 +254,7 @@
                     </div>
                   </div>
                 </div>
-                <div class="stat-card glass">
+                <div class="period-card glass">
                   <div class="stat-header">高分 vs 低分收益差</div>
                   <div class="stat-body">
                     <div class="stat-item">
@@ -550,6 +550,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import * as echarts from 'echarts'
+import { CHART_THEME, CHART_UP, CHART_DOWN, CHART_C1, CHART_C2 } from '@/utils/echartsTheme'
 import dayjs from 'dayjs'
 import { backtestApi, analyzeTurnover, analyzeStability, type ScoringBacktestResponse, type DailyDetail, type StockReturn, type TurnoverResponse, type StabilityResponse } from '@/api/backtest'
 import { useToast } from '@/composables/useToast'
@@ -801,7 +802,7 @@ function renderFactorChart() {
   if (!factorChartRef.value || !response.value?.factorAnalysis) return
   const groups = response.value.factorAnalysis.groupedReturns
   if (!groups.length) return
-  if (!factorChart) factorChart = echarts.init(factorChartRef.value)
+  if (!factorChart) factorChart = echarts.init(factorChartRef.value, CHART_THEME)
   factorChart.setOption({
     tooltip: {
       trigger: 'axis',
@@ -815,13 +816,12 @@ function renderFactorChart() {
     xAxis: {
       type: 'category',
       data: groups.map((g) => g.label),
-      axisLabel: { color: '#9db1cc', interval: 0, rotate: groups.length > 5 ? 20 : 0 }
+      axisLabel: { interval: 0, rotate: groups.length > 5 ? 20 : 0 }
     },
     yAxis: {
       type: 'value',
       name: '收益 (%)',
-      axisLabel: { color: '#9db1cc', formatter: '{value}%' },
-      splitLine: { lineStyle: { color: 'rgba(145,196,255,0.08)' } }
+      axisLabel: { formatter: '{value}%' }
     },
     series: [
       {
@@ -831,14 +831,13 @@ function renderFactorChart() {
         itemStyle: {
           color: (params: { dataIndex: number }) => {
             const v = groups[params.dataIndex].avgReturn
-            return v >= 0 ? '#1cd6a6' : '#ff6b6b'
+            return v >= 0 ? CHART_UP : CHART_DOWN
           }
         },
         barWidth: '50%',
         label: {
           show: true,
           position: 'top',
-          color: '#e9f1ff',
           formatter: '{c}%'
         }
       }
@@ -849,26 +848,23 @@ function renderFactorChart() {
 function renderIcByHoldingChart() {
   if (!icByHoldingChartRef.value || !icByHoldingRows.value.length) return
   const rows = icByHoldingRows.value
-  if (!icByHoldingChart) icByHoldingChart = echarts.init(icByHoldingChartRef.value)
+  if (!icByHoldingChart) icByHoldingChart = echarts.init(icByHoldingChartRef.value, CHART_THEME)
   icByHoldingChart.setOption({
     tooltip: { trigger: 'axis' },
     grid: { left: '8%', right: '8%', top: '10%', bottom: '10%' },
     xAxis: {
       type: 'category',
-      data: rows.map((r) => r.label),
-      axisLabel: { color: '#9db1cc' }
+      data: rows.map((r) => r.label)
     },
     yAxis: [
       {
         type: 'value',
-        name: '选股准确度',
-        axisLabel: { color: '#9db1cc' },
-        splitLine: { lineStyle: { color: 'rgba(145,196,255,0.08)' } }
+        name: '选股准确度'
       },
       {
         type: 'value',
         name: '收益差 %',
-        axisLabel: { color: '#9db1cc', formatter: '{value}%' },
+        axisLabel: { formatter: '{value}%' },
         splitLine: { show: false }
       }
     ],
@@ -877,7 +873,6 @@ function renderIcByHoldingChart() {
         name: '选股准确度',
         type: 'bar',
         data: rows.map((r) => +r.rankIcMean.toFixed(4)),
-        itemStyle: { color: '#58b9ff' },
         barWidth: '35%'
       },
       {
@@ -885,8 +880,7 @@ function renderIcByHoldingChart() {
         type: 'line',
         yAxisIndex: 1,
         data: rows.map((r) => +(r.longShortSpread * 100).toFixed(2)),
-        lineStyle: { color: '#f0b95a', width: 2 },
-        itemStyle: { color: '#f0b95a' }
+        lineStyle: { width: 2 }
       }
     ]
   })
@@ -895,7 +889,7 @@ function renderIcByHoldingChart() {
 function renderIcSeriesChart() {
   const series = response.value?.factorAnalysis?.dailyRankIc
   if (!icSeriesChartRef.value || !series?.length) return
-  if (!icSeriesChart) icSeriesChart = echarts.init(icSeriesChartRef.value)
+  if (!icSeriesChart) icSeriesChart = echarts.init(icSeriesChartRef.value, CHART_THEME)
   icSeriesChart.setOption({
     tooltip: {
       trigger: 'axis',
@@ -909,25 +903,22 @@ function renderIcSeriesChart() {
     xAxis: {
       type: 'category',
       data: series.map((d) => d.tradeDate),
-      axisLabel: { color: '#9db1cc', rotate: 35, fontSize: 10 }
+      axisLabel: { rotate: 35, fontSize: 10 }
     },
     yAxis: {
       type: 'value',
-      name: '选股准确度',
-      axisLabel: { color: '#9db1cc' },
-      splitLine: { lineStyle: { color: 'rgba(145,196,255,0.08)' } }
+      name: '选股准确度'
     },
     series: [
       {
         name: '选股准确度',
         type: 'line',
         data: series.map((d) => +d.rankIc.toFixed(4)),
-        lineStyle: { color: '#1cd6a6', width: 2 },
-        itemStyle: { color: '#1cd6a6' },
-        areaStyle: { color: 'rgba(28,214,166,0.08)' },
+        lineStyle: { width: 2 },
+        areaStyle: { opacity: 0.12 },
         markLine: {
           silent: true,
-          data: [{ yAxis: 0, lineStyle: { color: 'rgba(145,196,255,0.35)' } }]
+          data: [{ yAxis: 0 }]
         }
       }
     ]
@@ -941,7 +932,7 @@ function renderChart() {
   const winRates = days.map((d) => stats[d].winRate * 100)
   const avgReturns = days.map((d) => stats[d].avgReturn * 100)
 
-  if (!chart) chart = echarts.init(chartRef.value)
+  if (!chart) chart = echarts.init(chartRef.value, CHART_THEME)
   chart.setOption({
     tooltip: {
       trigger: 'axis',
@@ -961,8 +952,7 @@ function renderChart() {
     grid: { left: '8%', right: '8%', top: '10%', bottom: '10%' },
     xAxis: {
       type: 'category',
-      data: days.map((d) => '持有' + d + '日'),
-      axisLabel: { color: '#9db1cc' }
+      data: days.map((d) => '持有' + d + '日')
     },
     yAxis: [
       {
@@ -970,13 +960,12 @@ function renderChart() {
         name: '盈利概率 (%)',
         min: 0,
         max: 100,
-        axisLabel: { color: '#9db1cc', formatter: '{value}%' },
-        splitLine: { lineStyle: { color: 'rgba(145,196,255,0.08)' } }
+        axisLabel: { formatter: '{value}%' }
       },
       {
         type: 'value',
         name: '平均收益 (%)',
-        axisLabel: { color: '#9db1cc', formatter: '{value}%' },
+        axisLabel: { formatter: '{value}%' },
         splitLine: { show: false }
       }
     ],
@@ -987,15 +976,14 @@ function renderChart() {
         data: winRates,
         itemStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: '#58b9ff' },
-            { offset: 1, color: '#1cd6a6' }
+            { offset: 0, color: CHART_C1 },
+            { offset: 1, color: CHART_C2 }
           ])
         },
         barWidth: '40%',
         label: {
           show: true,
           position: 'top',
-          color: '#e9f1ff',
           formatter: '{c:.1f}%'
         }
       },
@@ -1004,14 +992,12 @@ function renderChart() {
         type: 'line',
         yAxisIndex: 1,
         data: avgReturns,
-        lineStyle: { color: '#f0b95a', width: 2 },
-        itemStyle: { color: '#f0b95a' },
+        lineStyle: { width: 2 },
         symbol: 'circle',
         symbolSize: 8,
         label: {
           show: true,
           position: 'top',
-          color: '#f0b95a',
           formatter: '{c:.2f}%'
         }
       }
@@ -1318,8 +1304,8 @@ onBeforeUnmount(() => {
 .verdict-card {
   border-radius: var(--r-md);
   padding: 14px 16px;
-  border: 1px solid rgba(145, 196, 255, 0.18);
-  background: rgba(9, 18, 34, 0.72);
+  border: 1px solid var(--hairline-strong);
+  background: var(--surface-2);
 }
 
 .verdict-head {
@@ -1408,11 +1394,11 @@ onBeforeUnmount(() => {
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
 }
 
-.stat-card {
+.period-card {
   border-radius: var(--r-md);
   padding: 12px 14px;
-  border: 1px solid rgba(145, 196, 255, 0.18);
-  background: rgba(9, 18, 34, 0.72);
+  border: 1px solid var(--hairline-strong);
+  background: var(--surface-2);
 }
 
 .stat-header {

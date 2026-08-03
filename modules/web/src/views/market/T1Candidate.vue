@@ -147,14 +147,14 @@
 
       <template v-if="stats">
         <div class="kpi-row">
-          <div class="kpi"><span>已核销天数</span><b>{{ stats.days }}</b></div>
-          <div class="kpi"><span>样本数</span><b>{{ stats.total_settled ?? 0 }}</b></div>
-          <div class="kpi"><span>命中率</span><b :class="(stats.hit_rate ?? 0) >= 0.5 ? 'text-success' : 'text-danger'">{{ pct(stats.hit_rate) }}</b></div>
-          <div class="kpi"><span>平均次日涨幅</span><b :class="(stats.avg_next_ret ?? 0) >= 0 ? 'text-success' : 'text-danger'">{{ pct(stats.avg_next_ret) }}</b></div>
-          <div class="kpi"><span>平均高开</span><b>{{ pct(stats.avg_gap) }}</b></div>
-          <div v-if="stats.benchmark?.available" class="kpi">
-            <span>vs 沪深300 日均</span>
-            <b :class="stats.benchmark.outperform ? 'text-success' : 'text-danger'">
+          <div class="kpi-card"><span class="kpi-label">已核销天数</span><b class="kpi-value">{{ stats.days }}</b></div>
+          <div class="kpi-card"><span class="kpi-label">样本数</span><b class="kpi-value">{{ stats.total_settled ?? 0 }}</b></div>
+          <div class="kpi-card"><span class="kpi-label">命中率</span><b class="kpi-value" :class="(stats.hit_rate ?? 0) >= 0.5 ? 'text-up' : 'text-down'">{{ pct(stats.hit_rate) }}</b></div>
+          <div class="kpi-card"><span class="kpi-label">平均次日涨幅</span><b class="kpi-value" :class="(stats.avg_next_ret ?? 0) >= 0 ? 'text-up' : 'text-down'">{{ pct(stats.avg_next_ret) }}</b></div>
+          <div class="kpi-card"><span class="kpi-label">平均高开</span><b class="kpi-value">{{ pct(stats.avg_gap) }}</b></div>
+          <div v-if="stats.benchmark?.available" class="kpi-card">
+            <span class="kpi-label">vs 沪深300 日均</span>
+            <b class="kpi-value" :class="stats.benchmark.outperform ? 'text-up' : 'text-down'">
               {{ pct(stats.benchmark.index_avg_daily_return) }}（{{ stats.benchmark.outperform ? '跑赢' : '跑输' }}）
             </b>
           </div>
@@ -328,10 +328,7 @@ onMounted(loadRecent)
 .ecology-row { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; }
 .reason-tag { margin-right: 4px; }
 .prob-tag { margin-left: 4px; }
-.kpi-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
-.kpi { display: flex; flex-direction: column; background: rgba(9, 18, 34, 0.72); border: 1px solid rgba(145, 196, 255, 0.18); border-radius: 8px; padding: 8px 12px; min-width: 100px; }
-.kpi span { font-size: 12px; color: var(--text-muted); }
-.kpi b { font-size: 15px; }
+.kpi-row { margin-bottom: 12px; }
 .note-line { font-size: 12px; color: var(--text-muted); margin: 8px 0 0; }
 .mt { margin-top: 10px; }
 </style>

@@ -237,7 +237,7 @@ onMounted(() => {
 }
 .tpl-card {
   margin-top: 16px;
-  background: rgba(9, 18, 34, 0.72);
-  border: 1px solid rgba(145, 196, 255, 0.18);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline-strong);
 }
 </style>

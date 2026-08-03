@@ -1,0 +1,5 @@
+# 可选依赖：金融文本情感分析（FinBERT）。
+# 默认不安装——compute-python 核心计算/口径验证/研究工具不需要 torch。
+# 需要文本情感分析时再：pip install -r requirements-optional.txt
+torch>=2.0.0
+transformers>=4.36.0

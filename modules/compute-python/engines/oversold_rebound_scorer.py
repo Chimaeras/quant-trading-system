@@ -12,12 +12,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 
 import numpy as np
 import pandas as pd
 
-from utils.indicators import bollinger_bands, rsi
+from utils.indicators import bollinger_bands, macd, rsi
 
 
 @dataclass
@@ -34,7 +34,13 @@ class ScoreResult:
 
 
 def score_oversold_rebound(df: pd.DataFrame) -> Optional[ScoreResult]:
-    """
+    """超跌反弹打分（纯函数，Point-in-time，无未来函数）。
+
+    语义：对输入 df 的「最后一根 bar」打分。调用方应只传入截至决策日的数据；
+    本函数不读取决策日之后的任何数据（所有 .iloc[-k] 均指向决策日及之前）。
+    输出为 0-100 加权分数（与 Java OversoldReboundScoringService 口径一致），
+    该分数是「超跌反弹机会强度」，不是已校准上涨概率。
+
     输入 df 需包含至少 260 条日线，且包含列：
     - date（可选，用于周K统计；若无则跳过周K分）
     - open, high, low, close, volume, amount（amount 用于确认信号）
@@ -257,44 +263,59 @@ def _score_confirmation(
 
 
 def _macd_bottom_divergence(close: pd.Series, n: int) -> bool:
-    """MACD底背离检测"""
+    """MACD底背离检测（与 Java ReboundConfirmationScorer.macdBottomDivergence 对齐）。
+
+    口径：
+    - MACD 柱状线 = (dif-dea)*2，来自 utils.indicators.macd（与 Java TechnicalIndicators.macd 一致）。
+    - 在 lookback=min(20,n-5) 窗口内按「局部低点」模式找两个价格谷底
+      （curr <= 前后各 2 根 K 线）；first_trough 早于 second_trough。
+    - 底背离 = 价格新低（second <= first*1.02）且 MACD 柱未创新低（hist[second] > hist[first]）
+      且当前价接近最新低点（|close[-1]-close[second]|/close[second] < 0.03）。
+    """
     if n < 35:
         return False
-    close_arr = close.to_numpy()
-    ema_fast = _ema(close_arr, 12)
-    ema_slow = _ema(close_arr, 26)
-    dif = ema_fast - ema_slow
-    dea = _ema(dif, 9)
-    macd_hist = (dif - dea) * 2
+    arr = close.to_numpy(dtype=float)
+    _, _, hist = macd(close)  # histogram = (dif-dea)*2，与 Java macd.macd() 一致
+    macd_hist = hist.to_numpy(dtype=float)
 
     lookback = min(20, n - 5)
-    # 找最近两个低点的位置
-    segment = close_arr[n - lookback:n - 3]
-    low1 = float("inf")
-    low2 = float("inf")
-    idx1 = -1
-    idx2 = -1
-    for i, val in enumerate(segment):
-        idx = n - lookback + i
-        if val < low1:
-            low2, idx2 = low1, idx1
-            low1, idx1 = val, idx
-        elif val < low2:
-            low2, idx2 = val, idx
+    first_trough = -1
+    second_trough = -1
+    # Java: for (i = n-lookback+2; i < n-5; i++)，局部低点判定覆盖前后各 2 根
+    for i in range(n - lookback + 2, n - 5):
+        if i - 2 < 0 or i + 2 >= n:
+            continue
+        curr = arr[i]
+        if (curr <= arr[i - 1] and curr <= arr[i + 1]
+                and curr <= arr[i + 2] and curr <= arr[i - 2]):
+            if second_trough < 0:
+                second_trough = i
+            elif first_trough < 0:
+                first_trough = second_trough
+                second_trough = i
+            else:
+                first_trough = second_trough
+                second_trough = i
 
-    if idx1 < 0 or idx2 < 0 or idx1 == idx2:
+    if first_trough < 0 or second_trough < 0:
         return False
-    # 价格新低但MACD柱状线未创新低
-    price_lower = close_arr[n - 1] <= low1 * 1.01
-    return price_lower and macd_hist[idx1] > macd_hist[idx2]
+
+    price_lower_low = arr[second_trough] <= arr[first_trough] * 1.02
+    macd_higher_low = macd_hist[second_trough] > macd_hist[first_trough]
+    near_recent_low = abs(arr[n - 1] - arr[second_trough]) / max(1e-9, arr[second_trough]) < 0.03
+    return bool(price_lower_low and macd_higher_low and near_recent_low)
 
 
 def _volume_confirmation(amount: pd.Series, n: int) -> bool:
-    """量能确认：近3日均量 > 前10日均量的1.2倍"""
+    """量能确认：近3日均量 > 前10日均量的1.2倍（与 Java volumeConfirmation 对齐）。
+
+    Java: recent3=avg(n-3..n-1)（含端，3值），prev10=avg(n-13..n-4)（含端，10值）。
+    Python 切片为左闭右开，故 prev10 用 iloc[n-13:n-3] 覆盖 n-13..n-4 共 10 值。
+    """
     if n < 13:
         return False
-    recent3 = float(amount.iloc[n - 3:].mean())
-    prev10 = float(amount.iloc[n - 13:n - 4].mean())
+    recent3 = float(amount.iloc[n - 3:].mean())      # n-3,n-2,n-1
+    prev10 = float(amount.iloc[n - 13:n - 3].mean())  # n-13..n-4（10 值）
     return prev10 > 0 and recent3 > prev10 * 1.2
 
 
@@ -329,15 +350,4 @@ def _hammer_or_morning_star(
     )
 
     return hammer or morning_star
-
-
-def _ema(values: np.ndarray, span: int) -> np.ndarray:
-    """EMA 计算，使用前 span 根 SMA 作为种子值（与 Java 对齐）"""
-    alpha = 2.0 / (span + 1)
-    out = np.zeros_like(values)
-    seed_len = min(span, len(values))
-    out[0] = float(np.mean(values[:seed_len]))
-    for i in range(1, len(values)):
-        out[i] = alpha * values[i] + (1 - alpha) * out[i - 1]
-    return out
 

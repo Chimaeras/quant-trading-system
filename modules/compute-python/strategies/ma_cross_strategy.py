@@ -1,8 +1,17 @@
 """
 均线交叉策略
+
+口径与 utils.indicators.sma（= Java TechnicalIndicators）一致。
+金叉（短均线上穿长均线）买入；死叉（短均线下穿长均线）卖出。
+
+实现：每根 bar 复用 utils.indicators.sma 算出整段均线，取末两根判交叉，
+避免旧实现每根 bar O(period) 重算且未与对齐口径共享。
 """
 from typing import Dict, Optional
 
+import pandas as pd
+
+from utils.indicators import sma
 from .base_strategy import BaseStrategy
 
 
@@ -14,8 +23,6 @@ class MACrossStrategy(BaseStrategy):
             'short_period': short_period,
             'long_period': long_period
         })
-        self.short_ma: list = []
-        self.long_ma: list = []
         self.price_history: list = []
 
     def on_bar(self, bar: Dict) -> Optional[str]:
@@ -23,27 +30,30 @@ class MACrossStrategy(BaseStrategy):
         close_price = bar.get('close', bar.get('Close', 0))
         self.price_history.append(close_price)
 
-        if len(self.price_history) < self.params['long_period']:
+        long_period = self.params['long_period']
+        if len(self.price_history) < long_period:
             return 'hold'
 
-        # 计算均线
-        short_ma = sum(self.price_history[-self.params['short_period']:]) / self.params['short_period']
-        long_ma = sum(self.price_history[-self.params['long_period']:]) / self.params['long_period']
+        close = pd.Series(self.price_history, dtype=float)
+        short_ma = sma(close, self.params['short_period'])
+        long_ma = sma(close, long_period)
 
-        self.short_ma.append(short_ma)
-        self.long_ma.append(long_ma)
+        if len(short_ma.dropna()) < 2:
+            return 'hold'
+        # 均线末值
+        s_prev = float(short_ma.iloc[-2])
+        s_curr = float(short_ma.iloc[-1])
+        l_prev = float(long_ma.iloc[-2])
+        l_curr = float(long_ma.iloc[-1])
 
-        # 金叉买入
-        if len(self.short_ma) >= 2:
-            if self.short_ma[-2] <= self.long_ma[-2] and self.short_ma[-1] > self.long_ma[-1]:
-                if self.position == 0:
-                    return 'buy'
-
-        # 死叉卖出
-        if len(self.short_ma) >= 2:
-            if self.short_ma[-2] >= self.long_ma[-2] and self.short_ma[-1] < self.long_ma[-1]:
-                if self.position > 0:
-                    return 'sell'
+        # 金叉
+        if s_prev <= l_prev and s_curr > l_curr:
+            if self.position == 0:
+                return 'buy'
+        # 死叉
+        if s_prev >= l_prev and s_curr < l_curr:
+            if self.position > 0:
+                return 'sell'
 
         return 'hold'
 

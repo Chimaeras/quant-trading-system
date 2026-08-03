@@ -55,9 +55,34 @@ def test_group_returns_shape():
     factor = close.pct_change(5)
     fwd = forward_return(close, 5)
     g = group_returns(factor, fwd, n_groups=5)
-    assert list(g.columns) == ["group", "mean_ret", "count"]
+    assert list(g.columns) == ["group", "mean_ret", "count", "n_groups"]
     assert len(g) <= 5
     assert g["count"].sum() > 0
+    # 正常情形实际分组数应等于请求分组数
+    assert int(g["n_groups"].iloc[0]) == len(g)
+
+
+def test_group_returns_reports_dropped_bins():
+    """因子大量重复时 qcut(duplicates='drop') 合并 bin，n_groups 应 < n_groups 请求值。"""
+    factor = pd.Series([1.0] * 40 + [2.0] * 40)  # 只有两个唯一值 → 无法等频分 5 组
+    fwd = pd.Series(np.linspace(-1.0, 1.0, 80))
+    g = group_returns(factor, fwd, n_groups=5)
+    # 实际分组数应 <= 2 < 5，且 n_groups 列如实反映
+    assert len(g) <= 2
+    assert int(g["n_groups"].iloc[0]) == len(g)
+
+
+def test_rank_ic_nan_on_constant_factor():
+    # 常量因子无区分度 → NaN（而非 0）
+    fwd = forward_return(_close(50, seed=10), 5)
+    factor = pd.Series([1.0] * len(fwd))
+    assert np.isnan(rank_ic(factor, fwd))
+
+
+def test_rank_ic_nan_on_constant_target():
+    factor = _close(50, seed=11)
+    fwd = pd.Series([0.0] * len(factor))
+    assert np.isnan(rank_ic(factor, fwd))
 
 
 def test_brier_score_known_value():

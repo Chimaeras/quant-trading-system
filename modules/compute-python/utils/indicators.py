@@ -1,9 +1,41 @@
 """
 技术指标计算（口径与 Java TechnicalIndicators 对齐）
+
+性能：ema/rsi 的一阶 IIR 递推优先用 scipy.signal.lfilter 向量化；
+scipy 不可用时回退到纯 Python 循环（数值口径完全一致，仅较慢）。
+未引入硬依赖：scipy 为可选加速，缺失时自动降级。
 """
 import numpy as np
 import pandas as pd
 from typing import Optional
+
+try:
+    from scipy.signal import lfilter as _lfilter
+    _HAS_SCIPY = True
+except ImportError:  # scipy 非必需，缺失时降级为纯 Python 递推
+    _HAS_SCIPY = False
+
+
+def _iir_first_order(x: np.ndarray, alpha: float, seed: float) -> np.ndarray:
+    """一阶 IIR 递推：y[n] = alpha*x[n] + (1-alpha)*y[n-1]，初始 y[-1]=seed。
+
+    返回与 x 等长的数组。有 scipy 时用 lfilter 一次性向量化；
+    否则纯 Python 循环（与原实现一致，保证数值口径相同）。
+    """
+    n = len(x)
+    out = np.empty(n, dtype=float)
+    if n == 0:
+        return out
+    if _HAS_SCIPY:
+        # lfilter: y[n] = b0*x[n] - a1*y[n-1]；b=[alpha], a=[1, -(1-alpha)]
+        # zi=[seed] 使首项 = alpha*x[0] + (1-alpha)*seed
+        out, _ = _lfilter([alpha], [1.0, -(1.0 - alpha)], x, zi=[seed])
+        return out
+    one_minus = 1.0 - alpha
+    out[0] = alpha * x[0] + one_minus * seed
+    for i in range(1, n):
+        out[i] = alpha * x[i] + one_minus * out[i - 1]
+    return out
 
 
 def sma(series: pd.Series, period: int) -> pd.Series:
@@ -23,10 +55,11 @@ def ema(series: pd.Series, period: int) -> pd.Series:
         return pd.Series(dtype=float)
     seed_len = min(period, n)
     seed = float(np.sum(vals[:seed_len]) / seed_len) if seed_len > 0 else float("nan")
-    out = np.empty(n)
+    out = np.empty(n, dtype=float)
     out[0] = seed
-    for i in range(1, n):
-        out[i] = alpha * vals[i] + (1 - alpha) * out[i - 1]
+    if n > 1:
+        # 从 i=1 起递推，初始状态 = seed（out[0]）
+        out[1:] = _iir_first_order(vals[1:], alpha, seed)
     return pd.Series(out, index=series.index)
 
 
@@ -60,8 +93,9 @@ def rsi(series: pd.Series, period: int = 14) -> pd.Series:
     - 之后用 Wilder 递推：avg = (prev*(period-1) + cur) / period。
     - 边界：avgLoss≈0（<1e-12）→ 100；avgGain≈0（<1e-12）→ 0；否则 100-100/(1+avgGain/avgLoss)。
 
-    历史 bug：旧实现用 `avg_loss.replace(0,nan)` 导致 loss 全 0 的强上涨窗口被 fillna(50)，
-    与 Java 返回 100 不一致；已改为显式三分支对齐。
+    实现：avgGain/avgLoss 的 Wilder 递推是一阶 IIR（c=(period-1)/period, d=1/period），
+    用 _iir_first_order 向量化后，三分支用 np.where 组装（loss 分支最后应用以保持优先级）。
+    无 scipy 时 _iir_first_order 自动降级为循环，数值口径不变。
     """
     vals = series.to_numpy(dtype=float)
     n = len(vals)
@@ -74,21 +108,36 @@ def rsi(series: pd.Series, period: int = 14) -> pd.Series:
     loss = np.where(delta < 0, -delta, 0.0)
 
     # SMA 初始化：用前 period 个 delta（即 delta[0..period-1]，对应 close[1..period]）
-    avg_gain = float(np.sum(gain[:period]) / period)
-    avg_loss = float(np.sum(loss[:period]) / period)
+    avg_gain0 = float(np.sum(gain[:period]) / period)
+    avg_loss0 = float(np.sum(loss[:period]) / period)
 
-    # i 为 close 的索引；delta 索引 = i-1
-    for i in range(period, n):
-        if i > period:
-            g = gain[i - 1]
-            l = loss[i - 1]
-            avg_gain = (avg_gain * (period - 1) + g) / period
-            avg_loss = (avg_loss * (period - 1) + l) / period
-        if avg_loss < 1e-12:
-            out[i] = 100.0
-        elif avg_gain < 1e-12:
-            out[i] = 0.0
-        else:
-            out[i] = 100.0 - 100.0 / (1.0 + avg_gain / avg_loss)
+    # Wilder 递推系数：avg = c*prev + d*cur，cur = gain[i-1]
+    c = (period - 1) / period
+    d = 1.0 / period
+
+    # 递推段：i = period+1 .. n-1，输入序列 gain[period .. n-2]（长度 m = n-1-period）
+    m = n - 1 - period
+    if m > 0:
+        seq_gain = gain[period:n - 1]
+        seq_loss = loss[period:n - 1]
+        ag = _iir_first_order(seq_gain, d, avg_gain0)  # ag[k] = avg_gain @ i=period+1+k
+        al = _iir_first_order(seq_loss, d, avg_loss0)
+        tail = _rsi_branch(ag, al)  # out[period+1 .. n-1]
+        out[period + 1:] = tail
+
+    # index=period 处用 SMA 初值（递推尚未发生）
+    out[period] = _rsi_branch(np.array([avg_gain0]), np.array([avg_loss0]))[0]
 
     return pd.Series(out, index=series.index)
+
+
+def _rsi_branch(avg_gain: np.ndarray, avg_loss: np.ndarray) -> np.ndarray:
+    """RSI 三分支：avgLoss<1e-12→100（优先）；avgGain<1e-12→0；否则 Wilder 公式。
+
+    loss 分支最后应用，确保两者同时≈0 时返回 100（与 Java if/elif 顺序一致）。
+    """
+    with np.errstate(divide="ignore", invalid="ignore"):
+        default = 100.0 - 100.0 / (1.0 + avg_gain / avg_loss)
+    res = np.where(avg_gain < 1e-12, 0.0, default)
+    res = np.where(avg_loss < 1e-12, 100.0, res)  # loss 优先，最后覆盖
+    return res

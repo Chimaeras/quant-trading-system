@@ -1,8 +1,18 @@
 """
 MACD 策略
+
+口径与 utils.indicators.macd（= Java TechnicalIndicators.macd）一致：
+dif=EMA(fast)-EMA(slow)；dea=EMA(dif, signal)；柱线 hist=(dif-dea)*2。
+金叉（hist 由 <=0 翻正）买入；死叉（hist 由 >=0 翻负）卖出。
+
+实现：策略内部累积 close 序列，每根 bar 调用 utils.indicators.macd 一次性算出
+整段柱线，取末两根判交叉——避免重复实现 EMA，也避免旧实现把 signal 线误算成 SMA。
 """
 from typing import Dict, Optional
 
+import pandas as pd
+
+from utils.indicators import macd as calc_macd
 from .base_strategy import BaseStrategy
 
 
@@ -12,20 +22,6 @@ class MACDStrategy(BaseStrategy):
     def __init__(self, fast: int = 12, slow: int = 26, signal: int = 9):
         super().__init__('MACD', {'fast': fast, 'slow': slow, 'signal': signal})
         self.price_history: list = []
-        self.ema_fast: list = []
-        self.ema_slow: list = []
-        self.macd_line: list = []
-        self.signal_line: list = []
-        self.histogram: list = []
-
-    def _ema(self, data: list, period: int) -> float:
-        if len(data) < period:
-            return sum(data) / len(data) if data else 0
-        k = 2 / (period + 1)
-        ema = sum(data[:period]) / period
-        for price in data[period:]:
-            ema = price * k + ema * (1 - k)
-        return ema
 
     def on_bar(self, bar: Dict) -> Optional[str]:
         """K线处理逻辑"""
@@ -36,30 +32,26 @@ class MACDStrategy(BaseStrategy):
         slow_period = self.params['slow']
         signal_period = self.params['signal']
 
+        # 需足够长度产出稳定 signal 线（slow 的 EMA 需 warmup，再叠加 signal 的 EMA warmup）
         if len(self.price_history) < slow_period + signal_period:
             return 'hold'
 
-        ema_fast = self._ema(self.price_history, fast_period)
-        ema_slow = self._ema(self.price_history, slow_period)
-        macd = ema_fast - ema_slow
+        close = pd.Series(self.price_history, dtype=float)
+        _, _, hist = calc_macd(close, fast_period, slow_period, signal_period)
 
-        self.ema_fast.append(ema_fast)
-        self.ema_slow.append(ema_slow)
-        self.macd_line.append(macd)
+        if len(hist) < 2:
+            return 'hold'
+        prev_h = float(hist.iloc[-2])
+        curr_h = float(hist.iloc[-1])
 
-        if len(self.macd_line) >= signal_period:
-            signal_val = self._ema(self.macd_line[-signal_period:], signal_period)
-            self.signal_line.append(signal_val)
-            self.histogram.append(macd - signal_val)
-
-            # 金叉
-            if len(self.histogram) >= 2 and self.histogram[-2] <= 0 < self.histogram[-1]:
-                if self.position == 0:
-                    return 'buy'
-            # 死叉
-            if len(self.histogram) >= 2 and self.histogram[-2] >= 0 > self.histogram[-1]:
-                if self.position > 0:
-                    return 'sell'
+        # 金叉：柱线由非正翻正
+        if prev_h <= 0 < curr_h:
+            if self.position == 0:
+                return 'buy'
+        # 死叉：柱线由非负翻负
+        if prev_h >= 0 > curr_h:
+            if self.position > 0:
+                return 'sell'
 
         return 'hold'
 

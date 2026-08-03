@@ -1,5 +1,11 @@
-# 可选依赖：金融文本情感分析（FinBERT）。
-# 默认不安装——compute-python 核心计算/口径验证/研究工具不需要 torch。
-# 需要文本情感分析时再：pip install -r requirements-optional.txt
+# 可选依赖（按用途分组）。
+# 默认不安装——compute-python 核心计算/口径验证/研究工具仅需 requirements.txt。
+# 需要时按需：pip install -r requirements-optional.txt
+
+# 金融文本情感分析（FinBERT）
 torch>=2.0.0
 transformers>=4.36.0
+
+# 指标向量化加速：utils.indicators 的 ema/rsi 在 scipy 可用时自动用 lfilter
+# 向量化一阶 IIR 递推；缺失则降级为纯 Python 循环（数值口径完全一致，仅较慢）。
+scipy>=1.10.0

@@ -20,21 +20,26 @@ class DataEngine:
         df = pd.read_csv(path, index_col=0, parse_dates=True)
         return df
 
-    def _generate_sample_data(self, symbol: str, days: int = 100) -> pd.DataFrame:
-        """生成模拟K线数据"""
-        import numpy as np
-        from datetime import datetime, timedelta
+    def _generate_sample_data(self, symbol: str, days: int = 300) -> pd.DataFrame:
+        """生成模拟K线数据。
 
-        np.random.seed(42)
+        默认 days=300，使样本长度满足 score_oversold_rebound 的 260 条下限，
+        避免 fallback 数据导致打分器静默返回 None。
+        使用 np.random.default_rng（确定性、不污染全局随机状态）。
+        """
+        import numpy as np
+        from datetime import datetime
+
+        rng = np.random.default_rng(42)
         base_price = 12.5 if symbol != '600519' else 1750.0
         dates = pd.date_range(end=datetime.now(), periods=days, freq='D')
-        returns = np.random.randn(days) * 0.02
+        returns = rng.standard_normal(days) * 0.02
         closes = base_price * np.cumprod(1 + returns)
         opens = np.roll(closes, 1)
         opens[0] = base_price
-        highs = np.maximum(opens, closes) * (1 + np.abs(np.random.randn(days) * 0.01))
-        lows = np.minimum(opens, closes) * (1 - np.abs(np.random.randn(days) * 0.01))
-        volumes = (1000000 + np.random.randn(days) * 200000).astype(int).clip(100000, None)
+        highs = np.maximum(opens, closes) * (1 + np.abs(rng.standard_normal(days) * 0.01))
+        lows = np.minimum(opens, closes) * (1 - np.abs(rng.standard_normal(days) * 0.01))
+        volumes = (1000000 + rng.standard_normal(days) * 200000).clip(min=100000).astype(int)
 
         return pd.DataFrame({
             'open': opens,

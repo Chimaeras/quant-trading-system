@@ -258,6 +258,30 @@ class StrategyBacktestEngineTest {
         return bars;
     }
 
+    /**
+     * 买入可负担股数须预留佣金：资金恰好可买 200 股（不含佣金）时，
+     * 修复前会因未预留佣金导致 cashAfter 为负，修复后仅买 100 股并保持现金非负。
+     */
+    @Test
+    void buyNeverMakesCashNegative() {
+        List<MarketData> bars = maCrossGoldenCrossSeries();
+        double openAtBuy = bars.get(31).getOpenPrice().doubleValue();
+        double buyPrice = openAtBuy * (1 + ResearchConvention.DEFAULT_SLIPPAGE_RATE);
+        double capital = Math.ceil(200 * buyPrice); // 恰好 200 股，不留佣金余量
+
+        List<StrategyBacktestEngine.TradeRecord> trades = StrategyBacktestEngine.run(
+                copyBars(bars), StrategySignalType.MA_CROSS, capital, 5, 20, 20, 2.0
+        ).trades();
+
+        List<StrategyBacktestEngine.TradeRecord> buys = trades.stream()
+                .filter(t -> "buy".equals(t.action()))
+                .toList();
+        assertThat(buys).isNotEmpty();
+        for (StrategyBacktestEngine.TradeRecord buy : buys) {
+            assertThat(buy.cashAfter()).isGreaterThanOrEqualTo(0.0);
+        }
+    }
+
     @Test
     void resolvePreCloseReturnsZeroWhenPrevBarMissing() {
         MarketData bar = new MarketData();

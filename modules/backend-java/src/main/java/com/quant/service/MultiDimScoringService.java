@@ -532,7 +532,7 @@ public class MultiDimScoringService {
         Map<String, StockMultiDimScore> m = new LinkedHashMap<>();
         for (StockMultiDimScore s : rows) {
             String k = s.getStockCode() + "|" + s.getExchangeType();
-            m.put(k, s);
+            m.putIfAbsent(k, s);
         }
         return new ArrayList<>(m.values());
     }

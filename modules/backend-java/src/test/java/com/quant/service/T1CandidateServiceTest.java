@@ -25,7 +25,11 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import java.time.temporal.ChronoUnit;
+import org.mockito.ArgumentCaptor;
 
 /**
  * T+1 候选核心闭环：候选生成评分排序 + 次日核销命中率。
@@ -134,6 +138,43 @@ class T1CandidateServiceTest {
         // ruleScore ∈ (0,100) → 概率 ∈ (0,1)，且保留 rule_score 字段
         assertThat((double) candidates.get(0).get("score")).isBetween(0.0, 1.0);
         assertThat(candidates.get(0).get("rule_score")).isNotNull();
+    }
+
+    /**
+     * 回看窗口必须足够宽：30 个交易日至少需要 42 个自然日（含节假日更久）。
+     * 若窗口仅 40 自然日（≈28 交易日），生产环境会因 stockBars.size() &lt; 30 静默跳过大部分标的。
+     */
+    @Test
+    void generateCandidatesUsesLookbackWideEnoughForThirtyTradingDays() {
+        LocalDate d = LocalDate.of(2025, 1, 2);
+        List<MarketData> rangeBars = rangeBars("000001", "SZSE", d, 35);
+        when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
+                .thenReturn(rangeBars);
+        when(marketDataRepository.findByTradeDate(d)).thenReturn(List.of(rangeBars.get(rangeBars.size() - 1)));
+        StockInfo info = new StockInfo();
+        info.setStockCode("000001");
+        info.setExchangeType("SZSE");
+        info.setStockName("测试股份");
+        info.setListDate(d.minusDays(500));
+        when(stockInfoRepository.findAll()).thenReturn(List.of(info));
+        when(limitUpEcologyService.stockLimitUpFeatures(any(), any(), any()))
+                .thenReturn(Map.of("is_limit_up", false, "lianban_days", 0,
+                        "volume_ratio", 1.0, "turnover_rate", 2.0, "change_pct", 1.0));
+        when(limitUpEcologyService.ecology(any(), anyInt())).thenReturn(Map.of("limit_up_count", 0));
+        when(limitUpEcologyService.nextDayPremium(any(), anyInt()))
+                .thenReturn(Map.of("avg_gap", 0.0, "high_open_rate", 0.5));
+        when(modelVersionRepository.findFirstByHorizonAndStageOrderByCreatedAtDesc(any(), any()))
+                .thenReturn(Optional.empty());
+        when(t1CandidateRepository.findByTradeDate(d)).thenReturn(Optional.empty());
+
+        service().generateCandidates(d, 5);
+
+        ArgumentCaptor<LocalDate> startCaptor = ArgumentCaptor.forClass(LocalDate.class);
+        verify(marketDataRepository)
+                .findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(startCaptor.capture(), any());
+        long calendarDays = ChronoUnit.DAYS.between(startCaptor.getValue(), d);
+        // 30 交易日至少需 42 自然日；窗口须 ≥ 42 才能保证不全量跳过
+        assertThat(calendarDays).isGreaterThanOrEqualTo(42);
     }
 
     @Test

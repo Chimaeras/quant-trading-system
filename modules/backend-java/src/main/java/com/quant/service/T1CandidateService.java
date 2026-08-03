@@ -46,7 +46,13 @@ import java.util.stream.Collectors;
 public class T1CandidateService {
 
     private static final int DEFAULT_TOP_N = 10;
-    private static final int LOOKBACK_DAYS = 40;
+    /**
+     * 回看窗口（自然日）。需保证窗口内交易日数 ≥ {@code MIN_BARS}（30）：
+     * 30 个交易日约需 42 个自然日，叠加春节/国庆等假期后最坏约需 52 个自然日，
+     * 取 60 留足余量，避免生产环境因窗口过短而静默跳过大部分标的。
+     */
+    private static final int LOOKBACK_DAYS = 60;
+    private static final int MIN_BARS = 30;
     private static final double MIN_AVG_AMOUNT = 30_000_000;
     private static final int MIN_LISTING_DAYS = 60;
 
@@ -87,7 +93,7 @@ public class T1CandidateService {
             String key = e.getKey();
             MarketData today = e.getValue();
             List<MarketData> stockBars = byStock.getOrDefault(key, List.of());
-            if (stockBars.size() < 30) {
+            if (stockBars.size() < MIN_BARS) {
                 continue;
             }
             String code = today.getStockCode();

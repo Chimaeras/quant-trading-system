@@ -90,7 +90,9 @@ public class MarketEnvironmentAnalyzer {
                 if (i > 0) {
                     MarketData prevBar = allBars.get(i - 1);
                     if (prevBar.getClosePrice() != null &&
-                            prevBar.getStockCode().equals(bar.getStockCode())) {
+                            prevBar.getStockCode().equals(bar.getStockCode()) &&
+                            prevBar.getExchangeType() != null &&
+                            prevBar.getExchangeType().equals(bar.getExchangeType())) {
                         prevSum += prevBar.getClosePrice().doubleValue();
                         count++;
                     }
@@ -178,16 +180,13 @@ public class MarketEnvironmentAnalyzer {
         java.util.Map<String, MarketData> todayBars = new java.util.HashMap<>();
         java.util.Map<String, MarketData> prevBars = new java.util.HashMap<>();
 
-        LocalDate prevDate = null;
         for (MarketData bar : allBars) {
             if (bar.getTradeDate().equals(tradeDate)) {
                 todayBars.put(bar.getStockCode() + "|" + bar.getExchangeType(), bar);
             } else if (bar.getTradeDate().isBefore(tradeDate)) {
+                // allBars 按日期升序，持续覆盖以保留 tradeDate 前最近一根 bar（前一交易日）
                 String key = bar.getStockCode() + "|" + bar.getExchangeType();
-                if (!prevBars.containsKey(key)) {
-                    prevBars.put(key, bar);
-                    if (prevDate == null) prevDate = bar.getTradeDate();
-                }
+                prevBars.put(key, bar);
             }
         }
 
@@ -219,10 +218,9 @@ public class MarketEnvironmentAnalyzer {
             if (bar.getTradeDate().equals(tradeDate)) {
                 todayBars.put(bar.getStockCode() + "|" + bar.getExchangeType(), bar);
             } else if (bar.getTradeDate().isBefore(tradeDate)) {
+                // allBars 按日期升序，持续覆盖以保留 tradeDate 前最近一根 bar（前一交易日）
                 String key = bar.getStockCode() + "|" + bar.getExchangeType();
-                if (!prevBars.containsKey(key)) {
-                    prevBars.put(key, bar);
-                }
+                prevBars.put(key, bar);
             }
         }
 

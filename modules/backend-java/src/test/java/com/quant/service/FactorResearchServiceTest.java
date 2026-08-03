@@ -89,9 +89,9 @@ class FactorResearchServiceTest {
         when(marketDataRepository.findDistinctTradeDatesBetween(eq(d), eq(calEnd)))
                 .thenReturn(List.of(d, d.plusDays(1), d.plusDays(2), d.plusDays(3),
                         d.plusDays(4), d.plusDays(5)));
-        when(marketDataRepository.findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
-                any(), any(), eq(d), eq(calEnd)))
-                .thenAnswer(inv -> List.of());
+        when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(
+                eq(d), eq(calEnd)))
+                .thenReturn(List.of());
 
         Map<String, Object> out = service().research("CLASSIC_SELECTOR", d, d);
 
@@ -140,19 +140,19 @@ class FactorResearchServiceTest {
         when(selectorResultItemRepository.findByResultIdInOrderByRankNo(any())).thenReturn(items);
         when(marketDataRepository.findDistinctTradeDatesBetween(any(), any()))
                 .thenAnswer(inv -> List.of(t, t1, t2, t3));
-        when(marketDataRepository.findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
-                any(), any(), any(), any()))
-                .thenAnswer(inv -> {
-                    String code = inv.getArgument(0);
-                    String ex = inv.getArgument(1);
-                    int i = codes.indexOf(code);
-                    List<MarketData> bars = new ArrayList<>();
-                    bars.add(bar(code, ex, t, 10.0));             // close@t
-                    bars.add(openBar(code, ex, t1, 10.0));        // open@t1 (净收益入场)
-                    bars.add(bar(code, ex, t2, 10.0 + i * 0.01)); // close@t2 (毛收益退出)
-                    bars.add(bar(code, ex, t3, 10.0 + i * 0.01)); // close@t3 (净收益退出)
-                    return bars;
-                });
+        // 批量行情：10 只股票各 4 根 K 线（close@t / open@t1 / close@t2 / close@t3）
+        List<MarketData> bulkBars = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            String code = codes.get(i);
+            String ex = i < 5 ? "SZSE" : "SSE";
+            bulkBars.add(bar(code, ex, t, 10.0));             // close@t
+            bulkBars.add(openBar(code, ex, t1, 10.0));        // open@t1 (净收益入场)
+            bulkBars.add(bar(code, ex, t2, 10.0 + i * 0.01)); // close@t2 (毛收益退出)
+            bulkBars.add(bar(code, ex, t3, 10.0 + i * 0.01)); // close@t3 (净收益退出)
+        }
+        when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(
+                any(), any()))
+                .thenReturn(bulkBars);
 
         Map<String, Object> out = service().unifiedReport("CLASSIC_SELECTOR", t, t);
 
@@ -210,15 +210,17 @@ class FactorResearchServiceTest {
                 .thenReturn(items);
         when(marketDataRepository.findDistinctTradeDatesBetween(eq(t), eq(calEnd)))
                 .thenReturn(List.of(t, t1, t2));
+        // 批量行情：10 只股票各 2 根 K 线（close@t / close@t2）
+        List<MarketData> bulkBars = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             String code = codes.get(i);
             String ex = i < 5 ? "SZSE" : "SSE";
-            when(marketDataRepository.findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
-                    eq(code), eq(ex), eq(t), eq(calEnd)))
-                    .thenReturn(List.of(
-                            bar(code, ex, t, 10.0),
-                            bar(code, ex, t2, 10.0 + i * 0.01))); // return = i * 0.001
+            bulkBars.add(bar(code, ex, t, 10.0));
+            bulkBars.add(bar(code, ex, t2, 10.0 + i * 0.01)); // return = i * 0.001
         }
+        when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(
+                eq(t), eq(calEnd)))
+                .thenReturn(bulkBars);
 
         Map<String, Object> out = service().research("CLASSIC_SELECTOR", t, t, 2);
 

@@ -685,10 +685,11 @@ public class ComprehensiveScoringService {
     }
 
     private static List<StockTrendScore> dedupe(List<StockTrendScore> rows) {
+        // 入参已按得分降序排列，putIfAbsent 保留首个（得分最高）条目，避免重复键被低分覆盖
         Map<String, StockTrendScore> m = new LinkedHashMap<>();
         for (StockTrendScore s : rows) {
             String k = s.getStockCode() + "|" + s.getExchangeType();
-            m.put(k, s);
+            m.putIfAbsent(k, s);
         }
         return new ArrayList<>(m.values());
     }

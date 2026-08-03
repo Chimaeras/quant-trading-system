@@ -162,7 +162,8 @@ public final class StrategyBacktestEngine {
             if ("buy".equals(signal) && position == 0 && cash > 0
                     && !isLimitUpAtOpen(bar, preClose, limitPct)) {
                 double buyPrice = execPrice * (1 + SLIPPAGE);
-                int volume = (int) (cash / buyPrice / 100) * 100;
+                // 买入可负担股数须预留佣金，否则 cash -= amount + commission 可能使现金为负
+                int volume = (int) (cash / (buyPrice * (1 + COMMISSION)) / 100) * 100;
                 if (volume >= 100) {
                     double amount = buyPrice * volume;
                     double commission = amount * COMMISSION;

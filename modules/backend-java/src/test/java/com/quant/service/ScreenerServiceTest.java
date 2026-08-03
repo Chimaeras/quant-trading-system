@@ -65,6 +65,8 @@ class ScreenerServiceTest {
         assertThat(items.get(0).get("stock_code")).isEqualTo("000001");
         assertThat(out.get("total_before_filter")).isEqualTo(3L);
         assertThat(out.get("returned")).isEqualTo(1);
+        // listing_days 必须以参考日而非 LocalDate.now() 计算（避免历史筛选未来函数）
+        assertThat(((Number) items.get(0).get("listing_days")).longValue()).isEqualTo(1000L);
     }
 
     @Test

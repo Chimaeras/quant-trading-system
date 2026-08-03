@@ -378,6 +378,9 @@ public class FactorResearchService {
     /**
      * 一次性预加载所有候选证券在 [calStart, calEnd] 的 close/open 查找表（key = "code|ex|date"）。
      * 供各持仓期复用，避免逐股/逐持仓期重复查询。
+     *
+     * <p>单次批量拉取区间内全部行情后按 stock key 过滤建表，消除逐股 N+1 查询
+     * （全市场研究时 N 可达数千，逐股查询显著拖慢因子研究面板）。
      */
     private PriceCache loadPriceCache(Map<String, List<SelectorResultItem>> itemsByResultId,
                                       LocalDate calStart, LocalDate calEnd) {
@@ -389,20 +392,22 @@ public class FactorResearchService {
                 stockKeys.add(it.getStockCode() + "|" + it.getExchangeType());
             }
         }
-        for (String stockKey : stockKeys) {
-            int sep = stockKey.indexOf('|');
-            String code = stockKey.substring(0, sep);
-            String ex = stockKey.substring(sep + 1);
-            List<MarketData> bars = marketDataRepository
-                    .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(code, ex, calStart, calEnd);
-            for (MarketData bar : bars) {
-                String key = stockKey + "|" + bar.getTradeDate();
-                if (bar.getClosePrice() != null) {
-                    close.put(key, bar.getClosePrice());
-                }
-                if (bar.getOpenPrice() != null) {
-                    open.put(key, bar.getOpenPrice());
-                }
+        if (stockKeys.isEmpty()) {
+            return new PriceCache(close, open);
+        }
+        List<MarketData> allBars = marketDataRepository
+                .findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(calStart, calEnd);
+        for (MarketData bar : allBars) {
+            String stockKey = bar.getStockCode() + "|" + bar.getExchangeType();
+            if (!stockKeys.contains(stockKey)) {
+                continue;
+            }
+            String key = stockKey + "|" + bar.getTradeDate();
+            if (bar.getClosePrice() != null) {
+                close.put(key, bar.getClosePrice());
+            }
+            if (bar.getOpenPrice() != null) {
+                open.put(key, bar.getOpenPrice());
             }
         }
         return new PriceCache(close, open);

@@ -183,6 +183,13 @@ public class LimitUpEcologyService {
         List<MarketData> todayBars = marketDataRepository.findByTradeDate(tradeDate);
         Map<String, MarketData> nextByKey = marketDataRepository.findByTradeDate(nextDay).stream()
                 .collect(Collectors.toMap(m -> m.getStockCode() + "|" + m.getExchangeType(), Function.identity(), (a, b) -> a));
+        // 前一交易日行情，用于 preClose 缺失时回退（与 ecology() 口径一致）
+        LocalDate prevDay = tradingCalendarService.findTradingDays(tradeDate.minusDays(7), tradeDate.minusDays(1))
+                .stream().reduce((a, b) -> b).orElse(null);
+        Map<String, MarketData> prevByKey = prevDay != null
+                ? marketDataRepository.findByTradeDate(prevDay).stream()
+                .collect(Collectors.toMap(m -> m.getStockCode() + "|" + m.getExchangeType(), Function.identity(), (a, b) -> a))
+                : Map.of();
         Map<String, String> nameByKey = nameMap();
 
         List<double[]> premiums = new ArrayList<>(); // [高开, 次日收盘涨幅, 次日最高涨幅]
@@ -190,7 +197,9 @@ public class LimitUpEcologyService {
         int upCount = 0;
         for (MarketData bar : todayBars) {
             String key = bar.getStockCode() + "|" + bar.getExchangeType();
-            double preClose = resolvePreClose(bar, List.of(bar));
+            MarketData prevBar = prevByKey.get(key);
+            // preClose 优先取 bar.preClose，缺失时回退到前一交易日收盘（避免 preClose=null 时漏判涨停）
+            double preClose = resolvePreClose(bar, prevBar != null ? List.of(prevBar, bar) : List.of(bar));
             double limitPct = TradingLimitRules.resolveLimitPct(bar.getStockCode(), bar.getExchangeType(), nameByKey.get(key));
             if (!StrategyBacktestEngine.isLimitUpAtClose(bar, preClose, limitPct)) {
                 continue;

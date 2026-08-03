@@ -66,7 +66,7 @@ public class ScreenerService {
                     return days >= minListingDays;
                 })
                 .filter(info -> !skipSt || !isStStock(info.getStockName()))
-                .map(this::toMap)
+                .map(info -> toMap(info, ref))
                 .toList();
 
         int totalAfterFilter = allFiltered.size();
@@ -101,7 +101,7 @@ public class ScreenerService {
         return name != null && name.toUpperCase().contains("ST");
     }
 
-    private Map<String, Object> toMap(StockInfo info) {
+    private Map<String, Object> toMap(StockInfo info, LocalDate ref) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("stock_code", info.getStockCode());
         m.put("exchange_type", info.getExchangeType());
@@ -109,7 +109,7 @@ public class ScreenerService {
         m.put("industry", info.getIndustry());
         m.put("list_date", info.getListDate() != null ? info.getListDate().toString() : "");
         if (info.getListDate() != null) {
-            m.put("listing_days", ChronoUnit.DAYS.between(info.getListDate(), LocalDate.now()));
+            m.put("listing_days", ChronoUnit.DAYS.between(info.getListDate(), ref));
         }
         return m;
     }

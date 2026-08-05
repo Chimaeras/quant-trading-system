@@ -10,22 +10,30 @@ export interface WatchlistItem {
   created_at?: string
 }
 
-export function listWatchlist(userId?: number): Promise<WatchlistItem[]> {
-  return request.get('/watchlist/list', { params: userId ? { userId } : {} })
+// 拦截器返回的是完整 ApiResponse {code, message, data}，这里统一解包出 .data，
+// 与 selector.ts 的惯用法一致，避免消费方拿到包装对象。
+function unwrap<T>(res: unknown): T {
+  return (res as { data?: T })?.data as T
 }
 
-export function addWatchlist(
+export async function listWatchlist(userId?: number): Promise<WatchlistItem[]> {
+  const res = await request.get('/watchlist/list', { params: userId ? { userId } : {} })
+  return unwrap<WatchlistItem[]>(res)
+}
+
+export async function addWatchlist(
   stockCode: string,
   exchangeType: string,
   note?: string,
   userId?: number
 ): Promise<WatchlistItem> {
-  return request.post('/watchlist/add', {
+  const res = await request.post('/watchlist/add', {
     stockCode,
     exchangeType,
     note,
     ...(userId ? { userId } : {})
   })
+  return unwrap<WatchlistItem>(res)
 }
 
 export interface BatchAddResult {
@@ -36,23 +44,25 @@ export interface BatchAddResult {
   note: string
 }
 
-export function batchAddWatchlist(text: string, userId?: number): Promise<BatchAddResult> {
-  return request.post('/watchlist/batch-add', {
+export async function batchAddWatchlist(text: string, userId?: number): Promise<BatchAddResult> {
+  const res = await request.post('/watchlist/batch-add', {
     text,
     ...(userId ? { userId } : {})
   })
+  return unwrap<BatchAddResult>(res)
 }
 
-export function removeWatchlist(
+export async function removeWatchlist(
   stockCode: string,
   exchangeType: string,
   userId?: number
 ): Promise<{ deleted: boolean }> {
-  return request.post('/watchlist/remove', {
+  const res = await request.post('/watchlist/remove', {
     stockCode,
     exchangeType,
     ...(userId ? { userId } : {})
   })
+  return unwrap<{ deleted: boolean }>(res)
 }
 
 export interface WatchlistAlert {
@@ -76,13 +86,14 @@ export interface WatchlistAlertScan {
   note: string
 }
 
-export function scanWatchlistAlerts(params?: {
+export async function scanWatchlistAlerts(params?: {
   userId?: number
   pctThreshold?: number
   volumeRatioThreshold?: number
   lookbackDays?: number
 }): Promise<WatchlistAlertScan> {
-  return request.get('/watchlist/alerts', { params: params || {} })
+  const res = await request.get('/watchlist/alerts', { params: params || {} })
+  return unwrap<WatchlistAlertScan>(res)
 }
 
 export interface SignalHit {
@@ -108,6 +119,7 @@ export interface SignalCoverageResponse {
   note: string
 }
 
-export function getWatchlistSignalCoverage(userId?: number): Promise<SignalCoverageResponse> {
-  return request.get('/watchlist/signal-coverage', { params: userId ? { userId } : {} })
+export async function getWatchlistSignalCoverage(userId?: number): Promise<SignalCoverageResponse> {
+  const res = await request.get('/watchlist/signal-coverage', { params: userId ? { userId } : {} })
+  return unwrap<SignalCoverageResponse>(res)
 }

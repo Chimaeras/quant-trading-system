@@ -283,7 +283,13 @@ async function loadDate(date: string) {
   try {
     const res = await getT1Candidates(date)
     if (res.found) {
-      result.value = res
+      // 后端 getCandidates 把核销结果嵌套在 settle 字段下（settle.results / settle.summary），
+      // 这里提升到顶层，使表格能展示次日涨幅/高开/命中率等已核销字段。
+      result.value = {
+        ...res,
+        results: res.settle?.results,
+        summary: res.settle?.summary
+      }
     } else {
       result.value = null
       toast.info('该日无候选记录')

@@ -79,11 +79,34 @@ public class T1CandidateService {
                         m -> m.getStockCode() + "|" + m.getExchangeType(), LinkedHashMap::new, Collectors.toList()));
         Map<String, MarketData> todayByKey = marketDataRepository.findByTradeDate(tradeDate).stream()
                 .collect(Collectors.toMap(m -> m.getStockCode() + "|" + m.getExchangeType(), Function.identity(), (a, b) -> a));
+
+        // 信号日无行情（今日未收盘/非交易日/数据未覆盖）时，回退到该日或之前最近的有行情交易日，
+        // 避免打分循环起点为空导致返回空候选。byStock 已覆盖 [rangeStart, tradeDate]，
+        // actualDate ≤ tradeDate 时其行情必然已在 byStock 内，无需重新加载区间数据。
+        LocalDate actualDate = tradeDate;
+        if (todayByKey.isEmpty()) {
+            actualDate = marketDataRepository.findLatestTradeDateOnOrBefore(tradeDate).orElse(null);
+            if (actualDate == null) {
+                log.warn("T+1 候选生成失败：tradeDate={} 及此前均无行情数据", tradeDate);
+                Map<String, Object> empty = new LinkedHashMap<>();
+                empty.put("trade_date", tradeDate.toString());
+                empty.put("top_n", 0);
+                empty.put("total_scored", 0);
+                empty.put("candidates", List.of());
+                empty.put("settled", false);
+                empty.put("note", "所选信号日及此前均无行情数据，请确认数据已入库");
+                return empty;
+            }
+            log.info("信号日 {} 无行情，回退到最近有行情交易日 {}", tradeDate, actualDate);
+            todayByKey = marketDataRepository.findByTradeDate(actualDate).stream()
+                    .collect(Collectors.toMap(m -> m.getStockCode() + "|" + m.getExchangeType(), Function.identity(), (a, b) -> a));
+        }
+
         Map<String, StockInfo> infoByKey = stockInfoRepository.findAll().stream()
                 .collect(Collectors.toMap(s -> s.getStockCode() + "|" + s.getExchangeType(), Function.identity(), (a, b) -> a));
 
         // 涨停股次日溢价历史分布（用于次日可买性/高开追高风险预判）
-        Map<String, Object> premium = limitUpEcologyService.nextDayPremium(tradeDate, 50);
+        Map<String, Object> premium = limitUpEcologyService.nextDayPremium(actualDate, 50);
 
         // 尝试加载 horizon=1 的 T+1 概率模型（已训练则用真实上涨概率排序，否则回退规则分）
         T1ProbModel probModel = loadT1ProbModel();
@@ -108,7 +131,7 @@ public class T1CandidateService {
                 continue;
             }
             if (!ScoringUtils.hasMinListingTenure(info != null ? info.getListDate() : null,
-                    tradeDate, MIN_LISTING_DAYS, stockBars)) {
+                    actualDate, MIN_LISTING_DAYS, stockBars)) {
                 continue;
             }
 
@@ -157,20 +180,22 @@ public class T1CandidateService {
         scored.sort(Comparator.comparingDouble((Map<String, Object> c) -> (double) c.get("score")).reversed());
         List<Map<String, Object>> top = new ArrayList<>(scored.subList(0, Math.min(n, scored.size())));
 
-        T1Candidate rec = t1CandidateRepository.findByTradeDate(tradeDate).orElseGet(() -> {
+        LocalDate effectiveDate = actualDate;
+        T1Candidate rec = t1CandidateRepository.findByTradeDate(effectiveDate).orElseGet(() -> {
             T1Candidate c = new T1Candidate();
-            c.setTradeDate(tradeDate);
+            c.setTradeDate(effectiveDate);
             return c;
         });
         rec.setTopN(n);
         rec.setCandidatesJson(toJson(top));
         rec.setSettled(Boolean.FALSE);
         rec.setSettledJson(null);
-        rec.setEcologyJson(toJson(limitUpEcologyService.ecology(tradeDate, 30)));
+        rec.setEcologyJson(toJson(limitUpEcologyService.ecology(actualDate, 30)));
         t1CandidateRepository.save(rec);
 
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("trade_date", tradeDate.toString());
+        out.put("trade_date", actualDate.toString());
+        out.put("requested_trade_date", tradeDate.toString());
         out.put("top_n", top.size());
         out.put("total_scored", scored.size());
         out.put("candidates", top);

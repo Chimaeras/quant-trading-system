@@ -166,7 +166,9 @@ public class WatchlistAlertService {
 
     private static double pctChange(MarketData bar) {
         if (bar.getChangePct() != null) {
-            return bar.getChangePct().doubleValue();
+            // DB 的 change_pct 存储为百分比数值（如 5.25 表示 5.25%），
+            // 统一换算为小数（0.0525），与本服务内阈值/信号文案及前端展示口径一致。
+            return bar.getChangePct().doubleValue() / 100.0;
         }
         if (bar.getClosePrice() == null || bar.getPreClose() == null
                 || bar.getPreClose().doubleValue() <= 0) {

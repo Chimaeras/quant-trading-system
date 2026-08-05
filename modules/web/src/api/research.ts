@@ -1,4 +1,4 @@
-import request from './request'
+import request, { unwrap } from './request'
 
 export interface CalibrationResponse {
   status?: string
@@ -54,16 +54,22 @@ export interface ModelRegistryRow {
   created_at?: string
 }
 
-export function getCalibration(params: {
+// 拦截器返回完整 ApiResponse {code, message, data}，这里统一用 unwrap 取 .data，
+// 与 selector.ts / market.ts 的惯用法一致；避免消费方拿到包装对象导致字段全 undefined。
+// 重计算接口（生成候选/核销/训练/标签/校准）按需放宽 per-request timeout，
+// 覆盖 request.ts 全局 10s 上限（与 backtest.ts / scoring.ts 同样做法）。
+
+export async function getCalibration(params: {
   startDate: string
   endDate: string
   labelVersion?: string
   horizon?: number
 }): Promise<CalibrationResponse> {
-  return request.get('/research/calibration', { params })
+  const res = await request.get('/research/calibration', { params, timeout: 60000 })
+  return unwrap<CalibrationResponse>(res)
 }
 
-export function trainLogistic(params: {
+export async function trainLogistic(params: {
   trainStart: string
   trainEnd: string
   testStart: string
@@ -72,20 +78,23 @@ export function trainLogistic(params: {
   horizon?: number
   modelVersion?: string
 }): Promise<LogisticTrainResponse> {
-  return request.post('/research/logistic/train', null, { params })
+  const res = await request.post('/research/logistic/train', null, { params, timeout: 120000 })
+  return unwrap<LogisticTrainResponse>(res)
 }
 
-export function getModelRegistry(): Promise<ModelRegistryRow[]> {
-  return request.get('/research/models')
+export async function getModelRegistry(): Promise<ModelRegistryRow[]> {
+  const res = await request.get('/research/models')
+  return unwrap<ModelRegistryRow[]>(res)
 }
 
 /** 生成 T+1 次日方向标签（close-to-close）。 */
-export function buildT1Labels(params: {
+export async function buildT1Labels(params: {
   startDate: string
   endDate: string
   labelVersion?: string
 }): Promise<{ status?: string; generated?: number; label_type?: string; convention?: string; message?: string }> {
-  return request.post('/research/labels/build-t1', null, { params })
+  const res = await request.post('/research/labels/build-t1', null, { params, timeout: 120000 })
+  return unwrap<{ status?: string; generated?: number; label_type?: string; convention?: string; message?: string }>(res)
 }
 
 export interface T1CandidateItem {
@@ -140,22 +149,30 @@ export interface T1CandidatesResponse {
   score_model?: string
   note?: string
   found?: boolean
+  // 后端 getCandidates 把核销结果嵌套在 settle 字段下（含 next_trade_date/summary/results）
+  settle?: { next_trade_date?: string; summary?: T1SettleSummary; results?: T1CandidateItem[] }
 }
 
-export function generateT1Candidates(params: { tradeDate: string; topN?: number }): Promise<T1CandidatesResponse> {
-  return request.post('/research/t1/candidates', null, { params })
+/** 生成 T+1 次日候选：后端需拉取全市场 60 天行情逐股打分，耗时较长，放宽至 120s。 */
+export async function generateT1Candidates(params: { tradeDate: string; topN?: number }): Promise<T1CandidatesResponse> {
+  const res = await request.post('/research/t1/candidates', null, { params, timeout: 120000 })
+  return unwrap<T1CandidatesResponse>(res)
 }
 
-export function settleT1Candidates(params: { tradeDate: string }): Promise<T1CandidatesResponse> {
-  return request.post('/research/t1/settle', null, { params })
+/** 次日核销：扫描次日全市场行情回填候选表现，放宽至 60s。 */
+export async function settleT1Candidates(params: { tradeDate: string }): Promise<T1CandidatesResponse> {
+  const res = await request.post('/research/t1/settle', null, { params, timeout: 60000 })
+  return unwrap<T1CandidatesResponse>(res)
 }
 
-export function getT1Candidates(tradeDate: string): Promise<T1CandidatesResponse> {
-  return request.get(`/research/t1/candidates/${tradeDate}`)
+export async function getT1Candidates(tradeDate: string): Promise<T1CandidatesResponse> {
+  const res = await request.get(`/research/t1/candidates/${tradeDate}`)
+  return unwrap<T1CandidatesResponse>(res)
 }
 
-export function getT1Recent(): Promise<Array<{ trade_date: string; top_n: number; settled: boolean }>> {
-  return request.get('/research/t1/recent')
+export async function getT1Recent(): Promise<Array<{ trade_date: string; top_n: number; settled: boolean }>> {
+  const res = await request.get('/research/t1/recent')
+  return unwrap<Array<{ trade_date: string; top_n: number; settled: boolean }>>(res)
 }
 
 export interface T1StatsResponse {
@@ -180,6 +197,7 @@ export interface T1StatsResponse {
   note?: string
 }
 
-export function getT1Stats(params: { startDate: string; endDate: string }): Promise<T1StatsResponse> {
-  return request.get('/research/t1/stats', { params })
+export async function getT1Stats(params: { startDate: string; endDate: string }): Promise<T1StatsResponse> {
+  const res = await request.get('/research/t1/stats', { params, timeout: 60000 })
+  return unwrap<T1StatsResponse>(res)
 }

@@ -1,6 +1,7 @@
 package com.quant.repository;
 
 import com.quant.entity.LabelSnapshot;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -30,7 +31,7 @@ public interface LabelSnapshotRepository extends JpaRepository<LabelSnapshot, Lo
     Optional<LocalDate> findMaxSignalDate(@Param("version") String labelVersion);
 
     @Query("SELECT l FROM LabelSnapshot l WHERE l.labelVersion = :version ORDER BY l.signalDate DESC")
-    List<LabelSnapshot> findLatestByVersion(@Param("version") String labelVersion, int limit);
+    List<LabelSnapshot> findLatestByVersion(@Param("version") String labelVersion, Pageable pageable);
 
     @Query("SELECT l FROM LabelSnapshot l WHERE l.labelVersion = :version AND l.horizon = :horizon " +
             "AND l.signalDate BETWEEN :start AND :end AND l.execStatus = 'FILLED' " +

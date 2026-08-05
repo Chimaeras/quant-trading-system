@@ -13,7 +13,24 @@
 
       <el-form inline class="add-form">
         <el-form-item label="代码">
-          <el-input v-model="form.stockCode" placeholder="000001" style="width: 130px" clearable />
+          <el-autocomplete
+            v-model="form.stockCode"
+            :fetch-suggestions="queryStock"
+            :trigger-on-focus="false"
+            placeholder="输入代码或名称搜索，如 000001 / 平安"
+            value-key="stock_code"
+            clearable
+            style="width: 260px"
+            @select="onStockPicked"
+          >
+            <template #default="{ item }">
+              <div class="stock-sugg">
+                <span class="stock-sugg-code">{{ item.stock_code }}</span>
+                <span class="stock-sugg-name">{{ item.stock_name }}</span>
+                <span class="stock-sugg-ex">{{ item.exchange_type }}</span>
+              </div>
+            </template>
+          </el-autocomplete>
         </el-form-item>
         <el-form-item label="交易所">
           <el-select v-model="form.exchangeType" style="width: 100px">
@@ -148,6 +165,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { listWatchlist, addWatchlist, removeWatchlist, scanWatchlistAlerts, getWatchlistSignalCoverage, batchAddWatchlist, type WatchlistItem, type WatchlistAlertScan, type SignalCoverageResponse, type BatchAddResult } from '@/api/watchlist'
+import { marketApi, type StockListItem } from '@/api/market'
 import { useToast } from '@/composables/useToast'
 import dayjs from 'dayjs'
 
@@ -196,6 +214,40 @@ async function loadList() {
     toast.error(e?.message || '加载自选股失败')
   } finally {
     loading.value = false
+  }
+}
+
+// 代码/名称模糊搜索：复用 /api/market/stock/list（后端按 code 与 name 做 like 匹配）。
+// el-autocomplete 的 cb 期望一个数组；空关键字时不触发请求。
+let searchToken = 0
+async function queryStock(keyword: string, cb: (res: StockListItem[]) => void) {
+  const kw = keyword.trim()
+  if (!kw) {
+    cb([])
+    return
+  }
+  const token = ++searchToken
+  try {
+    const res = await marketApi.getStockList({
+      keyword: kw,
+      exchange: form.exchangeType || undefined,
+      page: 1,
+      size: 20
+    })
+    // 防止乱序返回覆盖最新输入
+    if (token !== searchToken) return
+    const data = (res as { data?: { list?: StockListItem[] } })?.data
+    cb(data?.list ?? [])
+  } catch {
+    if (token === searchToken) cb([])
+  }
+}
+
+// 选中下拉项后，自动回填代码与交易所（搜索时若限定了交易所则保持）
+function onStockPicked(item: StockListItem) {
+  form.stockCode = item.stock_code
+  if (item.exchange_type) {
+    form.exchangeType = item.exchange_type
   }
 }
 
@@ -346,4 +398,24 @@ onMounted(() => {
 .text-danger { color: var(--up); }
 .text-success { color: var(--down); }
 .text-muted { color: var(--text-muted); }
+.stock-sugg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.4;
+}
+.stock-sugg-code {
+  font-family: var(--font-mono, monospace);
+  font-weight: 600;
+}
+.stock-sugg-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stock-sugg-ex {
+  font-size: 12px;
+  color: var(--text-muted);
+}
 </style>

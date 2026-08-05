@@ -66,13 +66,14 @@ class WatchlistAlertServiceTest {
     void scanDetectsPctBreakoutVolumeSurgeAndNewHigh() {
         LocalDate today = LocalDate.now();
         // 5 个历史 bar（量 1000、close 9），1 个最新 bar（量 3000、close 10、涨幅 6%）
+        // 注意：change_pct 在 DB 中按百分比数值存储（6.0 表示 6%），与 HistoricalDataService 入库口径一致
         List<MarketData> bars = List.of(
                 bar(today.minusDays(6), 9.0, 0.0, 1000),
                 bar(today.minusDays(5), 9.0, 0.0, 1000),
                 bar(today.minusDays(4), 9.0, 0.0, 1000),
                 bar(today.minusDays(3), 9.0, 0.0, 1000),
                 bar(today.minusDays(2), 9.0, 0.0, 1000),
-                bar(today.minusDays(1), 10.0, 0.06, 3000)
+                bar(today.minusDays(1), 10.0, 6.0, 3000)
         );
         when(watchlistItemRepository.findByUserIdOrderByCreatedAtDesc(1L))
                 .thenReturn(List.of(item("000001", "SZSE", "平安银行")));

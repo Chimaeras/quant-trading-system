@@ -27,6 +27,13 @@ public class GlobalExceptionHandler {
         return ApiResponse.error(400, message);
     }
 
+    @ExceptionHandler(UnauthorizedException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public ApiResponse<Void> handleUnauthorized(UnauthorizedException e) {
+        log.warn("未授权: {}", e.getMessage());
+        return ApiResponse.error(401, e.getMessage());
+    }
+
     @ExceptionHandler(BusinessException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiResponse<Void> handleBusiness(BusinessException e) {

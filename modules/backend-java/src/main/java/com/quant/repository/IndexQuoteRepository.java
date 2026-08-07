@@ -39,4 +39,18 @@ public interface IndexQuoteRepository extends JpaRepository<IndexQuote, Long> {
 
     @Query("SELECT COUNT(i) FROM IndexQuote i WHERE i.indexCode = :code")
     long countByIndex(@Param("code") String indexCode);
+
+    @Query("SELECT MIN(i.tradeDate) FROM IndexQuote i")
+    Optional<LocalDate> findMinTradeDate();
+
+    @Query("SELECT MAX(i.tradeDate) FROM IndexQuote i")
+    Optional<LocalDate> findMaxTradeDate();
+
+    /** 内容指纹：count, minDate, maxDate, sum(close), sum(volume), max(ingested_at)。 */
+    @Query("""
+            SELECT COUNT(i), MIN(i.tradeDate), MAX(i.tradeDate),
+                   COALESCE(SUM(i.closePrice), 0), COALESCE(SUM(i.volume), 0), MAX(i.ingestedAt)
+            FROM IndexQuote i
+            """)
+    List<Object[]> aggregateContentFingerprint();
 }

@@ -1,6 +1,7 @@
 package com.quant.repository;
 
 import com.quant.entity.DataSnapshot;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -13,7 +14,7 @@ public interface DataSnapshotRepository extends JpaRepository<DataSnapshot, Long
     List<DataSnapshot> findBySnapshotIdStartingWith(String prefix);
 
     @Query("SELECT s FROM DataSnapshot s ORDER BY s.createdAt DESC")
-    List<DataSnapshot> findLatest(int limit);
+    List<DataSnapshot> findLatest(Pageable pageable);
 
     @Query("SELECT COUNT(s) FROM DataSnapshot s")
     long count();

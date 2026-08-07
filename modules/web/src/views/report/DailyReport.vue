@@ -35,6 +35,36 @@
             :description="`共 ${report.overall_summary.strategy_count} 个策略，其中 ${report.overall_summary.strategies_with_opportunity} 个给出候选，${report.overall_summary.strategies_without_opportunity} 个无合格标的。`"
           />
 
+          <el-card v-if="report.prediction" shadow="never" class="lineage-card">
+            <template #header>
+              <span>预测快照 Lineage</span>
+              <el-tag size="small" :type="report.prediction.status === 'PUBLISHED' ? 'success' : 'warning'" style="margin-left: 8px">
+                {{ report.prediction.status }}
+              </el-tag>
+            </template>
+            <p v-if="report.prediction.note" class="note">{{ report.prediction.note }}</p>
+            <div v-for="h in report.prediction.horizons || []" :key="h.horizon" class="lineage-horizon">
+              <div class="lineage-h-title">T+{{ h.horizon }} · {{ h.status }}
+                <span v-if="h.probability_track"> · 概率轨 {{ h.probability_track }}</span>
+              </div>
+              <p v-if="h.note" class="note">{{ h.note }}</p>
+              <el-table v-if="h.tracks?.length" :data="h.tracks" size="small" stripe border>
+                <el-table-column prop="track" label="轨道" width="120" />
+                <el-table-column prop="status" label="状态" width="100" />
+                <el-table-column prop="prediction_run_id" label="run_id" min-width="160" show-overflow-tooltip />
+                <el-table-column prop="model_version" label="模型" min-width="120" show-overflow-tooltip />
+                <el-table-column prop="publish_version" label="版本" width="70" />
+                <el-table-column prop="item_count" label="条目" width="70" />
+                <el-table-column label="abstain" min-width="140" show-overflow-tooltip>
+                  <template #default="{ row }">{{ row.abstain_reason || '—' }}</template>
+                </el-table-column>
+                <el-table-column label="gate" width="90">
+                  <template #default="{ row }">{{ row.quality_gate?.gate_status || '—' }}</template>
+                </el-table-column>
+              </el-table>
+            </div>
+          </el-card>
+
           <el-empty
             v-if="!report.has_any_result"
             description="该交易日无成功选股结果，请先在「选股打分」页运行策略"
@@ -321,5 +351,16 @@ onMounted(() => {
 }
 .trend-card {
   margin-top: 16px;
+}
+.lineage-card {
+  margin-bottom: 16px;
+  background: var(--surface-2);
+}
+.lineage-horizon {
+  margin-top: 10px;
+}
+.lineage-h-title {
+  font-weight: 600;
+  margin-bottom: 6px;
 }
 </style>

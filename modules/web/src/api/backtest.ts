@@ -1,4 +1,4 @@
-import request from './request'
+import request, { unwrap } from './request'
 
 export interface ScoringBacktestRequest {
   strategyType?: string
@@ -15,11 +15,15 @@ export interface ScoringBacktestRequest {
 
 export interface PeriodStat {
   winRate: number
+  /** 成交成功样本胜率（与 winRate 同义） */
+  filledSampleWinRate?: number
   avgReturn: number
   medianReturn: number
   maxReturn: number
   minReturn: number
   totalObservations: number
+  signalCount?: number
+  skippedCount?: number
   avgWin: number
   avgLoss: number
   profitLossRatio: number
@@ -86,6 +90,19 @@ export interface ScoringBacktestResponse {
   formulaAudit?: Record<string, unknown>
   shortHorizonValidation?: Record<string, unknown>
   codexFactorIcByHolding?: Record<number, Record<string, FactorIcSummary>>
+  /** MP-010 信号→成交漏斗 */
+  executionFunnel?: {
+    signal_count?: number
+    buyable_count?: number
+    filled_count?: number
+    frozen_count?: number
+    reject_reasons?: Record<string, number>
+    price_source?: string
+    metric_scope?: string
+    note?: string
+  }
+  priceSource?: string
+  metricScope?: string
 }
 
 /** 历史回测运行摘要（列表项） */
@@ -102,43 +119,43 @@ export interface BacktestRunSummary {
 
 export const backtestApi = {
   async runBacktest(body: ScoringBacktestRequest) {
-    const res = await request.post<{ data: ScoringBacktestResponse }>(
+    const res = await request.post<ScoringBacktestResponse>(
       '/backtest/scoring',
       body,
       { timeout: 120000 }
     )
-    return (res as { data?: ScoringBacktestResponse })?.data as ScoringBacktestResponse
+    return unwrap(res)
   },
 
   async getStrategies() {
-    const res = await request.get<{ data: string[] }>('/backtest/scoring/strategies')
-    return (res as { data?: string[] })?.data ?? []
+    const res = await request.get<string[]>('/backtest/scoring/strategies')
+    return unwrap(res) ?? []
   },
 
   async getRuns(limit = 20) {
-    const res = await request.get<{ data: BacktestRunSummary[] }>('/backtest/scoring/runs', {
+    const res = await request.get<BacktestRunSummary[]>('/backtest/scoring/runs', {
       params: { limit }
     })
-    return (res as { data?: BacktestRunSummary[] })?.data ?? []
+    return unwrap(res) ?? []
   },
 
   async getRun(resultId: string) {
-    const res = await request.get<{ data: ScoringBacktestResponse }>(`/backtest/scoring/run/${resultId}`)
-    return (res as { data?: ScoringBacktestResponse })?.data as ScoringBacktestResponse
+    const res = await request.get<ScoringBacktestResponse>(`/backtest/scoring/run/${resultId}`)
+    return unwrap(res)
   },
 
   async runStrategyBacktest(body: StrategyBacktestRequest) {
-    const res = await request.post<{ data: StrategyBacktestResponse }>(
+    const res = await request.post<StrategyBacktestResponse>(
       '/backtest/strategy/run',
       body,
       { timeout: 120000 }
     )
-    return (res as { data?: StrategyBacktestResponse })?.data as StrategyBacktestResponse
+    return unwrap(res)
   },
 
   async getStrategyTypes() {
-    const res = await request.get<{ data: string[] }>('/backtest/strategy/strategies')
-    return (res as { data?: string[] })?.data ?? []
+    const res = await request.get<string[]>('/backtest/strategy/strategies')
+    return unwrap(res) ?? []
   }
 }
 
@@ -197,13 +214,14 @@ export interface TurnoverResponse {
   note: string
 }
 
-export function analyzeTurnover(params: {
+export async function analyzeTurnover(params: {
   strategy?: string
   startDate: string
   endDate: string
   topN?: number
 }): Promise<TurnoverResponse> {
-  return request.get('/backtest/turnover', { params })
+  const res = await request.get<TurnoverResponse>('/backtest/turnover', { params })
+  return unwrap(res)
 }
 
 export interface StabilitySegment {
@@ -247,12 +265,41 @@ export interface StabilityResponse {
   note: string
 }
 
-export function analyzeStability(params: {
+export async function analyzeStability(params: {
   strategy: string
   startDate: string
   endDate: string
   topN?: number
   holdingDay?: number
 }): Promise<StabilityResponse> {
-  return request.get('/backtest/stability', { params })
+  const res = await request.get<StabilityResponse>('/backtest/stability', { params })
+  return unwrap(res)
+}
+
+/** 事件驱动组合回测（MP-015） */
+export interface PortfolioBacktestRequest {
+  startDate: string
+  endDate: string
+  strategyType?: string
+  horizon?: number
+  initialCash?: number
+  maxPositions?: number
+  topN?: number
+  commissionRate?: number
+  sellTaxRate?: number
+  slippageRate?: number
+}
+
+export async function runPortfolioBacktest(
+  body: PortfolioBacktestRequest
+): Promise<Record<string, unknown>> {
+  const res = await request.post<Record<string, unknown>>('/backtest/portfolio/run', body, {
+    timeout: 180000
+  })
+  return unwrap(res)
+}
+
+export async function getPortfolioBacktest(runId: string): Promise<Record<string, unknown>> {
+  const res = await request.get<Record<string, unknown>>(`/backtest/portfolio/${runId}`)
+  return unwrap(res)
 }

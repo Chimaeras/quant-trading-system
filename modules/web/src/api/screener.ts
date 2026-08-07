@@ -1,4 +1,4 @@
-import request from './request'
+import request, { unwrap } from './request'
 
 export interface ScreenerItem {
   stock_code: string
@@ -28,7 +28,7 @@ export interface ScreenerResponse {
   note: string
 }
 
-export function runScreener(params: {
+export async function runScreener(params: {
   keyword?: string
   exchange?: string
   industry?: string
@@ -37,7 +37,8 @@ export function runScreener(params: {
   page?: number
   size?: number
 }): Promise<ScreenerResponse> {
-  return request.get('/screener/run', { params })
+  const res = await request.get<ScreenerResponse>('/screener/run', { params })
+  return unwrap(res)
 }
 
 export interface ScreenerTemplate {
@@ -52,7 +53,7 @@ export interface ScreenerTemplate {
   created_at?: string
 }
 
-export function saveScreenerTemplate(params: {
+export async function saveScreenerTemplate(params: {
   name: string
   keyword?: string
   exchange?: string
@@ -61,13 +62,24 @@ export function saveScreenerTemplate(params: {
   excludeSt?: boolean
   userId?: number
 }): Promise<ScreenerTemplate> {
-  return request.post('/screener/templates/save', params)
+  const res = await request.post<ScreenerTemplate>('/screener/templates/save', params)
+  return unwrap(res)
 }
 
-export function listScreenerTemplates(userId?: number): Promise<ScreenerTemplate[]> {
-  return request.get('/screener/templates/list', { params: userId ? { userId } : {} })
+export async function listScreenerTemplates(userId?: number): Promise<ScreenerTemplate[]> {
+  const res = await request.get<ScreenerTemplate[]>('/screener/templates/list', {
+    params: userId ? { userId } : {}
+  })
+  return unwrap(res) ?? []
 }
 
-export function deleteScreenerTemplate(id: number, userId?: number): Promise<{ deleted: boolean }> {
-  return request.post('/screener/templates/delete', { id, ...(userId ? { userId } : {}) })
+export async function deleteScreenerTemplate(
+  id: number,
+  userId?: number
+): Promise<{ deleted: boolean }> {
+  const res = await request.post<{ deleted: boolean }>('/screener/templates/delete', {
+    id,
+    ...(userId ? { userId } : {})
+  })
+  return unwrap(res)
 }

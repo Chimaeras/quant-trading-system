@@ -624,7 +624,10 @@ public class HistoricalDataService {
     }
 
     /**
-     * 由成交额/换手率推算总市值并写入实体，供 Codex ln(MV) 优先读取。
+     * 由成交额/换手率推算流通市值近似并写入实体（MP-025）。
+     *
+     * <p>换手率通常对应流通口径，不得标为可靠总市值。标记：
+     * type=FLOAT_CAP_APPROX, source=amount_div_turnover, reliability=UNKNOWN_LEGACY。
      */
     static void populateTotalMarketValue(MarketData bar) {
         if (bar == null || bar.getAmount() == null || bar.getTurnoverRate() == null) {
@@ -637,6 +640,9 @@ public class HistoricalDataService {
         }
         double turnoverFrac = turnover > 1.0 ? turnover / 100.0 : turnover;
         bar.setTotalMarketValue(BigDecimal.valueOf(amount / Math.max(turnoverFrac, 1e-9)));
+        bar.setMarketCapType("FLOAT_CAP_APPROX");
+        bar.setMarketCapSource("amount_div_turnover");
+        bar.setMarketCapReliability("UNKNOWN_LEGACY");
     }
 
     /**

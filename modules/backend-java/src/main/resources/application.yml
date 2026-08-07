@@ -15,8 +15,16 @@ spring:
     hikari:
       maximum-pool-size: 10
       minimum-idle: 5
+  # Flyway: app schema source of truth (see classpath:db/migration)
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # First adoption on existing DBs that already have tables from ddl-auto / ops scripts
+    baseline-on-migrate: true
   jpa:
     hibernate:
+      # TEMPORARY for local/dev transition: Hibernate may still add/alter columns not yet in migrations.
+      # Production profile (application-prod.yml) uses ddl-auto: validate — do not rely on update there.
       ddl-auto: update
     show-sql: false
     properties:

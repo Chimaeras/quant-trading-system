@@ -46,6 +46,7 @@ public class DataQualityService {
     private final IndexQuoteRepository indexQuoteRepository;
     private final StockInfoRepository stockInfoRepository;
     private final DataSnapshotService dataSnapshotService;
+    private final TradingCalendarService tradingCalendarService;
 
     @Transactional(readOnly = true)
     public Map<String, Object> buildQualityReport() {
@@ -154,6 +155,7 @@ public class DataQualityService {
         long currentSnapshot = securityMasterHistoryRepository.countBySource("current_snapshot");
         long eastmoney = securityMasterHistoryRepository.countBySource("eastmoney");
         long tushare = securityMasterHistoryRepository.countBySource("tushare");
+        long delistedPlaceholder = securityMasterHistoryRepository.countBySource("delisted_placeholder");
         long reliabilityLimited = securityMasterHistoryRepository.countByReliability("limited");
         long reliabilityOfficial = securityMasterHistoryRepository.countByReliability("official");
 
@@ -163,14 +165,20 @@ public class DataQualityService {
         sourceBreakdown.put("current_snapshot", currentSnapshot);
         sourceBreakdown.put("eastmoney", eastmoney);
         sourceBreakdown.put("tushare", tushare);
+        sourceBreakdown.put("delisted_placeholder", delistedPlaceholder);
         out.put("by_source", sourceBreakdown);
         Map<String, Object> reliabilityBreakdown = new LinkedHashMap<>();
         reliabilityBreakdown.put("limited", reliabilityLimited);
         reliabilityBreakdown.put("official", reliabilityOfficial);
         out.put("by_reliability", reliabilityBreakdown);
-        out.put("status", rows > 0 ? "已启用（当前快照，可靠度 limited，无历史变更记录）" : "未初始化（可通过 /api/data/security-master/init 初始化）");
-        out.put("note", "当前用 stock_info 快照初始化单条 valid_from=上市日/valid_to=null 记录，无历史 ST/改名/行业变更；"
-                + "仅保证上市日至今状态不变标的的 PIT 查询正确，后续接入官方历史源替换");
+        out.put("coverage_tag", com.quant.research.SecurityMasterHistoryService.LIMITED_BOOTSTRAP);
+        out.put("delisted_coverage", "NOT_COVERED_UNTIL_OFFICIAL_SOURCE");
+        out.put("status", rows > 0
+                ? "LIMITED_BOOTSTRAP（当前快照，可靠度 limited；退市证券未覆盖）"
+                : "未初始化（可通过 /api/data/security-master/init 初始化）");
+        out.put("note", "LIMITED_BOOTSTRAP：用 stock_info 快照初始化，无历史 ST/改名/行业变更；"
+                + "退市证券在官方源接入前不在 PIT 池中；禁止网页抓取回填。"
+                + "可选占位：POST /api/data/security-master/ingest-delisted-placeholder");
         return out;
     }
 
@@ -306,12 +314,19 @@ public class DataQualityService {
             return m;
         }
         List<LocalDate> actual = marketDataRepository.findDistinctTradeDatesBetween(minDate, maxDate);
-        // 预期交易日：自然日排除周末（未剔除法定节假日，会高估缺失）
-        List<LocalDate> expected = new java.util.ArrayList<>();
-        for (LocalDate d = minDate; !d.isAfter(maxDate); d = d.plusDays(1)) {
-            if (d.getDayOfWeek().getValue() <= 5) {
-                expected.add(d);
+        List<LocalDate> expected;
+        String note;
+        if (tradingCalendarDayRepository.count() > 0) {
+            expected = tradingCalendarService.findTradingDays(minDate, maxDate);
+            note = "预期交易日来自真实交易日历（TradingCalendarService）";
+        } else {
+            expected = new ArrayList<>();
+            for (LocalDate d = minDate; !d.isAfter(maxDate); d = d.plusDays(1)) {
+                if (d.getDayOfWeek().getValue() <= 5) {
+                    expected.add(d);
+                }
             }
+            note = "交易日历未初始化，预期交易日按自然日排除周末估算，未剔除法定节假日";
         }
         java.util.Set<LocalDate> actualSet = new java.util.HashSet<>(actual);
         List<String> missing = expected.stream()
@@ -322,7 +337,7 @@ public class DataQualityService {
         m.put("actual", actual.size());
         m.put("missing_count", missing.size());
         m.put("missing_dates", missing.size() > 50 ? missing.subList(0, 50) : missing);
-        m.put("note", "预期交易日按自然日排除周末估算，未剔除法定节假日；missing_count 偏高属正常");
+        m.put("note", note);
         return m;
     }
 

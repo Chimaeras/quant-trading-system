@@ -2,6 +2,7 @@ package com.quant.controller;
 
 import com.quant.dto.ApiResponse;
 import com.quant.research.HistoricalReplayService;
+import com.quant.research.HistoricalSignalReplayService;
 import com.quant.research.LabelFactoryService;
 import com.quant.research.LogisticModelTrainer;
 import com.quant.research.ProbabilityCalibrationService;
@@ -17,9 +18,9 @@ import java.time.LocalDate;
 import java.util.Map;
 
 /**
- * 历史重放与标签工厂研究接口（QP-007+）。
+ * 历史重放与标签工厂研究接口（QP-007 / MP-005+）。
  *
- * <p>当前暴露股票池健康重放（QP-007）、T+2/T+3 标签工厂（QP-008）、概率校准 baseline（QP-012）。
+ * <p>暴露股票池健康重放、历史信号重放（轻量 manifest）、T+2/T+3 标签工厂、概率校准 baseline。
  */
 @RestController
 @RequestMapping("/api/research")
@@ -27,6 +28,7 @@ import java.util.Map;
 public class ResearchController {
 
     private final HistoricalReplayService historicalReplayService;
+    private final HistoricalSignalReplayService historicalSignalReplayService;
     private final LabelFactoryService labelFactoryService;
     private final ProbabilityCalibrationService probabilityCalibrationService;
     private final LogisticModelTrainer logisticModelTrainer;
@@ -36,7 +38,7 @@ public class ResearchController {
     /**
      * QP-007：按交易日区间重放 PIT 历史股票池，生成数据集健康报告。
      * 股票池 = PIT 证券主数据 ∩ 当日有行情；统计每日池规模、PIT/行情缺失。
-     * 幂等只读，可断点续跑。
+     * 幂等只读，可断点续跑。兼容路径，正式别名见 {@link #replayPoolHealth}。
      */
     @PostMapping("/replay")
     public ApiResponse<Map<String, Object>> replay(
@@ -45,16 +47,42 @@ public class ResearchController {
         return ApiResponse.success(historicalReplayService.replayPoolHealth(startDate, endDate));
     }
 
+    /** MP-005：股票池健康重放别名，与 {@code /replay} 等价。 */
+    @PostMapping("/replay/pool-health")
+    public ApiResponse<Map<String, Object>> replayPoolHealth(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return ApiResponse.success(historicalReplayService.replayPoolHealth(startDate, endDate));
+    }
+
     /**
-     * QP-008：为区间内每个交易日生成 T+2/T+3 标签（基于 PIT 股票池）。
-     * 保留所有拒单样本不净化；幂等跳过已存在。默认 label_version=label_v1。
+     * MP-005：历史信号重放——逐日复用在线打分（persist=false），落库 FeatureSnapshotManifest。
+     * 默认最多 20 个交易日，硬上限 60；策略限 CLASSIC_SELECTOR / OVERSOLD_REBOUND。
+     */
+    @PostMapping("/replay/signals")
+    public ApiResponse<Map<String, Object>> replaySignals(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam String strategyType,
+            @RequestParam(required = false) String featureVersion,
+            @RequestParam String snapshotId,
+            @RequestParam(required = false) Integer maxDays) {
+        return ApiResponse.success(historicalSignalReplayService.replaySignals(
+                startDate, endDate, strategyType, featureVersion, snapshotId, maxDays));
+    }
+
+    /**
+     * MP-002：为区间内每个交易日生成 T+2/T+3 标签（基于 PIT 股票池）。
+     * 默认 label_version=label_v2_raw_calendar（raw 价 + 市场交易日历）；
+     * label_v1* 保留旧 market_data 路径。可选 dataSnapshotId 校验快照存在。
      */
     @PostMapping("/labels/build")
     public ApiResponse<Map<String, Object>> buildLabels(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @RequestParam(defaultValue = "label_v1") String labelVersion) {
-        return ApiResponse.success(labelFactoryService.buildLabels(startDate, endDate, labelVersion));
+            @RequestParam(required = false) String labelVersion,
+            @RequestParam(required = false) String dataSnapshotId) {
+        return ApiResponse.success(labelFactoryService.buildLabels(startDate, endDate, labelVersion, dataSnapshotId));
     }
 
     /** T+1 次日方向标签（close-to-close，与 T+2/T+3 成交口径标签并行）。 */
@@ -82,31 +110,33 @@ public class ResearchController {
         return ApiResponse.success(labelFactoryService.buildT1Labels(startDate, endDate, labelVersion));
     }
 
-    /** QP-008：标签覆盖率统计（exec_status 分布）。 */
+    /** QP-008：标签覆盖率统计（exec_status 分布）。默认 label_v2_raw_calendar。 */
     @GetMapping("/labels/coverage")
     public ApiResponse<Map<String, Object>> labelCoverage(
-            @RequestParam(defaultValue = "label_v1") String labelVersion) {
+            @RequestParam(defaultValue = "label_v2_raw_calendar") String labelVersion) {
         return ApiResponse.success(labelFactoryService.buildCoverage(labelVersion));
     }
 
     /**
-     * QP-012：规则分数概率校准 baseline。
-     * 基于 selector_result_item(rule score) + label_snapshot(y_label) 计算校准指标
-     * （Brier/log loss/ECE/可靠性图/sigmoid+isotonic 映射），验证 rule score 与上涨概率的校准关系。
+     * MP-009：规则分数概率校准（单策略 + fit/eval embargo + PAV isotonic）。
      */
     @GetMapping("/calibration")
     public ApiResponse<Map<String, Object>> calibration(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fitStart,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fitEnd,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate evalStart,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate evalEnd,
+            @RequestParam String strategyType,
+            @RequestParam(required = false) String factorVersion,
+            @RequestParam(required = false) String dataSnapshotId,
+            @RequestParam(required = false) String experimentId,
             @RequestParam(defaultValue = "label_v1") String labelVersion,
             @RequestParam(defaultValue = "2") int horizon) {
-        return ApiResponse.success(probabilityCalibrationService.calibrate(startDate, endDate, labelVersion, horizon));
+        return ApiResponse.success(probabilityCalibrationService.calibrate(
+                fitStart, fitEnd, evalStart, evalEnd, labelVersion, horizon,
+                strategyType, factorVersion, dataSnapshotId, experimentId));
     }
 
-    /**
-     * QP-013：训练 Logistic T+2/T+3 模型（带 L2 正则，版本化训练和解释）。
-     * 时间顺序 train/test split + purged embargo；注册到 model_registry。
-     */
     /** QP-013：模型注册表（最近 20 条，供前端模型列表）。 */
     @GetMapping("/models")
     public ApiResponse<java.util.List<Map<String, Object>>> models() {
@@ -124,22 +154,31 @@ public class ResearchController {
             m.put("test_end", mv.getTestEnd());
             m.put("stage", mv.getStage());
             m.put("metrics", mv.getMetrics());
+            m.put("artifact", mv.getArtifact());
             m.put("created_at", mv.getCreatedAt());
             out.add(m);
         }
         return ApiResponse.success(out);
     }
 
+    /**
+     * MP-003：训练 Logistic 单特征 rule_score 基线（强制 strategyType + embargo）。
+     */
     @PostMapping("/logistic/train")
     public ApiResponse<Map<String, Object>> trainLogistic(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate trainStart,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate trainEnd,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate testStart,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate testEnd,
+            @RequestParam String strategyType,
+            @RequestParam(required = false) String factorVersion,
+            @RequestParam(required = false) String dataSnapshotId,
+            @RequestParam(required = false) String experimentId,
             @RequestParam(defaultValue = "label_v1") String labelVersion,
             @RequestParam(defaultValue = "2") int horizon,
             @RequestParam(defaultValue = "logistic_v1_t2") String modelVersion) {
         return ApiResponse.success(logisticModelTrainer.train(
-                trainStart, trainEnd, testStart, testEnd, labelVersion, horizon, modelVersion));
+                trainStart, trainEnd, testStart, testEnd, labelVersion, horizon, modelVersion,
+                strategyType, factorVersion, dataSnapshotId, experimentId));
     }
 }

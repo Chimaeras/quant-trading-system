@@ -219,9 +219,14 @@ public class CodexShortCycleScoringEngine {
         List<String> industries = raws.stream()
                 .map(r -> r.industry() != null && !r.industry().isBlank() ? r.industry() : "_none_")
                 .toList();
+        List<String> reliabilities = raws.stream()
+                .map(r -> CrossSectionNeutralizer.reliabilityOfSource(r.logMvSource()))
+                .toList();
         List<Double> reliable = new ArrayList<>();
         for (RawFeatures r : raws) {
-            if (CrossSectionNeutralizer.isReliableLogMvSource(r.logMvSource()) && Double.isFinite(r.logMarketCap())) {
+            if (CrossSectionNeutralizer.isReliableLogMv(r.logMvSource(),
+                    CrossSectionNeutralizer.reliabilityOfSource(r.logMvSource()))
+                    && Double.isFinite(r.logMarketCap())) {
                 reliable.add(r.logMarketCap());
             }
         }
@@ -230,11 +235,11 @@ public class CodexShortCycleScoringEngine {
                 : reliable);
         List<Double> logMv = new ArrayList<>(raws.size());
         for (RawFeatures r : raws) {
-            logMv.add(CrossSectionNeutralizer.isReliableLogMvSource(r.logMvSource())
-                    ? r.logMarketCap()
-                    : regressionLogMvMedian);
+            boolean ok = CrossSectionNeutralizer.isReliableLogMv(
+                    r.logMvSource(), CrossSectionNeutralizer.reliabilityOfSource(r.logMvSource()));
+            logMv.add(ok ? r.logMarketCap() : regressionLogMvMedian);
         }
-        return CrossSectionNeutralizer.buildContext(industries, logMv);
+        return CrossSectionNeutralizer.buildContext(industries, logMv, reliabilities);
     }
 
     private static double medianLogMv(List<Double> values) {

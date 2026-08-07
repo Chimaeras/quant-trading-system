@@ -64,6 +64,24 @@ public class MarketData {
     @Column(precision = 24, scale = 4)
     private BigDecimal totalMarketValue;
 
+    /**
+     * 市值口径：TOTAL / FLOAT / FLOAT_CAP_APPROX（MP-025）。
+     * amount/turnover 推算值应标 FLOAT_CAP_APPROX，不得冒充 TOTAL。
+     */
+    @Column(length = 40)
+    private String marketCapType;
+
+    /** 市值来源：amount_div_turnover / official / … */
+    @Column(length = 60)
+    private String marketCapSource;
+
+    /**
+     * 可靠性：OFFICIAL / FLOAT_CAP_APPROX / UNKNOWN_LEGACY（MP-025）。
+     * CrossSectionNeutralizer 对 UNKNOWN_LEGACY / FLOAT_CAP_APPROX 跳过市值中性化。
+     */
+    @Column(length = 40)
+    private String marketCapReliability;
+
     @Column(updatable = false)
     private LocalDateTime createdAt;
 

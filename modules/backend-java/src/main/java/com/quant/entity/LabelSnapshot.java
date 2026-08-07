@@ -86,9 +86,17 @@ public class LabelSnapshot {
     @Column(nullable = false, length = 20)
     private String execStatus;
 
-    /** 来源：derived_local（本地 market_data 计算）。 */
+    /** 来源：market_price_raw（label_v2）/ derived_local（label_v1 legacy）。 */
     @Column(nullable = false, length = 40)
     private String source;
+
+    /** 可选：构建时引用的数据快照 ID。 */
+    @Column(length = 40)
+    private String dataSnapshotId;
+
+    /** 成交价来源：market_price_raw / market_data。 */
+    @Column(length = 40)
+    private String priceSource;
 
     @Column(updatable = false)
     private LocalDateTime createdAt;

@@ -1,5 +1,8 @@
 """
 数据引擎 - 行情数据采集与加载
+
+正式路径禁止静默造数：CSV 缺失时抛 FileNotFoundError。
+仅当显式 demo=True / CLI --demo 时才生成样本数据，且调用方应给产物打 DEMO 水印。
 """
 import pandas as pd
 from typing import Optional
@@ -7,24 +10,43 @@ from pathlib import Path
 
 
 class DataEngine:
-    """数据引擎 - 支持本地数据和API拉取"""
+    """数据引擎 - 支持本地数据和显式 demo 样本。"""
 
     def __init__(self, data_dir: Optional[str] = None):
         self.data_dir = Path(data_dir) if data_dir else Path(__file__).parent.parent / 'data'
 
-    def load_csv(self, symbol: str, filepath: Optional[str] = None) -> pd.DataFrame:
-        """从CSV加载历史数据"""
-        path = filepath or self.data_dir / f"{symbol}.csv"
-        if not Path(path).exists():
-            return self._generate_sample_data(symbol)
+    def load_csv(
+        self,
+        symbol: str,
+        filepath: Optional[str] = None,
+        *,
+        demo: bool = False,
+    ) -> pd.DataFrame:
+        """从 CSV 加载历史数据。
+
+        Args:
+            symbol: 标的代码（用于默认路径与 demo 样本）。
+            filepath: 可选显式 CSV 路径。
+            demo: 仅当 True 时，文件缺失可生成样本数据；默认 False 则抛错。
+
+        Raises:
+            FileNotFoundError: 非 demo 模式下 CSV 不存在。
+        """
+        path = Path(filepath) if filepath else self.data_dir / f"{symbol}.csv"
+        if not path.exists():
+            if demo:
+                return self._generate_sample_data(symbol)
+            raise FileNotFoundError(
+                f"行情 CSV 不存在: {path.resolve()}。"
+                f"正式 research 路径禁止静默造数；若仅做烟雾测试请传 demo=True 或 CLI --demo。"
+            )
         df = pd.read_csv(path, index_col=0, parse_dates=True)
         return df
 
     def _generate_sample_data(self, symbol: str, days: int = 300) -> pd.DataFrame:
-        """生成模拟K线数据。
+        """生成模拟 K 线（仅 demo 模式）。
 
-        默认 days=300，使样本长度满足 score_oversold_rebound 的 260 条下限，
-        避免 fallback 数据导致打分器静默返回 None。
+        默认 days=300，使样本长度满足 score_oversold_rebound 的 260 条下限。
         使用 np.random.default_rng（确定性、不污染全局随机状态）。
         """
         import numpy as np

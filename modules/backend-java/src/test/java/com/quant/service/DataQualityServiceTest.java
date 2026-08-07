@@ -42,12 +42,14 @@ class DataQualityServiceTest {
     private StockInfoRepository stockInfoRepository;
     @Mock
     private DataSnapshotService dataSnapshotService;
+    @Mock
+    private TradingCalendarService tradingCalendarService;
 
     private DataQualityService service() {
         return new DataQualityService(marketDataRepository, marketPriceRawRepository,
                 adjustFactorRepository, securityMasterHistoryRepository,
                 tradingCalendarDayRepository, indexQuoteRepository, stockInfoRepository,
-                dataSnapshotService);
+                dataSnapshotService, tradingCalendarService);
     }
 
     @BeforeEach

@@ -37,7 +37,7 @@ import java.util.Map;
  *   <li>Rank IC：信号日得分与 forward return 的 Spearman 秩相关；
  *       forward return = close[t+h] / close[t] - 1（t 为信号日，h 为持仓交易日数）。</li>
  *   <li>IC 收益口径说明：close[t]→close[t+h] 收益，<b>未计</b>佣金/印花税/滑点/涨跌停可成交性/停牌，
- *       与 {@code ScoringBacktestService} 的可执行回测收益口径不同，仅用于因子方向预测力评价。</li>
+ *       与 {@code ScoringBacktestService} 的回测成交收益口径不同，仅用于因子方向预测力评价。</li>
  *   <li>未复现历史时点股票池，存在幸存者偏差，仅作研究评价，禁止据此直接调整因子权重。</li>
  * </ul>
  */
@@ -50,16 +50,22 @@ public class FactorResearchService {
     private static final int RANK_IC_GROUP_COUNT = 5;
     private static final int RANK_IC_MIN_CROSS_SECTION_SIZE = 10;
     private static final String RANK_IC_UNIVERSE_NOTE =
-            "基于 persisted 全截面候选（通过质量闸的全部条目，非 TopN 子集）；未复现历史时点股票池，存在幸存者偏差";
+            "sparse selector_result, selection bias；完整 PIT feature snapshot IC 依赖 MP-005 信号重放，"
+                    + "当前路径未复现历史时点全市场股票池，存在幸存者/选择偏差";
     private static final String RANK_IC_BASIS_NOTE =
-            "毛收益 IC：forward return = close[t+h]/close[t]-1，未计费用/滑点/涨跌停可成交性；"
-                    + "与回测可执行收益口径不同，仅用于因子方向预测力评价";
+            "毛收益 IC（metric_scope=RAW）：forward return = close[t+h]/close[t]-1，未计费用/滑点/涨跌停可成交性；"
+                    + "与回测成交收益口径不同，仅用于因子方向预测力评价";
     private static final String RANK_IC_NET_BASIS_NOTE =
-            "可执行净收益 IC：entry = open[t+1]×(1+佣金+滑点)，exit = close[t+1+h]×(1-佣金-印花税-滑点)，"
-                    + "与 ResearchConvention / LabelFactory 成交口径一致；不含涨跌停/停牌拒单过滤，仅作可执行口径下的因子预测力对照";
+            "成本后近似净收益 IC（metric_scope=COST_APPROX）：entry = open[t+1]×(1+佣金+滑点)，"
+                    + "exit = close[t+1+h]×(1-佣金-印花税-滑点)，与 ResearchConvention / LabelFactory 成交口径一致；"
+                    + "不含涨跌停/停牌拒单过滤，EXECUTABLE 口径暂不可用";
     private static final String RANK_IC_EMBARGO_NOTE =
             "信号日接近数据末端（forward 区间未形成）自动跳过，不外推、不使用未来数据；"
                     + "重叠持有期 IC 序列的显著性以 HAC 标准误与 block bootstrap CI 为准";
+    private static final String METRIC_SCOPE_RAW = "RAW";
+    private static final String METRIC_SCOPE_COST_APPROX = "COST_APPROX";
+    private static final String FEATURE_SNAPSHOT_NOTE =
+            "完整 PIT feature snapshot IC 依赖 MP-005；当前无 feature snapshot 时沿用 sparse selector_result 路径";
     private static final List<Integer> UNIFIED_HORIZONS = List.of(1, 2, 3, 5);
     private static final int UNIFIED_MAX_HORIZON = 5;
 
@@ -120,7 +126,14 @@ public class FactorResearchService {
         out.put("distribution", buildDistribution(scores));
         out.put("group_bands", buildGroupBands(scores, 5));
         out.put("rank_ic", buildRankIc(latestPerKey, itemsByResultId, startDate, endDate, holding, prices));
-        out.put("note", "仅作因子研究评价（覆盖率/分布/分组/Rank IC），禁止据此直接调整因子权重");
+        out.put("funnel", buildResearchFunnel(latestPerKey, allItems.size(), validCount));
+        out.put("metric_scopes", List.of(METRIC_SCOPE_RAW, METRIC_SCOPE_COST_APPROX));
+        out.put("metric_scope", METRIC_SCOPE_COST_APPROX);
+        out.put("executable_metric_scope", "UNAVAILABLE");
+        out.put("feature_snapshot_note", FEATURE_SNAPSHOT_NOTE);
+        out.put("universe_note", RANK_IC_UNIVERSE_NOTE);
+        out.put("note", "仅作因子研究评价（覆盖率/分布/分组/Rank IC）；毛收益=RAW、净收益=COST_APPROX；"
+                + "EXECUTABLE 需成交规则过滤，当前不可用；禁止据此直接调整因子权重");
         return out;
     }
 
@@ -169,8 +182,15 @@ public class FactorResearchService {
         out.put("horizons", UNIFIED_HORIZONS);
         out.put("by_horizon", byHorizon);
         out.put("convention", ResearchConvention.labelDefinition());
-        out.put("note", "统一因子研究报告：Pearson IC（线性）/ Rank IC（Spearman）/ ICIR / 正 IC 比例 / "
-                + "分组单调性 / Top-bottom spread，对 T+1/T+2/T+3/T+5 并列对比；禁止据此直接调整因子权重");
+        out.put("funnel", buildResearchFunnel(latestPerKey, allItems.size(),
+                (int) allItems.stream().filter(it -> it.getFinalScore() != null && it.getFinalScore() > 0).count()));
+        out.put("metric_scopes", List.of(METRIC_SCOPE_RAW, METRIC_SCOPE_COST_APPROX));
+        out.put("metric_scope", METRIC_SCOPE_COST_APPROX);
+        out.put("executable_metric_scope", "UNAVAILABLE");
+        out.put("feature_snapshot_note", FEATURE_SNAPSHOT_NOTE);
+        out.put("universe_note", RANK_IC_UNIVERSE_NOTE);
+        out.put("note", "统一因子研究报告：Pearson/Rank IC 为 RAW；净收益 IC 为 COST_APPROX（成本后近似，不含涨跌停/停牌拒单）；"
+                + "EXECUTABLE 暂不可用；sparse selector_result 存在选择偏差；禁止据此直接调整因子权重");
         return out;
     }
 
@@ -178,8 +198,9 @@ public class FactorResearchService {
      * Rank IC 研究块：复用 {@link FactorResearchEngine} 计算信号日得分与 forward return 的 Spearman 秩相关。
      *
      * <p>毛收益口径：forward return = close[t+h] / close[t] - 1（t 为信号日，h 为持仓交易日数）。
-     * 可执行净收益口径（与 {@link ResearchConvention} 对齐）：entry = open[t+1]×(1+佣金+滑点)，
-     * exit = close[t+1+h]×(1-佣金-印花税-滑点)，即次日开盘入场、持有 h 个交易日收盘退出并扣费。
+     * 成本后近似净收益口径（与 {@link ResearchConvention} 对齐）：entry = open[t+1]×(1+佣金+滑点)，
+     * exit = close[t+1+h]×(1-佣金-印花税-滑点)，即次日开盘入场、持有 h 个交易日收盘退出并扣费；
+     * 不含涨跌停/停牌拒单过滤，不得称为完整可执行 IC。
      * 两个口径各自独立汇总输出，供并列对比；信号日接近数据末端（forward 区间未形成）自动跳过，不外推。
      *
      * <p>行情由调用方通过 {@code prices} 一次性预加载（close+open 查找表），本方法不再逐股查询。
@@ -198,6 +219,10 @@ public class FactorResearchService {
         block.put("net_basis_note", RANK_IC_NET_BASIS_NOTE);
         block.put("embargo_note", RANK_IC_EMBARGO_NOTE);
         block.put("universe_note", RANK_IC_UNIVERSE_NOTE);
+        block.put("metric_scope", METRIC_SCOPE_RAW);
+        block.put("metric_scopes", List.of(METRIC_SCOPE_RAW, METRIC_SCOPE_COST_APPROX));
+        block.put("executable_metric_scope", "UNAVAILABLE");
+        block.put("feature_snapshot_note", FEATURE_SNAPSHOT_NOTE);
 
         if (latestPerKey.isEmpty()) {
             block.put("cross_section_days", 0);
@@ -222,7 +247,7 @@ public class FactorResearchService {
             dayIndex.put(tradingDays.get(i), i);
         }
 
-        // 逐信号日构建截面观测（毛收益 + 可执行净收益，两个独立口径）
+        // 逐信号日构建截面观测（毛收益 + 成本后近似净收益，两个独立口径）
         Map<String, List<CrossSectionObservation>> grossObsByDate = new LinkedHashMap<>();
         Map<String, List<CrossSectionObservation>> netObsByDate = new LinkedHashMap<>();
         for (SelectorResult result : latestPerKey.values()) {
@@ -257,7 +282,7 @@ public class FactorResearchService {
                     }
                 }
 
-                // 可执行净收益：open[t+1]×(1+佣金+滑点) 入场 → close[t+1+h]×(1-佣金-印花税-滑点) 退出
+                // 成本后近似净收益：open[t+1]×(1+佣金+滑点) 入场 → close[t+1+h]×(1-佣金-印花税-滑点) 退出（无涨跌停/停牌拒单过滤）
                 if (netExitIdx < tradingDays.size()) {
                     LocalDate entryDate = tradingDays.get(netEntryIdx);
                     LocalDate exitDate = tradingDays.get(netExitIdx);
@@ -327,7 +352,7 @@ public class FactorResearchService {
         }
         block.put("grouped_returns", grouped);
 
-        // 可执行净收益 IC（与标签/回测成交口径对齐的对照列）
+        // 成本后近似净收益 IC（与标签/回测成交口径对齐的对照列；不含涨跌停/停牌拒单过滤）
         block.put("executable_net_ic", buildNetIcBlock(
                 FactorResearchEngine.summarize(
                         netObsByDate,
@@ -341,6 +366,7 @@ public class FactorResearchService {
     private Map<String, Object> emptyNetIcBlock() {
         Map<String, Object> net = new LinkedHashMap<>();
         net.put("basis_note", RANK_IC_NET_BASIS_NOTE);
+        net.put("metric_scope", METRIC_SCOPE_COST_APPROX);
         net.put("cross_section_days", 0);
         net.put("total_observations", 0);
         net.put("rank_ic_mean", 0.0);
@@ -352,13 +378,15 @@ public class FactorResearchService {
         net.put("ci_lower", 0.0);
         net.put("ci_upper", 0.0);
         net.put("long_short_spread", 0.0);
-        net.put("note", "可执行净收益 IC（next-open 入场 + 持有期收盘退出 + 扣费）；与毛收益 IC 窗口差一日（次日开盘入场），并列仅作口径对照");
+        net.put("note", "成本后近似净收益 IC（COST_APPROX；next-open 入场 + 持有期收盘退出 + 扣费；不含涨跌停/停牌拒单）；"
+                + "EXECUTABLE 暂不可用；与毛收益 IC 窗口差一日，并列仅作口径对照");
         return net;
     }
 
     private Map<String, Object> buildNetIcBlock(FactorResearchSummary s) {
         Map<String, Object> net = new LinkedHashMap<>();
         net.put("basis_note", RANK_IC_NET_BASIS_NOTE);
+        net.put("metric_scope", METRIC_SCOPE_COST_APPROX);
         net.put("cross_section_days", s.crossSectionDays());
         net.put("total_observations", s.totalObservations());
         net.put("rank_ic_mean", round4(s.rankIcMean()));
@@ -371,8 +399,58 @@ public class FactorResearchService {
         net.put("ci_lower", round4(s.ciLower()));
         net.put("ci_upper", round4(s.ciUpper()));
         net.put("long_short_spread", round4(s.longShortSpread()));
-        net.put("note", "可执行净收益 IC（next-open 入场 + 持有期收盘退出 + 扣费）；与毛收益 IC 窗口差一日（次日开盘入场），并列仅作口径对照");
+        net.put("note", "成本后近似净收益 IC（COST_APPROX；next-open 入场 + 持有期收盘退出 + 扣费；不含涨跌停/停牌拒单）；"
+                + "EXECUTABLE 暂不可用；与毛收益 IC 窗口差一日，并列仅作口径对照");
         return net;
+    }
+
+    /**
+     * 研究样本漏斗（sparse selector_result）：universe / feature_valid / tradable。
+     * 完整 PIT feature snapshot 漏斗依赖 MP-005；tradable 在未接入 TradabilityPolicy 时标 UNAVAILABLE。
+     */
+    private Map<String, Object> buildResearchFunnel(
+            Map<String, SelectorResult> latestPerKey,
+            int totalObservations,
+            int validObservations
+    ) {
+        int universeCount = 0;
+        int daysWithUniverse = 0;
+        for (SelectorResult r : latestPerKey.values()) {
+            Integer cross = extractCrossSectionCount(r);
+            if (cross != null && cross > 0) {
+                universeCount += cross;
+                daysWithUniverse++;
+            }
+        }
+        if (universeCount == 0) {
+            universeCount = totalObservations;
+        }
+        Map<String, Object> funnel = new LinkedHashMap<>();
+        funnel.put("universe_count", universeCount);
+        funnel.put("universe_days_with_snapshot", daysWithUniverse);
+        funnel.put("cross_section_days", latestPerKey != null ? latestPerKey.size() : 0);
+        funnel.put("feature_valid_count", validObservations);
+        funnel.put("valid_observations", validObservations);
+        funnel.put("selector_item_count", totalObservations);
+        funnel.put("total_observations", totalObservations);
+        funnel.put("tradable_count", null);
+        funnel.put("tradable_status", "UNAVAILABLE");
+        funnel.put("tradable_note", "EXECUTABLE tradable funnel unavailable without feature snapshot + TradabilityPolicy");
+        funnel.put("universe_source", "sparse_selector_result");
+        funnel.put("metric_scope", METRIC_SCOPE_COST_APPROX);
+        funnel.put("note", "tradable_count 需统一 TradabilityPolicy；当前仅披露 selector 候选漏斗");
+        return funnel;
+    }
+
+    private static Integer extractCrossSectionCount(SelectorResult r) {
+        if (r == null || r.getFactorSnapshot() == null) {
+            return null;
+        }
+        Object v = r.getFactorSnapshot().get("cross_section_count");
+        if (v instanceof Number n) {
+            return n.intValue();
+        }
+        return null;
     }
 
     /**

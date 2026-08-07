@@ -266,7 +266,7 @@ async function loadDetail() {
   if (!code) return
   try {
     const res = await marketApi.getStockDetail(code, route.query.exchange as string)
-    detail.value = (res as { data?: StockDetail }).data ?? {}
+    detail.value = res ?? {}
   } catch (e) {
     console.error('loadDetail', e)
     toast.error('加载股票详情失败')
@@ -278,8 +278,7 @@ async function loadRealtime() {
   if (!code) return
   realtimeLoading.value = true
   try {
-    const res = await marketApi.getRealtimeQuote(code, route.query.exchange as string)
-    const data = (res as { data?: StockDetail }).data
+    const data = await marketApi.getRealtimeQuote(code, route.query.exchange as string)
     if (data && Object.keys(data).length > 0) {
       detail.value = { ...detail.value, ...data }
     }
@@ -299,13 +298,12 @@ async function loadKline() {
     dayjs().format('YYYY-MM-DD')
   ]
   try {
-    const res = await marketApi.getKline(code, {
+    const data = await marketApi.getKline(code, {
       exchange: route.query.exchange as string,
       startDate: start,
       endDate: end,
       limit: 500
     })
-    const data = (res as { data?: KLineItem[] }).data ?? []
     klineData.value = Array.isArray(data) ? data : []
     renderChart()
   } catch (e) {
@@ -330,14 +328,13 @@ async function analyzeStock() {
   if (!code) return
   analysisLoading.value = true
   try {
-    const res = await marketApi.analyzeStock({
+    analysisResult.value = await marketApi.analyzeStock({
       stockCode: code,
       exchange: route.query.exchange as string,
       holdingQty: analysisForm.value.holdingQty,
       avgCost: analysisForm.value.avgCost,
       riskProfile: analysisForm.value.riskProfile
-    })
-    analysisResult.value = (res as { data?: StockAnalysisResult }).data ?? null
+    }) ?? null
   } finally {
     analysisLoading.value = false
   }

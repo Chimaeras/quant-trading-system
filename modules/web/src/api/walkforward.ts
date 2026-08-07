@@ -1,4 +1,4 @@
-import request from './request'
+import request, { unwrap } from './request'
 
 export interface WindowStat {
   window_no: number
@@ -19,9 +19,12 @@ export interface WalkForwardResponse {
   holding_day: number
   window_stats: WindowStat[]
   note: string
+  /** 分析类型：当前实现仅为分段稳定性，非样本外 WFO */
+  analysis_kind?: string
+  is_oos?: boolean
 }
 
-export function runWalkForward(params: {
+export async function runWalkForward(params: {
   strategy: string
   startDate: string
   endDate: string
@@ -29,7 +32,7 @@ export function runWalkForward(params: {
   topN?: number
   holdingDay?: number
 }): Promise<WalkForwardResponse> {
-  return request.get('/backtest/walk-forward', {
+  const res = await request.get<WalkForwardResponse>('/backtest/walk-forward', {
     params: {
       strategy: params.strategy,
       startDate: params.startDate,
@@ -39,4 +42,5 @@ export function runWalkForward(params: {
       holdingDay: params.holdingDay
     }
   })
+  return unwrap(res)
 }

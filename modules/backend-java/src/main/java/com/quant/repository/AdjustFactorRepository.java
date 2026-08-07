@@ -16,6 +16,9 @@ public interface AdjustFactorRepository extends JpaRepository<AdjustFactor, Long
     List<AdjustFactor> findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
             String stockCode, String exchangeType, LocalDate startDate, LocalDate endDate);
 
+    long countByStockCodeAndExchangeTypeAndTradeDateBetween(
+            String stockCode, String exchangeType, LocalDate startDate, LocalDate endDate);
+
     @Query("SELECT COUNT(a) FROM AdjustFactor a")
     long countAll();
 
@@ -27,4 +30,18 @@ public interface AdjustFactorRepository extends JpaRepository<AdjustFactor, Long
 
     @Query("SELECT COUNT(a) FROM AdjustFactor a WHERE a.reliability = :reliability")
     long countByReliability(String reliability);
+
+    @Query("SELECT MIN(a.tradeDate) FROM AdjustFactor a")
+    Optional<LocalDate> findMinTradeDate();
+
+    @Query("SELECT MAX(a.tradeDate) FROM AdjustFactor a")
+    Optional<LocalDate> findMaxTradeDate();
+
+    /** 内容指纹：count, minDate, maxDate, sum(factor), max(ingested_at)。 */
+    @Query("""
+            SELECT COUNT(a), MIN(a.tradeDate), MAX(a.tradeDate),
+                   COALESCE(SUM(a.factor), 0), MAX(a.ingestedAt)
+            FROM AdjustFactor a
+            """)
+    List<Object[]> aggregateContentFingerprint();
 }

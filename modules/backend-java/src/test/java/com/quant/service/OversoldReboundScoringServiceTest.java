@@ -19,6 +19,7 @@ class OversoldReboundScoringServiceTest {
     private final OversoldReboundScoringService service = new OversoldReboundScoringService(
             mock(com.quant.repository.MarketDataRepository.class),
             mock(com.quant.repository.StockInfoRepository.class),
+            mock(PointInTimeUniverseProvider.class),
             mock(com.quant.repository.SelectorResultRepository.class),
             mock(com.quant.repository.SelectorResultItemRepository.class),
             mock(com.quant.repository.SelectorTemplateRepository.class),

@@ -2,7 +2,7 @@
   <el-card shadow="hover" class="terminal-page">
     <template #header>
       <div class="header-row">
-        <span>打分策略回测系统</span>
+        <span>候选前瞻收益（非组合回测）</span>
       </div>
     </template>
 
@@ -11,8 +11,8 @@
       :closable="false"
       show-icon
       class="disclaimer-alert"
-      title="回测说明"
-      description="本页统计基于历史选股结果与当前库内行情，未按历史时点股票池复现，存在幸存者偏差风险；收益为模型假设下的净收益，不代表未来表现或投资建议。"
+      title="候选前瞻收益说明（非组合回测）"
+      description="本页统计各候选信号的前瞻收益样本，不含现金/仓位/重叠持仓的组合状态机。组合级回测请使用 POST /api/backtest/portfolio/run。基于历史选股结果与行情，未按历史时点股票池完整复现，存在幸存者偏差风险；不代表未来表现或投资建议。"
     />
 
     <!-- 参数配置 -->
@@ -103,7 +103,7 @@
               <p class="verdict-text">{{ v.conclusion }}</p>
               <div class="verdict-metrics">
                 <div class="vm">
-                  <span class="vm-label">盈利概率</span>
+                  <span class="vm-label">历史样本胜率</span>
                   <b :class="v.winRate >= 0.5 ? 'text-success' : 'text-danger'">{{ pct1(v.winRate) }}</b>
                 </div>
                 <div class="vm">
@@ -152,7 +152,7 @@
               <div class="stat-header">持有 {{ day }} 个交易日</div>
               <div class="stat-body">
                 <div class="stat-item">
-                  <span class="stat-label">盈利概率</span>
+                  <span class="stat-label">历史样本胜率</span>
                   <span class="stat-value" :class="stat.winRate >= 0.5 ? 'text-success' : 'text-danger'">
                     {{ (stat.winRate * 100).toFixed(1) }}%
                   </span>
@@ -199,7 +199,7 @@
             </div>
           </div>
 
-          <div class="section-title">各周期盈利概率与平均收益对比</div>
+          <div class="section-title">各周期历史样本胜率与平均收益对比</div>
           <div ref="chartRef" class="chart-box"></div>
         </el-tab-pane>
 
@@ -419,7 +419,7 @@
           </div>
           <el-table :data="dailyPage" stripe size="small" class="data-table" max-height="500">
             <el-table-column prop="tradeDate" label="交易日期" width="120" sortable />
-            <el-table-column v-for="day in form.holdingDays" :key="day" :label="'持有' + day + '日盈利概率'" width="130">
+            <el-table-column v-for="day in form.holdingDays" :key="day" :label="'持有' + day + '日历史样本胜率'" width="130">
               <template #default="{ row }">
                 <span v-if="row.dailyWinRate[day] != null" :class="row.dailyWinRate[day] >= 0.5 ? 'text-success' : 'text-danger'">
                   {{ (row.dailyWinRate[day] * 100).toFixed(1) }}%
@@ -506,7 +506,7 @@
               <el-table-column label="平均收益" min-width="100">
                 <template #default="{ row }">{{ (row.avg_return * 100).toFixed(2) }}%</template>
               </el-table-column>
-              <el-table-column label="盈利概率" min-width="90">
+              <el-table-column label="历史样本胜率" min-width="90">
                 <template #default="{ row }">{{ (row.win_rate * 100).toFixed(2) }}%</template>
               </el-table-column>
               <el-table-column label="盈亏比" min-width="90">
@@ -627,7 +627,7 @@ const periodVerdicts = computed(() => {
     } else {
       verdictLabel = '表现一般'
       verdictType = 'warning'
-      conclusion = `持有 ${d} 个交易日后平均收益 ${pct(ar)}，盈利概率 ${(wr * 100).toFixed(0)}%，盈亏比 ${plr.toFixed(2)}，表现中规中矩。`
+      conclusion = `持有 ${d} 个交易日后平均收益 ${pct(ar)}，历史样本胜率 ${(wr * 100).toFixed(0)}%，盈亏比 ${plr.toFixed(2)}，表现中规中矩。`
     }
     return { day: d, ...s, verdictLabel, verdictType, conclusion }
   })
@@ -940,7 +940,7 @@ function renderChart() {
         const stat = stats[parseInt(day.replace('持有', '').replace('日', ''))] ?? stats[parseInt(day.replace('T+', ''))]
         return [
           `<b>${day}</b>`,
-          `盈利概率：${(stat.winRate * 100).toFixed(1)}%`,
+          `历史样本胜率：${(stat.winRate * 100).toFixed(1)}%`,
           `平均收益：${(stat.avgReturn * 100).toFixed(2)}%`,
           `中位数：${(stat.medianReturn * 100).toFixed(2)}%`,
           `最大：${(stat.maxReturn * 100).toFixed(2)}%  /  最小：${(stat.minReturn * 100).toFixed(2)}%`,
@@ -956,7 +956,7 @@ function renderChart() {
     yAxis: [
       {
         type: 'value',
-        name: '盈利概率 (%)',
+        name: '历史样本胜率 (%)',
         min: 0,
         max: 100,
         axisLabel: { formatter: '{value}%' }
@@ -970,7 +970,7 @@ function renderChart() {
     ],
     series: [
       {
-        name: '盈利概率',
+        name: '历史样本胜率',
         type: 'bar',
         data: winRates,
         itemStyle: {

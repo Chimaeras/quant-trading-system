@@ -5,6 +5,7 @@ import com.quant.entity.StockFinancialSnapshot;
 import com.quant.entity.StockMarginDaily;
 import com.quant.repository.StockFinancialSnapshotRepository;
 import com.quant.repository.StockMarginDailyRepository;
+import com.quant.service.DataQualityService;
 import com.quant.service.DataService;
 import com.quant.service.HistoricalDataService;
 import com.quant.service.HistoricalDataUpdateService;
@@ -35,11 +36,13 @@ public class DataController {
     private final HistoricalDataUpdateService historicalDataUpdateService;
     private final StockFinancialSnapshotRepository stockFinancialSnapshotRepository;
     private final StockMarginDailyRepository stockMarginDailyRepository;
-    private final com.quant.service.DataQualityService dataQualityService;
+    private final DataQualityService dataQualityService;
+    private final com.quant.service.DataQualityGateService dataQualityGateService;
     private final com.quant.research.SecurityMasterHistoryService securityMasterHistoryService;
     private final com.quant.service.TradingCalendarService tradingCalendarService;
     private final com.quant.service.IndexDataService indexDataService;
     private final com.quant.service.DataSnapshotService dataSnapshotService;
+    private final com.quant.service.MarketDataBatchService marketDataBatchService;
 
     @GetMapping("/overview")
     public ApiResponse<Map<String, Object>> getOverview(HttpServletResponse response) {
@@ -52,6 +55,14 @@ public class DataController {
     @GetMapping("/quality")
     public ApiResponse<Map<String, Object>> getQuality() {
         return ApiResponse.success(dataQualityService.buildQualityReport());
+    }
+
+    /** MP-023：按用途评估数据质量硬门禁（PASS / DEGRADED / BLOCKED）。 */
+    @GetMapping("/quality/gate")
+    public ApiResponse<Map<String, Object>> getQualityGate(
+            @RequestParam(defaultValue = "RULE_SCORE") String purpose,
+            @RequestParam(required = false) String snapshotId) {
+        return ApiResponse.success(dataQualityGateService.evaluate(purpose, snapshotId));
     }
 
     /** 最近 N 个交易日热门股票榜：成交额、换手率、量能放大、上涨天数综合打分。 */
@@ -93,6 +104,42 @@ public class DataController {
     @PostMapping("/security-master/init")
     public ApiResponse<Map<String, Object>> initSecurityMaster() {
         return ApiResponse.success(securityMasterHistoryService.initializeFromStockInfoSnapshot());
+    }
+
+    /** MP-013：确保 bootstrap 行 reliability=limited，并返回覆盖状态（退市未覆盖）。 */
+    @PostMapping("/security-master/mark-bootstrap-limited")
+    public ApiResponse<Map<String, Object>> markSecurityMasterBootstrapLimited() {
+        return ApiResponse.success(securityMasterHistoryService.markBootstrapLimited());
+    }
+
+    /** MP-013：证券主数据覆盖状态（LIMITED_BOOTSTRAP / 退市未覆盖说明）。 */
+    @GetMapping("/security-master/status")
+    public ApiResponse<Map<String, Object>> securityMasterStatus() {
+        return ApiResponse.success(securityMasterHistoryService.coverageStatus());
+    }
+
+    /**
+     * MP-013：可选导入退市占位 CSV（classpath universe/delisted_placeholder.csv）。
+     * 文件仅表头时 no-op；不抓取网页。
+     */
+    @PostMapping("/security-master/ingest-delisted-placeholder")
+    public ApiResponse<Map<String, Object>> ingestDelistedPlaceholder() {
+        return ApiResponse.success(securityMasterHistoryService.ingestDelistedPlaceholder(null));
+    }
+
+    /**
+     * MP-014：单标的区间更新 + batch 一致性检查清单。
+     * raw==0 且 qfq&gt;0 时 publish_status=STAGED（拒绝 PUBLISHED）。
+     */
+    @PostMapping("/market-batch/update")
+    public ApiResponse<Map<String, Object>> marketBatchUpdate(
+            @RequestParam String stockCode,
+            @RequestParam String exchange,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(defaultValue = "true") boolean triggerRawBackfill) {
+        return ApiResponse.success(marketDataBatchService.updateWithBatchChecklist(
+                stockCode, exchange, startDate, endDate, triggerRawBackfill));
     }
 
     /**
@@ -150,16 +197,7 @@ public class DataController {
     public ApiResponse<Map<String, Object>> createSnapshot(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate cutoff) {
         com.quant.entity.DataSnapshot snap = dataSnapshotService.createSnapshot(cutoff);
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("snapshot_id", snap.getSnapshotId());
-        out.put("cutoff_time", snap.getCutoffTime().toString());
-        out.put("hash", snap.getHash());
-        out.put("row_counts", snap.getRowCounts());
-        out.put("source_versions", snap.getSourceVersions());
-        out.put("quality_status", snap.getQualityStatus());
-        out.put("created_by", snap.getCreatedBy());
-        out.put("message", "快照已创建：" + snap.getSnapshotId());
-        return ApiResponse.success(out);
+        return ApiResponse.success(dataSnapshotService.toCreateResponse(snap));
     }
 
     /** QP-006：最近 N 条数据快照（默认 10 条）。 */

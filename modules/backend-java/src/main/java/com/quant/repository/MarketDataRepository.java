@@ -14,6 +14,9 @@ public interface MarketDataRepository extends JpaRepository<MarketData, Long> {
     List<MarketData> findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
             String stockCode, String exchangeType, LocalDate startDate, LocalDate endDate);
 
+    long countByStockCodeAndExchangeTypeAndTradeDateBetween(
+            String stockCode, String exchangeType, LocalDate startDate, LocalDate endDate);
+
     Optional<MarketData> findByStockCodeAndExchangeTypeAndTradeDate(
             String stockCode, String exchangeType, LocalDate tradeDate);
 
@@ -32,6 +35,17 @@ public interface MarketDataRepository extends JpaRepository<MarketData, Long> {
 
     @Query("SELECT MAX(m.tradeDate) FROM MarketData m")
     Optional<LocalDate> findMaxTradeDate();
+
+    /**
+     * 内容指纹聚合：count, minDate, maxDate, sum(close), sum(volume), sum(close*volume), max(updated_at)。
+     */
+    @Query("""
+            SELECT COUNT(m), MIN(m.tradeDate), MAX(m.tradeDate),
+                   COALESCE(SUM(m.closePrice), 0), COALESCE(SUM(m.volume), 0),
+                   COALESCE(SUM(m.closePrice * COALESCE(m.volume, 0)), 0), MAX(m.updatedAt)
+            FROM MarketData m
+            """)
+    List<Object[]> aggregateContentFingerprint();
 
     @Query("SELECT MAX(m.tradeDate) FROM MarketData m WHERE m.tradeDate <= :tradeDate")
     Optional<LocalDate> findLatestTradeDateOnOrBefore(@Param("tradeDate") LocalDate tradeDate);

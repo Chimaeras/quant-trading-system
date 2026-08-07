@@ -2,6 +2,10 @@
 
 本目录存放量化交易系统所有数据库初始化及维护脚本。
 
+> **应用 Schema 权威来源**：后端已引入 Flyway（MP-018）。运行时表结构以
+> `modules/backend-java/src/main/resources/db/migration/` 下的版本化迁移为准。
+> 本目录脚本仍保留，供运维手工建库、参考与一次性导入；请勿与 Flyway 迁移并行无序改表。
+
 ## 执行顺序
 
 1. **01_init_schema.sql** - 主架构（必执行）

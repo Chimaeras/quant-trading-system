@@ -13,10 +13,12 @@ import com.quant.dto.ScoringBacktestResponse.PeriodStat;
 import com.quant.dto.ScoringBacktestResponse.StockReturn;
 import com.quant.entity.BacktestRun;
 import com.quant.entity.MarketData;
+import com.quant.entity.MarketPriceRaw;
 import com.quant.entity.SelectorResult;
 import com.quant.entity.SelectorResultItem;
 import com.quant.repository.BacktestRunRepository;
 import com.quant.repository.MarketDataRepository;
+import com.quant.repository.MarketPriceRawRepository;
 import com.quant.repository.SelectorResultItemRepository;
 import com.quant.repository.SelectorResultRepository;
 import com.quant.service.backtest.FactorResearchEngine;
@@ -60,6 +62,7 @@ public class ScoringBacktestService {
     private final SelectorResultRepository resultRepo;
     private final SelectorResultItemRepository itemRepo;
     private final MarketDataRepository marketDataRepo;
+    private final MarketPriceRawRepository marketPriceRawRepo;
     private final BacktestRunRepository backtestRunRepository;
     private final ObjectMapper objectMapper;
 
@@ -102,6 +105,7 @@ public class ScoringBacktestService {
 
         if (dailyResults.isEmpty()) {
             log.warn("未找到符合条件的选股结果");
+            Map<String, Object> emptyFunnel = emptyFunnel("qfq_legacy");
             return ScoringBacktestResponse.builder()
                     .strategyType(req.getStrategyType())
                     .startDate(req.getStartDate())
@@ -116,6 +120,9 @@ public class ScoringBacktestService {
                     .formulaAudit(resolveFormulaAudit(req, List.of()))
                     .shortHorizonValidation(Map.of())
                     .codexFactorIcByHolding(Map.of())
+                    .executionFunnel(emptyFunnel)
+                    .priceSource("qfq_legacy")
+                    .metricScope("FILLED_SAMPLE")
                     .build();
         }
 
@@ -137,18 +144,24 @@ public class ScoringBacktestService {
             dayIndex.put(tradingDays.get(i), i);
         }
 
-        // 4. 批量拉取所有行情数据
+        // 4. 批量拉取行情：优先 market_price_raw，缺失回退 market_data(qfq_legacy)
         List<MarketData> allMarketData = marketDataRepo
                 .findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(calStart, calEnd);
-        // key = stockCode|exchangeType|tradeDate
-        Map<String, MarketData> marketDataMap = new HashMap<>();
+        Map<String, MarketData> qfqMap = new HashMap<>();
         for (MarketData md : allMarketData) {
-            String key = priceKey(md.getStockCode(), md.getExchangeType(), md.getTradeDate());
-            marketDataMap.put(key, md);
+            qfqMap.put(priceKey(md.getStockCode(), md.getExchangeType(), md.getTradeDate()), md);
         }
-        log.info("预加载 {} 条行情数据, {} 个交易日", allMarketData.size(), tradingDays.size());
+        Map<String, MarketPriceRaw> rawMap = new HashMap<>();
+        List<MarketPriceRaw> allRaw = marketPriceRawRepo
+                .findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(calStart, calEnd);
+        if (allRaw != null) {
+            for (MarketPriceRaw raw : allRaw) {
+                rawMap.put(priceKey(raw.getStockCode(), raw.getExchangeType(), raw.getTradeDate()), raw);
+            }
+        }
+        log.info("预加载行情 qfq={} raw={} 交易日={}", allMarketData.size(), rawMap.size(), tradingDays.size());
 
-        // 5. 逐日计算 forward returns
+        // 5. 逐日计算 forward returns + 漏斗计数
         List<DailyDetail> dailyDetails = new ArrayList<>();
         Map<Integer, Map<String, List<CrossSectionObservation>>> factorObservationsByHolding = new LinkedHashMap<>();
         Map<Integer, Map<String, Map<String, List<CrossSectionObservation>>>> codexFactorObsByHolding = new LinkedHashMap<>();
@@ -159,11 +172,22 @@ public class ScoringBacktestService {
                 codexFactorObsByHolding.get(h).put(fk, new LinkedHashMap<>());
             }
         }
-        // 按持仓天数汇总所有收益率，用于最终统计
         Map<Integer, List<Double>> periodReturns = new LinkedHashMap<>();
+        Map<Integer, Integer> periodSignalCounts = new LinkedHashMap<>();
+        Map<Integer, Integer> periodSkippedCounts = new LinkedHashMap<>();
         for (int h : holdingDays) {
             periodReturns.put(h, new ArrayList<>());
+            periodSignalCounts.put(h, 0);
+            periodSkippedCounts.put(h, 0);
         }
+
+        int signalCount = 0;
+        int buyableCount = 0;
+        int filledCount = 0;
+        int frozenCount = 0;
+        Map<String, Integer> rejectReasons = new LinkedHashMap<>();
+        int rawPriceHits = 0;
+        int qfqPriceHits = 0;
 
         for (SelectorResult result : dailyResults) {
             LocalDate tradeDate = result.getTradeDate();
@@ -192,57 +216,97 @@ public class ScoringBacktestService {
             }
 
             for (SelectorResultItem item : topItems) {
+                signalCount++;
+                for (int h : holdingDays) {
+                    periodSignalCounts.merge(h, 1, Integer::sum);
+                }
                 int entryIdx = baseIdx + 1;
                 if (entryIdx >= tradingDays.size()) {
                     addSkippedStock(stockReturns, item, null, SKIP_NO_NEXT_TRADING_DAY);
+                    bumpReject(rejectReasons, SKIP_NO_NEXT_TRADING_DAY);
+                    frozenCount++;
+                    bumpPeriodSkipped(periodSkippedCounts, holdingDays);
                     continue;
                 }
                 LocalDate entryDate = tradingDays.get(entryIdx);
-                MarketData entryBar = marketDataMap.get(priceKey(item.getStockCode(), item.getExchangeType(), entryDate));
+                PriceBar entryBar = resolvePriceBar(
+                        item.getStockCode(), item.getExchangeType(), entryDate, rawMap, qfqMap);
                 if (entryBar == null) {
                     addSkippedStock(stockReturns, item, entryDate, SKIP_NO_QUOTE_ON_ENTRY);
+                    bumpReject(rejectReasons, SKIP_NO_QUOTE_ON_ENTRY);
+                    frozenCount++;
+                    bumpPeriodSkipped(periodSkippedCounts, holdingDays);
                     continue;
                 }
-                BigDecimal rawEntryPrice = entryBar.getOpenPrice();
+                if ("market_price_raw".equals(entryBar.source())) {
+                    rawPriceHits++;
+                } else {
+                    qfqPriceHits++;
+                }
+                BigDecimal rawEntryPrice = entryBar.openPrice();
                 if (rawEntryPrice == null || rawEntryPrice.compareTo(BigDecimal.ZERO) <= 0) {
                     addSkippedStock(stockReturns, item, entryDate, SKIP_INVALID_ENTRY_OPEN);
+                    bumpReject(rejectReasons, SKIP_INVALID_ENTRY_OPEN);
+                    frozenCount++;
+                    bumpPeriodSkipped(periodSkippedCounts, holdingDays);
                     continue;
                 }
-                if (isZeroVolume(entryBar)) {
+                if (entryBar.isZeroVolume()) {
                     log.debug("入场日 {} {} 无成交量（疑似停牌），跳过", entryDate, item.getStockCode());
                     addSkippedStock(stockReturns, item, entryDate, SKIP_ZERO_VOLUME_ON_ENTRY);
+                    bumpReject(rejectReasons, SKIP_ZERO_VOLUME_ON_ENTRY);
+                    frozenCount++;
+                    bumpPeriodSkipped(periodSkippedCounts, holdingDays);
                     continue;
                 }
                 LocalDate prevTradeDate = tradingDays.get(entryIdx - 1);
-                MarketData prevBar = marketDataMap.get(
-                        priceKey(item.getStockCode(), item.getExchangeType(), prevTradeDate));
-                double preClose = StrategyBacktestEngine.resolvePreClose(entryBar, prevBar);
+                PriceBar prevBar = resolvePriceBar(
+                        item.getStockCode(), item.getExchangeType(), prevTradeDate, rawMap, qfqMap);
+                double preClose = resolvePreClose(entryBar, prevBar);
                 double limitPct = TradingLimitRules.resolveLimitPct(
                         item.getStockCode(), item.getExchangeType(), item.getStockName());
-                if (StrategyBacktestEngine.isLimitUpAtOpen(entryBar, preClose, limitPct)) {
+                if (isLimitUpAtOpen(entryBar, preClose, limitPct)) {
                     log.debug("入场日 {} {} 涨停开盘，跳过", entryDate, item.getStockCode());
                     addSkippedStock(stockReturns, item, entryDate, SKIP_LIMIT_UP_AT_OPEN);
+                    bumpReject(rejectReasons, SKIP_LIMIT_UP_AT_OPEN);
+                    frozenCount++;
+                    bumpPeriodSkipped(periodSkippedCounts, holdingDays);
                     continue;
                 }
+                buyableCount++;
                 double entryPrice = rawEntryPrice.doubleValue() * (1 + slippageRate);
                 double entryCost = entryPrice * (1 + commissionRate);
 
                 Map<Integer, Double> forwardReturns = new LinkedHashMap<>();
                 Map<Integer, String> periodSkipReasons = new LinkedHashMap<>();
+                boolean anyFilled = false;
                 for (int h : holdingDays) {
                     PeriodReturnResult periodResult = computePeriodReturn(
-                            item, entryIdx, h, tradingDays, marketDataMap,
+                            item, entryIdx, h, tradingDays, rawMap, qfqMap,
                             entryCost, commissionRate, sellTaxRate, slippageRate);
                     if (periodResult.ret() != null) {
+                        anyFilled = true;
                         forwardReturns.put(h, periodResult.ret());
                         periodReturns.get(h).add(periodResult.ret());
                         dailyReturns.get(h).add(periodResult.ret());
+                        if ("market_price_raw".equals(periodResult.priceSource())) {
+                            rawPriceHits++;
+                        } else if ("qfq_legacy".equals(periodResult.priceSource())) {
+                            qfqPriceHits++;
+                        }
                     } else {
                         forwardReturns.put(h, null);
+                        periodSkippedCounts.merge(h, 1, Integer::sum);
                         if (periodResult.skipReason() != null) {
                             periodSkipReasons.put(h, periodResult.skipReason());
+                            bumpReject(rejectReasons, periodResult.skipReason());
                         }
                     }
+                }
+                if (anyFilled) {
+                    filledCount++;
+                } else {
+                    frozenCount++;
                 }
 
                 stockReturns.add(StockReturn.builder()
@@ -258,7 +322,6 @@ public class ScoringBacktestService {
                         .build());
             }
 
-            // 计算当日各周期的胜率
             for (int h : holdingDays) {
                 List<Double> returns = dailyReturns.get(h);
                 if (returns.isEmpty()) {
@@ -277,14 +340,14 @@ public class ScoringBacktestService {
 
             for (SelectorResultItem item : factorItems) {
                 EntryContext entry = resolveEntryContext(
-                        item, baseIdx, tradingDays, marketDataMap,
+                        item, baseIdx, tradingDays, rawMap, qfqMap,
                         commissionRate, slippageRate);
                 if (entry == null) {
                     continue;
                 }
                 for (int h : holdingDays) {
                     PeriodReturnResult periodResult = computePeriodReturn(
-                            item, entry.entryIdx(), h, tradingDays, marketDataMap,
+                            item, entry.entryIdx(), h, tradingDays, rawMap, qfqMap,
                             entry.entryCost(), commissionRate, sellTaxRate, slippageRate);
                     if (periodResult.ret() == null) {
                         continue;
@@ -306,14 +369,31 @@ public class ScoringBacktestService {
             }
         }
 
+        String priceSource = resolvePriceSourceLabel(rawPriceHits, qfqPriceHits);
+        Map<String, Object> funnel = new LinkedHashMap<>();
+        funnel.put("signal_count", signalCount);
+        funnel.put("buyable_count", buyableCount);
+        funnel.put("filled_count", filledCount);
+        funnel.put("frozen_count", frozenCount);
+        funnel.put("reject_reasons", rejectReasons);
+        funnel.put("price_source", priceSource);
+        funnel.put("metric_scope", "FILLED_SAMPLE");
+        funnel.put("raw_price_hits", rawPriceHits);
+        funnel.put("qfq_legacy_hits", qfqPriceHits);
+        funnel.put("note", "winRate/filledSampleWinRate 仅含成交成功样本；signal/buyable/filled/frozen 闭合信号漏斗");
+
         // 6. 汇总各持仓周期的统计
         Map<Integer, PeriodStat> holdingPeriodStats = new LinkedHashMap<>();
         for (int h : holdingDays) {
             List<Double> returns = periodReturns.get(h);
+            int signals = periodSignalCounts.getOrDefault(h, 0);
+            int skipped = periodSkippedCounts.getOrDefault(h, 0);
             if (returns == null || returns.isEmpty()) {
                 holdingPeriodStats.put(h, PeriodStat.builder()
-                        .winRate(0).avgReturn(0).medianReturn(0)
+                        .winRate(0).filledSampleWinRate(0)
+                        .avgReturn(0).medianReturn(0)
                         .maxReturn(0).minReturn(0).totalObservations(0)
+                        .signalCount(signals).skippedCount(skipped)
                         .build());
                 continue;
             }
@@ -324,26 +404,30 @@ public class ScoringBacktestService {
                     ? sorted.get(sorted.size() / 2)
                     : (sorted.get(sorted.size() / 2 - 1) + sorted.get(sorted.size() / 2)) / 2.0;
             long wins = returns.stream().filter(r -> r > 0).count();
+            double filledWinRate = (double) wins / returns.size();
 
-            // 胜率盈亏比：平均盈利 / |平均亏损|
             double avgWin = returns.stream().filter(r -> r > 0).mapToDouble(Double::doubleValue).average().orElse(0);
             double avgLoss = returns.stream().filter(r -> r < 0).mapToDouble(Double::doubleValue).average().orElse(0);
             double profitLossRatio = avgLoss < 0 ? avgWin / Math.abs(avgLoss) : 0;
 
             holdingPeriodStats.put(h, PeriodStat.builder()
-                    .winRate((double) wins / returns.size())
+                    .winRate(filledWinRate)
+                    .filledSampleWinRate(filledWinRate)
                     .avgReturn(avg)
                     .medianReturn(median)
                     .maxReturn(sorted.get(sorted.size() - 1))
                     .minReturn(sorted.get(0))
                     .totalObservations(returns.size())
+                    .signalCount(signals)
+                    .skippedCount(skipped)
                     .avgWin(avgWin)
                     .avgLoss(avgLoss)
                     .profitLossRatio(profitLossRatio)
                     .build());
         }
 
-        log.info("打分回测完成: {} 个交易日, {} 个周期统计完毕", dailyDetails.size(), holdingPeriodStats.size());
+        log.info("打分回测完成: {} 个交易日, {} 个周期统计完毕, price_source={}",
+                dailyDetails.size(), holdingPeriodStats.size(), priceSource);
 
         Map<Integer, FactorIcSummary> factorIcByHolding = new LinkedHashMap<>();
         Map<Integer, Map<String, FactorIcSummary>> codexFactorIcByHolding = new LinkedHashMap<>();
@@ -383,6 +467,10 @@ public class ScoringBacktestService {
         Map<String, Object> shortValidation = buildShortHorizonValidation(factorIcByHolding, factorSummary);
         mergeCodexFactorValidation(shortValidation, codexFactorIcByHolding);
 
+        assumptions.put("price_source", priceSource);
+        assumptions.put("metric_scope", "FILLED_SAMPLE");
+        assumptions.put("execution_funnel", funnel);
+
         ScoringBacktestResponse response = ScoringBacktestResponse.builder()
                 .strategyType(req.getStrategyType())
                 .startDate(req.getStartDate())
@@ -397,6 +485,9 @@ public class ScoringBacktestService {
                 .formulaAudit(resolveFormulaAudit(req, dailyResults))
                 .shortHorizonValidation(shortValidation)
                 .codexFactorIcByHolding(codexFactorIcByHolding)
+                .executionFunnel(funnel)
+                .priceSource(priceSource)
+                .metricScope("FILLED_SAMPLE")
                 .build();
         persistRun(req, response);
         return response;
@@ -658,6 +749,106 @@ public class ScoringBacktestService {
         return ScoringUtils.isExplicitZeroVolume(bar);
     }
 
+    private record PriceBar(
+            BigDecimal openPrice,
+            BigDecimal closePrice,
+            BigDecimal preClose,
+            Long volume,
+            String source
+    ) {
+        boolean isZeroVolume() {
+            return volume != null && volume <= 0;
+        }
+
+        MarketData asMarketData() {
+            MarketData md = new MarketData();
+            md.setOpenPrice(openPrice);
+            md.setClosePrice(closePrice);
+            md.setPreClose(preClose);
+            md.setVolume(volume);
+            return md;
+        }
+    }
+
+    private static PriceBar resolvePriceBar(
+            String stockCode,
+            String exchangeType,
+            LocalDate date,
+            Map<String, MarketPriceRaw> rawMap,
+            Map<String, MarketData> qfqMap
+    ) {
+        String key = priceKey(stockCode, exchangeType, date);
+        MarketPriceRaw raw = rawMap.get(key);
+        if (raw != null && (raw.getOpenPrice() != null || raw.getClosePrice() != null)) {
+            return new PriceBar(
+                    raw.getOpenPrice(), raw.getClosePrice(), raw.getPreClose(), raw.getVolume(),
+                    "market_price_raw");
+        }
+        MarketData md = qfqMap.get(key);
+        if (md != null) {
+            return new PriceBar(
+                    md.getOpenPrice(), md.getClosePrice(), md.getPreClose(), md.getVolume(),
+                    "qfq_legacy");
+        }
+        return null;
+    }
+
+    private static double resolvePreClose(PriceBar bar, PriceBar prevBar) {
+        if (bar != null && bar.preClose() != null && bar.preClose().doubleValue() > 0) {
+            return bar.preClose().doubleValue();
+        }
+        if (prevBar != null && prevBar.closePrice() != null && prevBar.closePrice().doubleValue() > 0) {
+            return prevBar.closePrice().doubleValue();
+        }
+        return 0;
+    }
+
+    private static boolean isLimitUpAtOpen(PriceBar bar, double preClose, double limitPct) {
+        return StrategyBacktestEngine.isLimitUpAtOpen(bar.asMarketData(), preClose, limitPct);
+    }
+
+    private static boolean isLimitDownAtClose(PriceBar bar, double preClose, double limitPct) {
+        return StrategyBacktestEngine.isLimitDownAtClose(bar.asMarketData(), preClose, limitPct);
+    }
+
+    private static void bumpReject(Map<String, Integer> rejectReasons, String reason) {
+        if (reason == null) {
+            return;
+        }
+        rejectReasons.merge(reason, 1, Integer::sum);
+    }
+
+    private static void bumpPeriodSkipped(Map<Integer, Integer> periodSkippedCounts, List<Integer> holdingDays) {
+        for (int h : holdingDays) {
+            periodSkippedCounts.merge(h, 1, Integer::sum);
+        }
+    }
+
+    private static String resolvePriceSourceLabel(int rawHits, int qfqHits) {
+        if (rawHits > 0 && qfqHits == 0) {
+            return "market_price_raw";
+        }
+        if (rawHits == 0 && qfqHits > 0) {
+            return "qfq_legacy";
+        }
+        if (rawHits > 0) {
+            return "mixed";
+        }
+        return "qfq_legacy";
+    }
+
+    private static Map<String, Object> emptyFunnel(String priceSource) {
+        Map<String, Object> funnel = new LinkedHashMap<>();
+        funnel.put("signal_count", 0);
+        funnel.put("buyable_count", 0);
+        funnel.put("filled_count", 0);
+        funnel.put("frozen_count", 0);
+        funnel.put("reject_reasons", Map.of());
+        funnel.put("price_source", priceSource);
+        funnel.put("metric_scope", "FILLED_SAMPLE");
+        return funnel;
+    }
+
     private static void addSkippedStock(
             List<StockReturn> stockReturns,
             SelectorResultItem item,
@@ -677,7 +868,11 @@ public class ScoringBacktestService {
                 .build());
     }
 
-    private record PeriodReturnResult(Double ret, String skipReason) {}
+    private record PeriodReturnResult(Double ret, String skipReason, String priceSource) {
+        PeriodReturnResult(Double ret, String skipReason) {
+            this(ret, skipReason, null);
+        }
+    }
 
     private record EntryContext(int entryIdx, double entryCost) {}
 
@@ -725,7 +920,8 @@ public class ScoringBacktestService {
             SelectorResultItem item,
             int baseIdx,
             List<LocalDate> tradingDays,
-            Map<String, MarketData> marketDataMap,
+            Map<String, MarketPriceRaw> rawMap,
+            Map<String, MarketData> qfqMap,
             double commissionRate,
             double slippageRate
     ) {
@@ -734,24 +930,23 @@ public class ScoringBacktestService {
             return null;
         }
         LocalDate entryDate = tradingDays.get(entryIdx);
-        MarketData entryBar = marketDataMap.get(priceKey(item.getStockCode(), item.getExchangeType(), entryDate));
+        PriceBar entryBar = resolvePriceBar(item.getStockCode(), item.getExchangeType(), entryDate, rawMap, qfqMap);
         if (entryBar == null) {
             return null;
         }
-        BigDecimal rawEntryPrice = entryBar.getOpenPrice();
+        BigDecimal rawEntryPrice = entryBar.openPrice();
         if (rawEntryPrice == null || rawEntryPrice.compareTo(BigDecimal.ZERO) <= 0) {
             return null;
         }
-        if (isZeroVolume(entryBar)) {
+        if (entryBar.isZeroVolume()) {
             return null;
         }
         LocalDate prevTradeDate = tradingDays.get(entryIdx - 1);
-        MarketData prevBar = marketDataMap.get(
-                priceKey(item.getStockCode(), item.getExchangeType(), prevTradeDate));
-        double preClose = StrategyBacktestEngine.resolvePreClose(entryBar, prevBar);
+        PriceBar prevBar = resolvePriceBar(item.getStockCode(), item.getExchangeType(), prevTradeDate, rawMap, qfqMap);
+        double preClose = resolvePreClose(entryBar, prevBar);
         double limitPct = TradingLimitRules.resolveLimitPct(
                 item.getStockCode(), item.getExchangeType(), item.getStockName());
-        if (StrategyBacktestEngine.isLimitUpAtOpen(entryBar, preClose, limitPct)) {
+        if (isLimitUpAtOpen(entryBar, preClose, limitPct)) {
             return null;
         }
         double entryPrice = rawEntryPrice.doubleValue() * (1 + slippageRate);
@@ -764,7 +959,8 @@ public class ScoringBacktestService {
             int entryIdx,
             int holdingDay,
             List<LocalDate> tradingDays,
-            Map<String, MarketData> marketDataMap,
+            Map<String, MarketPriceRaw> rawMap,
+            Map<String, MarketData> qfqMap,
             double entryCost,
             double commissionRate,
             double sellTaxRate,
@@ -775,32 +971,31 @@ public class ScoringBacktestService {
             return new PeriodReturnResult(null, SKIP_BEYOND_CALENDAR);
         }
         LocalDate fwdDate = tradingDays.get(fwdIdx);
-        MarketData exitBar = marketDataMap.get(
-                priceKey(item.getStockCode(), item.getExchangeType(), fwdDate));
+        PriceBar exitBar = resolvePriceBar(item.getStockCode(), item.getExchangeType(), fwdDate, rawMap, qfqMap);
         if (exitBar == null) {
             return new PeriodReturnResult(null, SKIP_NO_QUOTE_ON_EXIT);
         }
-        BigDecimal rawExitPrice = exitBar.getClosePrice();
+        BigDecimal rawExitPrice = exitBar.closePrice();
         if (rawExitPrice == null || rawExitPrice.compareTo(BigDecimal.ZERO) <= 0) {
             return new PeriodReturnResult(null, SKIP_INVALID_EXIT_CLOSE);
         }
-        if (isZeroVolume(exitBar)) {
+        if (exitBar.isZeroVolume()) {
             return new PeriodReturnResult(null, SKIP_ZERO_VOLUME_ON_EXIT);
         }
         double limitPct = TradingLimitRules.resolveLimitPct(
                 item.getStockCode(), item.getExchangeType(), item.getStockName());
         if (fwdIdx > 0) {
             LocalDate prevFwdDate = tradingDays.get(fwdIdx - 1);
-            MarketData prevExitBar = marketDataMap.get(
-                    priceKey(item.getStockCode(), item.getExchangeType(), prevFwdDate));
-            double exitPreClose = StrategyBacktestEngine.resolvePreClose(exitBar, prevExitBar);
-            if (StrategyBacktestEngine.isLimitDownAtClose(exitBar, exitPreClose, limitPct)) {
+            PriceBar prevExitBar = resolvePriceBar(
+                    item.getStockCode(), item.getExchangeType(), prevFwdDate, rawMap, qfqMap);
+            double exitPreClose = resolvePreClose(exitBar, prevExitBar);
+            if (isLimitDownAtClose(exitBar, exitPreClose, limitPct)) {
                 return new PeriodReturnResult(null, SKIP_LIMIT_DOWN_AT_CLOSE);
             }
         }
         double exitPrice = rawExitPrice.doubleValue() * (1 - slippageRate);
         double exitProceeds = exitPrice * (1 - commissionRate - sellTaxRate);
-        return new PeriodReturnResult(exitProceeds / entryCost - 1, null);
+        return new PeriodReturnResult(exitProceeds / entryCost - 1, null, exitBar.source());
     }
 
     private static FactorAnalysis toFactorAnalysisDto(FactorResearchSummary summary) {

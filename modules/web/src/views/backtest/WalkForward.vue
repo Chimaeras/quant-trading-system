@@ -2,8 +2,11 @@
   <div class="wf-page terminal-page">
     <el-card shadow="hover">
       <template #header>
-        <span>样本外 / Walk-Forward 简易框架</span>
+        <span>分段稳定性（非样本外 / 非 Walk-Forward）</span>
       </template>
+
+      <el-alert type="warning" :closable="false" show-icon class="note-alert"
+        title="本页仅为连续窗口分段收益统计，不是真正的 Walk-Forward / 样本外验证。不含训练、校准、purge 或 embargo。" />
 
       <el-form inline class="form">
         <el-form-item label="策略">
@@ -124,7 +127,7 @@ function exportCsv() {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `walk-forward-${r.strategy}-${r.start_date}_${r.end_date}.csv`
+  a.download = `segment-stability-${r.strategy}-${r.start_date}_${r.end_date}.csv`
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -153,7 +156,7 @@ async function run() {
       holdingDay: holdingDay.value
     })
   } catch (e: any) {
-    toast.error(e?.message || 'Walk-Forward 运行失败')
+    toast.error(e?.message || '分段稳定性运行失败')
   } finally {
     loading.value = false
   }

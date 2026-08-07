@@ -1,4 +1,4 @@
-import request from './request'
+import request, { unwrap } from './request'
 
 export interface AccountInfo {
   accountId: number
@@ -39,18 +39,18 @@ export interface OrderHistoryRow {
 
 export const accountApi = {
   async getInfo(userId?: number) {
-    const res = await request.get<{ data: AccountInfo }>('/account/info', { params: userId ? { userId } : {} })
-    return (res as { data?: AccountInfo })?.data as AccountInfo
+    const res = await request.get<AccountInfo>('/account/info', { params: userId ? { userId } : {} })
+    return unwrap(res)
   },
 
   async listPositions(userId?: number) {
-    const res = await request.get<{ data: PositionRow[] }>('/position/list', { params: userId ? { userId } : {} })
-    return (res as { data?: PositionRow[] })?.data ?? []
+    const res = await request.get<PositionRow[]>('/position/list', { params: userId ? { userId } : {} })
+    return unwrap(res) ?? []
   },
 
   async getOrderHistory(userId?: number) {
-    const res = await request.get<{ data: OrderHistoryRow[] }>('/order/history', { params: userId ? { userId } : {} })
-    return (res as { data?: OrderHistoryRow[] })?.data ?? []
+    const res = await request.get<OrderHistoryRow[]>('/order/history', { params: userId ? { userId } : {} })
+    return unwrap(res) ?? []
   },
 
   async placeOrder(body: {
@@ -59,10 +59,19 @@ export const accountApi = {
     action: 'buy' | 'sell'
     volume: number
     price?: number
+    tradeDate?: string
   }, userId?: number) {
-    const res = await request.post<{ data: Record<string, unknown> }>('/order/place', body, {
+    const res = await request.post<{
+      orderId?: string
+      status?: string
+      reject_reason?: string | null
+      reject_code?: string
+      price_source?: string
+      trade_date?: string
+      [k: string]: unknown
+    }>('/order/place', body, {
       params: userId ? { userId } : {}
     })
-    return (res as { data?: Record<string, unknown> })?.data ?? {}
+    return unwrap(res) ?? {}
   }
 }

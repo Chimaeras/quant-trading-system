@@ -40,6 +40,7 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
     private final SelectorResultRepository selectorResultRepository;
     private final SelectorResultItemRepository selectorResultItemRepository;
     private final StockInfoRepository stockInfoRepository;
+    private final PointInTimeUniverseProvider pointInTimeUniverseProvider;
     private final SelectorTemplateRepository selectorTemplateRepository;
     private final ProgressiveResultWriter progressiveResultWriter;
     private final ClassicFactorCalculator classicFactorCalculator;
@@ -49,6 +50,7 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
     public Map<String, Object> runSelection(Map<String, Object> request) {
         LocalDate reqDate = parseDate(request.get("tradeDate"), LocalDate.now());
         LocalDate tradeDate = marketDataRepository.findLatestTradeDateOnOrBefore(reqDate).orElse(reqDate);
+        PointInTimeUniverseProvider.UniverseView universe = pointInTimeUniverseProvider.loadAsOf(tradeDate);
         boolean fullHistory = parseBool(request.get("fullHistory"), true);
         int lookbackDaysRequested = parseInt(request.get("lookbackDays"), 60, 20, 3650);
         int topN = parseInt(request.get("topN"), 10, 1, 500);
@@ -67,7 +69,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         double minCodexScore = useCodexEngine
                 ? parseDouble(request.get("minCodexScore"), CodexShortCycleScoringEngine.DEFAULT_MIN_CODEX_SCORE, 0d, 100d)
                 : 0d;
-        boolean progressivePersist = parseBool(request.get("progressivePersist"), false);
+        boolean persist = parseBool(request.get("persist"), true);
+        boolean progressivePersist = persist && parseBool(request.get("progressivePersist"), false);
         String fixedResultId = String.valueOf(request.getOrDefault("resultId", "")).trim();
         boolean resumeMode = parseBool(request.get("resumeMode"), false);
         boolean bulkFetch = parseBool(request.get("bulkFetch"), true);
@@ -99,18 +102,31 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
             }
         }
         if (pairs.isEmpty()) {
-            return Map.of("message", "无可用行情数据", "trade_date", tradeDate.toString(), "items", List.of());
+            Map<String, Object> empty = new LinkedHashMap<>();
+            empty.put("message", "无可用行情数据");
+            empty.put("trade_date", tradeDate.toString());
+            empty.put("items", List.of());
+            empty.putAll(universe.lineage());
+            return empty;
         }
 
         Map<String, Integer> statusByKey = new HashMap<>();
         Map<String, LocalDate> listDateByKey = new HashMap<>();
-        for (StockInfo info : stockInfoRepository.findAll()) {
+        Map<String, String> nameCache = new ConcurrentHashMap<>();
+        Map<String, String> industryCache = new ConcurrentHashMap<>();
+        for (StockInfo info : universe.stocks()) {
             if (info.getStockCode() == null || info.getExchangeType() == null) {
                 continue;
             }
             String infoKey = info.getStockCode() + "|" + info.getExchangeType();
             statusByKey.put(infoKey, info.getStatus());
             listDateByKey.put(infoKey, info.getListDate());
+            if (info.getStockName() != null) {
+                nameCache.putIfAbsent(infoKey, info.getStockName());
+            }
+            if (info.getIndustry() != null) {
+                industryCache.putIfAbsent(infoKey, info.getIndustry());
+            }
         }
         pairs = pairs.stream()
                 .filter(p -> p != null && p.length >= 2
@@ -118,10 +134,12 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                         statusByKey.get(String.valueOf(p[0]) + "|" + String.valueOf(p[1]))))
                 .toList();
         if (pairs.isEmpty()) {
-            return Map.of(
-                    "message", "过滤非正常交易状态后无可用标的",
-                    "trade_date", tradeDate.toString(),
-                    "items", List.of());
+            Map<String, Object> empty = new LinkedHashMap<>();
+            empty.put("message", "过滤非正常交易状态后无可用标的");
+            empty.put("trade_date", tradeDate.toString());
+            empty.put("items", List.of());
+            empty.putAll(universe.lineage());
+            return empty;
         }
 
         Map<String, List<MarketData>> bulkByKey = null;
@@ -156,31 +174,18 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                     })
                     .toList();
             if (pairs.isEmpty()) {
-                return Map.of(
-                        "message", "过滤上市时长后无可用标的",
-                        "trade_date", tradeDate.toString(),
-                        "min_listing_days", minListingDays,
-                        "items", List.of());
-            }
-        }
-
-        Map<String, String> nameCache = new ConcurrentHashMap<>();
-        Map<String, String> industryCache = new ConcurrentHashMap<>();
-        for (StockInfo info : stockInfoRepository.findAll()) {
-            if (info.getStockCode() == null || info.getExchangeType() == null) {
-                continue;
-            }
-            String key = info.getStockCode() + "|" + info.getExchangeType();
-            if (info.getStockName() != null) {
-                nameCache.putIfAbsent(key, info.getStockName());
-            }
-            if (info.getIndustry() != null) {
-                industryCache.putIfAbsent(key, info.getIndustry());
+                Map<String, Object> empty = new LinkedHashMap<>();
+                empty.put("message", "过滤上市时长后无可用标的");
+                empty.put("trade_date", tradeDate.toString());
+                empty.put("min_listing_days", minListingDays);
+                empty.put("items", List.of());
+                empty.putAll(universe.lineage());
+                return empty;
             }
         }
 
         if (useCodexEngine) {
-            return runCodexShortCycleSelection(
+            Map<String, Object> codexResult = runCodexShortCycleSelection(
                     tradeDate,
                     effectiveLookbackDays,
                     fullHistory,
@@ -195,6 +200,7 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                     excludeST,
                     minListingDays,
                     horizonProfile,
+                    persist,
                     progressivePersist,
                     fixedResultId,
                     resumeMode,
@@ -202,8 +208,14 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                     bulkByKey,
                     nameCache,
                     industryCache,
+                    statusByKey,
+                    listDateByKey,
                     minCodexScore
             );
+            if (codexResult != null) {
+                codexResult.putAll(universe.lineage());
+            }
+            return codexResult;
         }
 
         boolean crossSectionEnabled = ScoringUtils.parseBool(request.get("crossSectionNormalize"), false);
@@ -325,6 +337,13 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         FactorCollinearityChecker.logVifReport(candidates);
         candidates.sort((a, b) -> Double.compare(b.getFinalScore(), a.getFinalScore()));
 
+        if (!persist) {
+            Map<String, Object> ephemeral = buildEphemeralResult(
+                    tradeDate, factorVersion, topN, candidates, targetsSize(pairs), "CLASSIC_SELECTOR");
+            ephemeral.putAll(universe.lineage());
+            return ephemeral;
+        }
+
         String finalResultId = progressiveResultId != null
                 ? progressiveResultId
                 : ensureResultSkeleton(
@@ -369,7 +388,50 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                 finalScoredCount,
                 Math.max(0, totalTargets - finalScoredCount)
         );
-        return getResultById(finalResultId);
+        Map<String, Object> result = getResultById(finalResultId);
+        if (result != null) {
+            result.putAll(universe.lineage());
+        }
+        return result;
+    }
+
+    /** persist=false 时返回内存结果，不写 selector_result（供历史信号重放）。 */
+    private Map<String, Object> buildEphemeralResult(
+            LocalDate tradeDate,
+            String factorVersion,
+            int topN,
+            List<CandidateScore> candidates,
+            int scanned,
+            String strategyType
+    ) {
+        List<Map<String, Object>> items = new ArrayList<>();
+        int limit = Math.min(topN > 0 ? topN : candidates.size(), candidates.size());
+        for (int i = 0; i < limit; i++) {
+            CandidateScore c = candidates.get(i);
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("rank_no", i + 1);
+            item.put("stock_code", c.getStockCode());
+            item.put("exchange_type", c.getExchangeType());
+            item.put("stock_name", c.getStockName() != null ? c.getStockName() : "");
+            item.put("final_score", c.effectiveFinalScore());
+            item.put("trend_score", c.getTrendScore());
+            item.put("momentum_score", c.getMomentumScore());
+            item.put("volume_score", c.getVolumeScore());
+            item.put("risk_penalty", c.getRiskPenalty());
+            item.put("reasons", c.getReasons() != null ? c.getReasons() : Map.of());
+            items.add(item);
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("trade_date", tradeDate.toString());
+        out.put("strategy_type", strategyType);
+        out.put("factor_version", factorVersion);
+        out.put("top_n", topN);
+        out.put("scanned", scanned);
+        out.put("scored", candidates.size());
+        out.put("cross_section_count", candidates.size());
+        out.put("persisted", false);
+        out.put("items", items);
+        return out;
     }
 
     private void enrichFactorSnapshot(String resultId, int crossSectionCount) {
@@ -577,6 +639,7 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
             boolean excludeST,
             int minListingDays,
             String horizonProfile,
+            boolean persist,
             boolean progressivePersist,
             String fixedResultId,
             boolean resumeMode,
@@ -584,20 +647,12 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
             Map<String, List<MarketData>> bulkByKey,
             Map<String, String> nameCache,
             Map<String, String> industryCache,
+            Map<String, Integer> statusByKey,
+            Map<String, LocalDate> listDateByKey,
             double minCodexScore
     ) {
         Map<String, StockFinancialSnapshot> finByKey =
                 financialSnapshotLoader.loadLatestByStockKey(tradeDate);
-        Map<String, Integer> statusByKey = new HashMap<>();
-        Map<String, LocalDate> listDateByKey = new HashMap<>();
-        for (StockInfo info : stockInfoRepository.findAll()) {
-            if (info.getStockCode() == null || info.getExchangeType() == null) {
-                continue;
-            }
-            String infoKey = info.getStockCode() + "|" + info.getExchangeType();
-            statusByKey.put(infoKey, info.getStatus());
-            listDateByKey.put(infoKey, info.getListDate());
-        }
         List<CodexShortCycleScoringEngine.StockBarContext> contexts = new ArrayList<>(pairs.size());
         for (Object[] pair : pairs) {
             if (pair == null || pair.length < 2) {
@@ -653,6 +708,11 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
                 contexts, minAvgAmount, excludeST, minListingDays, minCodexScore, minTrendScore);
         FactorCollinearityChecker.logVifReport(candidates);
         candidates.sort((a, b) -> Double.compare(b.getFinalScore(), a.getFinalScore()));
+
+        if (!persist) {
+            return buildEphemeralResult(
+                    tradeDate, factorVersion, topN, candidates, targetsSize(pairs), "CLASSIC_SELECTOR");
+        }
 
         String finalResultId = progressiveResultId != null
                 ? progressiveResultId

@@ -1,4 +1,4 @@
-import request from './request'
+import request, { unwrap } from './request'
 
 /** 选股日报中的候选摘要 */
 export interface DailyReportTopItem {
@@ -48,6 +48,32 @@ export interface DailyReportOverallSummary {
   verdict: string
 }
 
+/** 预测快照 lineage（MP-022） */
+export interface DailyReportPredictionHorizon {
+  horizon: number
+  status: string
+  prediction_run_id?: string
+  probability_track?: string
+  tracks?: Array<{
+    prediction_run_id?: string
+    track?: string
+    status?: string
+    publish_version?: number
+    abstain_reason?: string | null
+    model_version?: string | null
+    item_count?: number
+    lineage?: Record<string, unknown>
+    quality_gate?: Record<string, unknown>
+  }>
+  note?: string
+}
+
+export interface DailyReportPrediction {
+  status: string
+  horizons?: DailyReportPredictionHorizon[]
+  note?: string
+}
+
 /** 选股日报响应 */
 export interface DailyReportResponse {
   trade_date: string
@@ -58,11 +84,15 @@ export interface DailyReportResponse {
   overall_summary: DailyReportOverallSummary
   strategies: DailyReportStrategySection[]
   message?: string
+  prediction?: DailyReportPrediction
 }
 
 /** 拉取选股日报；tradeDate 省略时取各策略最新结果 */
-export function getDailyReport(tradeDate?: string): Promise<DailyReportResponse> {
-  return request.get('/report/daily', { params: tradeDate ? { tradeDate } : {} })
+export async function getDailyReport(tradeDate?: string): Promise<DailyReportResponse> {
+  const res = await request.get<DailyReportResponse>('/report/daily', {
+    params: tradeDate ? { tradeDate } : {}
+  })
+  return unwrap(res)
 }
 
 /** 多日趋势单日 */
@@ -84,6 +114,9 @@ export interface TrendReportResponse {
 }
 
 /** 拉取多日信号趋势 */
-export function getTrendReport(startDate: string, endDate: string): Promise<TrendReportResponse> {
-  return request.get('/report/trend', { params: { startDate, endDate } })
+export async function getTrendReport(startDate: string, endDate: string): Promise<TrendReportResponse> {
+  const res = await request.get<TrendReportResponse>('/report/trend', {
+    params: { startDate, endDate }
+  })
+  return unwrap(res)
 }

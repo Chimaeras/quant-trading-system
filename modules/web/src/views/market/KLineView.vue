@@ -42,8 +42,7 @@ async function loadRealtime() {
   if (!code) return
   realtimeLoading.value = true
   try {
-    const res = await marketApi.getRealtimeQuote(code, route.query.exchange as string)
-    const d = (res as { data?: { close_price?: number; change_pct?: number } })?.data
+    const d = await marketApi.getRealtimeQuote(code, route.query.exchange as string)
     realtime.value = d && (d.close_price != null || d.change_pct != null) ? d : null
   } catch {
     realtime.value = null
@@ -62,12 +61,11 @@ const loadData = async () => {
   // 优先真实后端行情，失败回退本地 IndexedDB（并标注来源，避免误把离线/Mock 当线上数据）
   let data: KLineItem[] = []
   try {
-    const res = await marketApi.getKline(code, {
+    data = (await marketApi.getKline(code, {
       exchange: route.query.exchange as string,
       startDate,
       endDate
-    })
-    data = ((res as { data?: KLineItem[] })?.data ?? []) as KLineItem[]
+    })) as KLineItem[]
     dataSource.value = 'backend'
   } catch {
     data = (await dataApi.getKLine(code, startDate, endDate)) as KLineItem[]

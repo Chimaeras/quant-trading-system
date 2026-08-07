@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quant.local/contracts/feature_manifest.schema.json",
+  "title": "FeatureManifest",
+  "description": "MP-012/021 minimal feature artifact contract (Java/Python shared). Full Parquet pipeline is future work.",
+  "type": "object",
+  "required": [
+    "data_snapshot_id",
+    "feature_set_version",
+    "schema_hash",
+    "columns"
+  ],
+  "properties": {
+    "data_snapshot_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "feature_set_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schema_hash": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable hash of ordered column names + dtypes + known_at rules"
+    },
+    "columns": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Feature column names in fixed order"
+    },
+    "label_version": { "type": "string" },
+    "code_version": { "type": "string" },
+    "missing_value_policy": { "type": "string" },
+    "standardization": { "type": "string" },
+    "demo": { "type": "boolean" }
+  },
+  "additionalProperties": true
+}

@@ -30,6 +30,21 @@
       <div v-loading="loading">
         <template v-if="result">
           <el-alert type="warning" :closable="false" show-icon class="note-alert" :title="result.note" />
+          <el-alert
+            v-if="result.universe_note || result.feature_snapshot_note"
+            type="info"
+            :closable="false"
+            show-icon
+            class="note-alert"
+            :title="result.universe_note || result.feature_snapshot_note || ''"
+          />
+          <div v-if="result.funnel" class="q-meta funnel-meta">
+            <span>漏斗 universe：{{ result.funnel.universe_count ?? '—' }}</span>
+            <span>feature_valid：{{ result.funnel.feature_valid_count ?? '—' }}</span>
+            <span>tradable：{{ result.funnel.tradable_status === 'UNAVAILABLE' ? '不可用' : (result.funnel.tradable_count ?? '—') }}</span>
+            <span>metric_scopes：{{ (result.metric_scopes || []).join(' / ') || 'RAW / COST_APPROX' }}</span>
+            <span>EXECUTABLE：{{ result.executable_metric_scope === 'UNAVAILABLE' ? '不可用' : (result.executable_metric_scope || '—') }}</span>
+          </div>
 
           <div class="grid">
             <el-card shadow="never" class="q-card">
@@ -130,6 +145,19 @@
             <el-button size="small" @click="exportUnifiedCsv">导出多周期 IC CSV</el-button>
           </div>
           <el-alert type="info" :closable="false" show-icon class="note-alert" :title="unifiedResult.note || ''" />
+          <el-alert
+            v-if="unifiedResult.universe_note || unifiedResult.feature_snapshot_note"
+            type="warning"
+            :closable="false"
+            show-icon
+            class="note-alert"
+            :title="unifiedResult.universe_note || unifiedResult.feature_snapshot_note || ''"
+          />
+          <div v-if="unifiedResult.metric_scopes?.length" class="q-meta funnel-meta">
+            <span>metric_scopes：{{ unifiedResult.metric_scopes.join(' / ') }}</span>
+            <span>主口径：{{ unifiedResult.metric_scope || 'COST_APPROX' }}（成本后近似）</span>
+            <span>EXECUTABLE：{{ unifiedResult.executable_metric_scope === 'UNAVAILABLE' ? '不可用' : (unifiedResult.executable_metric_scope || '—') }}</span>
+          </div>
           <el-table :data="unifiedResult.by_horizon" size="small" stripe border max-height="420">
             <el-table-column prop="holding_days" label="持有期" width="70">
               <template #default="{ row }">T+{{ row.holding_days }}</template>
@@ -152,7 +180,7 @@
             <el-table-column label="多空 spread" width="100">
               <template #default="{ row }">{{ pct(row.long_short_spread) }}</template>
             </el-table-column>
-            <el-table-column label="净收益 IC (可执行)" width="130">
+            <el-table-column label="净收益 IC (成本后近似)" width="130">
               <template #default="{ row }">{{ row.executable_net_ic ? fmt4(row.executable_net_ic.rank_ic_mean) : '—' }}</template>
             </el-table-column>
             <el-table-column label="HAC 95%CI" min-width="130">
@@ -307,6 +335,12 @@ onMounted(() => run())
 }
 .note-alert {
   margin-bottom: 16px;
+}
+.funnel-meta {
+  margin-bottom: 12px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 .unified-block {
   margin-top: 16px;

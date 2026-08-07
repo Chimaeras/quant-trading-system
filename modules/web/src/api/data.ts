@@ -3,7 +3,7 @@
  */
 import dayjs from 'dayjs'
 import { getDB } from '@/utils/db'
-import request from './request'
+import request, { unwrap } from './request'
 import type { DataOverview } from '@/types'
 
 /** Mock 数据仅在开发环境显式设置 VITE_ENABLE_MOCK_DATA=true 时启用。 */
@@ -67,11 +67,11 @@ export const dataApi = {
   /** 获取数据概览 - 优先后端，失败则用 IndexedDB 真实统计。每次调用强制重新计算 */
   async getOverview(): Promise<DataOverview> {
     try {
-      const res = await request.get<{ data: DataOverview }>('/data/overview', {
+      const res = await request.get<DataOverview>('/data/overview', {
         params: { _t: Date.now() },
         headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' }
       })
-      const d = res.data
+      const d = unwrap(res)
       if (d && typeof d.stock_count === 'number') {
         return {
           stock_count: d.stock_count,
@@ -94,7 +94,7 @@ export const dataApi = {
     baselineDays?: number
     endDate?: string
   } = {}): Promise<HotStocksResponse> {
-    const res = await request.get<{ data: HotStocksResponse }>('/data/hot-stocks', {
+    const res = await request.get<HotStocksResponse>('/data/hot-stocks', {
       params: {
         limit: params.limit ?? 50,
         days: params.days ?? 7,
@@ -104,7 +104,7 @@ export const dataApi = {
       },
       headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' }
     })
-    const d = res.data
+    const d = unwrap(res)
     return {
       limit: d?.limit ?? params.limit ?? 50,
       days: d?.days ?? params.days ?? 7,
@@ -119,7 +119,8 @@ export const dataApi = {
 
   /** 数据质量驾驶舱 */
   async getQuality(): Promise<any> {
-    return request.get('/data/quality')
+    const res = await request.get<any>('/data/quality')
+    return unwrap(res)
   },
 
   async getOverviewFromIndexedDB(): Promise<DataOverview> {
@@ -178,12 +179,12 @@ export const dataApi = {
     startDate: string
     endDate: string
   }): Promise<{ inserted: number; skipped: number; total: number; message?: string }> {
-    const res = await request.post<{ data: { inserted: number; skipped: number; total: number; message?: string } }>(
+    const res = await request.post<{ inserted: number; skipped: number; total: number; message?: string }>(
       '/data/history/update',
       null,
       { params }
     )
-    const d = res.data
+    const d = unwrap(res)
     return {
       inserted: d?.inserted ?? 0,
       skipped: d?.skipped ?? 0,
@@ -206,30 +207,30 @@ export const dataApi = {
     /** 仅截取前 N 只（用于试跑），0 或不传表示不限制 */
     maxStocks?: number
   }) {
-    const res = await request.post<{ data: Record<string, unknown> }>('/data/update/run', params)
-    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>)
+    const res = await request.post<Record<string, unknown>>('/data/update/run', params)
+    return unwrap(res) ?? {}
   },
 
   async getUpdateTask(taskId: string, page = 1, size = 100) {
-    const res = await request.get<{ data: Record<string, unknown> }>(`/data/update/tasks/${taskId}`, {
+    const res = await request.get<Record<string, unknown>>(`/data/update/tasks/${taskId}`, {
       params: { page, size }
     })
-    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>)
+    return unwrap(res) ?? {}
   },
 
   async listUpdateTasks(page = 1, size = 20) {
-    const res = await request.get<{ data: Record<string, unknown> }>('/data/update/tasks', { params: { page, size } })
-    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>)
+    const res = await request.get<Record<string, unknown>>('/data/update/tasks', { params: { page, size } })
+    return unwrap(res) ?? {}
   },
 
   async retryUpdateTask(taskId: string) {
-    const res = await request.post<{ data: Record<string, unknown> }>(`/data/update/tasks/${taskId}/retry`)
-    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>)
+    const res = await request.post<Record<string, unknown>>(`/data/update/tasks/${taskId}/retry`)
+    return unwrap(res) ?? {}
   },
 
   async stopUpdateTask(taskId: string) {
-    const res = await request.post<{ data: Record<string, unknown> }>(`/data/update/tasks/${taskId}/stop`)
-    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>)
+    const res = await request.post<Record<string, unknown>>(`/data/update/tasks/${taskId}/stop`)
+    return unwrap(res) ?? {}
   },
 
   /** 用 K 线最早交易日回填 stock_info.list_date（仅补空值） */
@@ -242,16 +243,14 @@ export const dataApi = {
     note?: string
   }> {
     const res = await request.post<{
-      data: {
-        missing_before: number
-        updated: number
-        missing_after: number
-        skipped_no_match?: number
-        no_market_data?: number
-        note?: string
-      }
+      missing_before: number
+      updated: number
+      missing_after: number
+      skipped_no_match?: number
+      no_market_data?: number
+      note?: string
     }>('/data/stock-info/backfill-list-date')
-    const d = res.data
+    const d = unwrap(res)
     return {
       missing_before: d?.missing_before ?? 0,
       updated: d?.updated ?? 0,
@@ -278,17 +277,15 @@ export const dataApi = {
     message: string
   }> {
     const res = await request.post<{
-      data: {
-        stock_code: string
-        raw_inserted: number
-        raw_skipped: number
-        factor_generated: number
-        factor_skipped: number
-        data_source: string
-        message: string
-      }
+      stock_code: string
+      raw_inserted: number
+      raw_skipped: number
+      factor_generated: number
+      factor_skipped: number
+      data_source: string
+      message: string
     }>('/data/backfill-raw', null, { params })
-    const d = res.data
+    const d = unwrap(res)
     return {
       stock_code: d?.stock_code ?? params.stockCode,
       raw_inserted: d?.raw_inserted ?? 0,
@@ -311,17 +308,15 @@ export const dataApi = {
     note: string
   }> {
     const res = await request.post<{
-      data: {
-        total_processed: number
-        initialized: number
-        skipped_existing: number
-        skipped_no_listdate: number
-        source: string
-        reliability: string
-        note: string
-      }
+      total_processed: number
+      initialized: number
+      skipped_existing: number
+      skipped_no_listdate: number
+      source: string
+      reliability: string
+      note: string
     }>('/data/security-master/init')
-    const d = res.data
+    const d = unwrap(res)
     return {
       total_processed: d?.total_processed ?? 0,
       initialized: d?.initialized ?? 0,
@@ -346,16 +341,14 @@ export const dataApi = {
     note: string
   }> {
     const res = await request.post<{
-      data: {
-        total_fetched: number
-        inserted: number
-        skipped_existing: number
-        source: string
-        reliability: string
-        note: string
-      }
+      total_fetched: number
+      inserted: number
+      skipped_existing: number
+      source: string
+      reliability: string
+      note: string
     }>('/data/trading-calendar/init', null, { params })
-    const d = res.data
+    const d = unwrap(res)
     return {
       total_fetched: d?.total_fetched ?? 0,
       inserted: d?.inserted ?? 0,
@@ -371,8 +364,9 @@ export const dataApi = {
     indexCode?: string
     startDate: string
     endDate: string
-  }): Promise<any> {
-    return request.post('/data/index/fetch', null, { params })
+  }): Promise<Record<string, unknown>> {
+    const res = await request.post<Record<string, unknown>>('/data/index/fetch', null, { params })
+    return unwrap(res)
   },
 
   /** QP-006：创建数据快照（行数/source/质量状态 + SHA-256 hash） */
@@ -387,18 +381,16 @@ export const dataApi = {
     message: string
   }> {
     const res = await request.post<{
-      data: {
-        snapshot_id: string
-        cutoff_time: string
-        hash: string
-        row_counts: string
-        source_versions: string
-        quality_status: string
-        created_by: string
-        message: string
-      }
+      snapshot_id: string
+      cutoff_time: string
+      hash: string
+      row_counts: string
+      source_versions: string
+      quality_status: string
+      created_by: string
+      message: string
     }>('/data/snapshot/create', null, { params: cutoff ? { cutoff } : {} })
-    const d = res.data
+    const d = unwrap(res)
     return {
       snapshot_id: d?.snapshot_id ?? '',
       cutoff_time: d?.cutoff_time ?? '',
@@ -424,10 +416,10 @@ export const dataApi = {
       source_versions: string
     }>
   }> {
-    const res = await request.get<{ data: { total: number; items: any[] } }>('/data/snapshot/list', {
+    const res = await request.get<{ total: number; items: any[] }>('/data/snapshot/list', {
       params: { limit }
     })
-    const d = res.data
+    const d = unwrap(res)
     return {
       total: d?.total ?? 0,
       items: d?.items ?? []
@@ -438,8 +430,9 @@ export const dataApi = {
   async runReplay(params: {
     startDate: string
     endDate: string
-  }): Promise<any> {
-    return request.post('/research/replay', null, { params })
+  }): Promise<Record<string, unknown>> {
+    const res = await request.post<Record<string, unknown>>('/research/replay', null, { params })
+    return unwrap(res)
   },
 
   /** QP-008：生成 T+2/T+3 标签（基于 PIT 股票池，保留拒单样本，幂等） */
@@ -447,15 +440,19 @@ export const dataApi = {
     startDate: string
     endDate: string
     labelVersion?: string
-  }): Promise<any> {
-    return request.post('/research/labels/build', null, {
+  }): Promise<Record<string, unknown>> {
+    const res = await request.post<Record<string, unknown>>('/research/labels/build', null, {
       params: { ...params, labelVersion: params.labelVersion || 'label_v1' }
     })
+    return unwrap(res)
   },
 
   /** QP-008：标签覆盖率统计 */
-  async getLabelCoverage(labelVersion = 'label_v1'): Promise<any> {
-    return request.get('/research/labels/coverage', { params: { labelVersion } })
+  async getLabelCoverage(labelVersion = 'label_v1'): Promise<Record<string, unknown>> {
+    const res = await request.get<Record<string, unknown>>('/research/labels/coverage', {
+      params: { labelVersion }
+    })
+    return unwrap(res)
   },
 
   /** 更新股票列表 */

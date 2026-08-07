@@ -214,6 +214,37 @@ public class TradingCalendarService {
         return tradingCalendarDayRepository.findTradeDatesBetween(startDate, endDate);
     }
 
+    /**
+     * 严格晚于 {@code after} 的下一个市场交易日。
+     * 缓冲窗口：after+1 .. after+60。
+     */
+    @Transactional(readOnly = true)
+    public Optional<LocalDate> nextTradingDay(LocalDate after) {
+        if (after == null) {
+            return Optional.empty();
+        }
+        List<LocalDate> days = findTradingDays(after.plusDays(1), after.plusDays(60));
+        return days.isEmpty() ? Optional.empty() : Optional.of(days.get(0));
+    }
+
+    /**
+     * {@code fromExclusive} 之后的第 n 个市场交易日（不含 fromExclusive 当日）。
+     * 持有 horizon 天 → 退出日 = entry 后第 horizon 个交易日。
+     * 缓冲窗口：from+1 .. from+max(60, n*3+10)。
+     */
+    @Transactional(readOnly = true)
+    public Optional<LocalDate> tradingDayAfterN(LocalDate fromExclusive, int n) {
+        if (fromExclusive == null || n <= 0) {
+            return Optional.empty();
+        }
+        int bufferDays = Math.max(60, n * 3 + 10);
+        List<LocalDate> days = findTradingDays(fromExclusive.plusDays(1), fromExclusive.plusDays(bufferDays));
+        if (days.size() < n) {
+            return Optional.empty();
+        }
+        return Optional.of(days.get(n - 1));
+    }
+
     /** 覆盖率统计（供数据质量页）。 */
     @Transactional(readOnly = true)
     public Map<String, Object> buildCoverage() {

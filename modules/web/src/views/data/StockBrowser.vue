@@ -52,13 +52,12 @@ const loadStocks = async () => {
   try {
     // 优先使用后端 API（MySQL 数据），失败则回退到 IndexedDB 并标注来源
     try {
-      const res = await marketApi.getStockList({
+      const data = await marketApi.getStockList({
         page: page.value,
         size: pageSize.value,
         keyword: keyword.value || undefined,
         exchange: exchangeType.value || undefined
       })
-      const data = (res as { data?: { list?: unknown[]; total?: number } })?.data
       stockList.value = data?.list ?? []
       total.value = data?.total ?? 0
       dataSource.value = 'backend'

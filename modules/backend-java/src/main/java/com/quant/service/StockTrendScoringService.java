@@ -38,6 +38,7 @@ public class StockTrendScoringService {
 
     private final MarketDataRepository marketDataRepository;
     private final StockInfoRepository stockInfoRepository;
+    private final PointInTimeUniverseProvider pointInTimeUniverseProvider;
     private final StockTrendScoreRepository stockTrendScoreRepository;
     private final PlatformTransactionManager transactionManager;
 
@@ -46,11 +47,17 @@ public class StockTrendScoringService {
 
     @Transactional(readOnly = true)
     public Map<String, Object> listScores(LocalDate tradeDate, int page, int size) {
+        return listScores(tradeDate, page, size, StockTrendScore.SCORE_TYPE_TREND);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> listScores(LocalDate tradeDate, int page, int size, String scoreType) {
+        String type = scoreType != null && !scoreType.isBlank() ? scoreType : StockTrendScore.SCORE_TYPE_TREND;
         LocalDate d;
         if (tradeDate == null) {
-            d = stockTrendScoreRepository.findMaxTradeDate().orElse(null);
+            d = stockTrendScoreRepository.findMaxTradeDateByScoreType(type).orElse(null);
         } else {
-            d = stockTrendScoreRepository.findMaxTradeDateOnOrBefore(tradeDate).orElse(null);
+            d = stockTrendScoreRepository.findMaxTradeDateOnOrBeforeByScoreType(type, tradeDate).orElse(null);
         }
         if (d == null) {
             Map<String, Object> empty = new LinkedHashMap<>();
@@ -62,8 +69,9 @@ public class StockTrendScoringService {
             return empty;
         }
         Pageable p = PageRequest.of(Math.max(0, page), Math.min(500, Math.max(1, size)));
-        Page<StockTrendScore> pg = stockTrendScoreRepository.findByTradeDateOrderByTotalScoreDesc(d, p);
+        Page<StockTrendScore> pg = stockTrendScoreRepository.findByTradeDateAndScoreTypeOrderByTotalScoreDesc(d, type, p);
         Map<String, Object> out = new LinkedHashMap<>();
+        out.put("score_type", type);
         out.put("trade_date", d.toString());
         List<Map<String, Object>> list = new ArrayList<>();
         int rankBase = pg.getNumber() * pg.getSize();
@@ -85,6 +93,7 @@ public class StockTrendScoringService {
         LocalDate tradeDate = reqDate != null
                 ? marketDataRepository.findLatestTradeDateOnOrBefore(reqDate).orElse(reqDate)
                 : marketDataRepository.findMaxTradeDate().orElse(LocalDate.now());
+        PointInTimeUniverseProvider.UniverseView universe = pointInTimeUniverseProvider.loadAsOf(tradeDate);
 
         double biasThreshold = ScoringUtils.parseDouble(req.get("biasThreshold"), defaultBiasThreshold, 1.0, 50.0);
         boolean persist = ScoringUtils.parseBool(req.get("persist"), true);
@@ -100,30 +109,23 @@ public class StockTrendScoringService {
         LocalDate rangeStart = tradeDate.minusDays(lookbackDays);
         List<Object[]> pairs = marketDataRepository.findDistinctStockPairsInRange(rangeStart, tradeDate);
         if (pairs.isEmpty()) {
-            return emptyResult(tradeDate, "无可用行情数据");
+            return emptyResult(tradeDate, "无可用行情数据", universe);
         }
 
         ConcurrentMap<String, String> nameCache = new ConcurrentHashMap<>();
         Map<String, LocalDate> listDateCache = new HashMap<>();
         Map<String, Integer> statusCache = new HashMap<>();
-        if (minListingDays > 0) {
-            for (StockInfo s : stockInfoRepository.findAll()) {
-                if (s.getStockCode() == null || s.getExchangeType() == null) {
-                    continue;
-                }
-                String k = s.getStockCode() + "|" + s.getExchangeType();
-                if (s.getStockName() != null && !s.getStockName().isBlank()) {
-                    nameCache.putIfAbsent(k, s.getStockName());
-                }
-                listDateCache.put(k, s.getListDate());
-                statusCache.put(k, s.getStatus());
+        for (StockInfo s : universe.stocks()) {
+            if (s.getStockCode() == null || s.getExchangeType() == null) {
+                continue;
             }
-        } else {
-            for (StockInfo s : stockInfoRepository.findAll()) {
-                if (s.getStockCode() == null || s.getExchangeType() == null) {
-                    continue;
-                }
-                statusCache.put(s.getStockCode() + "|" + s.getExchangeType(), s.getStatus());
+            String k = s.getStockCode() + "|" + s.getExchangeType();
+            if (s.getStockName() != null && !s.getStockName().isBlank()) {
+                nameCache.putIfAbsent(k, s.getStockName());
+            }
+            statusCache.put(k, s.getStatus());
+            if (minListingDays > 0) {
+                listDateCache.put(k, s.getListDate());
             }
         }
         final Map<String, LocalDate> listDateRef = listDateCache;
@@ -144,12 +146,6 @@ public class StockTrendScoringService {
             List<MarketData> allBars = marketDataRepository
                     .findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(rangeStart, tradeDate);
             barsFetched = allBars.size();
-
-            Map<String, String> nameMap = new HashMap<>();
-            for (var s : stockInfoRepository.findAll()) {
-                nameMap.put(s.getStockCode() + "|" + s.getExchangeType(), s.getStockName());
-            }
-            nameCache.putAll(nameMap);
 
             Map<String, List<MarketData>> grouped = new LinkedHashMap<>();
             for (MarketData m : allBars) {
@@ -288,7 +284,7 @@ public class StockTrendScoringService {
         long tScore1 = System.nanoTime();
 
         // ==================== P2: 板块内相对排名调整 ====================
-        Map<String, String> industryMap = buildIndustryMap();
+        Map<String, String> industryMap = buildIndustryMap(universe.stocks());
         applyIntraSectorAdjustment(rows, industryMap);
 
         rows.sort((a, b) -> Double.compare(b.getTotalScore(), a.getTotalScore()));
@@ -297,7 +293,7 @@ public class StockTrendScoringService {
         long tPersist0 = System.nanoTime();
         if (persist) {
             new TransactionTemplate(transactionManager).execute(status -> {
-                stockTrendScoreRepository.deleteByTradeDate(tradeDate);
+                stockTrendScoreRepository.deleteByTradeDateAndScoreType(tradeDate, StockTrendScore.SCORE_TYPE_TREND);
                 stockTrendScoreRepository.flush();
                 if (!rowsToPersist.isEmpty()) {
                     stockTrendScoreRepository.saveAll(rowsToPersist);
@@ -343,6 +339,7 @@ public class StockTrendScoringService {
         res.put("exclude_st", excludeST);
         res.put("min_avg_amount", minAvgAmount);
         res.put("items", items);
+        res.putAll(universe.lineage());
         return res;
     }
 
@@ -362,11 +359,19 @@ public class StockTrendScoringService {
     }
 
     private Map<String, Object> emptyResult(LocalDate tradeDate, String message) {
+        return emptyResult(tradeDate, message, null);
+    }
+
+    private Map<String, Object> emptyResult(LocalDate tradeDate, String message,
+                                            PointInTimeUniverseProvider.UniverseView universe) {
         Map<String, Object> res = new LinkedHashMap<>();
         res.put("message", message);
         res.put("trade_date", tradeDate.toString());
         res.put("factor_version", FACTOR_VERSION);
         res.put("items", List.of());
+        if (universe != null) {
+            res.putAll(universe.lineage());
+        }
         return res;
     }
 
@@ -553,6 +558,7 @@ public class StockTrendScoringService {
         e.setBuySignal(buySignal);
         e.setBiasThreshold(biasThreshold);
         e.setFactorVersion(FACTOR_VERSION);
+        e.setScoreType(StockTrendScore.SCORE_TYPE_TREND);
         return Optional.of(e);
     }
 
@@ -674,9 +680,12 @@ public class StockTrendScoringService {
     /**
      * 构建股票代码→行业映射
      */
-    private Map<String, String> buildIndustryMap() {
+    private Map<String, String> buildIndustryMap(List<StockInfo> stocks) {
         Map<String, String> map = new HashMap<>();
-        for (var s : stockInfoRepository.findAll()) {
+        for (var s : stocks) {
+            if (s.getStockCode() == null || s.getExchangeType() == null) {
+                continue;
+            }
             String industry = s.getIndustry();
             if (industry != null && !industry.isBlank()) {
                 map.put(s.getStockCode() + "|" + s.getExchangeType(), industry);

@@ -6,8 +6,8 @@ import com.quant.entity.MarketData;
 import com.quant.entity.StockInfo;
 import com.quant.entity.StockTrendScore;
 import com.quant.repository.MarketDataRepository;
-import com.quant.repository.StockInfoRepository;
 import com.quant.repository.StockTrendScoreRepository;
+import com.quant.service.PointInTimeUniverseProvider;
 import com.quant.service.scoring.DataQuality;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -42,7 +42,7 @@ public class ComprehensiveScoringService {
     public static final String FACTOR_VERSION = ScoringConstants.VERSION_COMPREHENSIVE;
 
     private final MarketDataRepository marketDataRepository;
-    private final StockInfoRepository stockInfoRepository;
+    private final PointInTimeUniverseProvider pointInTimeUniverseProvider;
     private final StockTrendScoreRepository stockTrendScoreRepository;
     private final EnhancedMarketSentimentService enhancedMarketSentimentService;
     private final FinancialSnapshotLoader financialSnapshotLoader;
@@ -415,6 +415,7 @@ public class ComprehensiveScoringService {
         LocalDate tradeDate = reqDate != null
                 ? marketDataRepository.findLatestTradeDateOnOrBefore(reqDate).orElse(reqDate)
                 : marketDataRepository.findMaxTradeDate().orElse(LocalDate.now());
+        PointInTimeUniverseProvider.UniverseView universe = pointInTimeUniverseProvider.loadAsOf(tradeDate);
 
         boolean persist = ScoringUtils.parseBool(req.get("persist"), true);
         int lookbackDays = ScoringUtils.parseInt(req.get("lookbackDays"), ScoringConstants.DEFAULT_LOOKBACK_DAYS, 60, 2000);
@@ -428,7 +429,7 @@ public class ComprehensiveScoringService {
         LocalDate rangeStart = tradeDate.minusDays(lookbackDays);
         List<Object[]> pairs = marketDataRepository.findDistinctStockPairsInRange(rangeStart, tradeDate);
         if (pairs.isEmpty()) {
-            return emptyResult(tradeDate, "无可用行情数据");
+            return emptyResult(tradeDate, "无可用行情数据", universe);
         }
 
         // 预加载数据
@@ -440,10 +441,7 @@ public class ComprehensiveScoringService {
             grouped.computeIfAbsent(key, k -> new ArrayList<>(600)).add(m);
         }
 
-        Map<String, StockInfo> infoMap = new HashMap<>();
-        for (StockInfo s : stockInfoRepository.findAll()) {
-            infoMap.put(s.getStockCode() + "|" + s.getExchangeType(), s);
-        }
+        Map<String, StockInfo> infoMap = universe.byKey();
         Map<String, com.quant.entity.StockFinancialSnapshot> snapshotMap =
                 financialSnapshotLoader.loadLatestByStockKey(tradeDate);
 
@@ -500,7 +498,7 @@ public class ComprehensiveScoringService {
 
         if (persist && !toSave.isEmpty()) {
             new TransactionTemplate(transactionManager).execute(status -> {
-                stockTrendScoreRepository.deleteByTradeDate(tradeDate);
+                stockTrendScoreRepository.deleteByTradeDateAndScoreType(tradeDate, StockTrendScore.SCORE_TYPE_COMPREHENSIVE);
                 stockTrendScoreRepository.flush();
                 stockTrendScoreRepository.saveAll(toSave);
                 return null;
@@ -529,6 +527,7 @@ public class ComprehensiveScoringService {
         } else {
             res.put("items", List.of());
         }
+        res.putAll(universe.lineage());
         return res;
     }
 
@@ -614,6 +613,7 @@ public class ComprehensiveScoringService {
         e.setRsiStatus(result.technicalDetail().rsiStatus());
         e.setBuySignal(result.investmentAdvice());
         e.setFactorVersion(FACTOR_VERSION);
+        e.setScoreType(StockTrendScore.SCORE_TYPE_COMPREHENSIVE);
 
         try {
             Map<String, Object> reasons = new LinkedHashMap<>();
@@ -694,13 +694,63 @@ public class ComprehensiveScoringService {
         return new ArrayList<>(m.values());
     }
 
+    /**
+     * 查询已持久化的综合打分结果（按总分降序）。
+     */
+    @Transactional
+    public Map<String, Object> listScores(LocalDate tradeDate, int page, int size) {
+        String scoreType = StockTrendScore.SCORE_TYPE_COMPREHENSIVE;
+        LocalDate d;
+        if (tradeDate == null) {
+            d = stockTrendScoreRepository.findMaxTradeDateByScoreType(scoreType).orElse(null);
+        } else {
+            d = stockTrendScoreRepository.findMaxTradeDateOnOrBeforeByScoreType(scoreType, tradeDate).orElse(null);
+        }
+        if (d == null) {
+            Map<String, Object> empty = new LinkedHashMap<>();
+            empty.put("score_type", scoreType);
+            empty.put("factor_version", FACTOR_VERSION);
+            empty.put("trade_date", "");
+            empty.put("list", List.of());
+            empty.put("total", 0L);
+            empty.put("page", 0);
+            empty.put("size", Math.min(500, Math.max(1, size)));
+            return empty;
+        }
+        Pageable p = PageRequest.of(Math.max(0, page), Math.min(500, Math.max(1, size)));
+        Page<StockTrendScore> pg = stockTrendScoreRepository.findByTradeDateAndScoreTypeOrderByTotalScoreDesc(d, scoreType, p);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("score_type", scoreType);
+        out.put("factor_version", FACTOR_VERSION);
+        out.put("trade_date", d.toString());
+        List<Map<String, Object>> list = new ArrayList<>();
+        int rankBase = pg.getNumber() * pg.getSize();
+        int idx = 0;
+        for (StockTrendScore s : pg.getContent()) {
+            list.add(toMap(s, rankBase + (++idx)));
+        }
+        out.put("list", list);
+        out.put("total", pg.getTotalElements());
+        out.put("page", pg.getNumber());
+        out.put("size", pg.getSize());
+        return out;
+    }
+
     private Map<String, Object> emptyResult(LocalDate tradeDate, String msg) {
+        return emptyResult(tradeDate, msg, null);
+    }
+
+    private Map<String, Object> emptyResult(LocalDate tradeDate, String msg,
+                                            PointInTimeUniverseProvider.UniverseView universe) {
         Map<String, Object> res = new LinkedHashMap<>();
         res.put("trade_date", tradeDate.toString());
         res.put("factor_version", FACTOR_VERSION);
         res.put("error", msg);
         res.put("scored", 0);
         res.put("items", List.of());
+        if (universe != null) {
+            res.putAll(universe.lineage());
+        }
         return res;
     }
 }

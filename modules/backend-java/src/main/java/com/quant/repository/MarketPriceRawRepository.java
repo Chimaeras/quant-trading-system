@@ -16,6 +16,15 @@ public interface MarketPriceRawRepository extends JpaRepository<MarketPriceRaw, 
     List<MarketPriceRaw> findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
             String stockCode, String exchangeType, LocalDate startDate, LocalDate endDate);
 
+    long countByStockCodeAndExchangeTypeAndTradeDateBetween(
+            String stockCode, String exchangeType, LocalDate startDate, LocalDate endDate);
+
+    /** 某交易日全市场原始行情（标签工厂按日历日批量查找）。 */
+    List<MarketPriceRaw> findByTradeDate(LocalDate tradeDate);
+
+    List<MarketPriceRaw> findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(
+            LocalDate startDate, LocalDate endDate);
+
     @Query("SELECT COUNT(m) FROM MarketPriceRaw m")
     long countAll();
 
@@ -30,4 +39,15 @@ public interface MarketPriceRawRepository extends JpaRepository<MarketPriceRaw, 
 
     @Query("SELECT MIN(m.tradeDate) FROM MarketPriceRaw m")
     Optional<LocalDate> findMinTradeDate();
+
+    /**
+     * 内容指纹聚合：count, minDate, maxDate, sum(close), sum(volume), sum(close*volume), max(ingested_at)。
+     */
+    @Query("""
+            SELECT COUNT(m), MIN(m.tradeDate), MAX(m.tradeDate),
+                   COALESCE(SUM(m.closePrice), 0), COALESCE(SUM(m.volume), 0),
+                   COALESCE(SUM(m.closePrice * COALESCE(m.volume, 0)), 0), MAX(m.ingestedAt)
+            FROM MarketPriceRaw m
+            """)
+    List<Object[]> aggregateContentFingerprint();
 }

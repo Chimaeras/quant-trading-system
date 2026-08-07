@@ -36,4 +36,11 @@ public interface TradingCalendarDayRepository extends JpaRepository<TradingCalen
     @Query("SELECT t.tradeDate FROM TradingCalendarDay t " +
             "WHERE t.tradeDate BETWEEN :start AND :end ORDER BY t.tradeDate ASC")
     List<LocalDate> findTradeDatesBetween(@Param("start") LocalDate start, @Param("end") LocalDate end);
+
+    /** 内容指纹：count, minDate, maxDate, max(ingested_at)。 */
+    @Query("""
+            SELECT COUNT(t), MIN(t.tradeDate), MAX(t.tradeDate), MAX(t.ingestedAt)
+            FROM TradingCalendarDay t
+            """)
+    List<Object[]> aggregateContentFingerprint();
 }

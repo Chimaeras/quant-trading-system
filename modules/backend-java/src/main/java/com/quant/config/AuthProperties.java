@@ -13,14 +13,14 @@ import org.springframework.stereotype.Component;
 public class AuthProperties {
     /** 是否启用 JWT 鉴权（默认关闭，不影响现有接口） */
     private boolean enabled = false;
-    private String jwtSecret = "quant-dev-secret-change-me-in-production";
+    private String jwtSecret = "quant-dev-secret-change-me-in-production-32b";
     private long jwtExpirationHours = 72;
     private String defaultAdminUsername = "admin";
     private String defaultAdminPassword = "admin123";
     private double defaultSimCash = 1_000_000;
 
-    /** 开发默认密钥/口令，仅用于本地；生产沿用时会打印醒目告警。 */
-    private static final String DEV_JWT_SECRET = "quant-dev-secret-change-me-in-production";
+    /** 开发默认密钥/口令，仅用于本地；生产由 ProdAuthStartupValidator 硬拒绝。 */
+    private static final String DEV_JWT_SECRET = "quant-dev-secret-change-me-in-production-32b";
     private static final String DEV_ADMIN_PASSWORD = "admin123";
 
     @PostConstruct

@@ -27,22 +27,31 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { authApi } from '@/api/auth'
 import { useToast } from '@/composables/useToast'
 
 const router = useRouter()
+const route = useRoute()
 const toast = useToast()
 const username = ref('admin')
 const password = ref('admin123')
 const loading = ref(false)
+
+function resolvePostLoginPath(): string {
+  const redirect = route.query.redirect
+  if (typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('/login')) {
+    return redirect
+  }
+  return '/account/overview'
+}
 
 async function submit() {
   loading.value = true
   try {
     await authApi.login(username.value, password.value)
     toast.success('登录成功')
-    router.push('/account/overview')
+    router.push(resolvePostLoginPath())
   } catch (e: any) {
     toast.error(e?.message || '登录失败')
   } finally {
@@ -55,7 +64,7 @@ async function register() {
   try {
     await authApi.register(username.value, password.value)
     toast.success('注册并登录成功')
-    router.push('/account/overview')
+    router.push(resolvePostLoginPath())
   } catch (e: any) {
     toast.error(e?.message || '注册失败')
   } finally {

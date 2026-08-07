@@ -1,4 +1,4 @@
-import request from './request'
+import request, { unwrap } from './request'
 
 export interface TrendScoreRow {
   id?: number
@@ -199,44 +199,44 @@ export const scoringApi = {
   async runTrendScores(
     body?: { tradeDate?: string; biasThreshold?: number; persist?: boolean; includeItems?: boolean }
   ) {
-    const res = await request.post<{ data: TrendRunResult }>(
+    const res = await request.post<TrendRunResult>(
       '/scoring/trend/run',
       { includeItems: false, ...body },
       { timeout: 600000 }
     )
-    return (res as { data?: TrendRunResult })?.data as TrendRunResult
+    return unwrap(res)
   },
 
   async getTrendScores(params?: { tradeDate?: string; page?: number; size?: number }) {
-    const res = await request.get<{ data: TrendScoresPage }>('/scoring/trend/scores', { params })
-    return (res as { data?: TrendScoresPage })?.data as TrendScoresPage
+    const res = await request.get<TrendScoresPage>('/scoring/trend/scores', { params })
+    return unwrap(res)
   },
 
   /** 综合三维度打分（技术面30分 + 基本面40分 + 情绪面30分） */
   async runComprehensiveScores(
     body?: { tradeDate?: string; persist?: boolean; includeItems?: boolean; lookbackDays?: number }
   ) {
-    const res = await request.post<{ data: ComprehensiveRunResult }>(
+    const res = await request.post<ComprehensiveRunResult>(
       '/scoring/comprehensive/run',
       { includeItems: false, persist: true, ...body },
       { timeout: 600000 }
     )
-    return (res as { data?: ComprehensiveRunResult })?.data as ComprehensiveRunResult
+    return unwrap(res)
   },
 
   async getComprehensiveScores(params?: { tradeDate?: string; page?: number; size?: number }) {
-    const res = await request.get<{ data: Record<string, unknown> }>('/scoring/comprehensive/scores', { params })
-    return (res as { data?: Record<string, unknown> })?.data ?? {}
+    const res = await request.get<Record<string, unknown>>('/scoring/comprehensive/scores', { params })
+    return unwrap(res) ?? {}
   },
 
   /** 统一打分入口：通过 strategy 选择不同打分策略并统一落库。 */
   async runUnifiedScoring(body: UnifiedScoringRunRequest) {
-    const res = await request.post<{ data: UnifiedScoringRunResult }>(
+    const res = await request.post<UnifiedScoringRunResult>(
       '/scoring/unified/run',
       body,
       { timeout: 600000 }
     )
-    return (res as { data?: UnifiedScoringRunResult })?.data as UnifiedScoringRunResult
+    return unwrap(res)
   },
 
   /** 统一查询：按策略获取最新结果（支持分页）。 */
@@ -246,8 +246,8 @@ export const scoringApi = {
     page?: number
     size?: number
   }) {
-    const res = await request.get<{ data: UnifiedScoringResultPage }>('/scoring/unified/result/latest', { params })
-    return (res as { data?: UnifiedScoringResultPage })?.data as UnifiedScoringResultPage
+    const res = await request.get<UnifiedScoringResultPage>('/scoring/unified/result/latest', { params })
+    return unwrap(res)
   },
 
   /** 统一查询：按 result_id 获取结果明细（支持分页）。 */
@@ -255,47 +255,47 @@ export const scoringApi = {
     resultId: string,
     params?: { page?: number; size?: number }
   ) {
-    const res = await request.get<{ data: UnifiedScoringResultPage }>(`/scoring/unified/result/${resultId}`, { params })
-    return (res as { data?: UnifiedScoringResultPage })?.data as UnifiedScoringResultPage
+    const res = await request.get<UnifiedScoringResultPage>(`/scoring/unified/result/${resultId}`, { params })
+    return unwrap(res)
   },
 
   /** 异步执行统一打分任务，立即返回 task_id。 */
   async runUnifiedScoringTask(body: UnifiedScoringRunRequest) {
-    const res = await request.post<{ data: UnifiedScoringTaskRunResult }>(
+    const res = await request.post<UnifiedScoringTaskRunResult>(
       '/scoring/unified/tasks/run',
       body,
       { timeout: 60000 }
     )
-    return (res as { data?: UnifiedScoringTaskRunResult })?.data as UnifiedScoringTaskRunResult
+    return unwrap(res)
   },
 
   /** 查询异步任务进度。 */
   async getUnifiedScoringTask(taskId: string) {
-    const res = await request.get<{ data: UnifiedScoringTaskStatus }>(`/scoring/unified/tasks/${taskId}`)
-    return (res as { data?: UnifiedScoringTaskStatus })?.data as UnifiedScoringTaskStatus
+    const res = await request.get<UnifiedScoringTaskStatus>(`/scoring/unified/tasks/${taskId}`)
+    return unwrap(res)
   },
 
   /** 取消指定任务（PENDING/RUNNING）。 */
   async cancelUnifiedScoringTask(taskId: string) {
-    const res = await request.post<{ data: UnifiedScoringTaskActionResult }>(`/scoring/unified/tasks/${taskId}/cancel`)
-    return (res as { data?: UnifiedScoringTaskActionResult })?.data as UnifiedScoringTaskActionResult
+    const res = await request.post<UnifiedScoringTaskActionResult>(`/scoring/unified/tasks/${taskId}/cancel`)
+    return unwrap(res)
   },
 
   /** 抢占执行：取消前序任务并优先当前任务。 */
   async prioritizeUnifiedScoringTask(taskId: string) {
-    const res = await request.post<{ data: UnifiedScoringTaskActionResult }>(`/scoring/unified/tasks/${taskId}/prioritize`)
-    return (res as { data?: UnifiedScoringTaskActionResult })?.data as UnifiedScoringTaskActionResult
+    const res = await request.post<UnifiedScoringTaskActionResult>(`/scoring/unified/tasks/${taskId}/prioritize`)
+    return unwrap(res)
   },
 
   /** 一键清空待执行队列（PENDING）。 */
   async clearPendingUnifiedScoringTasks() {
-    const res = await request.post<{ data: UnifiedScoringTaskActionResult }>('/scoring/unified/tasks/clear-pending')
-    return (res as { data?: UnifiedScoringTaskActionResult })?.data as UnifiedScoringTaskActionResult
+    const res = await request.post<UnifiedScoringTaskActionResult>('/scoring/unified/tasks/clear-pending')
+    return unwrap(res)
   },
 
   /** 近期打分任务列表（供「历史结果」tab）。 */
   async getRecentUnifiedTasks() {
-    const res = await request.get<{ data: Array<{ task_id: string; strategy: string; status: string; result_id?: string; created_at?: string }> }>('/scoring/unified/tasks/recent')
-    return (res as { data?: Array<{ task_id: string; strategy: string; status: string; result_id?: string; created_at?: string }> })?.data ?? []
+    const res = await request.get<Array<{ task_id: string; strategy: string; status: string; result_id?: string; created_at?: string }>>('/scoring/unified/tasks/recent')
+    return unwrap(res) ?? []
   }
 }

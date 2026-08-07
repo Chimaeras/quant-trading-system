@@ -39,6 +39,7 @@ public class OversoldReboundScoringService {
 
     private final MarketDataRepository marketDataRepository;
     private final StockInfoRepository stockInfoRepository;
+    private final PointInTimeUniverseProvider pointInTimeUniverseProvider;
     private final SelectorResultRepository selectorResultRepository;
     private final SelectorResultItemRepository selectorResultItemRepository;
     private final SelectorTemplateRepository selectorTemplateRepository;
@@ -52,6 +53,7 @@ public class OversoldReboundScoringService {
 
         LocalDate reqDate = ScoringUtils.parseDate(req.get("tradeDate"), LocalDate.now());
         LocalDate tradeDate = marketDataRepository.findLatestTradeDateOnOrBefore(reqDate).orElse(reqDate);
+        PointInTimeUniverseProvider.UniverseView universe = pointInTimeUniverseProvider.loadAsOf(tradeDate);
 
         int topN = ScoringUtils.parseInt(req.get("topN"), 50, 1, 500);
         double minTotalScore = ScoringUtils.parseDouble(req.get("minTotalScore"), 60, 0, 100);
@@ -94,34 +96,13 @@ public class OversoldReboundScoringService {
             empty.put("trade_date", tradeDate.toString());
             empty.put("factor_version", FACTOR_VERSION);
             empty.put("items", List.of());
+            empty.putAll(universe.lineage());
             return empty;
-        }
-
-        if (minListingDays > 0) {
-            Map<String, Integer> statusByKey = new HashMap<>();
-            for (StockInfo info : stockInfoRepository.findAll()) {
-                if (info.getStockCode() == null || info.getExchangeType() == null) {
-                    continue;
-                }
-                statusByKey.put(info.getStockCode() + "|" + info.getExchangeType(), info.getStatus());
-            }
-            pairs = pairs.stream()
-                    .filter(p -> p != null && p.length >= 2
-                            && ScoringUtils.isActiveStockStatus(
-                            statusByKey.get(String.valueOf(p[0]) + "|" + String.valueOf(p[1]))))
-                    .toList();
-            if (pairs.isEmpty()) {
-                return Map.of(
-                        "message", "过滤非正常交易状态后无可用标的",
-                        "trade_date", tradeDate.toString(),
-                        "factor_version", FACTOR_VERSION,
-                        "items", List.of());
-            }
         }
 
         Map<String, Integer> statusByKey = new HashMap<>();
         Map<String, LocalDate> listDateByKey = new HashMap<>();
-        for (StockInfo info : stockInfoRepository.findAll()) {
+        for (StockInfo info : universe.stocks()) {
             if (info.getStockCode() == null || info.getExchangeType() == null) {
                 continue;
             }
@@ -129,6 +110,24 @@ public class OversoldReboundScoringService {
             statusByKey.put(infoKey, info.getStatus());
             listDateByKey.put(infoKey, info.getListDate());
         }
+
+        if (minListingDays > 0) {
+            pairs = pairs.stream()
+                    .filter(p -> p != null && p.length >= 2
+                            && ScoringUtils.isActiveStockStatus(
+                            statusByKey.get(String.valueOf(p[0]) + "|" + String.valueOf(p[1]))))
+                    .toList();
+            if (pairs.isEmpty()) {
+                Map<String, Object> empty = new LinkedHashMap<>();
+                empty.put("message", "过滤非正常交易状态后无可用标的");
+                empty.put("trade_date", tradeDate.toString());
+                empty.put("factor_version", FACTOR_VERSION);
+                empty.put("items", List.of());
+                empty.putAll(universe.lineage());
+                return empty;
+            }
+        }
+
         final Map<String, Integer> statusRef = statusByKey;
         final Map<String, LocalDate> listDateRef = listDateByKey;
         final int minListingDaysFinal = minListingDays;
@@ -165,12 +164,14 @@ public class OversoldReboundScoringService {
                     })
                     .toList();
             if (pairs.isEmpty()) {
-                return Map.of(
-                        "message", "过滤上市时长后无可用标的",
-                        "trade_date", tradeDate.toString(),
-                        "factor_version", FACTOR_VERSION,
-                        "min_listing_days", minListingDays,
-                        "items", List.of());
+                Map<String, Object> empty = new LinkedHashMap<>();
+                empty.put("message", "过滤上市时长后无可用标的");
+                empty.put("trade_date", tradeDate.toString());
+                empty.put("factor_version", FACTOR_VERSION);
+                empty.put("min_listing_days", minListingDays);
+                empty.put("items", List.of());
+                empty.putAll(universe.lineage());
+                return empty;
             }
         }
 
@@ -297,6 +298,7 @@ public class OversoldReboundScoringService {
         res.put("exclude_st", excludeST);
         res.put("persisted", persist);
         res.put("items", out);
+        res.putAll(universe.lineage());
         return res;
     }
 

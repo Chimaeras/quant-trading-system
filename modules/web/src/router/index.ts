@@ -21,7 +21,7 @@ const routes = [
       { path: 'research/probability', name: 'ProbabilityResearch', component: () => import('@/views/research/ProbabilityResearch.vue'), meta: { title: '概率研究' } },
       { path: 'backtest/scoring', name: 'ScoringBacktest', component: () => import('@/views/backtest/ScoringBacktest.vue'), meta: { title: '打分回测' } },
       { path: 'backtest/strategy', name: 'StrategyBacktest', component: () => import('@/views/backtest/StrategyBacktest.vue'), meta: { title: '策略回测' } },
-      { path: 'backtest/walk-forward', name: 'WalkForward', component: () => import('@/views/backtest/WalkForward.vue'), meta: { title: 'Walk-Forward' } },
+      { path: 'backtest/walk-forward', name: 'WalkForward', component: () => import('@/views/backtest/WalkForward.vue'), meta: { title: '分段稳定性（非样本外）' } },
       { path: 'account/overview', name: 'AccountOverview', component: () => import('@/views/account/AccountView.vue'), meta: { title: '模拟账户' } },
       { path: 'reconcile/position', name: 'ReconcilePosition', component: () => import('@/views/reconcile/ReconcileView.vue'), meta: { title: '持仓对账' } }
     ]
@@ -36,6 +36,16 @@ const router = createRouter({
 
 router.beforeEach((to, _from, next) => {
   document.title = `${to.meta?.title || '量化交易'}` as string
+  const isPublic = to.path === '/login' || to.meta?.public === true
+  if (isPublic) {
+    next()
+    return
+  }
+  const token = localStorage.getItem('quant_token')
+  if (!token) {
+    next({ path: '/login', query: { redirect: to.fullPath } })
+    return
+  }
   next()
 })
 

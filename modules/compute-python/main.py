@@ -1,17 +1,47 @@
 """
 量化脚本统一入口（CLI）。
 
-当前模块独立于 Java 后端运行，用于指标口径验证与短周期研究。
 子命令：
-    python main.py indicators    # 指标口径自检（EMA/MACD/BOLL/RSI 与 Java 一致）
-    python main.py ic            # 合成数据 Rank IC 烟雾测试
-    python main.py label-smoke   # T+2/T+3 前瞻标签构造烟雾测试
-    python main.py --help
+    python main.py demo indicators|ic|label-smoke [--demo]
+    python main.py research run --config CONFIG --feature-manifest PATH --output-dir DIR [--demo]
+    python main.py indicators|ic|label-smoke   # 兼容旧烟雾入口（隐式 DEMO）
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import sys
+from pathlib import Path
+from typing import Any
+
+
+REQUIRED_FEATURE_KEYS = ("data_snapshot_id", "feature_set_version", "schema_hash", "columns")
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _load_json(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        raise FileNotFoundError(f"JSON 不存在: {path.resolve()}")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"期望 JSON object: {path}")
+    return data
+
+
+def _validate_feature_manifest(manifest: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    for key in REQUIRED_FEATURE_KEYS:
+        if key not in manifest or manifest[key] in (None, "", []):
+            errors.append(f"missing required key: {key}")
+    cols = manifest.get("columns")
+    if cols is not None and (not isinstance(cols, list) or not all(isinstance(c, str) and c for c in cols)):
+        errors.append("columns must be a non-empty list of strings")
+    return errors
 
 
 def cmd_indicators(_args) -> int:
@@ -73,14 +103,13 @@ def cmd_indicators(_args) -> int:
     assert abs(ma.iloc[-1] - exp_ma) < 1e-9, "BOLL 中轨不一致"
     assert abs(upper.iloc[-1] - (exp_ma + 2 * exp_std)) < 1e-9, "BOLL 上轨（样本标准差）不一致"
 
-    # RSI：对拍 Wilder 递推 + 强上涨/强下跌边界
     assert np.allclose(rsi(pd.Series(close), 14).to_numpy(), java_rsi(close, 14), atol=1e-9), "RSI 与 Java 口径不一致"
     up_only = [10 + i * 0.5 for i in range(30)]
     assert rsi(pd.Series(up_only), 14).iloc[-1] == 100.0, "RSI 强上涨应=100"
     down_only = [30 - i * 0.5 for i in range(30)]
     assert rsi(pd.Series(down_only), 14).iloc[-1] == 0.0, "RSI 强下跌应=0"
 
-    print("指标口径自检通过（EMA/MACD/BOLL/RSI 与 Java TechnicalIndicators 一致）")
+    print("指标口径自检通过（EMA/MACD/BOLL/RSI 与 Java TechnicalIndicators 一致）[DEMO]")
     return 0
 
 
@@ -95,40 +124,174 @@ def cmd_ic(_args) -> int:
     rng = np.random.default_rng(42)
     n = 300
     close = pd.Series(10.0 + np.cumsum(rng.standard_normal(n) * 0.2))
-    factor = close.pct_change(5)  # 5 日动量
+    factor = close.pct_change(5)
     fwd = forward_return(close, 5)
     ic = rank_ic(factor, fwd)
-    print(f"Rank IC (mom5 vs T+5 fwd, n={n}): {ic:.4f}")
-    print("分组收益（等频 5 组）：")
+    print(f"[DEMO] Rank IC (mom5 vs T+5 fwd, n={n}): {ic:.4f}")
+    print("[DEMO] 分组收益（等频 5 组）：")
     print(group_returns(factor, fwd, 5).to_string(index=False))
     return 0
 
 
 def cmd_label_smoke(_args) -> int:
-    """T+2/T+3 前瞻标签构造烟雾测试：打印尾部 NaN 行数与上涨占比。"""
+    """T+2/T+3 前瞻标签构造烟雾测试。"""
     import numpy as np
     import pandas as pd
 
-    from research.labels import forward_return, label_up
+    from research.labels import direction_label, forward_return
 
     rng = np.random.default_rng(0)
     close = pd.Series(10.0 + np.cumsum(rng.standard_normal(50) * 0.1))
     for h in (2, 3):
         fwd = forward_return(close, h)
-        up = label_up(close, h, 0.0)
-        print(f"--- horizon T+{h} ---")
+        up = direction_label(close, h, 0.0)
+        print(f"[DEMO] --- horizon T+{h} ---")
         print(f"尾部 NaN 行数: {fwd.isna().sum()} (应 = {h})")
         print(f"非NaN 上涨占比: {up.dropna().mean():.3f}")
     return 0
 
 
+def cmd_research_run(args) -> int:
+    """离线研究 runner：校验 feature manifest，写出 model_manifest + metrics。"""
+    config_path = Path(args.config)
+    feature_manifest_path = Path(args.feature_manifest)
+    output_dir = Path(args.output_dir)
+    demo = bool(args.demo)
+
+    try:
+        config = _load_json(config_path)
+        feature_manifest = _load_json(feature_manifest_path)
+    except FileNotFoundError as e:
+        print(f"ERROR: data missing — {e}", file=sys.stderr)
+        return 2
+
+    errors = _validate_feature_manifest(feature_manifest)
+    if errors:
+        print("ERROR: feature_manifest contract incompatible:", file=sys.stderr)
+        for err in errors:
+            print(f"  - {err}", file=sys.stderr)
+        return 3
+
+    # 可选：显式 data_path / parquet 路径；缺失时正式模式失败，demo 可继续
+    data_path = config.get("data_path") or feature_manifest.get("data_path")
+    if data_path:
+        p = Path(str(data_path))
+        if not p.exists():
+            if not demo:
+                print(f"ERROR: data missing — {p.resolve()}", file=sys.stderr)
+                return 2
+            print(f"[DEMO] data_path missing, continuing with synthetic smoke: {p}")
+
+    columns = list(feature_manifest["columns"])
+    schema_hash = str(feature_manifest["schema_hash"])
+    feature_set_version = str(feature_manifest["feature_set_version"])
+    data_snapshot_id = str(feature_manifest["data_snapshot_id"])
+    model_version = str(config.get("model_version") or f"py_research_{feature_set_version}")
+    algorithm = str(config.get("algorithm") or "offline_stub")
+    label_version = str(
+        config.get("label_version")
+        or feature_manifest.get("label_version")
+        or "unspecified"
+    )
+
+    # Stub metrics：真实训练留给后续；此处固定写出可校验契约产物
+    metrics: dict[str, Any] = {
+        "status": "ok",
+        "sample_size": int(config.get("sample_size") or 0),
+        "note": "MP-021 stub runner — metrics placeholder until full train pipeline",
+        "feature_set_version": feature_set_version,
+        "schema_hash": schema_hash,
+    }
+    if demo:
+        metrics["DEMO"] = True
+        metrics["watermark"] = "DEMO"
+
+    artifact_payload = {
+        "weights": config.get("weights") or [0.0] * len(columns),
+        "bias": float(config.get("bias") or 0.0),
+        "features": columns,
+    }
+    artifact_hash = hashlib.sha256(
+        json.dumps(artifact_payload, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+
+    model_manifest: dict[str, Any] = {
+        "data_snapshot_id": data_snapshot_id,
+        "feature_set_version": feature_set_version,
+        "schema_hash": schema_hash,
+        "columns": columns,
+        "model_version": model_version,
+        "algorithm": algorithm,
+        "label_version": label_version,
+        "code_version": str(config.get("code_version") or "compute-python"),
+        "artifact_hash": artifact_hash,
+        "train_window": config.get("train_window") or {},
+        "calibration_window": config.get("calibration_window") or {},
+        "test_window": config.get("test_window") or {},
+        "metrics_uri": "metrics.json",
+    }
+    if demo:
+        model_manifest["demo"] = True
+        model_manifest["DEMO"] = True
+        model_manifest["watermark"] = "DEMO"
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    _write_json(output_dir / "metrics.json", metrics)
+    _write_json(output_dir / "model_manifest.json", model_manifest)
+    _write_json(output_dir / "artifact_stub.json", artifact_payload)
+
+    print(f"research run wrote artifacts to {output_dir.resolve()}")
+    if demo:
+        print("[DEMO] watermark applied — not production-eligible")
+    return 0
+
+
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description="量化脚本统一入口")
+    parser = argparse.ArgumentParser(description="量化脚本统一入口（demo / research）")
     sub = parser.add_subparsers(dest="cmd")
-    sub.add_parser("indicators", help="指标口径自检（EMA/MACD/BOLL/RSI 与 Java 对拍）")
-    sub.add_parser("ic", help="合成数据 Rank IC 烟雾测试")
-    sub.add_parser("label-smoke", help="T+2/T+3 前瞻标签构造烟雾测试")
+
+    # --- demo group ---
+    demo_parser = sub.add_parser("demo", help="烟雾/演示命令（产物带 DEMO 水印）")
+    demo_sub = demo_parser.add_subparsers(dest="demo_cmd")
+    demo_sub.add_parser("indicators", help="指标口径自检")
+    demo_sub.add_parser("ic", help="合成数据 Rank IC 烟雾")
+    demo_sub.add_parser("label-smoke", help="标签构造烟雾")
+
+    # --- research group ---
+    research_parser = sub.add_parser("research", help="离线研究 runner")
+    research_sub = research_parser.add_subparsers(dest="research_cmd")
+    run_parser = research_sub.add_parser("run", help="读取 config + feature_manifest，写出 model_manifest")
+    run_parser.add_argument("--config", required=True, help="研究配置 JSON")
+    run_parser.add_argument("--feature-manifest", required=True, help="feature_manifest.json 路径")
+    run_parser.add_argument("--output-dir", required=True, help="产物输出目录")
+    run_parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="允许缺数据并给产物打 DEMO 水印（禁止注册为 production）",
+    )
+
+    # 兼容旧入口（视为 demo）
+    sub.add_parser("indicators", help="[兼容] 指标口径自检（DEMO）")
+    sub.add_parser("ic", help="[兼容] Rank IC 烟雾（DEMO）")
+    sub.add_parser("label-smoke", help="[兼容] 标签烟雾（DEMO）")
+
     args = parser.parse_args(argv)
+
+    if args.cmd == "demo":
+        if args.demo_cmd == "indicators":
+            return cmd_indicators(args)
+        if args.demo_cmd == "ic":
+            return cmd_ic(args)
+        if args.demo_cmd == "label-smoke":
+            return cmd_label_smoke(args)
+        demo_parser.print_help()
+        return 2
+
+    if args.cmd == "research":
+        if args.research_cmd == "run":
+            return cmd_research_run(args)
+        research_parser.print_help()
+        return 2
 
     if args.cmd == "indicators":
         return cmd_indicators(args)
@@ -136,6 +299,7 @@ def main(argv=None) -> int:
         return cmd_ic(args)
     if args.cmd == "label-smoke":
         return cmd_label_smoke(args)
+
     parser.print_help()
     return 2
 

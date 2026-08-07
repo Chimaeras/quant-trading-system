@@ -45,6 +45,18 @@ public class ScoringBacktestResponse {
     /** Codex T/F/R 子因子各持有期 Rank IC（key=持有期, inner key=T/F/R） */
     private Map<Integer, Map<String, FactorIcSummary>> codexFactorIcByHolding;
 
+    /**
+     * MP-010 信号→成交漏斗：signal/buyable/filled/frozen + reject_reasons。
+     * metric_scope 标明汇总指标分母口径。
+     */
+    private Map<String, Object> executionFunnel;
+
+    /** 价源：market_price_raw / qfq_legacy / mixed */
+    private String priceSource;
+
+    /** 指标口径：FILLED_SAMPLE（胜率等仅成功成交）等 */
+    private String metricScope;
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -105,8 +117,10 @@ public class ScoringBacktestResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class PeriodStat {
-        /** 胜率（收益率 > 0 的占比） */
+        /** 胜率（收益率 > 0 的占比）；与 filledSampleWinRate 同义，仅统计成交成功样本 */
         private double winRate;
+        /** 成交成功样本胜率（正式名；winRate 为其别名） */
+        private double filledSampleWinRate;
         /** 平均收益率 */
         private double avgReturn;
         /** 中位数收益率 */
@@ -115,8 +129,12 @@ public class ScoringBacktestResponse {
         private double maxReturn;
         /** 最小收益率 */
         private double minReturn;
-        /** 有效观测数量 */
+        /** 有效观测数量（成交成功样本数） */
         private int totalObservations;
+        /** 信号样本数（含跳过，分母口径） */
+        private int signalCount;
+        /** 跳过/拒单样本数 */
+        private int skippedCount;
         /** 平均盈利收益率（仅收益>0 样本） */
         private double avgWin;
         /** 平均亏损收益率（仅收益<0 样本，负数） */

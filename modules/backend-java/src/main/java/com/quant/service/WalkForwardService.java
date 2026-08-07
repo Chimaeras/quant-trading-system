@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 样本外 / walk-forward 简易框架。
+ * 分段稳定性分析（非 Walk-Forward / 非样本外）。
  *
  * <p>口径：
  * <ul>
@@ -24,7 +24,7 @@ import java.util.Map;
  *       （用交易日历定位窗口边界，各窗口交易日数≈均分；交易日历未初始化时退回自然日等分）。</li>
  *   <li>每个窗口复用 {@link ScoringBacktestService#run} 计算该窗口内 TopN 在指定持有期的收益。</li>
  *   <li>信号日与可成交时点分离（次日开盘入场、持有期末收盘出场），与打分回测一致；无未来函数。</li>
- *   <li>仅作分段稳定性研究，<b>不做</b>自动参数搜索/优化；存在幸存者偏差（沿用打分回测口径）。</li>
+ *   <li>仅作分段稳定性研究，<b>不是</b>真正的 walk-forward / 样本外验证，不做自动参数搜索。</li>
  * </ul>
  */
 @Slf4j
@@ -85,10 +85,12 @@ public class WalkForwardService {
             windowStats.add(wsMap);
         }
         out.put("window_stats", windowStats);
+        out.put("analysis_kind", "SEGMENT_STABILITY");
+        out.put("is_oos", false);
 
-        out.put("note", "连续非重叠窗口（交易日等分，交易日历未初始化时退回自然日等分）；"
-                + "次日开盘入场+持有期末收盘出场（T+1），无未来函数；"
-                + "仅作分段稳定性研究，不做自动参数搜索；存在幸存者偏差");
+        out.put("note", "【分段稳定性 · 非 Walk-Forward · 非样本外】连续非重叠窗口（交易日等分，"
+                + "交易日历未初始化时退回自然日等分）；次日开盘入场+持有期末收盘出场（T+1）；"
+                + "无训练/校准/purge/embargo；存在幸存者偏差。真正滚动实验见后续入口。");
         return out;
     }
 

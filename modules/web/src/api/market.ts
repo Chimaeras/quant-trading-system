@@ -1,4 +1,4 @@
-import request from './request'
+import request, { unwrap } from './request'
 
 export interface StockDetail {
   stock_code: string
@@ -96,41 +96,45 @@ export interface StockAnalysisReport extends StockAnalysisResult {
 
 export const marketApi = {
   /** 获取股票列表 */
-  getStockList(params?: { keyword?: string; exchange?: string; page?: number; size?: number }) {
-    return request.get<{ data: { list: StockListItem[]; total: number } }>('/market/stock/list', {
+  async getStockList(params?: { keyword?: string; exchange?: string; page?: number; size?: number }) {
+    const res = await request.get<{ list: StockListItem[]; total: number }>('/market/stock/list', {
       params
     })
+    return unwrap(res)
   },
 
   /** 获取股票详情 */
-  getStockDetail(code: string, exchange?: string) {
-    return request.get<{ data: StockDetail }>('/market/stock/detail', {
+  async getStockDetail(code: string, exchange?: string) {
+    const res = await request.get<StockDetail>('/market/stock/detail', {
       params: { code, exchange }
     })
+    return unwrap(res)
   },
 
   /** 获取实时行情（在线接口） */
-  getRealtimeQuote(code: string, exchange?: string) {
-    return request.get<{ data: StockDetail }>('/market/realtime', {
+  async getRealtimeQuote(code: string, exchange?: string) {
+    const res = await request.get<StockDetail>('/market/realtime', {
       params: { code, exchange },
       headers: { 'Cache-Control': 'no-cache' }
     })
+    return unwrap(res)
   },
 
   /** 获取K线数据 */
-  getKline(symbol: string, params?: {
+  async getKline(symbol: string, params?: {
     exchange?: string
     startDate?: string
     endDate?: string
     limit?: number
   }) {
-    return request.get<{ data: KLineItem[] }>('/market/kline', {
+    const res = await request.get<KLineItem[]>('/market/kline', {
       params: { symbol, ...params }
     })
+    return unwrap(res)
   },
 
   /** 单股技术分析（持仓视角） */
-  analyzeStock(params: {
+  async analyzeStock(params: {
     stockCode: string
     exchange?: string
     asOfDate?: string
@@ -138,6 +142,7 @@ export const marketApi = {
     avgCost?: number
     riskProfile?: 'conservative' | 'balanced' | 'aggressive'
   }) {
-    return request.post<{ data: StockAnalysisReport }>('/analysis/stock', params)
+    const res = await request.post<StockAnalysisReport>('/analysis/stock', params)
+    return unwrap(res)
   }
 }

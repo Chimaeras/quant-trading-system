@@ -31,8 +31,20 @@
       </el-form-item>
       <el-form-item label="数量"><el-input-number v-model="order.volume" :min="100" :step="100" /></el-form-item>
       <el-form-item label="限价(可选)"><el-input-number v-model="order.price" :min="0" :precision="2" /></el-form-item>
+      <el-form-item label="交易日">
+        <el-date-picker v-model="order.tradeDate" type="date" value-format="YYYY-MM-DD" style="width: 150px" placeholder="省略价时必填" />
+      </el-form-item>
       <el-form-item><el-button type="primary" :loading="placing" @click="place">提交</el-button></el-form-item>
     </el-form>
+    <el-alert
+      v-if="lastReject"
+      type="error"
+      :closable="true"
+      show-icon
+      class="reject-alert"
+      :title="`订单拒绝：${lastReject}`"
+      @close="lastReject = ''"
+    />
 
     <div class="section-title">持仓列表</div>
     <el-table v-loading="loading" :data="positions" stripe>
@@ -86,6 +98,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { accountApi, type AccountInfo, type PositionRow, type OrderHistoryRow } from '@/api/account'
 import { useToast } from '@/composables/useToast'
+import dayjs from 'dayjs'
 
 const toast = useToast()
 const loading = ref(false)
@@ -94,13 +107,15 @@ const account = ref<AccountInfo | null>(null)
 const positions = ref<PositionRow[]>([])
 const orders = ref<OrderHistoryRow[]>([])
 const ordersLoading = ref(false)
+const lastReject = ref('')
 
 const order = reactive({
   symbol: '000001',
   exchangeType: 'SZSE',
   action: 'buy' as 'buy' | 'sell',
   volume: 100,
-  price: undefined as number | undefined
+  price: undefined as number | undefined,
+  tradeDate: dayjs().format('YYYY-MM-DD')
 })
 
 function fmtMoney(v?: number) {
@@ -140,8 +155,8 @@ async function loadOrders() {
   ordersLoading.value = true
   try {
     orders.value = await accountApi.getOrderHistory()
-  } catch {
-    // silent
+  } catch (e: any) {
+    toast.error(e?.message || '订单历史加载失败')
   } finally {
     ordersLoading.value = false
   }
@@ -149,18 +164,29 @@ async function loadOrders() {
 
 async function place() {
   placing.value = true
+  lastReject.value = ''
   try {
     const ret = await accountApi.placeOrder({
       symbol: order.symbol,
       exchangeType: order.exchangeType,
       action: order.action,
       volume: order.volume,
-      price: order.price || undefined
+      price: order.price || undefined,
+      tradeDate: order.price ? undefined : (order.tradeDate || undefined)
     })
-    toast.success(`下单成功：${ret.orderId}`)
+    if (String(ret.status || '').toUpperCase() === 'REJECTED') {
+      const reason = String(ret.reject_reason || ret.reject_code || '订单被拒绝')
+      lastReject.value = reason
+      toast.error(reason)
+      return
+    }
+    const src = ret.price_source ? ` · ${ret.price_source}` : ''
+    toast.success(`下单成功：${ret.orderId}${src}`)
     await loadAll()
   } catch (e: any) {
-    toast.error(e?.message || '下单失败')
+    const msg = e?.message || '下单失败'
+    lastReject.value = msg
+    toast.error(msg)
   } finally {
     placing.value = false
   }
@@ -173,4 +199,5 @@ onMounted(loadAll)
 .header-row { display: flex; justify-content: space-between; align-items: center; }
 .section-title { margin: 12px 0 8px; font-weight: 600; }
 .frozen-hint { margin-left: 4px; font-size: 12px; color: var(--text-secondary); }
+.reject-alert { margin: 8px 0 12px; }
 </style>

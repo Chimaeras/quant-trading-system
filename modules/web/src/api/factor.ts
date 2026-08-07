@@ -1,4 +1,4 @@
-import request from './request'
+import request, { unwrap } from './request'
 
 export interface FactorDistribution {
   min: number
@@ -34,6 +34,10 @@ export interface FactorRankIc {
   group_count: number
   basis_note: string
   universe_note: string
+  metric_scope?: string
+  metric_scopes?: string[]
+  executable_metric_scope?: string
+  feature_snapshot_note?: string
   cross_section_days: number
   total_observations: number
   rank_ic_mean: number
@@ -43,6 +47,16 @@ export interface FactorRankIc {
   long_short_spread: number
   daily_rank_ic: FactorDailyRankIc[]
   grouped_returns: FactorGroupReturn[]
+}
+
+export interface FactorResearchFunnel {
+  universe_count?: number
+  feature_valid_count?: number
+  selector_item_count?: number
+  tradable_count?: number | null
+  tradable_status?: string
+  metric_scope?: string
+  note?: string
 }
 
 export interface FactorResearchResponse {
@@ -56,19 +70,26 @@ export interface FactorResearchResponse {
   distribution: FactorDistribution
   group_bands: FactorGroupBand[]
   rank_ic: FactorRankIc
+  funnel?: FactorResearchFunnel
+  metric_scopes?: string[]
+  metric_scope?: string
+  executable_metric_scope?: string
+  feature_snapshot_note?: string
+  universe_note?: string
   note: string
 }
 
-export function getFactorResearch(params: {
+export async function getFactorResearch(params: {
   strategy?: string
   startDate: string
   endDate: string
   holdingDays?: number
 }): Promise<FactorResearchResponse> {
-  return request.get('/factor/research', { params })
+  const res = await request.get<FactorResearchResponse>('/factor/research', { params })
+  return unwrap(res)
 }
 
-/** 统一因子报告：T+1/2/3/5 多周期并列（Pearson/Rank IC/ICIR/单调性/多空 spread + 可执行净收益 IC）。 */
+/** 统一因子报告：T+1/2/3/5 多周期并列（Pearson/Rank IC/ICIR/单调性/多空 spread + 成本后近似 IC）。 */
 export interface UnifiedReportHorizonRow {
   holding_days: number
   basis_note?: string
@@ -86,6 +107,7 @@ export interface UnifiedReportHorizonRow {
   ci_lower: number
   ci_upper: number
   long_short_spread: number
+  /** 成本后近似 IC（尚未接入涨跌停/停牌拒单，勿称为完整可执行） */
   executable_net_ic?: {
     cross_section_days: number
     total_observations: number
@@ -105,12 +127,19 @@ export interface UnifiedFactorReport {
   horizons: number[]
   by_horizon: UnifiedReportHorizonRow[]
   note?: string
+  metric_scopes?: string[]
+  metric_scope?: string
+  executable_metric_scope?: string
+  feature_snapshot_note?: string
+  universe_note?: string
+  funnel?: FactorResearchFunnel
 }
 
-export function getUnifiedFactorReport(params: {
+export async function getUnifiedFactorReport(params: {
   strategy?: string
   startDate: string
   endDate: string
 }): Promise<UnifiedFactorReport> {
-  return request.get('/factor/unified-report', { params })
+  const res = await request.get<UnifiedFactorReport>('/factor/unified-report', { params })
+  return unwrap(res)
 }

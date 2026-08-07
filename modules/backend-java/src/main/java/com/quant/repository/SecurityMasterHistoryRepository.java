@@ -40,4 +40,11 @@ public interface SecurityMasterHistoryRepository extends JpaRepository<SecurityM
 
     @Query("SELECT COUNT(h) FROM SecurityMasterHistory h WHERE h.reliability = :reliability")
     long countByReliability(String reliability);
+
+    /** 内容指纹：count, min(valid_from), max(valid_from), max(ingested_at)。 */
+    @Query("""
+            SELECT COUNT(h), MIN(h.validFrom), MAX(h.validFrom), MAX(h.ingestedAt)
+            FROM SecurityMasterHistory h
+            """)
+    List<Object[]> aggregateContentFingerprint();
 }

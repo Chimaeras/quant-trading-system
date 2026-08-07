@@ -81,7 +81,7 @@ const navGroups = computed(() => [
     items: [
       { path: "/backtest/scoring", label: "打分回测" },
       { path: "/backtest/strategy", label: "策略回测" },
-      { path: "/backtest/walk-forward", label: "Walk-Forward" },
+      { path: "/backtest/walk-forward", label: "分段稳定性" },
       { path: "/factor/research", label: "因子研究" },
       { path: "/research/probability", label: "概率研究" }
     ]

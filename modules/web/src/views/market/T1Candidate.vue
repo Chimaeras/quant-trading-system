@@ -2,11 +2,13 @@
   <div class="t1-page terminal-page">
     <el-card shadow="hover">
       <template #header>
-        <span>T+1 次日候选（涨停基因 · 次日上涨概率 Top10）</span>
+        <span>T+1 次日候选（涨停基因 · 规则轨优先）</span>
       </template>
 
       <el-alert type="info" :closable="false" show-icon class="note-alert"
-        :title="result?.score_type === 'probability' ? '已按真实上涨概率排序（模型 ' + (result.score_model ?? '') + '）' : '工作流：T 日收盘生成次日上涨候选 → 次日结束后核销。评分为规则分（涨停基因+短期动量+量能+趋势），非概率；可在概率研究页生成 T+1 标签并训练后按真实概率排序；涨停股次日可能一字板买不进。'" />
+        :title="result?.score_type === 'CALIBRATED_PROBABILITY' || result?.score_type === 'probability'
+          ? ('已按校准概率排序（champion 模型 ' + (result.score_model ?? '') + '）')
+          : ('仅输出 RULE_SCORE，非概率' + (result?.fallback_reason ? '；回退原因：' + result.fallback_reason : '。无匹配 champion 或特征 schema 不匹配时不会加载 challenger'))" />
 
       <el-form inline>
         <el-form-item label="信号日 T">
@@ -47,9 +49,10 @@
         <el-table-column prop="stock_name" label="名称" min-width="100" />
         <el-table-column label="评分" width="90">
           <template #default="{ row }">
-            <b v-if="row.score_type === 'probability'">{{ pct(row.score) }}</b>
+            <b v-if="row.score_type === 'CALIBRATED_PROBABILITY' || row.score_type === 'probability'">{{ pct(row.score) }}</b>
             <b v-else>{{ fmt1(row.score) }}</b>
-            <el-tag v-if="row.score_type === 'probability'" type="success" size="small" class="prob-tag">概率</el-tag>
+            <el-tag v-if="row.score_type === 'CALIBRATED_PROBABILITY' || row.score_type === 'probability'" type="success" size="small" class="prob-tag">概率</el-tag>
+            <el-tag v-else type="info" size="small" class="prob-tag">规则分</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="涨停" width="70">

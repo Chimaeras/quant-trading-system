@@ -1,4 +1,4 @@
-import request from './request'
+import request, { unwrap } from './request'
 
 export interface ReconcileStock {
   stock_code: string
@@ -29,12 +29,13 @@ export interface ReconcileResponse {
 }
 
 /** 持仓与选股信号对账 */
-export function reconcilePosition(
+export async function reconcilePosition(
   resultId: string,
   topN = 10,
   userId?: number
 ): Promise<ReconcileResponse> {
-  return request.get('/reconcile/position', {
+  const res = await request.get<ReconcileResponse>('/reconcile/position', {
     params: { resultId, topN, ...(userId ? { userId } : {}) }
   })
+  return unwrap(res)
 }

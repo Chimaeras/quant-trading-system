@@ -6,7 +6,6 @@ import com.quant.entity.MarketData;
 import com.quant.entity.StockInfo;
 import com.quant.entity.StockMultiDimScore;
 import com.quant.repository.MarketDataRepository;
-import com.quant.repository.StockInfoRepository;
 import com.quant.repository.StockMultiDimScoreRepository;
 import com.quant.service.scoring.FundamentalDocScoring;
 import com.quant.service.scoring.ExecutorLifecycle;
@@ -52,7 +51,7 @@ public class MultiDimScoringService {
     private static final double TECH_NORM_HIGH = 15;
 
     private final MarketDataRepository marketDataRepository;
-    private final StockInfoRepository stockInfoRepository;
+    private final PointInTimeUniverseProvider pointInTimeUniverseProvider;
     private final StockMultiDimScoreRepository stockMultiDimScoreRepository;
     private final ObjectMapper objectMapper;
     private final EnhancedMarketSentimentService enhancedMarketSentimentService;
@@ -100,6 +99,7 @@ public class MultiDimScoringService {
         LocalDate tradeDate = reqDate != null
                 ? marketDataRepository.findLatestTradeDateOnOrBefore(reqDate).orElse(reqDate)
                 : marketDataRepository.findMaxTradeDate().orElse(LocalDate.now());
+        PointInTimeUniverseProvider.UniverseView universe = pointInTimeUniverseProvider.loadAsOf(tradeDate);
 
         boolean persist = parseBool(req.get("persist"), true);
         int lookbackDays = (int) parseDouble(req.get("lookbackDays"), 520, 60, 2000);
@@ -111,13 +111,13 @@ public class MultiDimScoringService {
         int minListingDays = ScoringUtils.parseInt(req.get("minListingDays"), 60, 0, 3650);
 
         if (!bulkFetch) {
-            return emptyResult(tradeDate, "multi_dim 当前仅支持 bulkFetch=true");
+            return emptyResult(tradeDate, "multi_dim 当前仅支持 bulkFetch=true", universe);
         }
 
         LocalDate rangeStart = tradeDate.minusDays(lookbackDays);
         List<Object[]> pairs = marketDataRepository.findDistinctStockPairsInRange(rangeStart, tradeDate);
         if (pairs.isEmpty()) {
-            return emptyResult(tradeDate, "无可用行情数据");
+            return emptyResult(tradeDate, "无可用行情数据", universe);
         }
 
         List<MarketData> allOnDay = marketDataRepository.findByTradeDate(tradeDate);
@@ -126,10 +126,7 @@ public class MultiDimScoringService {
             mdToday.put(m.getStockCode() + "|" + m.getExchangeType(), m);
         }
 
-        Map<String, StockInfo> infoByKey = new HashMap<>();
-        for (StockInfo s : stockInfoRepository.findAll()) {
-            infoByKey.put(s.getStockCode() + "|" + s.getExchangeType(), s);
-        }
+        Map<String, StockInfo> infoByKey = universe.byKey();
 
         IndustryAvgs indPe = computeIndustryPeAvg(mdToday, infoByKey);
 
@@ -225,6 +222,7 @@ public class MultiDimScoringService {
         } else {
             res.put("items", List.of());
         }
+        res.putAll(universe.lineage());
         return res;
     }
 
@@ -569,6 +567,11 @@ public class MultiDimScoringService {
     }
 
     private Map<String, Object> emptyResult(LocalDate tradeDate, String msg) {
+        return emptyResult(tradeDate, msg, null);
+    }
+
+    private Map<String, Object> emptyResult(LocalDate tradeDate, String msg,
+                                            PointInTimeUniverseProvider.UniverseView universe) {
         Map<String, Object> res = new LinkedHashMap<>();
         res.put("trade_date", tradeDate != null ? tradeDate.toString() : "");
         res.put("factor_version", FV);
@@ -576,6 +579,9 @@ public class MultiDimScoringService {
         res.put("error", msg);
         res.put("scored", 0);
         res.put("items", List.of());
+        if (universe != null) {
+            res.putAll(universe.lineage());
+        }
         return res;
     }
 

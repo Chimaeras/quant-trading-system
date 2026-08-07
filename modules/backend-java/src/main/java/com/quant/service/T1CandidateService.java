@@ -7,7 +7,6 @@ import com.quant.entity.StockInfo;
 import com.quant.entity.T1Candidate;
 import com.quant.repository.MarketDataRepository;
 import com.quant.repository.ModelVersionRepository;
-import com.quant.repository.StockInfoRepository;
 import com.quant.repository.T1CandidateRepository;
 import com.quant.research.ResearchConvention;
 import com.quant.service.backtest.StrategyBacktestEngine;
@@ -57,7 +56,7 @@ public class T1CandidateService {
     private static final int MIN_LISTING_DAYS = 60;
 
     private final MarketDataRepository marketDataRepository;
-    private final StockInfoRepository stockInfoRepository;
+    private final PointInTimeUniverseProvider pointInTimeUniverseProvider;
     private final T1CandidateRepository t1CandidateRepository;
     private final LimitUpEcologyService limitUpEcologyService;
     private final TradingCalendarService tradingCalendarService;
@@ -70,6 +69,7 @@ public class T1CandidateService {
     public Map<String, Object> generateCandidates(LocalDate tradeDate, int topN) {
         int n = Math.max(1, Math.min(topN > 0 ? topN : DEFAULT_TOP_N, 50));
         LocalDate rangeStart = tradeDate.minusDays(LOOKBACK_DAYS);
+        PointInTimeUniverseProvider.UniverseView universe = pointInTimeUniverseProvider.loadAsOf(tradeDate);
 
         // 区间行情（单次批量），按股票分组
         Map<String, List<MarketData>> byStock = marketDataRepository
@@ -100,16 +100,18 @@ public class T1CandidateService {
             log.info("信号日 {} 无行情，回退到最近有行情交易日 {}", tradeDate, actualDate);
             todayByKey = marketDataRepository.findByTradeDate(actualDate).stream()
                     .collect(Collectors.toMap(m -> m.getStockCode() + "|" + m.getExchangeType(), Function.identity(), (a, b) -> a));
+            universe = pointInTimeUniverseProvider.loadAsOf(actualDate);
         }
 
-        Map<String, StockInfo> infoByKey = stockInfoRepository.findAll().stream()
-                .collect(Collectors.toMap(s -> s.getStockCode() + "|" + s.getExchangeType(), Function.identity(), (a, b) -> a));
+        Map<String, StockInfo> infoByKey = universe.byKey();
 
         // 涨停股次日溢价历史分布（用于次日可买性/高开追高风险预判）
         Map<String, Object> premium = limitUpEcologyService.nextDayPremium(actualDate, 50);
 
-        // 尝试加载 horizon=1 的 T+1 概率模型（已训练则用真实上涨概率排序，否则回退规则分）
-        T1ProbModel probModel = loadT1ProbModel();
+        // 尝试加载 horizon=1 的 champion 概率模型；无匹配 champion 则仅输出规则分
+        T1ProbLoadResult modelLoad = loadT1ProbModelWithReason();
+        T1ProbModel probModel = modelLoad.model();
+        String fallbackReason = modelLoad.fallbackReason();
 
         List<Map<String, Object>> scored = new ArrayList<>();
         for (Map.Entry<String, MarketData> e : todayByKey.entrySet()) {
@@ -144,14 +146,14 @@ public class T1CandidateService {
             cand.put("exchange_type", exchange);
             cand.put("stock_name", name != null ? name : code);
             cand.put("rule_score", round4(ruleScore));
-            // 有 T+1 概率模型时用真实上涨概率排序；否则回退规则分（0-100，截面排序用）
+            // 仅 champion + schema 匹配时输出概率；否则只保留规则分，probability 字段不写
             double rankScore = ruleScore;
-            String scoreType = "rule_score";
+            String scoreType = "RULE_SCORE";
             boolean isProb = false;
             if (probModel != null) {
                 double prob = probModel.predictProbability(ruleScore);
                 rankScore = prob;
-                scoreType = "probability";
+                scoreType = "CALIBRATED_PROBABILITY";
                 isProb = true;
                 cand.put("probability", round4(prob));
             }
@@ -202,15 +204,21 @@ public class T1CandidateService {
         out.put("settled", false);
         if (probModel != null) {
             out.put("score_model", probModel.modelVersion());
-            out.put("score_type", "probability");
-            out.put("note", "T+1 次日候选：已加载概率模型 " + probModel.modelVersion()
-                    + "，按真实上涨概率排序（rule_score 见各候选字段）；点击「次日核销」在 T+1 结束后回填表现");
+            out.put("score_type", "CALIBRATED_PROBABILITY");
+            out.put("fallback_reason", null);
+            out.put("note", "T+1 次日候选：已加载 champion 概率模型 " + probModel.modelVersion()
+                    + "，按校准概率排序（rule_score 见各候选字段）；点击「次日核销」在 T+1 结束后回填表现");
         } else {
-            out.put("score_type", "rule_score");
-            out.put("note", "T+1 次日候选：涨停基因（涨停/连板/量比/换手）+ 短期动量 + 量能 + 趋势位置，"
-                    + "rule_score 非概率（尚未训练 horizon=1 概率模型，可在概率研究页生成 T+1 标签并训练）；"
+            out.put("score_type", "RULE_SCORE");
+            out.put("score_model", null);
+            out.put("fallback_reason", fallbackReason != null ? fallbackReason
+                    : "NO_CHAMPION_MODEL");
+            out.put("note", "T+1 次日候选：仅输出 RULE_SCORE（涨停基因+短期动量+量能+趋势），非概率；"
+                    + "回退原因：" + (fallbackReason != null ? fallbackReason : "NO_CHAMPION_MODEL")
+                    + "。未发布 challenger/特征不匹配模型不会自动上线；"
                     + "点击「次日核销」在 T+1 结束后回填表现");
         }
+        out.putAll(universe.lineage());
         return out;
     }
 
@@ -561,21 +569,39 @@ public class T1CandidateService {
         }
     }
 
-    /** 加载 horizon=1 的 T+1 概率模型（优先 champion，其次最新），解析 artifact 中的权重/偏置/预处理参数。 */
-    private T1ProbModel loadT1ProbModel() {
+    /** 加载结果：模型可空；fallbackReason 在无可用模型时说明原因。 */
+    private record T1ProbLoadResult(T1ProbModel model, String fallbackReason) {}
+
+    /** 加载 horizon=1 的 T+1 概率模型：仅允许 stage=champion。
+     * 禁止回退到最新 challenger（未发布模型不得自动上线）。
+     * 当前训练特征为通用 selector_result.rule_score，与 T+1 专用 scoreT1 分布不一致时也拒绝推理。 */
+    private T1ProbLoadResult loadT1ProbModelWithReason() {
         try {
             com.quant.entity.ModelVersion mv = modelVersionRepository
                     .findFirstByHorizonAndStageOrderByCreatedAtDesc(ResearchConvention.HORIZON_T1, "champion")
-                    .orElseGet(() -> modelVersionRepository
-                            .findFirstByHorizonOrderByCreatedAtDesc(ResearchConvention.HORIZON_T1).orElse(null));
+                    .orElse(null);
             if (mv == null || mv.getArtifact() == null || mv.getArtifact().isBlank()) {
-                return null;
+                return new T1ProbLoadResult(null, "NO_CHAMPION_MODEL");
+            }
+            // 特征语义门禁：未声明 T+1 专用 schema 的通用 rule_score 模型不得用于 scoreT1
+            String featureVersion = mv.getFeatureVersion();
+            if (featureVersion == null || featureVersion.isBlank()
+                    || "rule_score_v1".equalsIgnoreCase(featureVersion)
+                    || featureVersion.toLowerCase().contains("selector_result")) {
+                log.warn("T+1 champion 模型 {} 特征版本 {} 与 scoreT1 不兼容，回退规则分",
+                        mv.getModelVersion(), featureVersion);
+                return new T1ProbLoadResult(null, "FEATURE_SCHEMA_MISMATCH:" + featureVersion);
+            }
+            if (!featureVersion.toLowerCase().contains("t1")) {
+                log.warn("T+1 champion 模型 {} 特征版本 {} 未标明 T+1 schema，回退规则分",
+                        mv.getModelVersion(), featureVersion);
+                return new T1ProbLoadResult(null, "FEATURE_SCHEMA_MISMATCH:" + featureVersion);
             }
             Map<String, Object> art = objectMapper.readValue(mv.getArtifact(), new TypeReference<Map<String, Object>>() {});
             List<Number> weightsRaw = castNumberList(art.get("weights"));
             Number biasRaw = art.get("bias") instanceof Number num ? num : null;
             if (weightsRaw == null || weightsRaw.isEmpty()) {
-                return null;
+                return new T1ProbLoadResult(null, "ARTIFACT_INVALID");
             }
             double[] weights = weightsRaw.stream().mapToDouble(Number::doubleValue).toArray();
             double bias = biasRaw != null ? biasRaw.doubleValue() : 0;
@@ -592,10 +618,12 @@ public class T1CandidateService {
                     featureMax = maxList.get(0).doubleValue();
                 }
             }
-            return new T1ProbModel(weights, bias, featureMin, featureMax, mv.getModelVersion());
+            return new T1ProbLoadResult(
+                    new T1ProbModel(weights, bias, featureMin, featureMax, mv.getModelVersion()),
+                    null);
         } catch (Exception e) {
             log.warn("加载 T+1 概率模型失败，回退规则分: {}", e.getMessage());
-            return null;
+            return new T1ProbLoadResult(null, "LOAD_ERROR:" + e.getMessage());
         }
     }
 

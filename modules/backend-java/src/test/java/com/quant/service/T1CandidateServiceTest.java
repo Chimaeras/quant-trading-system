@@ -7,7 +7,6 @@ import com.quant.entity.T1Candidate;
 import com.quant.repository.IndexQuoteRepository;
 import com.quant.repository.MarketDataRepository;
 import com.quant.repository.ModelVersionRepository;
-import com.quant.repository.StockInfoRepository;
 import com.quant.repository.T1CandidateRepository;
 import com.quant.service.scoring.LimitUpEcologyService;
 import org.junit.jupiter.api.Test;
@@ -18,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -40,7 +40,7 @@ class T1CandidateServiceTest {
     @Mock
     private MarketDataRepository marketDataRepository;
     @Mock
-    private StockInfoRepository stockInfoRepository;
+    private PointInTimeUniverseProvider pointInTimeUniverseProvider;
     @Mock
     private T1CandidateRepository t1CandidateRepository;
     @Mock
@@ -56,8 +56,22 @@ class T1CandidateServiceTest {
         ObjectMapper om = com.fasterxml.jackson.databind.json.JsonMapper.builder()
                 .addModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
                 .build();
-        return new T1CandidateService(marketDataRepository, stockInfoRepository, t1CandidateRepository,
+        return new T1CandidateService(marketDataRepository, pointInTimeUniverseProvider, t1CandidateRepository,
                 limitUpEcologyService, tradingCalendarService, modelVersionRepository, indexQuoteRepository, om);
+    }
+
+    private void stubUniverse(LocalDate d, StockInfo info) {
+        Map<String, StockInfo> byKey = new HashMap<>();
+        byKey.put(info.getStockCode() + "|" + info.getExchangeType(), info);
+        when(pointInTimeUniverseProvider.loadAsOf(d)).thenReturn(
+                new PointInTimeUniverseProvider.UniverseView(
+                        d,
+                        List.of(info),
+                        byKey,
+                        PointInTimeUniverseProvider.SOURCE_STOCK_INFO_FALLBACK,
+                        PointInTimeUniverseProvider.RELIABILITY_LIMITED,
+                        true,
+                        1));
     }
 
     @Test
@@ -72,7 +86,8 @@ class T1CandidateServiceTest {
         info.setExchangeType("SZSE");
         info.setStockName("测试股份");
         info.setListDate(d.minusDays(500));
-        when(stockInfoRepository.findAll()).thenReturn(List.of(info));
+        info.setStatus(1);
+        stubUniverse(d, info);
         when(limitUpEcologyService.stockLimitUpFeatures(any(), any(), any()))
                 .thenReturn(Map.of("is_limit_up", true, "lianban_days", 1,
                         "volume_ratio", 2.0, "turnover_rate", 5.0, "change_pct", 10.0));
@@ -90,7 +105,7 @@ class T1CandidateServiceTest {
         List<Map<String, Object>> candidates = (List<Map<String, Object>>) out.get("candidates");
         assertThat(candidates).hasSize(1);
         assertThat(candidates.get(0).get("stock_code")).isEqualTo("000001");
-        assertThat(candidates.get(0).get("score_type")).isEqualTo("rule_score");
+        assertThat(candidates.get(0).get("score_type")).isEqualTo("RULE_SCORE");
         assertThat((double) candidates.get(0).get("score")).isGreaterThan(0);
         // 次日可买性预判：涨停（非连板）→ 高开追高谨慎
         assertThat(candidates.get(0).get("buyability")).isEqualTo("高开追高谨慎");
@@ -108,7 +123,8 @@ class T1CandidateServiceTest {
         info.setExchangeType("SZSE");
         info.setStockName("测试股份");
         info.setListDate(d.minusDays(500));
-        when(stockInfoRepository.findAll()).thenReturn(List.of(info));
+        info.setStatus(1);
+        stubUniverse(d, info);
         when(limitUpEcologyService.stockLimitUpFeatures(any(), any(), any()))
                 .thenReturn(Map.of("is_limit_up", false, "lianban_days", 0,
                         "volume_ratio", 1.2, "turnover_rate", 3.0, "change_pct", 3.0));
@@ -120,6 +136,7 @@ class T1CandidateServiceTest {
         mv.setModelVersion("logistic_v1_t1");
         mv.setHorizon(1);
         mv.setStage("champion");
+        mv.setFeatureVersion("t1_rule_score_v1");
         mv.setArtifact("{\"weights\":[1.0],\"bias\":0.0,\"features\":[\"rule_score\"],"
                 + "\"preprocessor\":{\"type\":\"min_max\",\"fit_window\":\"train_only\",\"min\":[0.0],\"max\":[100.0]}}");
         when(modelVersionRepository.findFirstByHorizonAndStageOrderByCreatedAtDesc(any(), any()))
@@ -128,12 +145,12 @@ class T1CandidateServiceTest {
 
         Map<String, Object> out = service().generateCandidates(d, 5);
 
-        assertThat(out.get("score_type")).isEqualTo("probability");
+        assertThat(out.get("score_type")).isEqualTo("CALIBRATED_PROBABILITY");
         assertThat(out.get("score_model")).isEqualTo("logistic_v1_t1");
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> candidates = (List<Map<String, Object>>) out.get("candidates");
         assertThat(candidates).hasSize(1);
-        assertThat(candidates.get(0).get("score_type")).isEqualTo("probability");
+        assertThat(candidates.get(0).get("score_type")).isEqualTo("CALIBRATED_PROBABILITY");
         assertThat(candidates.get(0).get("is_probability")).isEqualTo(true);
         // ruleScore ∈ (0,100) → 概率 ∈ (0,1)，且保留 rule_score 字段
         assertThat((double) candidates.get(0).get("score")).isBetween(0.0, 1.0);
@@ -156,7 +173,8 @@ class T1CandidateServiceTest {
         info.setExchangeType("SZSE");
         info.setStockName("测试股份");
         info.setListDate(d.minusDays(500));
-        when(stockInfoRepository.findAll()).thenReturn(List.of(info));
+        info.setStatus(1);
+        stubUniverse(d, info);
         when(limitUpEcologyService.stockLimitUpFeatures(any(), any(), any()))
                 .thenReturn(Map.of("is_limit_up", false, "lianban_days", 0,
                         "volume_ratio", 1.0, "turnover_rate", 2.0, "change_pct", 1.0));

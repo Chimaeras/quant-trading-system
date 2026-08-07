@@ -12,15 +12,17 @@ import java.util.Optional;
 
 public interface StockTrendScoreRepository extends JpaRepository<StockTrendScore, Long> {
 
-    void deleteByTradeDate(LocalDate tradeDate);
+    void deleteByTradeDateAndScoreType(LocalDate tradeDate, String scoreType);
 
-    Page<StockTrendScore> findByTradeDateOrderByTotalScoreDesc(LocalDate tradeDate, Pageable pageable);
+    Page<StockTrendScore> findByTradeDateAndScoreTypeOrderByTotalScoreDesc(
+            LocalDate tradeDate, String scoreType, Pageable pageable);
 
-    @Query("SELECT MAX(s.tradeDate) FROM StockTrendScore s")
-    Optional<LocalDate> findMaxTradeDate();
+    @Query("SELECT MAX(s.tradeDate) FROM StockTrendScore s WHERE s.scoreType = :scoreType")
+    Optional<LocalDate> findMaxTradeDateByScoreType(@Param("scoreType") String scoreType);
 
-    @Query("SELECT MAX(s.tradeDate) FROM StockTrendScore s WHERE s.tradeDate <= :tradeDate")
-    Optional<LocalDate> findMaxTradeDateOnOrBefore(@Param("tradeDate") LocalDate tradeDate);
+    @Query("SELECT MAX(s.tradeDate) FROM StockTrendScore s WHERE s.scoreType = :scoreType AND s.tradeDate <= :tradeDate")
+    Optional<LocalDate> findMaxTradeDateOnOrBeforeByScoreType(
+            @Param("scoreType") String scoreType, @Param("tradeDate") LocalDate tradeDate);
 
-    long countByTradeDate(LocalDate tradeDate);
+    long countByTradeDateAndScoreType(LocalDate tradeDate, String scoreType);
 }

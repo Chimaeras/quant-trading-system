@@ -25,6 +25,8 @@ public final class CrossSectionNeutralizer {
     public static final String MODE_LOG_MV_ONLY = "LOG_MV_ONLY_REGRESSION";
     public static final String MODE_INDUSTRY_DEMEAN = "INDUSTRY_DEMEAN_FALLBACK";
     public static final String MODE_PASSTHROUGH = "PASSTHROUGH";
+    /** MP-025：市值可靠性不足，跳过市值中性化。 */
+    public static final String MODE_SKIPPED_MV_RELIABILITY = "SKIPPED_MV_RELIABILITY";
 
     private CrossSectionNeutralizer() {}
 
@@ -38,24 +40,81 @@ public final class CrossSectionNeutralizer {
             Map<String, Integer> industryToCol
     ) {}
 
-    public record Result(List<Double> residuals, String mode, int industryCount) {}
+    public record Result(List<Double> residuals, String mode, int industryCount, String statusReason) {
+        public Result(List<Double> residuals, String mode, int industryCount) {
+            this(residuals, mode, industryCount, null);
+        }
+    }
 
-    public record LogMvEstimate(double logMv, String source) {}
+    public record LogMvEstimate(double logMv, String source, String reliability) {
+        public LogMvEstimate(double logMv, String source) {
+            this(logMv, source, reliabilityOfSource(source));
+        }
+    }
 
     public static final String LOG_MV_FROM_TURNOVER = "turnover_amount";
     public static final String LOG_MV_FROM_TOTAL_MV = "total_market_value";
     public static final String LOG_MV_FROM_NOTIONAL = "close_x_volume";
     public static final String LOG_MV_FROM_AVG_AMOUNT = "avg_amount20_fallback";
 
-    /** turnover 推算与 persisted totalMarketValue 视为可靠；其余代理不宜做 G 市值加权。 */
+    public static final String REL_OFFICIAL = "OFFICIAL";
+    public static final String REL_FLOAT_CAP_APPROX = "FLOAT_CAP_APPROX";
+    public static final String REL_UNKNOWN_LEGACY = "UNKNOWN_LEGACY";
+
+    public static final String SKIP_REASON_MARKET_CAP =
+            "MARKET_CAP_RELIABILITY_INSUFFICIENT: skip MV neutralization for UNKNOWN_LEGACY/FLOAT_CAP_APPROX";
+
+    /**
+     * 仅官方总市值口径视为可靠；amount/turnover 推算为 FLOAT_CAP_APPROX / UNKNOWN_LEGACY（MP-025），
+     * 不得用于总市值中性化 / G 市值加权。
+     */
     public static boolean isReliableLogMvSource(String source) {
-        return LOG_MV_FROM_TURNOVER.equals(source) || LOG_MV_FROM_TOTAL_MV.equals(source);
+        // 历史常量保留；推算源一律不可靠。官方源接入后在此放行。
+        return false;
     }
 
+    /** 按可靠性字段判定（优先于 source 字符串）。 */
+    public static boolean isReliableLogMv(String source, String reliability) {
+        if (isReliableMarketCapReliability(reliability)) {
+            return true;
+        }
+        return isReliableLogMvSource(source);
+    }
+
+    public static boolean isReliableMarketCapReliability(String reliability) {
+        return REL_OFFICIAL.equals(reliability);
+    }
+
+    public static String reliabilityOfSource(String source) {
+        if (LOG_MV_FROM_TOTAL_MV.equals(source) || LOG_MV_FROM_TURNOVER.equals(source)) {
+            return REL_UNKNOWN_LEGACY;
+        }
+        if (LOG_MV_FROM_NOTIONAL.equals(source) || LOG_MV_FROM_AVG_AMOUNT.equals(source)) {
+            return REL_FLOAT_CAP_APPROX;
+        }
+        return REL_UNKNOWN_LEGACY;
+    }
+
+    /**
+     * 若横截面市值可靠性不足（未知/近似），跳过回归中性化，返回 PASSTHROUGH + reason。
+     */
     public static Context buildContext(List<String> industries, List<Double> logMarketCap) {
+        return buildContext(industries, logMarketCap, null);
+    }
+
+    public static Context buildContext(
+            List<String> industries,
+            List<Double> logMarketCap,
+            List<String> reliabilities) {
         int n = industries != null ? industries.size() : 0;
         if (n == 0) {
             return new Context(0, MODE_PASSTHROUGH, 0, new double[0][0], List.of(), List.of(), Map.of());
+        }
+        if (shouldSkipMvNeutralization(reliabilities, n)) {
+            List<String> inds = normalizeIndustries(industries);
+            List<Double> logMv = normalizeLogMv(logMarketCap, n);
+            return new Context(n, MODE_SKIPPED_MV_RELIABILITY, new LinkedHashSet<>(inds).size(),
+                    null, logMv, inds, Map.of());
         }
         List<String> inds = normalizeIndustries(industries);
         List<Double> logMv = normalizeLogMv(logMarketCap, n);
@@ -92,6 +151,21 @@ public final class CrossSectionNeutralizer {
         return new Context(n, MODE_FULL, industryCount, xTx, logMv, inds, indToCol);
     }
 
+    /** 超过半数样本为未知/近似市值时跳过中性化。reliabilities 为 null 时不据此跳过（兼容旧调用）。 */
+    static boolean shouldSkipMvNeutralization(List<String> reliabilities, int n) {
+        if (n <= 0 || reliabilities == null || reliabilities.isEmpty()) {
+            return false;
+        }
+        int unreliable = 0;
+        for (int i = 0; i < n; i++) {
+            String r = i < reliabilities.size() ? reliabilities.get(i) : null;
+            if (!isReliableMarketCapReliability(r)) {
+                unreliable++;
+            }
+        }
+        return unreliable * 2 >= n;
+    }
+
     private static Context buildLogMvOnlyContext(int n, int industryCount, List<Double> logMv, List<String> inds) {
         int p = 2; // intercept + logMv
         double[][] xTx = new double[p][p];
@@ -112,7 +186,7 @@ public final class CrossSectionNeutralizer {
 
     public static Result neutralize(List<Double> values, Context ctx) {
         if (values == null || values.isEmpty() || ctx == null || ctx.n() == 0) {
-            return new Result(values != null ? values : List.of(), MODE_PASSTHROUGH, 0);
+            return new Result(values != null ? values : List.of(), MODE_PASSTHROUGH, 0, null);
         }
         int n = ctx.n();
         if (values.size() != n) {
@@ -120,11 +194,13 @@ public final class CrossSectionNeutralizer {
         }
         List<Double> winsorized = CrossSectionFactorMath.winsorize(values, 2.5, 97.5);
 
-        if (MODE_INDUSTRY_DEMEAN.equals(ctx.mode())) {
-            return new Result(industryDemean(winsorized, ctx.industries(), ctx.logMv()), ctx.mode(), ctx.industryCount());
+        if (MODE_SKIPPED_MV_RELIABILITY.equals(ctx.mode()) || MODE_PASSTHROUGH.equals(ctx.mode())) {
+            String reason = MODE_SKIPPED_MV_RELIABILITY.equals(ctx.mode()) ? SKIP_REASON_MARKET_CAP : null;
+            return new Result(winsorized, MODE_PASSTHROUGH.equals(ctx.mode()) ? ctx.mode() : MODE_SKIPPED_MV_RELIABILITY,
+                    ctx.industryCount(), reason);
         }
-        if (MODE_PASSTHROUGH.equals(ctx.mode())) {
-            return new Result(winsorized, ctx.mode(), ctx.industryCount());
+        if (MODE_INDUSTRY_DEMEAN.equals(ctx.mode())) {
+            return new Result(industryDemean(winsorized, ctx.industries(), ctx.logMv()), ctx.mode(), ctx.industryCount(), null);
         }
 
         int p = ctx.xTx().length;
@@ -139,7 +215,8 @@ public final class CrossSectionNeutralizer {
 
         double[] beta = solveSymmetric(ctx.xTx(), xTy);
         if (beta == null) {
-            return new Result(industryDemean(winsorized, ctx.industries(), ctx.logMv()), MODE_INDUSTRY_DEMEAN, ctx.industryCount());
+            return new Result(industryDemean(winsorized, ctx.industries(), ctx.logMv()), MODE_INDUSTRY_DEMEAN, ctx.industryCount(),
+                    "regression_singular_fallback_industry_demean");
         }
 
         List<Double> residuals = new ArrayList<>(n);
@@ -151,7 +228,7 @@ public final class CrossSectionNeutralizer {
             }
             residuals.add(winsorized.get(i) - fit);
         }
-        return new Result(residuals, ctx.mode(), ctx.industryCount());
+        return new Result(residuals, ctx.mode(), ctx.industryCount(), null);
     }
 
     /** 同一 Context 下批量中性化多列因子，避免重复构建 X'X。 */
@@ -181,7 +258,14 @@ public final class CrossSectionNeutralizer {
         if (lastBar != null && lastBar.getTotalMarketValue() != null) {
             double mv = lastBar.getTotalMarketValue().doubleValue();
             if (mv > 0 && Double.isFinite(mv)) {
-                return new LogMvEstimate(Math.log(mv), LOG_MV_FROM_TOTAL_MV);
+                String rel = lastBar.getMarketCapReliability();
+                if (rel == null || rel.isBlank()) {
+                    rel = REL_UNKNOWN_LEGACY;
+                }
+                String source = lastBar.getMarketCapSource() != null
+                        ? lastBar.getMarketCapSource()
+                        : LOG_MV_FROM_TOTAL_MV;
+                return new LogMvEstimate(Math.log(mv), source, rel);
             }
         }
         if (lastBar != null && lastBar.getTurnoverRate() != null && lastBar.getAmount() != null) {
@@ -190,15 +274,15 @@ public final class CrossSectionNeutralizer {
             if (tr > 1e-8 && amt > 0) {
                 double trFrac = tr > 1.0 ? tr / 100.0 : tr;
                 double mv = amt / Math.max(trFrac, 1e-9);
-                return new LogMvEstimate(Math.log(Math.max(mv, 1.0)), LOG_MV_FROM_TURNOVER);
+                return new LogMvEstimate(Math.log(Math.max(mv, 1.0)), LOG_MV_FROM_TURNOVER, REL_FLOAT_CAP_APPROX);
             }
         }
         if (lastBar != null && lastBar.getClosePrice() != null && lastBar.getVolume() != null
                 && lastBar.getVolume() > 0) {
             double notional = lastBar.getClosePrice().doubleValue() * lastBar.getVolume();
-            return new LogMvEstimate(Math.log(Math.max(notional, 1.0)), LOG_MV_FROM_NOTIONAL);
+            return new LogMvEstimate(Math.log(Math.max(notional, 1.0)), LOG_MV_FROM_NOTIONAL, REL_FLOAT_CAP_APPROX);
         }
-        return new LogMvEstimate(Math.log(Math.max(avgAmount20, 1.0)), LOG_MV_FROM_AVG_AMOUNT);
+        return new LogMvEstimate(Math.log(Math.max(avgAmount20, 1.0)), LOG_MV_FROM_AVG_AMOUNT, REL_FLOAT_CAP_APPROX);
     }
 
     public static double logMarketCapProxy(MarketData lastBar, double avgAmount20) {

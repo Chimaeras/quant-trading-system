@@ -1,4 +1,4 @@
-import request from './request'
+import request, { unwrap } from './request'
 
 export interface SelectorRunParams {
   tradeDate?: string
@@ -25,40 +25,40 @@ export interface OversoldReboundRunParams {
 
 export const selectorApi = {
   async run(params: SelectorRunParams) {
-    const res = await request.post<{ data: Record<string, unknown> }>('/selector/run', params)
-    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>)
+    const res = await request.post<Record<string, unknown>>('/selector/run', params)
+    return unwrap(res) ?? {}
   },
 
   /** 超跌反弹打分（落库 factor_version = oversold_rebound_v1） */
   async runOversoldRebound(params: OversoldReboundRunParams) {
-    const res = await request.post<{ data: Record<string, unknown> }>('/selector/oversold-rebound/run', params)
-    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>)
+    const res = await request.post<Record<string, unknown>>('/selector/oversold-rebound/run', params)
+    return unwrap(res) ?? {}
   },
 
   async getLatest(tradeDate?: string, factorVersion?: string) {
-    const res = await request.get<{ data: Record<string, unknown> }>('/selector/result', {
+    const res = await request.get<Record<string, unknown>>('/selector/result', {
       params: { tradeDate, factorVersion }
     })
-    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>)
+    return unwrap(res) ?? {}
   },
 
   async getDetail(resultId: string) {
-    const res = await request.get<{ data: Record<string, unknown> }>(`/selector/result/${resultId}`)
-    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>)
+    const res = await request.get<Record<string, unknown>>(`/selector/result/${resultId}`)
+    return unwrap(res) ?? {}
   },
 
   async listTemplates() {
-    const res = await request.get<{ data: Array<Record<string, unknown>> }>('/selector/templates')
-    return (res as { data?: Array<Record<string, unknown>> })?.data ?? []
+    const res = await request.get<Array<Record<string, unknown>>>('/selector/templates')
+    return unwrap(res) ?? []
   },
 
   async saveTemplate(params: { templateId?: string; name: string; description?: string; params: Record<string, unknown> }) {
-    const res = await request.post<{ data: Record<string, unknown> }>('/selector/templates', params)
-    return (res as { data?: Record<string, unknown> })?.data ?? {}
+    const res = await request.post<Record<string, unknown>>('/selector/templates', params)
+    return unwrap(res) ?? {}
   },
 
   async deleteTemplate(templateId: string) {
-    const res = await request.delete<{ data: Record<string, unknown> }>(`/selector/templates/${templateId}`)
-    return (res as { data?: Record<string, unknown> })?.data ?? {}
+    const res = await request.delete<Record<string, unknown>>(`/selector/templates/${templateId}`)
+    return unwrap(res) ?? {}
   }
 }

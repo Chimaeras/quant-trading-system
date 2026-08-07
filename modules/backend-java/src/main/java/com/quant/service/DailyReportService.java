@@ -1,11 +1,16 @@
 package com.quant.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.quant.entity.PredictionRun;
 import com.quant.entity.SelectorResult;
 import com.quant.entity.SelectorResultItem;
 import com.quant.entity.StockInfo;
+import com.quant.repository.PredictionRunRepository;
 import com.quant.repository.SelectorResultItemRepository;
 import com.quant.repository.SelectorResultRepository;
 import com.quant.repository.StockInfoRepository;
+import com.quant.research.ResearchConvention;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -14,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +46,8 @@ public class DailyReportService {
     private final SelectorResultRepository selectorResultRepository;
     private final SelectorResultItemRepository selectorResultItemRepository;
     private final StockInfoRepository stockInfoRepository;
+    private final PredictionRunRepository predictionRunRepository;
+    private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
     public Map<String, Object> buildDailyReport(LocalDate tradeDate) {
@@ -67,6 +73,7 @@ public class DailyReportService {
         out.put("generated_at", LocalDateTime.now().toString());
         out.put("data_source", "persisted_selector_result");
         out.put("signal_execution_note", "信号日为选股结果 tradeDate；可成交时点为信号日次日开盘（A 股 T+1）");
+        out.put("prediction", buildPredictionLineage(reportDate));
 
         if (latestPerStrategy.isEmpty()) {
             out.put("has_any_result", false);
@@ -98,6 +105,80 @@ public class DailyReportService {
         out.put("overall_summary", buildOverallSummary(strategySections));
         out.put("strategies", strategySections);
         return out;
+    }
+
+    /**
+     * MP-022：若当日存在预测 run，附带 prediction_run_id / lineage / quality_gate / tracks；
+     * 概率轨缺失时标注 NOT_PUBLISHED。
+     */
+    private Map<String, Object> buildPredictionLineage(LocalDate reportDate) {
+        Map<String, Object> pred = new LinkedHashMap<>();
+        if (reportDate == null) {
+            pred.put("status", "NO_DATE");
+            pred.put("note", "无报告日期，无法关联预测快照");
+            return pred;
+        }
+        List<Map<String, Object>> horizons = new ArrayList<>();
+        boolean anyPublished = false;
+        for (int horizon : ResearchConvention.LABEL_HORIZONS) {
+            List<PredictionRun> runs = predictionRunRepository.findLatestByTradeDateAndHorizon(reportDate, horizon);
+            Map<String, Object> h = new LinkedHashMap<>();
+            h.put("horizon", horizon);
+            if (runs.isEmpty()) {
+                h.put("status", "NOT_PUBLISHED");
+                h.put("tracks", List.of());
+                h.put("probability_track", "NOT_PUBLISHED");
+                h.put("note", "该日 T+" + horizon + " 预测快照未发布");
+            } else {
+                anyPublished = true;
+                List<Map<String, Object>> tracks = new ArrayList<>();
+                String probabilityStatus = "NOT_PUBLISHED";
+                String primaryRunId = null;
+                for (PredictionRun run : runs) {
+                    if (primaryRunId == null) {
+                        primaryRunId = run.getRunId();
+                    }
+                    Map<String, Object> t = new LinkedHashMap<>();
+                    t.put("prediction_run_id", run.getRunId());
+                    t.put("track", run.getTrack());
+                    t.put("status", run.getStatus());
+                    t.put("publish_version", run.getPublishVersion());
+                    t.put("abstain_reason", run.getAbstainReason());
+                    t.put("model_version", run.getModelVersion());
+                    t.put("item_count", run.getItemCount());
+                    t.put("lineage", parseJsonMap(run.getLineageJson()));
+                    t.put("quality_gate", parseJsonMap(run.getQualityGateJson()));
+                    tracks.add(t);
+                    if (PredictionRun.TRACK_PROBABILITY.equals(run.getTrack())) {
+                        probabilityStatus = PredictionRun.STATUS_ABSTAIN.equals(run.getStatus())
+                                ? "ABSTAIN"
+                                : run.getStatus();
+                    }
+                }
+                h.put("status", "PUBLISHED");
+                h.put("prediction_run_id", primaryRunId);
+                h.put("tracks", tracks);
+                h.put("probability_track", probabilityStatus);
+            }
+            horizons.add(h);
+        }
+        pred.put("status", anyPublished ? "PUBLISHED" : "NOT_PUBLISHED");
+        pred.put("horizons", horizons);
+        if (!anyPublished) {
+            pred.put("note", "NOT_PUBLISHED：当日无预测快照，概率轨不可用；规则选股策略区仍来自 selector_result");
+        }
+        return pred;
+    }
+
+    private Map<String, Object> parseJsonMap(String json) {
+        if (json == null || json.isBlank()) {
+            return Map.of();
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            return Map.of();
+        }
     }
 
     /**

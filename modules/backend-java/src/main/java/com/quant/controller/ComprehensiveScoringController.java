@@ -51,14 +51,6 @@ public class ComprehensiveScoringController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate tradeDate,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
-        // 使用 StockTrendScoreRepository 查询，factor_version = comprehensive_v1
-        // 这里简化处理，实际可以创建专用的Repository方法
-        Map<String, Object> result = Map.of(
-                "trade_date", tradeDate != null ? tradeDate.toString() : "",
-                "message", "请使用 POST /api/scoring/comprehensive/run 先运行打分",
-                "list", java.util.List.of(),
-                "total", 0L
-        );
-        return ApiResponse.success(result);
+        return ApiResponse.success(comprehensiveScoringService.listScores(tradeDate, page, size));
     }
 }

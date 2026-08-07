@@ -43,6 +43,7 @@ class ScoringBacktestServiceTest {
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
         ScoringBacktestService service =
                 new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                mock(com.quant.repository.MarketPriceRawRepository.class),
                 mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
@@ -101,6 +102,7 @@ class ScoringBacktestServiceTest {
         BacktestRunRepository runRepository = mock(BacktestRunRepository.class);
         ScoringBacktestService service =
                 new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                        mock(com.quant.repository.MarketPriceRawRepository.class),
                         runRepository, objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
@@ -160,6 +162,7 @@ class ScoringBacktestServiceTest {
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
         ScoringBacktestService service =
                 new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                mock(com.quant.repository.MarketPriceRawRepository.class),
                 mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
@@ -214,6 +217,7 @@ class ScoringBacktestServiceTest {
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
         ScoringBacktestService service =
                 new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                mock(com.quant.repository.MarketPriceRawRepository.class),
                 mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
@@ -269,6 +273,7 @@ class ScoringBacktestServiceTest {
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
         ScoringBacktestService service =
                 new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                mock(com.quant.repository.MarketPriceRawRepository.class),
                 mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
@@ -318,6 +323,7 @@ class ScoringBacktestServiceTest {
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
         ScoringBacktestService service =
                 new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                mock(com.quant.repository.MarketPriceRawRepository.class),
                 mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
@@ -374,6 +380,7 @@ class ScoringBacktestServiceTest {
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
         ScoringBacktestService service =
                 new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                mock(com.quant.repository.MarketPriceRawRepository.class),
                 mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
@@ -435,6 +442,7 @@ class ScoringBacktestServiceTest {
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
         ScoringBacktestService service =
                 new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                mock(com.quant.repository.MarketPriceRawRepository.class),
                 mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
@@ -494,6 +502,7 @@ class ScoringBacktestServiceTest {
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
         ScoringBacktestService service =
                 new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                mock(com.quant.repository.MarketPriceRawRepository.class),
                 mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
@@ -547,6 +556,7 @@ class ScoringBacktestServiceTest {
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
         ScoringBacktestService service =
                 new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                mock(com.quant.repository.MarketPriceRawRepository.class),
                 mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
@@ -669,6 +679,7 @@ class ScoringBacktestServiceTest {
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
         ScoringBacktestService service =
                 new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                mock(com.quant.repository.MarketPriceRawRepository.class),
                 mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);

@@ -12,9 +12,12 @@ import java.time.LocalDateTime;
 @Data
 @Entity
 @Table(name = "stock_trend_score", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"stock_code", "exchange_type", "trade_date"})
+        @UniqueConstraint(columnNames = {"stock_code", "exchange_type", "trade_date", "score_type", "factor_version"})
 })
 public class StockTrendScore {
+
+    public static final String SCORE_TYPE_TREND = "TREND";
+    public static final String SCORE_TYPE_COMPREHENSIVE = "COMPREHENSIVE";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -91,6 +94,10 @@ public class StockTrendScore {
 
     @Column(nullable = false, length = 32)
     private String factorVersion;
+
+    /** 打分类型：TREND（趋势模型）/ COMPREHENSIVE（综合三维度） */
+    @Column(name = "score_type", nullable = false, length = 32)
+    private String scoreType;
 
     /** 详细评分原因JSON */
     @Column(columnDefinition = "TEXT")

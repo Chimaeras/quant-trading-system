@@ -1,4 +1,4 @@
-import request from './request'
+import request, { unwrap } from './request'
 
 export interface CompareTopItem {
   rank_no: number
@@ -37,6 +37,9 @@ export interface CompareResponse {
   }
 }
 
-export function compareStrategies(tradeDate: string, topN = 10): Promise<CompareResponse> {
-  return request.get('/compare/strategies', { params: { tradeDate, topN } })
+export async function compareStrategies(tradeDate: string, topN = 10): Promise<CompareResponse> {
+  const res = await request.get<CompareResponse>('/compare/strategies', {
+    params: { tradeDate, topN }
+  })
+  return unwrap(res)
 }

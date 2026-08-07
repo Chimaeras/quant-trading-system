@@ -144,7 +144,7 @@ quant-trading-system/
 | 打分 | `POST /api/scoring/comprehensive/run` | 综合三维度打分 |
 | 选股 | `POST /api/selector/run` | 经典选股 |
 | 选股 | `GET /api/selector/templates` | 选股模板管理 |
-| 回测 | `POST /api/backtest/scoring/run` | 打分结果回测 |
+| 回测 | `POST /api/backtest/scoring` | 打分结果回测 |
 | 回测 | `POST /api/backtest/strategy/run` | 经典策略回测 |
 | 因子 | `GET /api/factor/research` | 因子研究面板 |
 | 因子 | `GET /api/factor/unified-report` | 统一因子报告（多持仓期 IC） |

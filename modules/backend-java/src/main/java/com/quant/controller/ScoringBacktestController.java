@@ -2,6 +2,7 @@ package com.quant.controller;
 
 import com.quant.dto.ApiResponse;
 import com.quant.dto.ScoringBacktestRequest;
+import com.quant.exception.ResourceNotFoundException;
 import com.quant.dto.ScoringBacktestResponse;
 import com.quant.service.ScoringBacktestService;
 import lombok.RequiredArgsConstructor;
@@ -42,7 +43,7 @@ public class ScoringBacktestController {
     public ApiResponse<ScoringBacktestResponse> getRun(@PathVariable String resultId) {
         ScoringBacktestResponse resp = scoringBacktestService.getRun(resultId);
         if (resp == null) {
-            return ApiResponse.error(404, "未找到该回测记录: " + resultId);
+            throw new ResourceNotFoundException("未找到该回测记录: " + resultId);
         }
         return ApiResponse.success(resp);
     }

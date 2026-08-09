@@ -71,12 +71,14 @@ public class ExperimentController {
     }
 
     @GetMapping("/{id}/gates")
-    public ApiResponse<Map<String, Object>> gates(@PathVariable("id") String id) {
-        return ApiResponse.success(experimentService.evaluatePromoteGates(id));
+    public ApiResponse<Map<String, Object>> gates(
+            @PathVariable("id") String id,
+            @RequestParam(required = false) String modelVersion) {
+        return ApiResponse.success(experimentService.evaluatePromoteGates(id, modelVersion));
     }
 
     /**
-     * 人工决策：action=CHALLENGER|REJECT。不自动晋升 champion。
+     * 人工决策：action=CHALLENGER|REJECT。不自动晋升 champion（晋级用 /promote）。
      */
     @PostMapping("/{id}/decision")
     public ApiResponse<Map<String, Object>> decision(
@@ -85,5 +87,30 @@ public class ExperimentController {
             @RequestParam(required = false) String note,
             @RequestParam(required = false) String actor) {
         return ApiResponse.success(experimentService.recordDecision(id, action, note, actor));
+    }
+
+    /**
+     * V2-MP-018：人工 champion 晋级（原子事务，双人可审计）。
+     * 硬门禁 FAIL 或并发冲突 → 409；单人工确认可配置 quant.experiment.promotion.confirm-required=false。
+     */
+    @PostMapping("/{id}/promote")
+    public ApiResponse<Map<String, Object>> promote(
+            @PathVariable("id") String id,
+            @RequestParam String modelVersion,
+            @RequestParam(required = false) String actor,
+            @RequestParam(required = false) String confirmActor,
+            @RequestParam(required = false) String note) {
+        return ApiResponse.success(experimentService.promoteChampion(id, modelVersion, actor, confirmActor, note));
+    }
+
+    /** V2-MP-018：回滚到已验证版本（原子事务，双人可审计）。 */
+    @PostMapping("/{id}/rollback")
+    public ApiResponse<Map<String, Object>> rollback(
+            @PathVariable("id") String id,
+            @RequestParam(required = false) String modelVersion,
+            @RequestParam(required = false) String actor,
+            @RequestParam(required = false) String confirmActor,
+            @RequestParam(required = false) String note) {
+        return ApiResponse.success(experimentService.rollback(id, modelVersion, actor, confirmActor, note));
     }
 }

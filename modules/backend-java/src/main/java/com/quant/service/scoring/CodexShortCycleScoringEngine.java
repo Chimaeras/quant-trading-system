@@ -69,7 +69,8 @@ public class CodexShortCycleScoringEngine {
             double avgAmount20,
             double ret20,
             double logMarketCap,
-            String logMvSource
+            String logMvSource,
+            String logMvReliability
     ) {}
 
     record ScoredRow(
@@ -211,8 +212,24 @@ public class CodexShortCycleScoringEngine {
                 rf.roe, rf.revenueYoY, rf.debtRatio, rf.currentRatio,
                 rf.earningsYield, rf.bookToMarket,
                 rf.vol20, rf.downVol20, rf.illiq20, rf.maxGap20,
-                rf.avgAmount20, rf.ret20, rf.logMarketCap, rf.logMvSource
+                rf.avgAmount20, rf.ret20, rf.logMarketCap, rf.logMvSource, rf.logMvReliability
         );
+    }
+
+    /**
+     * MP-026：优先采用 raw 明细携带的 reliability 字段（marketCapReliability），
+     * 仅在缺失时回退到按 source 字符串推导。官方市值源接入后无需改动此处。
+     */
+    private static String effectiveReliability(RawFeatures r) {
+        String rel = r.logMvReliability();
+        if (rel != null && !rel.isBlank()) {
+            return rel;
+        }
+        return CrossSectionNeutralizer.reliabilityOfSource(r.logMvSource());
+    }
+
+    private static boolean isReliableRow(RawFeatures r) {
+        return CrossSectionNeutralizer.isReliableLogMv(r.logMvSource(), effectiveReliability(r));
     }
 
     static CrossSectionNeutralizer.Context buildNeutralizationContext(List<RawFeatures> raws) {
@@ -220,13 +237,11 @@ public class CodexShortCycleScoringEngine {
                 .map(r -> r.industry() != null && !r.industry().isBlank() ? r.industry() : "_none_")
                 .toList();
         List<String> reliabilities = raws.stream()
-                .map(r -> CrossSectionNeutralizer.reliabilityOfSource(r.logMvSource()))
+                .map(CodexShortCycleScoringEngine::effectiveReliability)
                 .toList();
         List<Double> reliable = new ArrayList<>();
         for (RawFeatures r : raws) {
-            if (CrossSectionNeutralizer.isReliableLogMv(r.logMvSource(),
-                    CrossSectionNeutralizer.reliabilityOfSource(r.logMvSource()))
-                    && Double.isFinite(r.logMarketCap())) {
+            if (isReliableRow(r) && Double.isFinite(r.logMarketCap())) {
                 reliable.add(r.logMarketCap());
             }
         }
@@ -235,9 +250,7 @@ public class CodexShortCycleScoringEngine {
                 : reliable);
         List<Double> logMv = new ArrayList<>(raws.size());
         for (RawFeatures r : raws) {
-            boolean ok = CrossSectionNeutralizer.isReliableLogMv(
-                    r.logMvSource(), CrossSectionNeutralizer.reliabilityOfSource(r.logMvSource()));
-            logMv.add(ok ? r.logMarketCap() : regressionLogMvMedian);
+            logMv.add(isReliableRow(r) ? r.logMarketCap() : regressionLogMvMedian);
         }
         return CrossSectionNeutralizer.buildContext(industries, logMv, reliabilities);
     }
@@ -292,7 +305,7 @@ public class CodexShortCycleScoringEngine {
                     rf.er1, rf.er5, rf.er20Minus5, rf.maAlign, rf.rsiShape, rf.volConfirm,
                     roe, rev, debt, curr, ey, bm,
                     rf.vol20, rf.downVol20, rf.illiq20, rf.maxGap20,
-                    rf.avgAmount20, rf.ret20, rf.logMarketCap, rf.logMvSource
+                    rf.avgAmount20, rf.ret20, rf.logMarketCap, rf.logMvSource, rf.logMvReliability
             ));
         }
         return out;
@@ -370,7 +383,7 @@ public class CodexShortCycleScoringEngine {
         List<Double> zGap = zByFactor.get("maxGap20");
 
         long weakLogMvCount = raws.stream()
-                .filter(r -> !CrossSectionNeutralizer.isReliableLogMvSource(r.logMvSource()))
+                .filter(r -> !isReliableRow(r))
                 .count();
         long reliableMvCount = raws.size() - weakLogMvCount;
 
@@ -394,10 +407,13 @@ public class CodexShortCycleScoringEngine {
                     : "mixed_reliable_mv_or_equal_weight";
             bd.put("G_weighting", gWeighting);
             bd.put("G_vol_weighting", gWeighting);
-            bd.put("log_mv_reliable", CrossSectionNeutralizer.isReliableLogMvSource(raws.get(i).logMvSource()));
+            bd.put("log_mv_reliable", isReliableRow(raws.get(i)));
+            bd.put("log_mv_reliability", effectiveReliability(raws.get(i)));
             if (weakLogMvCount > 0) {
                 bd.put("regression_log_mv_imputed_count", weakLogMvCount);
             }
+            bd.put("mv_reliable_count", reliableMvCount);
+            bd.put("mv_total_count", raws.size());
             bd.put("T", ScoringUtils.round4(t));
             bd.put("F", ScoringUtils.round4(f));
             bd.put("R", ScoringUtils.round4(r));
@@ -431,7 +447,7 @@ public class CodexShortCycleScoringEngine {
     }
 
     private static double gMarketCapWeight(RawFeatures r) {
-        return CrossSectionNeutralizer.isReliableLogMvSource(r.logMvSource())
+        return isReliableRow(r)
                 ? Math.exp(r.logMarketCap())
                 : 1.0;
     }
@@ -553,7 +569,8 @@ public class CodexShortCycleScoringEngine {
                 key, ctx.stockCode(), ctx.exchangeType(), ctx.stockName(), industry,
                 ret1, ret5, 0, maAlign, rsiShape, volConfirm,
                 roe, revenueYoY, debtRatio, currentRatio, earningsYield, bookToMarket,
-                vol20, downVol20, illiq20, maxGap20, avgAmount20, ret20, logMv, logMvEst.source()
+                vol20, downVol20, illiq20, maxGap20, avgAmount20, ret20, logMv, logMvEst.source(),
+                logMvEst.reliability()
         ));
     }
 
@@ -588,7 +605,8 @@ public class CodexShortCycleScoringEngine {
         reasons.put("scoring_model", FORMULA_VERSION);
         reasons.put("doc_ref", "Codex/短周期选股评分公式设计文档.md v1.0");
         reasons.put("log_mv_source", row.raw().logMvSource());
-        reasons.put("log_mv_reliable", CrossSectionNeutralizer.isReliableLogMvSource(row.raw().logMvSource()));
+        reasons.put("log_mv_reliability", effectiveReliability(row.raw()));
+        reasons.put("log_mv_reliable", isReliableRow(row.raw()));
         reasons.put("log_market_cap", ScoringUtils.round4(row.raw().logMarketCap()));
         reasons.put("pass_min_avg_amount", passMinAvgAmount);
         reasons.put("pass_min_trend_score", passMinTrendScore);

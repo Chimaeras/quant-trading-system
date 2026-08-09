@@ -3,8 +3,10 @@ package com.quant.service;
 import com.quant.dto.StrategyBacktestRequest;
 import com.quant.dto.StrategyBacktestResponse;
 import com.quant.entity.MarketData;
+import com.quant.entity.MarketPriceRaw;
 import com.quant.entity.StockInfo;
 import com.quant.repository.MarketDataRepository;
+import com.quant.repository.MarketPriceRawRepository;
 import com.quant.repository.StockInfoRepository;
 import com.quant.service.backtest.StrategyBacktestEngine;
 import com.quant.service.backtest.StrategySignalType;
@@ -15,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +27,7 @@ import java.util.Map;
 public class StrategyBacktestService {
 
     private final MarketDataRepository marketDataRepository;
+    private final MarketPriceRawRepository marketPriceRawRepository;
     private final StockInfoRepository stockInfoRepository;
 
     public StrategyBacktestResponse run(StrategyBacktestRequest req) {
@@ -46,6 +50,13 @@ public class StrategyBacktestService {
             throw new IllegalArgumentException("指定区间无 K 线数据，请先更新历史行情");
         }
 
+        // V2-MP-014：成交执行价只读 market_price_raw（按交易日建索引）；缺 raw 当日由引擎跳过成交，禁止 qfq 兜底。
+        Map<LocalDate, MarketPriceRaw> rawByDate = new HashMap<>();
+        for (MarketPriceRaw raw : marketPriceRawRepository
+                .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(code, exchange, start, end)) {
+            rawByDate.put(raw.getTradeDate(), raw);
+        }
+
         StrategySignalType strategy = StrategySignalType.parse(req.getStrategyType());
         double initial = req.getInitialCapital() != null ? req.getInitialCapital().doubleValue() : 100_000;
         int shortP = req.getShortPeriod() != null ? req.getShortPeriod() : 5;
@@ -61,7 +72,7 @@ public class StrategyBacktestService {
         double limitPct = TradingLimitRules.resolveLimitPct(code, exchange, stockName);
 
         StrategyBacktestEngine.BacktestMetrics metrics = StrategyBacktestEngine.run(
-                bars, strategy, initial, shortP, longP, bollP, bollStd, macdFast, macdSlow, limitPct
+                bars, rawByDate, strategy, initial, shortP, longP, bollP, bollStd, macdFast, macdSlow, limitPct
         );
 
         List<Map<String, Object>> trades = metrics.trades().stream().map(t -> {

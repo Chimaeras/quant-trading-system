@@ -55,7 +55,8 @@ public class OversoldReboundScoringService {
         LocalDate tradeDate = marketDataRepository.findLatestTradeDateOnOrBefore(reqDate).orElse(reqDate);
         PointInTimeUniverseProvider.UniverseView universe = pointInTimeUniverseProvider.loadAsOf(tradeDate);
 
-        int topN = ScoringUtils.parseInt(req.get("topN"), 50, 1, 500);
+        // topN<=0 表示「无上限」：V2-MP-016 完整特征截面回放用 topN=0 获取全部打分候选
+        int topN = ScoringUtils.parseInt(req.get("topN"), 50, 0, 500);
         double minTotalScore = ScoringUtils.parseDouble(req.get("minTotalScore"), 60, 0, 100);
         double minAvgAmount = ScoringUtils.parseDouble(req.get("minAvgAmount"), 30_000_000d, 0d, 1_000_000_000_000d);
         boolean excludeST = ScoringUtils.parseBool(req.get("excludeST"), true);
@@ -452,14 +453,16 @@ public class OversoldReboundScoringService {
         if (allScored == null || allScored.isEmpty()) {
             return List.of();
         }
+        // topN<=0 视为无上限：V2-MP-016 完整特征截面回放需要全部达标候选（不止 TopN）
+        boolean uncapped = topN <= 0;
         List<ScoreResult> sorted = new ArrayList<>(allScored);
         sorted.sort(Comparator
                 .comparingDouble((ScoreResult r) -> r.weightedScore).reversed()
                 .thenComparing(r -> r.stockCode, String.CASE_INSENSITIVE_ORDER));
-        List<ScoreResult> out = new ArrayList<>(Math.min(topN, sorted.size()));
+        List<ScoreResult> out = new ArrayList<>(uncapped ? sorted.size() : Math.min(topN, sorted.size()));
         Set<String> used = new HashSet<>();
         for (ScoreResult r : sorted) {
-            if (out.size() >= topN) {
+            if (!uncapped && out.size() >= topN) {
                 break;
             }
             if (!strictQuality(r, minTotalScore)) {

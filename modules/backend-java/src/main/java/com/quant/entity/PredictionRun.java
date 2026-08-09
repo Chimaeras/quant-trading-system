@@ -59,6 +59,10 @@ public class PredictionRun {
     @Column(length = 32)
     private String selectorResultId;
 
+    /** 幂等键：同 requestId 重复发布返回既有结果，不重复生成 publish_version（V2-MP-030）。 */
+    @Column(unique = true, length = 64)
+    private String requestId;
+
     @Column(columnDefinition = "LONGTEXT")
     private String qualityGateJson;
 

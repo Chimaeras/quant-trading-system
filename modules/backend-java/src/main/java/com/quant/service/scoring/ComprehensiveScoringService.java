@@ -662,7 +662,8 @@ public class ComprehensiveScoringService {
             reasons.put("score_field_mapping", fieldMapping);
             e.setReasonsJson(objectMapper.writeValueAsString(reasons));
         } catch (JsonProcessingException ex) {
-            e.setReasonsJson("{}");
+            // V2-MP-030: 禁止序列化失败静默回写 {} 并标成功；fail-closed
+            throw new IllegalStateException("打分原因序列化失败，终止本次评分", ex);
         }
 
         rows.add(e);

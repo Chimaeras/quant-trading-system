@@ -55,6 +55,14 @@ public class T1CandidateService {
     private static final double MIN_AVG_AMOUNT = 30_000_000;
     private static final int MIN_LISTING_DAYS = 60;
 
+    // ===== 入选阈值门禁（V2-MP-027 P1）：TopN 只是上限，不是配额 =====
+    /** 门禁版本标识：阈值由冻结的实验/配置版本产生，随 snapshot 落库。 */
+    private static final String ELIGIBILITY_THRESHOLD_VERSION = "t1_rule_v1";
+    /** rule_score 入选下限（0-100，截面排序分，非概率）。弱信号日宁可无标的也不凑满。 */
+    private static final double RULE_SCORE_THRESHOLD = 40.0;
+    /** 概率轨入选下限：仅当加载到 T+1 champion 概率模型时启用（绝对概率，非截面 percentile）。 */
+    private static final double PROBABILITY_THRESHOLD = 0.55;
+
     private final MarketDataRepository marketDataRepository;
     private final PointInTimeUniverseProvider pointInTimeUniverseProvider;
     private final T1CandidateRepository t1CandidateRepository;
@@ -179,8 +187,12 @@ public class T1CandidateService {
             scored.add(cand);
         }
 
-        scored.sort(Comparator.comparingDouble((Map<String, Object> c) -> (double) c.get("score")).reversed());
-        List<Map<String, Object>> top = new ArrayList<>(scored.subList(0, Math.min(n, scored.size())));
+        // ===== 入选阈值门禁（V2-MP-027）：先过滤 eligible，再排序截断 =====
+        // TopN 只是上限（cap），不是配额（quota）。弱信号日允许返回 0 条并明确标注。
+        Map<String, Object> eligibility = applyEligibilityGate(scored, probModel);
+        List<Map<String, Object>> top = new ArrayList<>((List<Map<String, Object>>) eligibility.get("top"));
+        Map<String, Integer> rejectedByReason = (Map<String, Integer>) eligibility.get("rejectedByReason");
+        int eligibleCount = (Integer) eligibility.get("eligibleCount");
 
         LocalDate effectiveDate = actualDate;
         T1Candidate rec = t1CandidateRepository.findByTradeDate(effectiveDate).orElseGet(() -> {
@@ -192,34 +204,88 @@ public class T1CandidateService {
         rec.setCandidatesJson(toJson(top));
         rec.setSettled(Boolean.FALSE);
         rec.setSettledJson(null);
-        rec.setEcologyJson(toJson(limitUpEcologyService.ecology(actualDate, 30)));
+        // 阈值门禁元数据随生态快照落库（避免 DB 迁移），供回溯/核销时溯源
+        Map<String, Object> ecology = new LinkedHashMap<>(limitUpEcologyService.ecology(actualDate, 30));
+        Map<String, Object> eligMeta = new LinkedHashMap<>();
+        eligMeta.put("threshold_version", ELIGIBILITY_THRESHOLD_VERSION);
+        eligMeta.put("rule_score_threshold", RULE_SCORE_THRESHOLD);
+        eligMeta.put("probability_threshold", probModel != null ? PROBABILITY_THRESHOLD : null);
+        eligMeta.put("eligible_count", eligibleCount);
+        eligMeta.put("rejected_by_reason", rejectedByReason);
+        eligMeta.put("status", top.isEmpty() ? "NO_ELIGIBLE_CANDIDATE" : "OK");
+        ecology.put("eligibility", eligMeta);
+        rec.setEcologyJson(toJson(ecology));
         t1CandidateRepository.save(rec);
 
+        boolean noEligible = top.isEmpty();
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("trade_date", actualDate.toString());
         out.put("requested_trade_date", tradeDate.toString());
         out.put("top_n", top.size());
         out.put("total_scored", scored.size());
+        out.put("eligible_count", eligibleCount);
+        out.put("rejected_count", scored.size() - eligibleCount);
+        out.put("rejected_by_reason", rejectedByReason);
+        out.put("threshold_version", ELIGIBILITY_THRESHOLD_VERSION);
         out.put("candidates", top);
         out.put("settled", false);
+        out.put("status", noEligible ? "NO_ELIGIBLE_CANDIDATE" : "OK");
         if (probModel != null) {
             out.put("score_model", probModel.modelVersion());
             out.put("score_type", "CALIBRATED_PROBABILITY");
             out.put("fallback_reason", null);
             out.put("note", "T+1 次日候选：已加载 champion 概率模型 " + probModel.modelVersion()
-                    + "，按校准概率排序（rule_score 见各候选字段）；点击「次日核销」在 T+1 结束后回填表现");
+                    + "，按校准概率排序（rule_score 见各候选字段）；入选需 rule_score≥"
+                    + RULE_SCORE_THRESHOLD + " 且概率≥" + PROBABILITY_THRESHOLD
+                    + (noEligible ? "；当日无合格标的（NO_ELIGIBLE_CANDIDATE），宁可空不凑数" : "")
+                    + "；点击「次日核销」在 T+1 结束后回填表现");
         } else {
             out.put("score_type", "RULE_SCORE");
             out.put("score_model", null);
             out.put("fallback_reason", fallbackReason != null ? fallbackReason
                     : "NO_CHAMPION_MODEL");
             out.put("note", "T+1 次日候选：仅输出 RULE_SCORE（涨停基因+短期动量+量能+趋势），非概率；"
-                    + "回退原因：" + (fallbackReason != null ? fallbackReason : "NO_CHAMPION_MODEL")
+                    + "入选需 rule_score≥" + RULE_SCORE_THRESHOLD
+                    + (noEligible ? "；当日无合格标的（NO_ELIGIBLE_CANDIDATE），宁可空不凑数" : "")
+                    + "；回退原因：" + (fallbackReason != null ? fallbackReason : "NO_CHAMPION_MODEL")
                     + "。未发布 challenger/特征不匹配模型不会自动上线；"
                     + "点击「次日核销」在 T+1 结束后回填表现");
         }
         out.putAll(universe.lineage());
         return out;
+    }
+
+    /**
+     * 入选阈值门禁（V2-MP-027）：先按硬性条件过滤 eligible，再按 score 排序并截断到 topN。
+     *
+     * <p>门槛：可交易/流动性/上市时长（打分前已过滤）+ rule_score≥{@link #RULE_SCORE_THRESHOLD}
+     * +（若加载了概率模型）校准概率≥{@link #PROBABILITY_THRESHOLD}。被拒原因逐条计数，
+     * 用于响应与快照中的 rejected_by_reason。TopN 只是上限：eligible 不足时原样返回，不补足。
+     */
+    private Map<String, Object> applyEligibilityGate(List<Map<String, Object>> scored, T1ProbModel probModel) {
+        List<Map<String, Object>> eligible = new ArrayList<>();
+        Map<String, Integer> rejectedByReason = new LinkedHashMap<>();
+        for (Map<String, Object> c : scored) {
+            double ruleScore = ((Number) c.get("rule_score")).doubleValue();
+            if (ruleScore < RULE_SCORE_THRESHOLD) {
+                rejectedByReason.merge("BELOW_RULE_SCORE_THRESHOLD", 1, Integer::sum);
+                continue;
+            }
+            if (probModel != null) {
+                double prob = ((Number) c.get("probability")).doubleValue();
+                if (prob < PROBABILITY_THRESHOLD) {
+                    rejectedByReason.merge("BELOW_PROBABILITY_THRESHOLD", 1, Integer::sum);
+                    continue;
+                }
+            }
+            eligible.add(c);
+        }
+        eligible.sort(Comparator.comparingDouble((Map<String, Object> c) -> (double) c.get("score")).reversed());
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("top", eligible);
+        result.put("eligibleCount", eligible.size());
+        result.put("rejectedByReason", rejectedByReason);
+        return result;
     }
 
     /** T+1 结束后核销：回填候选次日表现并聚合命中率。 */
@@ -554,7 +620,8 @@ public class T1CandidateService {
         try {
             return objectMapper.readValue(json, new TypeReference<List<Map<String, Object>>>() {});
         } catch (Exception e) {
-            return List.of();
+            // V2-MP-030: 禁止损坏 JSON 静默降级为空 list 并标成功；fail-closed
+            throw new IllegalStateException("T1 候选模型 JSON 损坏，禁止静默降级", e);
         }
     }
 
@@ -565,7 +632,8 @@ public class T1CandidateService {
         try {
             return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
-            return Map.of();
+            // V2-MP-030: 禁止损坏 JSON 静默降级为空 map 并标成功；fail-closed
+            throw new IllegalStateException("T1 候选模型 JSON 损坏，禁止静默降级", e);
         }
     }
 

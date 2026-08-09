@@ -54,3 +54,15 @@ export async function generatePredictions(params: {
   const res = await request.post<PredictionDailyResponse>('/predictions/generate', null, { params })
   return unwrap(res)
 }
+
+/** V2-MP-020：最近 prediction run 列表（组合回测闭环信号源选择器）。 */
+export async function getPredictionRuns(limit = 20): Promise<PredictionTrack[]> {
+  const res = await request.get<PredictionTrack[]>('/predictions/runs', { params: { limit } })
+  return unwrap(res) ?? []
+}
+
+/** V2-MP-028：按 runId 拉取单个 run 详情（含 items）；generate 后据此展示，避免空 items 当成功。 */
+export async function getPredictionRunDetail(runId: string): Promise<PredictionTrack> {
+  const res = await request.get<PredictionTrack>(`/predictions/runs/${encodeURIComponent(runId)}`)
+  return unwrap(res)
+}

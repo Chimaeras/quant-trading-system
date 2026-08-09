@@ -58,6 +58,7 @@ public class DataSnapshotService {
      */
     @Transactional
     public DataSnapshot createSnapshot(LocalDate cutoffTime) {
+        long startMs = System.currentTimeMillis();
         if (cutoffTime == null) {
             cutoffTime = marketDataRepository.findMaxTradeDate().orElse(LocalDate.now());
         }
@@ -131,6 +132,14 @@ public class DataSnapshotService {
 
         String hash = computeHash(rowCounts, sourceVersions, partitionManifestMap);
 
+        // V2-MP-030: 同 cutoff 日 + 同内容 hash → 幂等返回既有快照，不重复创建
+        var existing = dataSnapshotRepository.findFirstByCutoffTimeAndHash(cutoffTime, hash);
+        if (existing.isPresent()) {
+            log.info("数据快照幂等返回: snapshotId={}, cutoff={}, hash={}",
+                    existing.get().getSnapshotId(), cutoffTime, hash);
+            return existing.get();
+        }
+
         String snapshotId = generateSnapshotId(cutoffTime);
 
         DataSnapshot snap = new DataSnapshot();
@@ -161,8 +170,8 @@ public class DataSnapshotService {
         }
         partitionManifestRepository.saveAll(manifestRows);
 
-        log.info("数据快照创建: snapshotId={}, cutoff={}, hash={}, manifestHash={}, partitions={}",
-                snapshotId, cutoffTime, hash, manifestHash, partitions.size());
+        log.info("数据快照创建: snapshotId={}, cutoff={}, hash={}, manifestHash={}, partitions={}, elapsed_ms={}",
+                snapshotId, cutoffTime, hash, manifestHash, partitions.size(), System.currentTimeMillis() - startMs);
         return snap;
     }
 
@@ -397,7 +406,8 @@ public class DataSnapshotService {
         try {
             return objectMapper.writeValueAsString(obj);
         } catch (Exception e) {
-            return "{}";
+            // V2-MP-030: 禁止序列化失败静默写 {} 空产物；fail-closed
+            throw new IllegalStateException("数据快照 payload 序列化失败", e);
         }
     }
 

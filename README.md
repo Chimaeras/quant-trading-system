@@ -129,6 +129,8 @@ quant-trading-system/
 
 ## API 概览（已实现）
 
+> **完整接口以 [docs/API文档.md](docs/API文档.md) 为准**（V2-MP-029 终核：按 Controller 自动盘点，含预测/组合回测/研究任务/行情批量/系统就绪度等 ~120 端点）。下表仅为常用入口的速览，**「API 存在 ≠ 产品已完成」**——新研究类能力（experiments / rolling WFO / portfolio 等）标注为「已接线待验收」，详见 API 文档 §5 完成度分级。
+
 | 模块 | 接口路径 | 功能说明 |
 |------|----------|----------|
 | 行情 | `GET /api/market/stock/list` | 股票列表 |
@@ -165,8 +167,9 @@ quant-trading-system/
 ## 文档
 
 - [安装部署指南](docs/安装指南.md)
+- [运维与迁移 Runbook](docs/运维与迁移runbook.md)（迁移/备份/恢复/副本验收）
 - [策略开发指南](docs/策略开发指南.md)
-- [API 文档](docs/API文档.md)
+- [API 文档](docs/API文档.md)（完整端点索引 + HTTP 语义 + 完成度分级）
 - [多维度打分口径说明](docs/多维度打分口径说明.md)
 - [综合三维度打分系统说明](docs/综合三维度打分系统说明.md)
 

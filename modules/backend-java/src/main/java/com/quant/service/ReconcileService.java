@@ -56,8 +56,10 @@ public class ReconcileService {
                 .limit(Math.max(1, topN))
                 .toList();
 
+        // 实际持仓 = 在线账户（sessionId=0）当前 PositionInfo（volume > 0）；
+        // 历史演练会话持仓按 V2-MP-021 隔离，不计入在线对账。
         List<PositionInfo> positions = positionInfoRepository
-                .findByAccountIdOrderByStockCodeAsc(account.getId()).stream()
+                .findByAccountIdAndSessionIdOrderByStockCodeAsc(account.getId(), 0L).stream()
                 .filter(p -> p.getVolume() != null && p.getVolume() > 0)
                 .toList();
 

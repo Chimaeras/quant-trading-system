@@ -19,6 +19,10 @@ public class PositionInfo {
     @Column(name = "account_id", nullable = false)
     private Long accountId;
 
+    /** 仿真会话ID：0=在线账户；>0=历史演练会话（V2-MP-021，与在线账户隔离）。 */
+    @Column(name = "session_id", nullable = false)
+    private Long sessionId = 0L;
+
     @Column(name = "stock_code", nullable = false, length = 20)
     private String stockCode;
 

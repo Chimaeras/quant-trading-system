@@ -9,8 +9,17 @@
         </div>
       </div>
       <div class="topbar-meta">
-        <span class="status-dot" />
-        <span class="status-label">{{ statusLabel }}</span>
+        <!-- V2-MP-028：健康状态只来自 readiness API（db/日历/行情时效/数据门禁），不来自本机时间。 -->
+        <el-tooltip :content="healthTip" placement="bottom-end" :disabled="!healthTip">
+          <span class="health-chip" :class="healthClass">
+            <span class="status-dot" :class="healthClass" />
+            <span class="status-label">{{ healthLabel }}</span>
+          </span>
+        </el-tooltip>
+        <el-tag v-if="sessionLabel" size="small" effect="plain" class="session-pill">
+          {{ sessionLabel }}
+        </el-tag>
+        <el-button size="small" :loading="readinessLoading" @click="loadReadiness">刷新</el-button>
       </div>
     </header>
     <nav class="tabs glass">
@@ -34,20 +43,67 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue"
+import { computed, onMounted, ref } from "vue"
 import { useRoute, useRouter } from "vue-router"
+import { getSystemReadiness, type SystemReadiness } from "@/api/system"
+import { errorText } from "@/api/request"
 
 const route = useRoute()
 const router = useRouter()
 
-const statusLabel = computed(() => {
-  const h = new Date().getHours()
-  if (h < 5) return "夜盘"
-  if (h < 9) return "盘前"
-  if (h < 15) return "交易中"
-  if (h < 17) return "盘后"
-  return "休市"
+// ── V2-MP-028：系统就绪度（后端聚合，绝不以本机时间充当健康）──────────────────────
+const readiness = ref<SystemReadiness | null>(null)
+const readinessError = ref('')
+const readinessLoading = ref(false)
+
+async function loadReadiness() {
+  readinessLoading.value = true
+  readinessError.value = ''
+  try {
+    readiness.value = await getSystemReadiness()
+  } catch (e: any) {
+    readiness.value = null
+    readinessError.value = errorText(e)
+  } finally {
+    readinessLoading.value = false
+  }
+}
+
+const healthClass = computed(() => {
+  if (readinessError.value) return 'block'
+  if (!readiness.value) return 'loading'
+  const s = readiness.value.status
+  if (s === 'PASS') return 'ok'
+  if (s === 'DEGRADED') return 'warn'
+  if (s === 'BLOCKED') return 'block'
+  return 'loading'
 })
+
+const healthLabel = computed(() => {
+  if (readinessError.value) return '服务不可达'
+  if (!readiness.value) return '检测中…'
+  const s = readiness.value.status
+  if (s === 'PASS') return '系统正常'
+  if (s === 'DEGRADED') return '系统降级'
+  if (s === 'BLOCKED') return '系统故障'
+  return '检测中…'
+})
+
+const healthTip = computed(() => {
+  if (readinessError.value) return `就绪度获取失败：${readinessError.value}（点击刷新重试）`
+  const r = readiness.value
+  if (!r) return ''
+  const lines = [
+    `数据库：${r.db_health?.status ?? '?'} ${r.db_health?.detail ?? ''}`,
+    `日历：${r.calendar?.status ?? '?'} ${r.calendar?.detail ?? ''}`,
+    `行情时效：${r.data_freshness?.status ?? '?'} ${r.data_freshness?.detail ?? ''}`,
+    `数据门禁：${r.data_gate?.status ?? '?'} ${r.data_gate?.detail ?? ''}`
+  ]
+  return lines.filter((l) => l.trim()).join('\n')
+})
+
+/** 市场时段为告知性信息（交易日以日历表判定），不参与系统健康判定。 */
+const sessionLabel = computed(() => readiness.value?.market_session?.label ?? '')
 
 const navGroups = computed(() => [
   {
@@ -81,9 +137,12 @@ const navGroups = computed(() => [
     items: [
       { path: "/backtest/scoring", label: "打分回测" },
       { path: "/backtest/strategy", label: "策略回测" },
+      { path: "/backtest/portfolio", label: "组合回测" },
       { path: "/backtest/walk-forward", label: "分段稳定性" },
       { path: "/factor/research", label: "因子研究" },
-      { path: "/research/probability", label: "概率研究" }
+      { path: "/research/probability", label: "概率研究" },
+      { path: "/research/rolling-walk-forward", label: "滚动 Walk-Forward" },
+      { path: "/research/tasks", label: "研究任务工作台" }
     ]
   },
   {
@@ -95,6 +154,8 @@ const navGroups = computed(() => [
     ]
   }
 ])
+
+onMounted(loadReadiness)
 </script>
 
 <style scoped>
@@ -158,6 +219,16 @@ const navGroups = computed(() => [
   font-size: var(--fz-xs);
 }
 
+.health-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  border: 1px solid transparent;
+  cursor: default;
+}
+
 .status-dot {
   width: 8px;
   height: 8px;
@@ -165,6 +236,24 @@ const navGroups = computed(() => [
   background: var(--success);
   box-shadow: 0 0 8px var(--success);
   animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* V2-MP-028：三态语义（正常/降级/故障）分别着色，且文本标签同时区分，不靠单色。 */
+.status-dot.ok,
+.health-chip.ok { background: var(--success); box-shadow: 0 0 8px var(--success); color: var(--success); border-color: rgba(39, 194, 76, 0.35); }
+.status-dot.warn,
+.health-chip.warn { background: var(--warning); box-shadow: 0 0 8px var(--warning); color: var(--warning); border-color: rgba(230, 162, 60, 0.45); }
+.status-dot.block,
+.health-chip.block { background: var(--danger); box-shadow: 0 0 8px var(--danger); color: var(--danger); border-color: rgba(245, 108, 108, 0.5); }
+.status-dot.loading,
+.health-chip.loading { background: var(--text-dim); box-shadow: none; color: var(--text-dim); border-color: transparent; animation: none; }
+
+.status-label {
+  white-space: nowrap;
+}
+
+.session-pill {
+  margin-left: 2px;
 }
 
 @keyframes pulse-dot {

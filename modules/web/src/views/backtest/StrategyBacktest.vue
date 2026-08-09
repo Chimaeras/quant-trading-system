@@ -1,6 +1,11 @@
 <template>
   <el-card shadow="hover" class="terminal-page">
-    <template #header><span>经典策略回测（MA / BOLL / MACD）</span></template>
+    <template #header>
+      <span>经典策略回测（MA / BOLL / MACD）</span>
+      <el-tooltip content="旧版单标的策略回测，仅维护，新能力（组合回测/规范化存储）请到组合回测" placement="top">
+        <el-tag size="small" effect="plain" type="info" class="capability-tag">Legacy</el-tag>
+      </el-tooltip>
+    </template>
 
     <el-form inline>
       <el-form-item label="策略">
@@ -191,6 +196,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.capability-tag { margin-left: 8px; vertical-align: middle; }
 .meta { display: flex; gap: 16px; flex-wrap: wrap; margin: 12px 0; color: var(--text-secondary); font-size: 13px; }
 .chart-box { height: 280px; margin-bottom: 16px; }
 .section-title { margin: 12px 0 8px; font-weight: 600; }

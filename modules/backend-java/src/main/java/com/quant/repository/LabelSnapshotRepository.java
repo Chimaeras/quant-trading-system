@@ -41,4 +41,23 @@ public interface LabelSnapshotRepository extends JpaRepository<LabelSnapshot, Lo
             @Param("horizon") int horizon,
             @Param("start") LocalDate start,
             @Param("end") LocalDate end);
+
+    /** V2-MP-022：拉取某 label_version + horizon 在区间内全部标签（含拒单/停牌/退市各执行状态），
+     *  供因子研究 EXECUTABLE 口径 join 与拒绝漏斗统计（不做删除净化，保留每类 reject）。 */
+    @Query("SELECT l FROM LabelSnapshot l WHERE l.labelVersion = :version AND l.horizon = :horizon " +
+            "AND l.signalDate BETWEEN :start AND :end ORDER BY l.signalDate ASC, l.stockCode ASC")
+    List<LabelSnapshot> findByLabelVersionAndHorizonAndSignalDateBetween(
+            @Param("version") String labelVersion,
+            @Param("horizon") int horizon,
+            @Param("start") LocalDate start,
+            @Param("end") LocalDate end);
+
+    /** V2-MP-023：测试窗标签总数（全部执行状态），作滚动 WFO coverage 分母。 */
+    @Query("SELECT COUNT(l) FROM LabelSnapshot l WHERE l.labelVersion = :version AND l.horizon = :horizon " +
+            "AND l.signalDate BETWEEN :start AND :end")
+    long countByLabelVersionAndHorizonAndSignalDateBetween(
+            @Param("version") String labelVersion,
+            @Param("horizon") int horizon,
+            @Param("start") LocalDate start,
+            @Param("end") LocalDate end);
 }

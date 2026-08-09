@@ -3,6 +3,9 @@
     <el-card shadow="hover">
       <template #header>
         <span>分段稳定性（非样本外 / 非 Walk-Forward）</span>
+        <el-tooltip content="V1 旧页：仅连续窗口分段收益统计，非真正 Walk-Forward / 样本外验证" placement="top">
+          <el-tag size="small" effect="plain" type="info" class="capability-tag">Legacy</el-tag>
+        </el-tooltip>
       </template>
 
       <el-alert type="warning" :closable="false" show-icon class="note-alert"
@@ -166,6 +169,7 @@ onMounted(() => run())
 </script>
 
 <style scoped>
+.capability-tag { margin-left: 8px; vertical-align: middle; }
 .wf-page {
   max-width: 1200px;
   margin: 0 auto;

@@ -5,11 +5,16 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public interface DataSnapshotRepository extends JpaRepository<DataSnapshot, Long> {
 
     List<DataSnapshot> findBySnapshotId(String snapshotId);
+
+    /** 同 cutoff 日 + 同内容 hash → 幂等返回既有快照（V2-MP-030）。 */
+    Optional<DataSnapshot> findFirstByCutoffTimeAndHash(LocalDate cutoffTime, String hash);
 
     List<DataSnapshot> findBySnapshotIdStartingWith(String prefix);
 

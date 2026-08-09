@@ -218,36 +218,44 @@ async function loadList() {
 }
 
 // 代码/名称模糊搜索：复用 /api/market/stock/list（后端按 code 与 name 做 like 匹配）。
-// el-autocomplete 的 cb 期望一个数组；空关键字时不触发请求。
+// el-autocomplete 的 cb 期望 AutocompleteData = Record<string, any>[]（每项需含 value 字段）；
+// 空关键字时不触发请求。非 async：避免返回 Promise 与 cb 回调签名冲突。
 let searchToken = 0
-async function queryStock(keyword: string, cb: (res: StockListItem[]) => void) {
+function queryStock(keyword: string, cb: (suggestions: Record<string, any>[]) => void) {
   const kw = keyword.trim()
   if (!kw) {
     cb([])
     return
   }
   const token = ++searchToken
-  try {
-    const res = await marketApi.getStockList({
-      keyword: kw,
-      exchange: form.exchangeType || undefined,
-      page: 1,
-      size: 20
+  marketApi.getStockList({
+    keyword: kw,
+    exchange: form.exchangeType || undefined,
+    page: 1,
+    size: 20
+  })
+    .then((res: unknown) => {
+      // 防止乱序返回覆盖最新输入
+      if (token !== searchToken) return
+      const data = (res as { data?: { list?: StockListItem[] } })?.data
+      const suggestions: Record<string, any>[] = (data?.list ?? []).map(item => ({
+        ...item,
+        value: item.stock_code,
+        label: `${item.stock_code} ${item.stock_name}`
+      }))
+      cb(suggestions)
     })
-    // 防止乱序返回覆盖最新输入
-    if (token !== searchToken) return
-    const data = (res as { data?: { list?: StockListItem[] } })?.data
-    cb(data?.list ?? [])
-  } catch {
-    if (token === searchToken) cb([])
-  }
+    .catch(() => {
+      if (token === searchToken) cb([])
+    })
 }
 
 // 选中下拉项后，自动回填代码与交易所（搜索时若限定了交易所则保持）
-function onStockPicked(item: StockListItem) {
-  form.stockCode = item.stock_code
-  if (item.exchange_type) {
-    form.exchangeType = item.exchange_type
+function onStockPicked(item: Record<string, any>) {
+  const st = item as unknown as StockListItem
+  form.stockCode = st.stock_code
+  if (st.exchange_type) {
+    form.exchangeType = st.exchange_type
   }
 }
 

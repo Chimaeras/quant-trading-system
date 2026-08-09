@@ -276,10 +276,14 @@ export async function analyzeStability(params: {
   return unwrap(res)
 }
 
-/** 事件驱动组合回测（MP-015） */
+// ── 事件驱动组合回测（MP-015 / V2-MP-020：异步 + 规范化子表 + 分页）──────────────
+
+/** 组合回测提交请求。predictionRunId 模式下 start/end/horizon/track/topN 由已发布 run 派生。 */
 export interface PortfolioBacktestRequest {
-  startDate: string
-  endDate: string
+  /** 已发布 prediction run（闭环信号源）；省略则用 selector_result 区间模式。 */
+  predictionRunId?: string
+  startDate?: string
+  endDate?: string
   strategyType?: string
   horizon?: number
   initialCash?: number
@@ -290,16 +294,183 @@ export interface PortfolioBacktestRequest {
   slippageRate?: number
 }
 
+/** 提交受理响应（202：立即返回 runId，轮询 status）。 */
+export interface PortfolioSubmitResponse {
+  run_id?: string
+  status?: string
+  prediction_run_id?: string | null
+  strategy_type?: string
+  start_date?: string
+  end_date?: string
+  horizon?: number
+  track?: string | null
+  top_n?: number
+  signal_source?: string
+  note?: string
+}
+
+/** 运行状态（轮询契约）。 */
+export interface PortfolioRunStatus {
+  run_id?: string
+  status?: string
+  progress?: number
+  error_message?: string | null
+  updated_at?: string | null
+}
+
+export interface PortfolioOrderItem {
+  seq?: number
+  action?: string
+  trade_date?: string
+  stock_code?: string
+  exchange_type?: string
+  stock_name?: string | null
+  status?: string
+  reject_reason?: string | null
+  price?: number | null
+  shares?: number | null
+  amount?: number | null
+  gross_amount?: number | null
+  commission?: number | null
+  stamp_tax?: number | null
+  price_source?: string | null
+  signal_date?: string | null
+  exit_date?: string | null
+  event_time?: string | null
+}
+
+export interface PortfolioNavPoint {
+  trade_date: string
+  cash?: number
+  position_value?: number
+  nav?: number
+  positions?: number
+}
+
+export interface PortfolioPosition {
+  stock_code: string
+  exchange_type: string
+  stock_name?: string | null
+  shares?: number
+  entry_price?: number
+  mark_price?: number
+  entry_date?: string | null
+  exit_date?: string | null
+  final_status?: string
+  unrealized_pnl?: number
+  price_source?: string
+}
+
+/** 资金守恒审计（V2-MP-020）：final_cash = initial - Σbuy + Σsell。 */
+export interface PortfolioCashAudit {
+  initial_cash?: number
+  buy_cash_out?: number
+  sell_cash_in?: number
+  computed_final_cash?: number
+  actual_final_cash?: number
+  balanced?: boolean
+  note?: string
+}
+
+export interface PortfolioRunDetail extends Record<string, unknown> {
+  run_id?: string
+  status?: string
+  progress?: number
+  error_message?: string | null
+  prediction_run_id?: string | null
+  storage_version?: string
+  created_at?: string | null
+  updated_at?: string | null
+  final_nav?: number
+  total_return?: number
+  max_drawdown?: number
+  total_trades?: number
+  reject_count?: number
+  reject_funnel?: Record<string, number>
+  cash_audit?: PortfolioCashAudit
+  prediction_lineage?: Record<string, unknown> | null
+  nav?: PortfolioNavPoint[]
+  nav_count?: number
+  open_positions?: PortfolioPosition[]
+  positions_count?: number
+  orders_count?: number
+}
+
+export interface PortfolioRunSummaryItem {
+  run_id?: string
+  strategy_type?: string | null
+  prediction_run_id?: string | null
+  track?: string | null
+  start_date?: string | null
+  end_date?: string | null
+  horizon?: number
+  final_nav?: number | null
+  total_return?: number | null
+  max_drawdown?: number | null
+  total_trades?: number | null
+  reject_count?: number | null
+  status?: string
+  progress?: number
+  error_message?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+export interface PortfolioOrderPage {
+  run_id?: string
+  page?: number
+  size?: number
+  total?: number
+  total_pages?: number
+  items?: PortfolioOrderItem[]
+}
+
+export interface PortfolioRunList {
+  items?: PortfolioRunSummaryItem[]
+  page?: number
+  size?: number
+  total?: number
+  total_pages?: number
+}
+
+/** 异步受理组合回测（202 契约：ApiResponse.success 恒 code=200，axios 2xx 通过）。 */
 export async function runPortfolioBacktest(
   body: PortfolioBacktestRequest
-): Promise<Record<string, unknown>> {
-  const res = await request.post<Record<string, unknown>>('/backtest/portfolio/run', body, {
-    timeout: 180000
+): Promise<PortfolioSubmitResponse> {
+  const res = await request.post<PortfolioSubmitResponse>('/backtest/portfolio/run', body, {
+    timeout: 30000
   })
   return unwrap(res)
 }
 
-export async function getPortfolioBacktest(runId: string): Promise<Record<string, unknown>> {
-  const res = await request.get<Record<string, unknown>>(`/backtest/portfolio/${runId}`)
+/** 轻量状态轮询。 */
+export async function getPortfolioBacktestStatus(runId: string): Promise<PortfolioRunStatus> {
+  const res = await request.get<PortfolioRunStatus>(`/backtest/portfolio/${runId}/status`)
+  return unwrap(res)
+}
+
+/** 运行详情（summary + NAV + 期末持仓 + 状态）。 */
+export async function getPortfolioBacktest(runId: string): Promise<PortfolioRunDetail> {
+  const res = await request.get<PortfolioRunDetail>(`/backtest/portfolio/${runId}`)
+  return unwrap(res)
+}
+
+/** 订单分页（seq 升序）。 */
+export async function getPortfolioOrders(
+  runId: string,
+  page = 1,
+  size = 50
+): Promise<PortfolioOrderPage> {
+  const res = await request.get<PortfolioOrderPage>(`/backtest/portfolio/${runId}/orders`, {
+    params: { page, size }
+  })
+  return unwrap(res)
+}
+
+/** 运行历史（列表分页）。 */
+export async function listPortfolioBacktests(page = 1, size = 10): Promise<PortfolioRunList> {
+  const res = await request.get<PortfolioRunList>('/backtest/portfolio/list', {
+    params: { page, size }
+  })
   return unwrap(res)
 }

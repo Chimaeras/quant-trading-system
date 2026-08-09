@@ -2,6 +2,9 @@ package com.quant.controller;
 
 import com.quant.dto.ApiResponse;
 import com.quant.entity.StockFinancialSnapshot;
+import com.quant.exception.ResourceNotFoundException;
+import com.quant.service.ConcurrencyGuard;
+import com.quant.service.ConflictRetry;
 import com.quant.entity.StockMarginDaily;
 import com.quant.repository.StockFinancialSnapshotRepository;
 import com.quant.repository.StockMarginDailyRepository;
@@ -43,6 +46,8 @@ public class DataController {
     private final com.quant.service.IndexDataService indexDataService;
     private final com.quant.service.DataSnapshotService dataSnapshotService;
     private final com.quant.service.MarketDataBatchService marketDataBatchService;
+    private final ConflictRetry conflictRetry;
+    private final ConcurrencyGuard concurrencyGuard;
 
     @GetMapping("/overview")
     public ApiResponse<Map<String, Object>> getOverview(HttpServletResponse response) {
@@ -57,12 +62,21 @@ public class DataController {
         return ApiResponse.success(dataQualityService.buildQualityReport());
     }
 
-    /** MP-023：按用途评估数据质量硬门禁（PASS / DEGRADED / BLOCKED）。 */
+    /**
+     * MP-023/MP-006：按用途评估数据质量硬门禁（PASS / DEGRADED / BLOCKED）。
+     * 可选区间参数：传入 startDate/endDate/labelVersion 时附加区间覆盖率检查并返回确定性 decisionId。
+     */
     @GetMapping("/quality/gate")
     public ApiResponse<Map<String, Object>> getQualityGate(
             @RequestParam(defaultValue = "RULE_SCORE") String purpose,
-            @RequestParam(required = false) String snapshotId) {
-        return ApiResponse.success(dataQualityGateService.evaluate(purpose, snapshotId));
+            @RequestParam(required = false) String snapshotId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) String labelVersion) {
+        com.quant.service.DataQualityGateService.GateRequest req =
+                com.quant.service.DataQualityGateService.GateRequest.ofRange(
+                        purpose, snapshotId, startDate, endDate, labelVersion, null, null);
+        return ApiResponse.success(dataQualityGateService.evaluate(req));
     }
 
     /** 最近 N 个交易日热门股票榜：成交额、换手率、量能放大、上涨天数综合打分。 */
@@ -196,8 +210,16 @@ public class DataController {
     @PostMapping("/snapshot/create")
     public ApiResponse<Map<String, Object>> createSnapshot(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate cutoff) {
-        com.quant.entity.DataSnapshot snap = dataSnapshotService.createSnapshot(cutoff);
-        return ApiResponse.success(dataSnapshotService.toCreateResponse(snap));
+        // V2-MP-030: 并发上限 429 + 快照 ID 依赖 count+1，并发创建同一 cutoff 撞 snapshot_id 唯一键 → 有界重试
+        String guardKey = "data-snapshot-create";
+        concurrencyGuard.tryEnter(guardKey, 1);
+        try {
+            com.quant.entity.DataSnapshot snap = conflictRetry.retryOnUniqueConflict(
+                    () -> dataSnapshotService.createSnapshot(cutoff), "数据快照创建");
+            return ApiResponse.success(dataSnapshotService.toCreateResponse(snap));
+        } finally {
+            concurrencyGuard.exit(guardKey);
+        }
     }
 
     /** QP-006：最近 N 条数据快照（默认 10 条）。 */
@@ -254,21 +276,21 @@ public class DataController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "100") int size) {
         Map<String, Object> data = historicalDataUpdateService.getTaskDetail(taskId, page, size);
-        if (data == null) return ApiResponse.error(404, "任务不存在");
+        if (data == null) throw new ResourceNotFoundException("任务不存在: " + taskId);
         return ApiResponse.success(data);
     }
 
     @PostMapping("/update/tasks/{taskId}/retry")
     public ApiResponse<Map<String, Object>> retryTask(@PathVariable String taskId) {
         Map<String, Object> data = historicalDataUpdateService.retryFailed(taskId);
-        if (data == null) return ApiResponse.error(404, "任务不存在");
+        if (data == null) throw new ResourceNotFoundException("任务不存在: " + taskId);
         return ApiResponse.success(data);
     }
 
     @PostMapping("/update/tasks/{taskId}/stop")
     public ApiResponse<Map<String, Object>> stopTask(@PathVariable String taskId) {
         Map<String, Object> data = historicalDataUpdateService.stopTask(taskId);
-        if (data == null) return ApiResponse.error(404, "任务不存在");
+        if (data == null) throw new ResourceNotFoundException("任务不存在: " + taskId);
         return ApiResponse.success(data);
     }
 

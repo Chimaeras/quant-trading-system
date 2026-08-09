@@ -435,20 +435,22 @@ export const dataApi = {
     return unwrap(res)
   },
 
-  /** QP-008：生成 T+2/T+3 标签（基于 PIT 股票池，保留拒单样本，幂等） */
+  /** QP-008：生成 T+2/T+3 标签（基于 PIT 股票池，保留拒单样本，幂等）。
+   * V2-MP-002：新研究唯一生产口径 label_v2_raw_calendar；dataSnapshotId 必填（后端 HTTP 400 若缺）。 */
   async buildLabels(params: {
     startDate: string
     endDate: string
     labelVersion?: string
+    dataSnapshotId?: string
   }): Promise<Record<string, unknown>> {
     const res = await request.post<Record<string, unknown>>('/research/labels/build', null, {
-      params: { ...params, labelVersion: params.labelVersion || 'label_v1' }
+      params: { ...params, labelVersion: params.labelVersion || 'label_v2_raw_calendar' }
     })
     return unwrap(res)
   },
 
-  /** QP-008：标签覆盖率统计 */
-  async getLabelCoverage(labelVersion = 'label_v1'): Promise<Record<string, unknown>> {
+  /** QP-008：标签覆盖率统计（默认 label_v2_raw_calendar） */
+  async getLabelCoverage(labelVersion = 'label_v2_raw_calendar'): Promise<Record<string, unknown>> {
     const res = await request.get<Record<string, unknown>>('/research/labels/coverage', {
       params: { labelVersion }
     })

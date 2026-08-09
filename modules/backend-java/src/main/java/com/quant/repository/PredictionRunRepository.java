@@ -13,6 +13,13 @@ public interface PredictionRunRepository extends JpaRepository<PredictionRun, Lo
 
     Optional<PredictionRun> findByRunId(String runId);
 
+    /** 同 requestId 同日期同 horizon 查重（幂等，V2-MP-030）。 */
+    Optional<PredictionRun> findFirstByRequestIdAndTradeDateAndHorizon(
+            String requestId, LocalDate tradeDate, Integer horizon);
+
+    /** 一次 generate 会生成 RULE_SCORE + PROBABILITY 两条 run，共用同一 requestId。 */
+    List<PredictionRun> findByRequestId(String requestId);
+
     List<PredictionRun> findByTradeDateAndHorizonOrderByPublishVersionDescTrackAsc(
             LocalDate tradeDate, Integer horizon);
 
@@ -34,4 +41,12 @@ public interface PredictionRunRepository extends JpaRepository<PredictionRun, Lo
             @Param("horizon") Integer horizon);
 
     List<PredictionRun> findByTradeDateOrderByHorizonAscTrackAscPublishVersionDesc(LocalDate tradeDate);
+
+    /** V2-MP-012：某日某 horizon 某轨道全部 publish_version（日报版本选择器）。 */
+    List<PredictionRun> findByTradeDateAndHorizonAndTrackOrderByPublishVersionDesc(
+            LocalDate tradeDate, Integer horizon, String track);
+
+    /** V2-MP-012：全部预测快照的最新信号日（日报 tradeDate 省略时解析）。 */
+    @Query("SELECT MAX(p.tradeDate) FROM PredictionRun p")
+    Optional<LocalDate> findMaxTradeDate();
 }

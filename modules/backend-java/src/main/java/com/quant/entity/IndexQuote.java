@@ -38,18 +38,25 @@ public class IndexQuote {
     @Column(nullable = false)
     private LocalDate tradeDate;
 
+    /** V2-MP-015：价格 scale 4。 */
+    @Column(precision = 20, scale = 4)
     private BigDecimal openPrice;
+    @Column(precision = 20, scale = 4)
     private BigDecimal closePrice;
+    @Column(precision = 20, scale = 4)
     private BigDecimal highPrice;
+    @Column(precision = 20, scale = 4)
     private BigDecimal lowPrice;
 
     /** 成交量（指数口径，万手）。 */
     private Long volume;
 
-    /** 成交额（指数口径，万元）。 */
+    /** 成交额（指数口径，万元）。V2-MP-015：金额 scale 4。 */
+    @Column(precision = 24, scale = 4)
     private BigDecimal amount;
 
-    /** 涨跌幅%。 */
+    /** 涨跌幅%。V2-MP-015：scale 8。 */
+    @Column(precision = 20, scale = 8)
     private BigDecimal changePct;
 
     /** 来源：eastmoney / tushare。 */

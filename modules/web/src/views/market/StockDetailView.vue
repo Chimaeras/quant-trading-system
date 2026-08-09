@@ -156,6 +156,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { echarts, CHART_THEME, CHART_C1, CHART_C2, CHART_C3, CHART_C4 } from '@/utils/echartsTheme'
+import type { EChartsOption } from 'echarts'
 import { marketApi, type StockDetail, type KLineItem, type StockAnalysisResult } from '@/api/market'
 import dayjs from 'dayjs'
 import { useToast } from '@/composables/useToast'
@@ -361,7 +362,7 @@ function renderChart() {
     return { period, vals, color: maColors[period] }
   })
 
-  const option: echarts.EChartsOption = {
+  const option: EChartsOption = {
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',

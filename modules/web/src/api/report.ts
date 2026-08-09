@@ -1,23 +1,51 @@
 import request, { unwrap } from './request'
 
-/** 选股日报中的候选摘要 */
-export interface DailyReportTopItem {
-  rank_no: number
+// ── 选股日报（V2-MP-012：prediction snapshot 不可变投影）────────────────────
+// 契约来自 DailyReportController：GET /report/daily?tradeDate&horizon&track&publishVersion、
+// GET /report/daily/versions、POST /report/daily/realize。无 PUBLISHED run 时报
+// status=ABSTAIN|NOT_PUBLISHED，绝不回退昨日 selector。
+
+/** 日报候选（= prediction_snapshot_item，不可变） */
+export interface DailyReportItem {
+  rank_no?: number
   stock_code: string
   exchange_type: string
   stock_name?: string
-  final_score?: number
+  score?: number
+  score_type?: string
+  reasons?: Record<string, unknown>
 }
 
-/** 行业集中度项 */
+/** 固定 lineage（来自 prediction run，不含候选正文） */
+export interface DailyReportLineage {
+  convention_version?: string
+  gate_status?: string
+  gate_decision_id?: string
+  snapshot_id?: string
+  factor_version?: string
+  strategy_type?: string
+  model_version?: string
+  output_kind?: string
+  schema_hash?: string
+  deploy_key?: string
+  calibrator_version?: string
+  calibrator_hash?: string
+  inference_chain?: string
+  source_result_id?: string
+  source_trade_date?: string
+}
+
+/** 行业分布项 */
 export interface IndustryConcentrationItem {
   industry: string
   count: number
   pct: number
 }
 
-/** 行业集中度聚合 */
+/** 行业分布聚合（provenance=CURRENT_STOCK_INFO，MP-017 未落地前非 PIT） */
 export interface IndustryConcentration {
+  provenance?: string
+  pit_note?: string
   total: number
   industries: IndustryConcentrationItem[]
   max_concentration_pct: number
@@ -25,75 +53,105 @@ export interface IndustryConcentration {
   threshold_pct: number
 }
 
-/** 单策略信号摘要 */
-export interface DailyReportStrategySection {
-  strategy: string
-  factor_version?: string
-  trade_date: string
-  run_status: string
-  total_candidates?: number
-  success_candidates?: number
-  returned_items: number
-  has_opportunity: boolean
-  message: string
-  top_items: DailyReportTopItem[]
-  industry_concentration: IndustryConcentration
+/** realization 单标的 */
+export interface RealizationStock {
+  rank_no?: number
+  stock_code: string
+  exchange_type: string
+  stock_name?: string
+  entry_close?: number | null
+  exit_close?: number | null
+  raw_forward_return?: number | null
+  label_exec_status?: string
+  label_net_return?: number | null
+  realization_status?: string
 }
 
-/** 日报整体概览 */
-export interface DailyReportOverallSummary {
-  strategy_count: number
-  strategies_with_opportunity: number
-  strategies_without_opportunity: number
-  verdict: string
-}
-
-/** 预测快照 lineage（MP-022） */
-export interface DailyReportPredictionHorizon {
-  horizon: number
-  status: string
-  prediction_run_id?: string
-  probability_track?: string
-  tracks?: Array<{
-    prediction_run_id?: string
-    track?: string
-    status?: string
-    publish_version?: number
-    abstain_reason?: string | null
-    model_version?: string | null
-    item_count?: number
-    lineage?: Record<string, unknown>
-    quality_gate?: Record<string, unknown>
-  }>
+/** 到期后追加的 realization（追加不修改原候选） */
+export interface Realization {
+  status?: string
+  signal_date?: string
+  maturity_date?: string
+  horizon?: number
+  label_version?: string
+  label_join_note?: string
+  per_stock?: RealizationStock[]
+  counts?: { filled?: number; raw_close_only?: number; unavailable?: number; total?: number }
   note?: string
-}
-
-export interface DailyReportPrediction {
-  status: string
-  horizons?: DailyReportPredictionHorizon[]
-  note?: string
-}
-
-/** 选股日报响应 */
-export interface DailyReportResponse {
-  trade_date: string
-  generated_at: string
-  data_source: string
-  signal_execution_note: string
-  has_any_result: boolean
-  overall_summary: DailyReportOverallSummary
-  strategies: DailyReportStrategySection[]
+  /** 幂等命中时后端回填 */
+  reused?: boolean
   message?: string
-  prediction?: DailyReportPrediction
 }
 
-/** 拉取选股日报；tradeDate 省略时取各策略最新结果 */
-export async function getDailyReport(tradeDate?: string): Promise<DailyReportResponse> {
-  const res = await request.get<DailyReportResponse>('/report/daily', {
-    params: tradeDate ? { tradeDate } : {}
-  })
+/** 某轨道可发布版本（版本选择器） */
+export interface DailyReportVersion {
+  publish_version?: number
+  status?: string
+  abstain_reason?: string | null
+  item_count?: number
+  prediction_run_id?: string
+  model_version?: string | null
+}
+
+/** 日报响应：status=PUBLISHED 含候选投影；ABSTAIN/NOT_PUBLISHED 仅 abstain 说明 */
+export interface DailyReportResponse {
+  status?: 'PUBLISHED' | 'ABSTAIN' | 'NOT_PUBLISHED'
+  trade_date?: string | null
+  horizon?: number
+  track?: string
+  publish_version?: number | null
+  report_id?: string
+  report_version?: number
+  prediction_run_id?: string
+  source_result_id?: string | null
+  factor_version?: string | null
+  content_hash?: string
+  item_count?: number
+  generated_at?: string
+  abstain_reason?: string | null
+  lineage?: DailyReportLineage
+  items?: DailyReportItem[]
+  industry_concentration?: IndustryConcentration
+  realization?: Realization | null
+  note?: string
+}
+
+/** 拉取日报投影；tradeDate 省略取最新日期，publishVersion 省略取该轨道最新 */
+export async function getDailyReport(params: {
+  tradeDate?: string
+  horizon?: number
+  track?: string
+  publishVersion?: number
+}): Promise<DailyReportResponse> {
+  const res = await request.get<DailyReportResponse>('/report/daily', { params })
   return unwrap(res)
 }
+
+/** 某日某轨道全部可发布版本（版本选择器） */
+export async function getDailyReportVersions(params: {
+  tradeDate?: string
+  horizon: number
+  track: string
+}): Promise<{ trade_date?: string; horizon?: number; track?: string; versions?: DailyReportVersion[] }> {
+  const res = await request.get<{ trade_date?: string; horizon?: number; track?: string; versions?: DailyReportVersion[] }>(
+    '/report/daily/versions',
+    { params }
+  )
+  return unwrap(res)
+}
+
+/** 到期后追加 realization（幂等：已落库返回既有结果） */
+export async function realizeDailyReport(params: {
+  tradeDate?: string
+  horizon: number
+  track: string
+  publishVersion?: number
+}): Promise<Realization> {
+  const res = await request.post<Realization>('/report/daily/realize', null, { params, timeout: 30000 })
+  return unwrap(res)
+}
+
+// ── 多日信号趋势（独立的 selector 视角视图，不参与 projection）──────────────
 
 /** 多日趋势单日 */
 export interface TrendDay {

@@ -1,10 +1,12 @@
 package com.quant.service.backtest;
 
 import com.quant.entity.MarketData;
+import com.quant.entity.MarketPriceRaw;
 import com.quant.research.ResearchConvention;
 import com.quant.service.scoring.ScoringConstants;
 import com.quant.service.scoring.TechnicalIndicators;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -17,6 +19,10 @@ import java.util.Map;
  * 不再散落硬编码。本引擎为「前日收盘产生信号、当日开盘成交」的自洽交易模型，买卖均在当日开盘成交
  * （entry/exit = SAME_DAY_OPEN），与标签/持有期回测的 HOLDING_PERIOD_CLOSE 口径不同——两者各自成立，
  * 但在对外输出时必须标注本引擎的时序假设，避免与持有期收益口径混淆。
+ *
+ * <p>V2-MP-014：信号与技术指标使用 qfq 复权序列（SIGNAL_FEATURE，仅影响模型输入）；成交执行价
+ * 一律读 {@code market_price_raw} 原始开盘价（EXECUTION），缺 raw 或零量（停牌）当日跳过成交，
+ * 禁止用 qfq 前复权价"救活"成交样本。前收涨跌停判定优先 raw 实际前收，缺失时 qfq 仅作参考。
  */
 public final class StrategyBacktestEngine {
 
@@ -44,6 +50,10 @@ public final class StrategyBacktestEngine {
         assumptions.put("stamp_duty_rate", STAMP_DUTY);
         assumptions.put("slippage_rate_each_side", SLIPPAGE);
         assumptions.put("costs_source", "ResearchConvention." + ResearchConvention.CONVENTION_VERSION);
+        assumptions.put("execution_price_source", "market_price_raw");
+        assumptions.put("execution_note",
+                "V2-MP-014：成交执行价只读 market_price_raw 原始开盘价；缺 raw 或零量（停牌）当日跳过成交，"
+                        + "禁止用 qfq 前复权价兜底。qfq 仅用于信号/技术指标与净值标记。");
         assumptions.put("exit_note",
                 "策略引擎自洽口径：信号于前日收盘产生，买卖均在当日开盘成交；"
                         + "不同于标签/持有期回测的 HOLDING_PERIOD_CLOSE 口径");
@@ -91,7 +101,7 @@ public final class StrategyBacktestEngine {
             int bollPeriod,
             double bollStdDev
     ) {
-        return run(bars, strategy, initialCapital, shortPeriod, longPeriod, bollPeriod, bollStdDev,
+        return run(bars, null, strategy, initialCapital, shortPeriod, longPeriod, bollPeriod, bollStdDev,
                 ScoringConstants.MACD_FAST, ScoringConstants.MACD_SLOW, DEFAULT_LIMIT_PCT);
     }
 
@@ -105,12 +115,43 @@ public final class StrategyBacktestEngine {
             double bollStdDev,
             double limitPct
     ) {
-        return run(bars, strategy, initialCapital, shortPeriod, longPeriod, bollPeriod, bollStdDev,
+        return run(bars, null, strategy, initialCapital, shortPeriod, longPeriod, bollPeriod, bollStdDev,
+                ScoringConstants.MACD_FAST, ScoringConstants.MACD_SLOW, limitPct);
+    }
+
+    /** V2-MP-014：以 rawByDate 提供当日原始行情（成交执行价）。缺 raw 当日跳过成交。 */
+    public static BacktestMetrics run(
+            List<MarketData> bars,
+            Map<LocalDate, MarketPriceRaw> rawByDate,
+            StrategySignalType strategy,
+            double initialCapital,
+            int shortPeriod,
+            int longPeriod,
+            int bollPeriod,
+            double bollStdDev
+    ) {
+        return run(bars, rawByDate, strategy, initialCapital, shortPeriod, longPeriod, bollPeriod, bollStdDev,
+                ScoringConstants.MACD_FAST, ScoringConstants.MACD_SLOW, DEFAULT_LIMIT_PCT);
+    }
+
+    public static BacktestMetrics run(
+            List<MarketData> bars,
+            Map<LocalDate, MarketPriceRaw> rawByDate,
+            StrategySignalType strategy,
+            double initialCapital,
+            int shortPeriod,
+            int longPeriod,
+            int bollPeriod,
+            double bollStdDev,
+            double limitPct
+    ) {
+        return run(bars, rawByDate, strategy, initialCapital, shortPeriod, longPeriod, bollPeriod, bollStdDev,
                 ScoringConstants.MACD_FAST, ScoringConstants.MACD_SLOW, limitPct);
     }
 
     public static BacktestMetrics run(
             List<MarketData> bars,
+            Map<LocalDate, MarketPriceRaw> rawByDate,
             StrategySignalType strategy,
             double initialCapital,
             int shortPeriod,
@@ -152,15 +193,22 @@ public final class StrategyBacktestEngine {
             MarketData bar = clean.get(i);
             MarketData prevBar = clean.get(i - 1);
             double markPrice = close[i];
-            // 信号基于前一交易日收盘数据，在当日开盘成交（避免同日收盘价成交的未来函数）
+            // 信号基于前一交易日收盘数据（qfq，SIGNAL_FEATURE），在当日开盘成交（避免同日收盘价成交的未来函数）
             String signal = detectSignal(strategy, close, macd, i - 1, shortPeriod, longPeriod, bollPeriod, bollStdDev);
-            double execPrice = bar.getOpenPrice() != null
-                    ? bar.getOpenPrice().doubleValue()
-                    : markPrice;
-            double preClose = resolvePreClose(bar, prevBar);
+
+            // V2-MP-014：成交执行价只读 market_price_raw 原始开盘价；缺 raw 或零量（停牌）当日跳过成交，禁止 qfq 兜底。
+            MarketPriceRaw raw = rawByDate != null ? rawByDate.get(bar.getTradeDate()) : null;
+            double execPrice = Double.NaN;
+            if (raw != null && raw.getOpenPrice() != null && raw.getOpenPrice().doubleValue() > 0
+                    && (raw.getVolume() == null || raw.getVolume() > 0)) {
+                execPrice = raw.getOpenPrice().doubleValue();
+            }
+            MarketPriceRaw prevRaw = rawByDate != null ? rawByDate.get(prevBar.getTradeDate()) : null;
+            double preClose = resolvePreCloseExec(raw, prevRaw, bar, prevBar);
 
             if ("buy".equals(signal) && position == 0 && cash > 0
-                    && !isLimitUpAtOpen(bar, preClose, limitPct)) {
+                    && !Double.isNaN(execPrice)
+                    && !isLimitUpAtExecOpen(execPrice, preClose, limitPct)) {
                 double buyPrice = execPrice * (1 + SLIPPAGE);
                 // 买入可负担股数须预留佣金，否则 cash -= amount + commission 可能使现金为负
                 int volume = (int) (cash / (buyPrice * (1 + COMMISSION)) / 100) * 100;
@@ -176,7 +224,8 @@ public final class StrategyBacktestEngine {
                     lastBuyBarIndex = i;
                 }
             } else if ("sell".equals(signal) && position > 0 && i > lastBuyBarIndex
-                    && !isLimitDownAtOpen(bar, preClose, limitPct)) {
+                    && !Double.isNaN(execPrice)
+                    && !isLimitDownAtExecOpen(execPrice, preClose, limitPct)) {
                 double sellPrice = execPrice * (1 - SLIPPAGE);
                 double amount = sellPrice * position;
                 double commission = amount * COMMISSION;
@@ -308,6 +357,46 @@ public final class StrategyBacktestEngine {
             return prevBar.getClosePrice().doubleValue();
         }
         return 0;
+    }
+
+    /**
+     * V2-MP-014：成交口径前收。优先 raw 实际前收，其次 raw 上一交易日收盘（真实成交价），
+     * 最后 qfq 复权前收仅作参考——前收只用于涨跌停判定，不参与成交定价。
+     */
+    public static double resolvePreCloseExec(
+            MarketPriceRaw raw, MarketPriceRaw prevRaw, MarketData bar, MarketData prevBar) {
+        if (raw != null && raw.getPreClose() != null && raw.getPreClose().doubleValue() > 0) {
+            return raw.getPreClose().doubleValue();
+        }
+        if (prevRaw != null && prevRaw.getClosePrice() != null
+                && prevRaw.getClosePrice().doubleValue() > 0) {
+            return prevRaw.getClosePrice().doubleValue();
+        }
+        return resolvePreClose(bar, prevBar);
+    }
+
+    /**
+     * 涨停开盘判定（成交口径）：对 raw 原始开盘价判定封板，避免用 qfq 复权开盘价误判。
+     */
+    public static boolean isLimitUpAtExecOpen(double execOpen, double preClose, double limitPct) {
+        if (Double.isNaN(execOpen) || execOpen <= 0 || preClose <= 0) {
+            return false;
+        }
+        double limitUpPrice = preClose * (1 + limitPct);
+        return execOpen >= limitUpPrice * (1 - LIMIT_PRICE_TOLERANCE)
+                && execOpen <= limitUpPrice * (1 + LIMIT_PRICE_TOLERANCE);
+    }
+
+    /**
+     * 跌停开盘判定（成交口径）：对 raw 原始开盘价判定封板。
+     */
+    public static boolean isLimitDownAtExecOpen(double execOpen, double preClose, double limitPct) {
+        if (Double.isNaN(execOpen) || execOpen <= 0 || preClose <= 0) {
+            return false;
+        }
+        double limitDownPrice = preClose * (1 - limitPct);
+        return execOpen <= limitDownPrice * (1 + LIMIT_PRICE_TOLERANCE)
+                && execOpen >= limitDownPrice * (1 - LIMIT_PRICE_TOLERANCE);
     }
 
     /**

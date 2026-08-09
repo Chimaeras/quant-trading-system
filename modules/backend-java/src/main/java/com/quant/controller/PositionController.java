@@ -16,7 +16,8 @@ public class PositionController {
     private final SimAccountService simAccountService;
 
     @GetMapping("/list")
-    public ApiResponse<List<Map<String, Object>>> list(@RequestParam(required = false) Long userId) {
-        return ApiResponse.success(simAccountService.listPositions(simAccountService.resolveUserId(userId)));
+    public ApiResponse<List<Map<String, Object>>> list(@RequestParam(required = false) Long userId,
+                                                       @RequestParam(required = false) Long sessionId) {
+        return ApiResponse.success(simAccountService.listPositions(simAccountService.resolveUserId(userId), sessionId));
     }
 }

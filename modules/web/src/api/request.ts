@@ -5,6 +5,23 @@ export interface ApiResponse<T = unknown> {
   code: number
   message: string
   data: T
+  /** V2-MP-028：仅错误响应携带，供页面展示与日志关联。 */
+  errorId?: string
+}
+
+/** V2-MP-028：统一错误对象，带 HTTP status、业务 code 与 errorId，页面不得吞掉错误为空态。 */
+export interface RequestError extends Error {
+  status?: number
+  code?: number
+  errorId?: string
+}
+
+/** 组装可展示错误文本：message（+ errorId）。 */
+export function errorText(e: unknown): string {
+  const err = e as Partial<RequestError> | null
+  if (!err) return '未知错误'
+  const msg = err.message || '请求失败'
+  return err.errorId ? `${msg}（${err.errorId}）` : msg
 }
 
 interface ApiClient {
@@ -40,9 +57,17 @@ function redirectToLoginOn401() {
   window.location.href = `/login?redirect=${redirect}`
 }
 
+function toRequestError(message: string, status?: number, code?: number, errorId?: string): RequestError {
+  const error = new Error(message) as RequestError
+  error.status = status
+  error.code = code
+  error.errorId = errorId
+  return error
+}
+
 axiosInstance.interceptors.response.use(
   (res) => {
-    const { code, message } = res.data
+    const { code, message, errorId } = res.data
     if (code === 200) {
       // 返回完整 ApiResponse，由各 API 模块通过 unwrap 取业务 data
       return res.data
@@ -51,7 +76,8 @@ axiosInstance.interceptors.response.use(
     if (code === 401) {
       redirectToLoginOn401()
     }
-    return Promise.reject(new Error(message || '请求失败'))
+    // V2-MP-028：非 200 业务码不再退化成纯 message，携带 code/errorId 供页面展示
+    return Promise.reject(toRequestError(message || '请求失败', 200, code, errorId))
   },
   (err) => {
     const status = err.response?.status
@@ -59,10 +85,9 @@ axiosInstance.interceptors.response.use(
       redirectToLoginOn401()
     }
     const msg = err.response?.data?.message || err.message || '网络错误'
-    const error = new Error(msg) as Error & { status?: number; code?: number }
-    error.status = status
-    error.code = err.response?.data?.code
-    return Promise.reject(error)
+    const code = err.response?.data?.code
+    const errorId = err.response?.data?.errorId
+    return Promise.reject(toRequestError(msg, status, code, errorId))
   }
 )
 

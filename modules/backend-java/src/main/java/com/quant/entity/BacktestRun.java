@@ -48,8 +48,12 @@ public class BacktestRun {
     @Column(columnDefinition = "TEXT")
     private String holdingDays;
 
+    /** V2-MP-015：费率 scale 8，防 0.0003 截成 0.00。 */
+    @Column(precision = 20, scale = 8)
     private BigDecimal commissionRate;
+    @Column(precision = 20, scale = 8)
     private BigDecimal sellTaxRate;
+    @Column(precision = 20, scale = 8)
     private BigDecimal slippageRate;
 
     /** 本次计算使用的数据截止日（= market_data 最新交易日）。 */

@@ -7,10 +7,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * 历史信号重放轻量 manifest（MP-005）。
+ * 历史信号重放分区 manifest（MP-005 / V2-MP-016）。
  *
  * <p>幂等键：(snapshotId, signalDate, strategyVersion, featureSetVersion)。
- * 仅存覆盖率摘要与 contentHash，不存全市场特征矩阵。
+ * 一个分区 = 一个信号日的完整候选截面；逐证券特征存 {@code feature_snapshot_row}，
+ * 本表仅存分区状态、漏斗与 hash。仅 VERIFIED/PUBLISHED 分区可复用；FAILED 可重算；发布后只读。
  */
 @Data
 @Entity
@@ -21,10 +22,15 @@ import java.time.LocalDateTime;
 })
 public class FeatureSnapshotManifest {
 
+    /** V1 遗留状态（只读兼容）。 */
     public static final String STATUS_OK = "OK";
     public static final String STATUS_SKIPPED = "SKIPPED";
     public static final String STATUS_FAILED = "FAILED";
     public static final String STATUS_SUMMARY = "SUMMARY";
+    /** MP-016 分区状态机：RUNNING → VERIFIED / FAILED；VERIFIED 可发布为 PUBLISHED。 */
+    public static final String STATUS_RUNNING = "RUNNING";
+    public static final String STATUS_VERIFIED = "VERIFIED";
+    public static final String STATUS_PUBLISHED = "PUBLISHED";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -55,6 +61,23 @@ public class FeatureSnapshotManifest {
     @Lob
     @Column(columnDefinition = "LONGTEXT")
     private String filterSummaryJson;
+
+    /** MP-016：代码派生 schema 的确定性哈希。 */
+    @Column(length = 64)
+    private String schemaHash;
+
+    /** MP-016：本分区完整候选截面行数（feature_snapshot_row 计数）。 */
+    private Integer rowCount;
+
+    /** MP-016：universe→tradable→featureComplete→signal 漏斗摘要 JSON。 */
+    @Lob
+    @Column(columnDefinition = "LONGTEXT")
+    private String funnelJson;
+
+    /** MP-016：发布后置 true，分区只读（不再重算、不再清行）。 */
+    private Boolean published = false;
+
+    private LocalDateTime publishedAt;
 
     @Column(updatable = false)
     private LocalDateTime createdAt;

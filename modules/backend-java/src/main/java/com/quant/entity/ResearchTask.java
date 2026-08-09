@@ -25,6 +25,9 @@ public class ResearchTask {
     public static final String STATUS_FAILED = "FAILED";
     public static final String STATUS_CANCELLED = "CANCELLED";
 
+    /** 应用重启后旧 RUNNING/PENDING 任务的状态：需要人工决定恢复（V2-MP-008）。 */
+    public static final String STATUS_RECOVERY_REQUIRED = "RECOVERY_REQUIRED";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -52,8 +55,33 @@ public class ResearchTask {
     @Column(length = 2000)
     private String errorMessage;
 
+    /** 业务错误码（如 INSUFFICIENT_DATA / no_matches / no_calendar），区分"异常失败"与"业务无产物"。 */
+    @Column(length = 64)
+    private String errorCode;
+
     @Column(nullable = false)
     private Boolean published = false;
+
+    /** 幂等键：同一 requestId 重复创建返回既有任务（V2-MP-008/030）。 */
+    @Column(unique = true, length = 64)
+    private String requestId;
+
+    /** 协作式取消请求：worker 在发布前必须检查；置位后不得发布为 COMPLETED。 */
+    @Column(nullable = false)
+    private Boolean cancelRequested = false;
+
+    /** 乐观锁/版本号（CAS 更新用，避免长任务与取消/发布竞争）。 */
+    @Column(nullable = false)
+    private Integer version = 0;
+
+    /** 分区 checkpoint JSON：resume 时从失败分区继续（完整实现随 V2-MP-016）。 */
+    @Lob
+    @Column(columnDefinition = "LONGTEXT")
+    private String checkpoint;
+
+    /** task-scoped 产物暂存命名空间：未发布产物只在此可见（完整实现随 V2-MP-008/019）。 */
+    @Column(length = 64)
+    private String stagingNamespace;
 
     @Column(updatable = false)
     private LocalDateTime createdAt;

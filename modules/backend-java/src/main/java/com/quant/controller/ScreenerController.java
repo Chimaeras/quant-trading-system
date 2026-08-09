@@ -1,6 +1,7 @@
 package com.quant.controller;
 
 import com.quant.dto.ApiResponse;
+import com.quant.security.UserIdResolver;
 import com.quant.service.ScreenerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -19,6 +20,7 @@ import java.util.Map;
 public class ScreenerController {
 
     private final ScreenerService screenerService;
+    private final UserIdResolver userIdResolver;
 
     @GetMapping("/run")
     public ApiResponse<Map<String, Object>> run(
@@ -36,7 +38,9 @@ public class ScreenerController {
 
     @PostMapping("/templates/save")
     public ApiResponse<Map<String, Object>> saveTemplate(@RequestBody Map<String, Object> body) {
-        Long userId = body.get("userId") != null ? Long.valueOf(String.valueOf(body.get("userId"))) : 1L;
+        // MP-010：鉴权开启时 userId 一律取自 AuthContext，忽略客户端 body 中的 userId（防 IDOR）。
+        Long userId = userIdResolver.resolve(
+                body.get("userId") != null ? Long.valueOf(String.valueOf(body.get("userId"))) : null);
         String name = body.get("name") != null ? String.valueOf(body.get("name")) : "";
         String keyword = body.get("keyword") != null ? String.valueOf(body.get("keyword")) : null;
         String exchange = body.get("exchange") != null ? String.valueOf(body.get("exchange")) : null;
@@ -51,12 +55,13 @@ public class ScreenerController {
 
     @GetMapping("/templates/list")
     public ApiResponse<List<Map<String, Object>>> listTemplates(@RequestParam(required = false) Long userId) {
-        return ApiResponse.success(screenerService.listTemplates(userId != null ? userId : 1L));
+        return ApiResponse.success(screenerService.listTemplates(userIdResolver.resolve(userId)));
     }
 
     @PostMapping("/templates/delete")
     public ApiResponse<Map<String, Object>> deleteTemplate(@RequestBody Map<String, Object> body) {
-        Long userId = body.get("userId") != null ? Long.valueOf(String.valueOf(body.get("userId"))) : 1L;
+        Long userId = userIdResolver.resolve(
+                body.get("userId") != null ? Long.valueOf(String.valueOf(body.get("userId"))) : null);
         Long id = body.get("id") != null ? Long.valueOf(String.valueOf(body.get("id"))) : 0L;
         return ApiResponse.success(screenerService.deleteTemplate(userId, id));
     }

@@ -7,6 +7,10 @@ import java.util.List;
 import java.util.Optional;
 
 public interface PositionInfoRepository extends JpaRepository<PositionInfo, Long> {
-    List<PositionInfo> findByAccountIdOrderByStockCodeAsc(Long accountId);
-    Optional<PositionInfo> findByAccountIdAndStockCodeAndExchangeType(Long accountId, String stockCode, String exchangeType);
+
+    /** 按会话查询持仓（sessionId=0 为在线账户；>0 为历史演练会话，V2-MP-021）。 */
+    List<PositionInfo> findByAccountIdAndSessionIdOrderByStockCodeAsc(Long accountId, Long sessionId);
+
+    Optional<PositionInfo> findByAccountIdAndSessionIdAndStockCodeAndExchangeType(
+            Long accountId, Long sessionId, String stockCode, String exchangeType);
 }

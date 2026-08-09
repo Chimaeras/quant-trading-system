@@ -1,11 +1,13 @@
 package com.quant.controller;
 
 import com.quant.dto.ApiResponse;
+import com.quant.research.CalibratorService;
 import com.quant.research.HistoricalReplayService;
 import com.quant.research.HistoricalSignalReplayService;
 import com.quant.research.LabelFactoryService;
 import com.quant.research.LogisticModelTrainer;
 import com.quant.research.ProbabilityCalibrationService;
+import com.quant.research.artifact.ModelImportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,6 +36,8 @@ public class ResearchController {
     private final LogisticModelTrainer logisticModelTrainer;
     private final com.quant.repository.ModelVersionRepository modelVersionRepository;
     private final com.quant.service.scoring.LimitUpEcologyService limitUpEcologyService;
+    private final ModelImportService modelImportService;
+    private final CalibratorService calibratorService;
 
     /**
      * QP-007：按交易日区间重放 PIT 历史股票池，生成数据集健康报告。
@@ -74,14 +78,15 @@ public class ResearchController {
     /**
      * MP-002：为区间内每个交易日生成 T+2/T+3 标签（基于 PIT 股票池）。
      * 默认 label_version=label_v2_raw_calendar（raw 价 + 市场交易日历）；
-     * label_v1* 保留旧 market_data 路径。可选 dataSnapshotId 校验快照存在。
+     * label_v1* 保留旧 market_data 路径仅供历史只读。dataSnapshotId 必填（V2-MP-002：
+     * 新研究必须绑定真实快照，禁止把空 snapshot 自动替换成「最新」）。
      */
     @PostMapping("/labels/build")
     public ApiResponse<Map<String, Object>> buildLabels(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) String labelVersion,
-            @RequestParam(required = false) String dataSnapshotId) {
+            @RequestParam String dataSnapshotId) {
         return ApiResponse.success(labelFactoryService.buildLabels(startDate, endDate, labelVersion, dataSnapshotId));
     }
 
@@ -101,12 +106,12 @@ public class ResearchController {
         return ApiResponse.success(limitUpEcologyService.nextDayPremium(tradeDate, topLimitUpCount));
     }
 
-    /** T+1 次日方向标签（close-to-close，与 T+2/T+3 成交口径标签并行）。 */
+    /** T+1 次日方向标签（close-to-close，与 T+2/T+3 成交口径标签并行）。默认 label_v2_raw_calendar。 */
     @PostMapping("/labels/build-t1")
     public ApiResponse<Map<String, Object>> buildT1Labels(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @RequestParam(defaultValue = "label_v1") String labelVersion) {
+            @RequestParam(defaultValue = "label_v2_raw_calendar") String labelVersion) {
         return ApiResponse.success(labelFactoryService.buildT1Labels(startDate, endDate, labelVersion));
     }
 
@@ -119,6 +124,7 @@ public class ResearchController {
 
     /**
      * MP-009：规则分数概率校准（单策略 + fit/eval embargo + PAV isotonic）。
+     * V2-MP-002：默认 label_v2_raw_calendar；dataSnapshotId 必填（新研究必须绑定快照）。
      */
     @GetMapping("/calibration")
     public ApiResponse<Map<String, Object>> calibration(
@@ -128,41 +134,35 @@ public class ResearchController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate evalEnd,
             @RequestParam String strategyType,
             @RequestParam(required = false) String factorVersion,
-            @RequestParam(required = false) String dataSnapshotId,
+            @RequestParam String dataSnapshotId,
             @RequestParam(required = false) String experimentId,
-            @RequestParam(defaultValue = "label_v1") String labelVersion,
-            @RequestParam(defaultValue = "2") int horizon) {
+            @RequestParam(defaultValue = "label_v2_raw_calendar") String labelVersion,
+            @RequestParam(defaultValue = "2") int horizon,
+            @RequestParam(required = false) String baseModelVersion) {
         return ApiResponse.success(probabilityCalibrationService.calibrate(
                 fitStart, fitEnd, evalStart, evalEnd, labelVersion, horizon,
-                strategyType, factorVersion, dataSnapshotId, experimentId));
+                strategyType, factorVersion, dataSnapshotId, experimentId, baseModelVersion));
     }
 
-    /** QP-013：模型注册表（最近 20 条，供前端模型列表）。 */
+    /** V2-MP-004：校准器注册表（最近 20 条，只读审计；不含内嵌 JSON 本体）。 */
+    @GetMapping("/calibrators")
+    public ApiResponse<java.util.List<Map<String, Object>>> calibrators() {
+        return ApiResponse.success(calibratorService.listLatest(20));
+    }
+
+    /** QP-013：模型注册表（最近 20 条，供前端模型列表）。V2-MP-025：只回元数据 lineage，不含大 artifact。 */
     @GetMapping("/models")
     public ApiResponse<java.util.List<Map<String, Object>>> models() {
         java.util.List<Map<String, Object>> out = new java.util.ArrayList<>();
         for (com.quant.entity.ModelVersion mv : modelVersionRepository.findTop20ByOrderByCreatedAtDesc()) {
-            Map<String, Object> m = new java.util.LinkedHashMap<>();
-            m.put("model_version", mv.getModelVersion());
-            m.put("algorithm", mv.getAlgorithm());
-            m.put("feature_version", mv.getFeatureVersion());
-            m.put("label_version", mv.getLabelVersion());
-            m.put("horizon", mv.getHorizon());
-            m.put("train_start", mv.getTrainStart());
-            m.put("train_end", mv.getTrainEnd());
-            m.put("test_start", mv.getTestStart());
-            m.put("test_end", mv.getTestEnd());
-            m.put("stage", mv.getStage());
-            m.put("metrics", mv.getMetrics());
-            m.put("artifact", mv.getArtifact());
-            m.put("created_at", mv.getCreatedAt());
-            out.add(m);
+            out.add(modelImportService.metadata(mv));
         }
         return ApiResponse.success(out);
     }
 
     /**
      * MP-003：训练 Logistic 单特征 rule_score 基线（强制 strategyType + embargo）。
+     * V2-MP-002：默认 label_v2_raw_calendar；dataSnapshotId 必填（新研究必须绑定快照）。
      */
     @PostMapping("/logistic/train")
     public ApiResponse<Map<String, Object>> trainLogistic(
@@ -172,9 +172,9 @@ public class ResearchController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate testEnd,
             @RequestParam String strategyType,
             @RequestParam(required = false) String factorVersion,
-            @RequestParam(required = false) String dataSnapshotId,
+            @RequestParam String dataSnapshotId,
             @RequestParam(required = false) String experimentId,
-            @RequestParam(defaultValue = "label_v1") String labelVersion,
+            @RequestParam(defaultValue = "label_v2_raw_calendar") String labelVersion,
             @RequestParam(defaultValue = "2") int horizon,
             @RequestParam(defaultValue = "logistic_v1_t2") String modelVersion) {
         return ApiResponse.success(logisticModelTrainer.train(

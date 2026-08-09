@@ -64,22 +64,27 @@ public class LabelSnapshot {
     /** 二分类标签：1=上涨(net_return>阈值)，0=未上涨；拒单样本为 null。 */
     private Integer yLabel;
 
-    /** 净收益（扣成本后）；拒单样本为 null。 */
+    /** 净收益（扣成本后）；拒单样本为 null。V2-MP-015：scale 8，防 0.0003 截成 0.00。 */
+    @Column(precision = 20, scale = 8)
     private BigDecimal netReturn;
 
-    /** 入场价（含滑点）。 */
+    /** 入场价（含滑点）。V2-MP-015：价格 scale 4。 */
+    @Column(precision = 20, scale = 4)
     private BigDecimal entryPrice;
 
-    /** 退出价（含滑点）。 */
+    /** 退出价（含滑点）。V2-MP-015：价格 scale 4。 */
+    @Column(precision = 20, scale = 4)
     private BigDecimal exitPrice;
 
     private LocalDate entryDate;
     private LocalDate exitDate;
 
-    /** 持有期最大有利变动（正收益峰值），FILLED 时计算，否则 null。 */
+    /** 持有期最大有利变动（正收益峰值），FILLED 时计算，否则 null。V2-MP-015：scale 8。 */
+    @Column(precision = 20, scale = 8)
     private BigDecimal maxFavorable;
 
-    /** 持有期最大不利变动（负收益谷值），FILLED 时计算，否则 null。 */
+    /** 持有期最大不利变动（负收益谷值），FILLED 时计算，否则 null。V2-MP-015：scale 8。 */
+    @Column(precision = 20, scale = 8)
     private BigDecimal maxAdverse;
 
     /** 成交状态：FILLED/NOT_BUYABLE/SUSPENDED/NOT_SELLABLE/DELISTED。 */

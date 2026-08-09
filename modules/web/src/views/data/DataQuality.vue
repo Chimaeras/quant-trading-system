@@ -8,6 +8,19 @@
         </div>
       </template>
 
+      <el-alert
+        type="info"
+        show-icon
+        :closable="false"
+        class="workbench-banner"
+        title="长任务已支持持久化任务化执行：历史重放 / 完整特征快照回放 / 标签生成 / 校准 / 训练均有任务入口，支持进度跟踪、取消/恢复、失败分区查看与发布状态。刷新或关闭重开页面仍可恢复跟踪。"
+      >
+        <template #default>
+          <el-button link type="primary" size="small" @click="() => goToWorkbench()">前往「研究任务工作台」</el-button>
+          <el-button link type="primary" size="small" @click="() => goToWorkbench('batch')">数据批次任务</el-button>
+        </template>
+      </el-alert>
+
       <div v-loading="loading">
         <template v-if="report">
           <el-alert
@@ -237,7 +250,11 @@
               <template #header>
                 <div class="card-header-row">
                   <span>历史重放（PIT 股票池健康）</span>
-                  <el-button size="small" type="primary" :loading="replayLoading" @click="runReplay">执行重放</el-button>
+                  <div class="card-header-actions">
+                    <el-tag size="small" type="warning" effect="plain">legacy 同步</el-tag>
+                    <el-button size="small" type="primary" link @click="goToWorkbench('research')">任务化执行</el-button>
+                    <el-button size="small" type="primary" plain :loading="replayLoading" @click="runReplay">执行重放</el-button>
+                  </div>
                 </div>
               </template>
               <div class="replay-form">
@@ -279,7 +296,11 @@
               <template #header>
                 <div class="card-header-row">
                   <span>T+2/T+3 标签工厂（label_snapshot）</span>
-                  <el-button size="small" type="primary" :loading="labelBuilding" @click="runBuildLabels">生成标签</el-button>
+                  <div class="card-header-actions">
+                    <el-tag size="small" type="warning" effect="plain">legacy 同步</el-tag>
+                    <el-button size="small" type="primary" link @click="goToWorkbench('research')">任务化执行</el-button>
+                    <el-button size="small" type="primary" plain :loading="labelBuilding" @click="runBuildLabels">生成标签</el-button>
+                  </div>
                 </div>
               </template>
               <div class="replay-form">
@@ -288,9 +309,16 @@
                 <span>截止日</span>
                 <el-date-picker v-model="labelForm.endDate" type="date" value-format="YYYY-MM-DD" size="small" style="width: 150px" />
                 <span>版本</span>
-                <el-input v-model="labelForm.labelVersion" size="small" style="width: 120px" placeholder="label_v1" />
+                <el-input v-model="labelForm.labelVersion" size="small" style="width: 130px" placeholder="label_v2_raw_calendar" />
               </div>
-              <p class="q-note">基于 PIT 股票池生成 T+2/T+3 标签（净收益/二分类/成交状态），保留所有拒单样本不净化；幂等跳过已存在。</p>
+              <div class="replay-form" style="margin-top: 6px">
+                <span>数据快照</span>
+                <el-select v-model="labelForm.dataSnapshotId" size="small" style="width: 240px" placeholder="选择数据快照（必填）">
+                  <el-option v-for="s in snapshots" :key="s.snapshot_id" :label="`${s.snapshot_id} @ ${s.cutoff_time}`" :value="s.snapshot_id" />
+                </el-select>
+                <el-button size="small" :loading="snapshotCreating" @click="createSnapshotForLabels">新建快照</el-button>
+              </div>
+              <p class="q-note">基于 PIT 股票池生成 T+2/T+3 标签（净收益/二分类/成交状态），保留所有拒单样本不净化；幂等跳过已存在。V2-MP-002：新研究必须绑定数据快照，默认 label_v2_raw_calendar。</p>
               <template v-if="labelResult">
                 <div class="raw-section">
                   <div class="raw-sub-title">生成结果</div>
@@ -400,10 +428,13 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { ElMessageBox } from 'element-plus'
 import { dataApi } from '@/api/data'
 import { useToast } from '@/composables/useToast'
+
+const router = useRouter()
 
 interface QualityReport {
   earliest_date: string
@@ -458,6 +489,15 @@ interface QualityReport {
 
 const toast = useToast()
 const loading = ref(false)
+
+/** V2-MP-019：长任务统一引导到「研究任务工作台」（支持持久跟踪/取消/恢复/发布状态）。 */
+function goToWorkbench(tab?: string) {
+  if (tab === 'batch') {
+    router.push({ path: '/research/tasks', query: { tab: 'batch' } })
+  } else {
+    router.push({ path: '/research/tasks' })
+  }
+}
 const report = ref<QualityReport | null>(null)
 const showMissingDates = ref(false)
 const showCalendarDiffMissing = ref(false)
@@ -502,8 +542,42 @@ const labelResult = ref<any>(null)
 const labelForm = reactive({
   startDate: dayjs().subtract(1, 'month').format('YYYY-MM-DD'),
   endDate: dayjs().format('YYYY-MM-DD'),
-  labelVersion: 'label_v1'
+  labelVersion: 'label_v2_raw_calendar',
+  dataSnapshotId: '' as string
 })
+const snapshots = ref<Array<{ snapshot_id: string; cutoff_time: string }>>([])
+
+async function loadSnapshots() {
+  try {
+    const res = await dataApi.listSnapshots(10)
+    snapshots.value = (res.items ?? []).map(i => ({
+      snapshot_id: i.snapshot_id,
+      cutoff_time: i.cutoff_time
+    }))
+    if (!labelForm.dataSnapshotId && snapshots.value.length) {
+      labelForm.dataSnapshotId = snapshots.value[0].snapshot_id
+    }
+  } catch (e: any) {
+    toast.warning(e?.message || '加载数据快照列表失败')
+  }
+}
+
+async function createSnapshotForLabels() {
+  snapshotCreating.value = true
+  try {
+    const s = await dataApi.createSnapshot()
+    if (!s.snapshot_id) {
+      toast.error('快照创建失败（未返回 snapshot_id）')
+    } else {
+      toast.success(`已创建快照 ${s.snapshot_id}`)
+      await loadSnapshots()
+    }
+  } catch (e: any) {
+    toast.error(e?.message || '创建快照失败')
+  } finally {
+    snapshotCreating.value = false
+  }
+}
 
 const healthType = computed<'success' | 'warning' | 'info'>(() => {
   if (!report.value) return 'info'
@@ -655,12 +729,17 @@ async function runBuildLabels() {
     toast.warning('请填写起止日期')
     return
   }
+  if (!labelForm.dataSnapshotId) {
+    toast.warning('请先选择/创建数据快照（新研究必须绑定快照）')
+    return
+  }
   labelBuilding.value = true
   try {
     labelResult.value = await dataApi.buildLabels({
       startDate: labelForm.startDate,
       endDate: labelForm.endDate,
-      labelVersion: labelForm.labelVersion
+      labelVersion: labelForm.labelVersion,
+      dataSnapshotId: labelForm.dataSnapshotId
     })
     if (labelResult.value?.status === 'no_calendar') {
       toast.warning('交易日历未初始化，请先反推交易日历')
@@ -674,7 +753,7 @@ async function runBuildLabels() {
   }
 }
 
-onMounted(() => load())
+onMounted(() => { load(); loadSnapshots() })
 </script>
 
 <style scoped>
@@ -732,6 +811,14 @@ onMounted(() => load())
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+.card-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.workbench-banner {
+  margin-bottom: 12px;
 }
 .raw-section {
   margin-bottom: 12px;

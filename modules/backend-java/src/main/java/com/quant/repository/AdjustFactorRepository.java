@@ -3,6 +3,7 @@ package com.quant.repository;
 import com.quant.entity.AdjustFactor;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -30,6 +31,14 @@ public interface AdjustFactorRepository extends JpaRepository<AdjustFactor, Long
 
     @Query("SELECT COUNT(a) FROM AdjustFactor a WHERE a.reliability = :reliability")
     long countByReliability(String reliability);
+
+    /** 区间内复权因子实际覆盖的交易日数（MP-006 区间覆盖检查）。 */
+    @Query("SELECT COUNT(DISTINCT a.tradeDate) FROM AdjustFactor a WHERE a.tradeDate BETWEEN :start AND :end")
+    long countDistinctTradeDatesBetween(@Param("start") LocalDate start, @Param("end") LocalDate end);
+
+    /** 区间内复权因子覆盖的（股票|交易所）对数量（MP-006 区间覆盖检查）。 */
+    @Query("SELECT COUNT(DISTINCT a.stockCode || '|' || a.exchangeType) FROM AdjustFactor a WHERE a.tradeDate BETWEEN :start AND :end")
+    long countDistinctStocksBetween(@Param("start") LocalDate start, @Param("end") LocalDate end);
 
     @Query("SELECT MIN(a.tradeDate) FROM AdjustFactor a")
     Optional<LocalDate> findMinTradeDate();

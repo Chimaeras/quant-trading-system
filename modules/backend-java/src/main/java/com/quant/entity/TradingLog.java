@@ -59,8 +59,16 @@ public class TradingLog {
     @Column(name = "account_id")
     private Long accountId;
 
+    /** 仿真会话ID：0=在线账户；>0=历史演练会话（V2-MP-021）。 */
+    @Column(name = "session_id", nullable = false)
+    private Long sessionId = 0L;
+
     @Column(name = "user_id")
     private Long userId;
+
+    /** 成交价来源：CLIENT_SPECIFIED / market_price_raw（V2-MP-021 订单契约）。 */
+    @Column(name = "price_source", length = 30)
+    private String priceSource;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

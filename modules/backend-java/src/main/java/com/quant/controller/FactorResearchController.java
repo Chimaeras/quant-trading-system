@@ -39,4 +39,22 @@ public class FactorResearchController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         return ApiResponse.success(factorResearchService.unifiedReport(strategy, startDate, endDate));
     }
+
+    /**
+     * V2-MP-022：完整 PIT 因子截面与 raw forward return IC（权威路径）。
+     * 输入 MP-016 feature snapshot，输出含 snapshot/schema/label/metricScope/sample funnel；
+     * EXECUTABLE 口径需 labelVersion。
+     */
+    @GetMapping("/snapshot-research")
+    public ApiResponse<Map<String, Object>> snapshotResearch(
+            @RequestParam String strategy,
+            @RequestParam String snapshotId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) Integer holdingDays,
+            @RequestParam(required = false) String labelVersion,
+            @RequestParam(required = false) String featureVersion) {
+        return ApiResponse.success(factorResearchService.snapshotResearch(
+                strategy, snapshotId, startDate, endDate, holdingDays, labelVersion, featureVersion));
+    }
 }

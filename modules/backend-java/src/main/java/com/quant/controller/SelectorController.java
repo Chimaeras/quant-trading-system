@@ -1,6 +1,7 @@
 package com.quant.controller;
 
 import com.quant.dto.ApiResponse;
+import com.quant.exception.ResourceNotFoundException;
 import com.quant.service.OversoldReboundScoringService;
 import com.quant.service.StockSelectorService;
 import lombok.RequiredArgsConstructor;
@@ -37,7 +38,7 @@ public class SelectorController {
     @GetMapping("/result/{resultId}")
     public ApiResponse<Map<String, Object>> detail(@PathVariable String resultId) {
         Map<String, Object> data = stockSelectorService.getResultById(resultId);
-        if (data == null) return ApiResponse.error(404, "选股结果不存在");
+        if (data == null) throw new ResourceNotFoundException("选股结果不存在: " + resultId);
         return ApiResponse.success(data);
     }
 
@@ -54,7 +55,7 @@ public class SelectorController {
     @DeleteMapping("/templates/{templateId}")
     public ApiResponse<Object> deleteTemplate(@PathVariable String templateId) {
         boolean ok = stockSelectorService.deleteTemplate(templateId);
-        if (!ok) return ApiResponse.error(404, "模板不存在");
+        if (!ok) throw new ResourceNotFoundException("模板不存在: " + templateId);
         return ApiResponse.success(Map.of("deleted", true));
     }
 }

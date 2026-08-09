@@ -152,7 +152,14 @@ def cmd_label_smoke(_args) -> int:
 
 
 def cmd_research_run(args) -> int:
-    """离线研究 runner：校验 feature manifest，写出 model_manifest + metrics。"""
+    """离线研究 runner：校验 feature manifest，写出 model_manifest + metrics。
+
+    fail-closed 契约（V2-MP-011 P0 修复）：
+    - demo 模式：允许缺数据，产物必须带 DEMO 水印且 production_eligible=false；
+    - 正式模式（非 demo）：强制 data_path 存在且可读、schema 契约兼容；
+      由于真实训练/拟合尚未实现（offline_stub），一律返回非零退出码且不产出任何
+      可被注册为 production 的 model_manifest —— 绝不出现「无数据 status=ok」。
+    """
     config_path = Path(args.config)
     feature_manifest_path = Path(args.feature_manifest)
     output_dir = Path(args.output_dir)
@@ -172,16 +179,6 @@ def cmd_research_run(args) -> int:
             print(f"  - {err}", file=sys.stderr)
         return 3
 
-    # 可选：显式 data_path / parquet 路径；缺失时正式模式失败，demo 可继续
-    data_path = config.get("data_path") or feature_manifest.get("data_path")
-    if data_path:
-        p = Path(str(data_path))
-        if not p.exists():
-            if not demo:
-                print(f"ERROR: data missing — {p.resolve()}", file=sys.stderr)
-                return 2
-            print(f"[DEMO] data_path missing, continuing with synthetic smoke: {p}")
-
     columns = list(feature_manifest["columns"])
     schema_hash = str(feature_manifest["schema_hash"])
     feature_set_version = str(feature_manifest["feature_set_version"])
@@ -194,22 +191,60 @@ def cmd_research_run(args) -> int:
         or "unspecified"
     )
 
-    # Stub metrics：真实训练留给后续；此处固定写出可校验契约产物
+    # data_path 是正式模式硬性要求：缺数据或文件不存在 → 失败且不产 model
+    data_path = config.get("data_path") or feature_manifest.get("data_path")
+    data_file = Path(str(data_path)) if data_path else None
+
+    if not demo:
+        if data_file is None:
+            print(
+                "ERROR: formal research run requires data_path "
+                "(config.data_path or feature_manifest.data_path); "
+                "no data → no model (fail-closed)",
+                file=sys.stderr,
+            )
+            return 2
+        if not data_file.exists():
+            print(f"ERROR: data missing — {data_file.resolve()}", file=sys.stderr)
+            return 2
+        if data_file.is_dir():
+            print(f"ERROR: data_path points to a directory, expected a data file — {data_file.resolve()}", file=sys.stderr)
+            return 2
+        # 真实拟合尚未实现：禁止以 offline_stub 冒充正式训练成功（fail-closed）。
+        # 此时即使数据齐全也拒绝产出 production-eligible 模型，直到训练器落地。
+        print(
+            "ERROR: formal training pipeline not implemented (algorithm=offline_stub); "
+            "refusing to emit a production-eligible model. Use --demo for stub artifacts "
+            "that are clearly watermarked and never production-eligible.",
+            file=sys.stderr,
+        )
+        return 4
+
+    # ---- 以下仅 demo 模式可达：产物一律打 DEMO 水印，禁止注册为 production ----
+    if data_file is not None and not data_file.exists():
+        print(f"[DEMO] data_path missing, continuing with synthetic smoke: {data_file}")
+
+    # Stub metrics：真实训练留给后续；demo 产物仅为契约校验，绝不标注 production_eligible
     metrics: dict[str, Any] = {
         "status": "ok",
         "sample_size": int(config.get("sample_size") or 0),
-        "note": "MP-021 stub runner — metrics placeholder until full train pipeline",
+        "note": "MP-021 stub runner (DEMO) — metrics placeholder until full train pipeline",
         "feature_set_version": feature_set_version,
         "schema_hash": schema_hash,
+        "run_mode": "demo",
+        "production_eligible": False,
+        "DEMO": True,
+        "watermark": "DEMO",
     }
-    if demo:
-        metrics["DEMO"] = True
-        metrics["watermark"] = "DEMO"
 
     artifact_payload = {
         "weights": config.get("weights") or [0.0] * len(columns),
         "bias": float(config.get("bias") or 0.0),
         "features": columns,
+        "run_mode": "demo",
+        "production_eligible": False,
+        "DEMO": True,
+        "watermark": "DEMO",
     }
     artifact_hash = hashlib.sha256(
         json.dumps(artifact_payload, sort_keys=True).encode("utf-8")
@@ -225,24 +260,24 @@ def cmd_research_run(args) -> int:
         "label_version": label_version,
         "code_version": str(config.get("code_version") or "compute-python"),
         "artifact_hash": artifact_hash,
+        "run_mode": "demo",
+        "production_eligible": False,
+        "demo": True,
+        "DEMO": True,
+        "watermark": "DEMO",
         "train_window": config.get("train_window") or {},
         "calibration_window": config.get("calibration_window") or {},
         "test_window": config.get("test_window") or {},
         "metrics_uri": "metrics.json",
     }
-    if demo:
-        model_manifest["demo"] = True
-        model_manifest["DEMO"] = True
-        model_manifest["watermark"] = "DEMO"
 
     output_dir.mkdir(parents=True, exist_ok=True)
     _write_json(output_dir / "metrics.json", metrics)
     _write_json(output_dir / "model_manifest.json", model_manifest)
     _write_json(output_dir / "artifact_stub.json", artifact_payload)
 
-    print(f"research run wrote artifacts to {output_dir.resolve()}")
-    if demo:
-        print("[DEMO] watermark applied — not production-eligible")
+    print(f"research run wrote DEMO artifacts to {output_dir.resolve()}")
+    print("[DEMO] watermark applied — NOT production-eligible; Java importer must reject")
     return 0
 
 

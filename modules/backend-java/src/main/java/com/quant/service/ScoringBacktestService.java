@@ -26,6 +26,7 @@ import com.quant.service.backtest.FactorResearchEngine.CrossSectionObservation;
 import com.quant.service.backtest.FactorResearchEngine.FactorResearchSummary;
 import com.quant.service.backtest.StrategyBacktestEngine;
 import com.quant.service.backtest.TradingLimitRules;
+import com.quant.service.execution.RawPriceResolver;
 import com.quant.service.scoring.CodexShortCycleScoringEngine;
 import com.quant.service.scoring.StrategyFormulaRegistry;
 import com.quant.service.scoring.ScoringUtils;
@@ -105,7 +106,7 @@ public class ScoringBacktestService {
 
         if (dailyResults.isEmpty()) {
             log.warn("未找到符合条件的选股结果");
-            Map<String, Object> emptyFunnel = emptyFunnel("qfq_legacy");
+            Map<String, Object> emptyFunnel = emptyFunnel("market_price_raw");
             return ScoringBacktestResponse.builder()
                     .strategyType(req.getStrategyType())
                     .startDate(req.getStartDate())
@@ -121,7 +122,7 @@ public class ScoringBacktestService {
                     .shortHorizonValidation(Map.of())
                     .codexFactorIcByHolding(Map.of())
                     .executionFunnel(emptyFunnel)
-                    .priceSource("qfq_legacy")
+                    .priceSource("market_price_raw")
                     .metricScope("FILLED_SAMPLE")
                     .build();
         }
@@ -144,7 +145,8 @@ public class ScoringBacktestService {
             dayIndex.put(tradingDays.get(i), i);
         }
 
-        // 4. 批量拉取行情：优先 market_price_raw，缺失回退 market_data(qfq_legacy)
+        // 4. 批量拉取行情：rawMap 用于成交定价（缺 raw 即拒绝成交，见 resolveExecutionBar）；
+        //    qfqMap 仅用于前一日/参考 bar 的 preClose 与技术指标等展示用途（resolvePriceBar）
         List<MarketData> allMarketData = marketDataRepo
                 .findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(calStart, calEnd);
         Map<String, MarketData> qfqMap = new HashMap<>();
@@ -229,8 +231,8 @@ public class ScoringBacktestService {
                     continue;
                 }
                 LocalDate entryDate = tradingDays.get(entryIdx);
-                PriceBar entryBar = resolvePriceBar(
-                        item.getStockCode(), item.getExchangeType(), entryDate, rawMap, qfqMap);
+                PriceBar entryBar = resolveExecutionBar(
+                        item.getStockCode(), item.getExchangeType(), entryDate, rawMap);
                 if (entryBar == null) {
                     addSkippedStock(stockReturns, item, entryDate, SKIP_NO_QUOTE_ON_ENTRY);
                     bumpReject(rejectReasons, SKIP_NO_QUOTE_ON_ENTRY);
@@ -238,11 +240,8 @@ public class ScoringBacktestService {
                     bumpPeriodSkipped(periodSkippedCounts, holdingDays);
                     continue;
                 }
-                if ("market_price_raw".equals(entryBar.source())) {
-                    rawPriceHits++;
-                } else {
-                    qfqPriceHits++;
-                }
+                // V2-MP-014：成交执行价只读 market_price_raw，此处恒为 raw（resolveExecutionBar 缺 raw 即返回 null）
+                rawPriceHits++;
                 BigDecimal rawEntryPrice = entryBar.openPrice();
                 if (rawEntryPrice == null || rawEntryPrice.compareTo(BigDecimal.ZERO) <= 0) {
                     addSkippedStock(stockReturns, item, entryDate, SKIP_INVALID_ENTRY_OPEN);
@@ -289,11 +288,8 @@ public class ScoringBacktestService {
                         forwardReturns.put(h, periodResult.ret());
                         periodReturns.get(h).add(periodResult.ret());
                         dailyReturns.get(h).add(periodResult.ret());
-                        if ("market_price_raw".equals(periodResult.priceSource())) {
-                            rawPriceHits++;
-                        } else if ("qfq_legacy".equals(periodResult.priceSource())) {
-                            qfqPriceHits++;
-                        }
+                        // V2-MP-014：退出执行价同为 raw-only（computePeriodReturn 缺 raw 返回 null），此处恒为 raw
+                        rawPriceHits++;
                     } else {
                         forwardReturns.put(h, null);
                         periodSkippedCounts.merge(h, 1, Integer::sum);
@@ -770,6 +766,30 @@ public class ScoringBacktestService {
         }
     }
 
+    /**
+     * V2-MP-014：成交执行价只读 market_price_raw，缺 raw 一律返回 null（reject），
+     * 禁止用 qfq 前复权价"救活"成交样本。供 entry/exit 等 EXECUTION 用途使用。
+     */
+    private static PriceBar resolveExecutionBar(
+            String stockCode,
+            String exchangeType,
+            LocalDate date,
+            Map<String, MarketPriceRaw> rawMap
+    ) {
+        RawPriceResolver.RawPriceResult res = RawPriceResolver.resolve(
+                stockCode, exchangeType, date,
+                (code, ex, d) -> rawMap.get(priceKey(code, ex, d)));
+        if (!res.ok()) {
+            return null;
+        }
+        return new PriceBar(
+                res.openPrice(), res.closePrice(), res.raw().getPreClose(), res.raw().getVolume(),
+                "market_price_raw");
+    }
+
+    /**
+     * 前收等 MARK/参考用途：raw 优先，qfq 仅作参考兜底（不影响成交价）。
+     */
     private static PriceBar resolvePriceBar(
             String stockCode,
             String exchangeType,
@@ -930,7 +950,7 @@ public class ScoringBacktestService {
             return null;
         }
         LocalDate entryDate = tradingDays.get(entryIdx);
-        PriceBar entryBar = resolvePriceBar(item.getStockCode(), item.getExchangeType(), entryDate, rawMap, qfqMap);
+        PriceBar entryBar = resolveExecutionBar(item.getStockCode(), item.getExchangeType(), entryDate, rawMap);
         if (entryBar == null) {
             return null;
         }
@@ -971,7 +991,7 @@ public class ScoringBacktestService {
             return new PeriodReturnResult(null, SKIP_BEYOND_CALENDAR);
         }
         LocalDate fwdDate = tradingDays.get(fwdIdx);
-        PriceBar exitBar = resolvePriceBar(item.getStockCode(), item.getExchangeType(), fwdDate, rawMap, qfqMap);
+        PriceBar exitBar = resolveExecutionBar(item.getStockCode(), item.getExchangeType(), fwdDate, rawMap);
         if (exitBar == null) {
             return new PeriodReturnResult(null, SKIP_NO_QUOTE_ON_EXIT);
         }

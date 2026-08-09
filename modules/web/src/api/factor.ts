@@ -60,6 +60,8 @@ export interface FactorResearchFunnel {
 }
 
 export interface FactorResearchResponse {
+  /** FULL_FEATURE_SNAPSHOT（权威）或 LEGACY_SELECTION_BIASED（sparse selector，V2-MP-022）。 */
+  source?: string
   strategy: string
   start_date: string
   end_date: string
@@ -86,6 +88,101 @@ export async function getFactorResearch(params: {
   holdingDays?: number
 }): Promise<FactorResearchResponse> {
   const res = await request.get<FactorResearchResponse>('/factor/research', { params })
+  return unwrap(res)
+}
+
+// ── V2-MP-022：完整 PIT 快照截面 IC（权威路径）──────────────────────────────
+// 输入 MP-016 feature snapshot，输出必含 snapshot/schema/label/metricScope/sample funnel；
+// EXECUTABLE 口径仅对 label_v2 execStatus=FILLED 样本给出；不读 selector_result / qfq。
+
+export interface SnapshotScopeIc {
+  metric_scope?: string
+  status?: string
+  basis_note?: string
+  embargo_note?: string
+  universe_note?: string
+  cross_section_days: number
+  total_observations: number
+  rank_ic_mean: number
+  rank_ic_std: number
+  rank_ic_ir: number
+  rank_ic_positive_rate: number
+  pearson_ic_mean: number
+  monotonicity: string
+  hac_std: number
+  ci_lower: number
+  ci_upper: number
+  long_short_spread: number
+  daily_rank_ic: FactorDailyRankIc[]
+  grouped_returns: FactorGroupReturn[]
+  note?: string
+}
+
+export interface SnapshotDailyFunnelRow {
+  signal_date: string
+  rows_total: number
+  scored_valid: number
+  raw_observations: number
+  cost_approx_observations: number
+  executable_observations: number
+  labels_matched: number
+  labels_missing: number
+}
+
+export interface SnapshotResearchFunnel {
+  universe_source?: string
+  partitions_reusable?: number
+  partitions_skipped?: string[]
+  cross_section_days?: number
+  rows_total?: number
+  scored_valid?: number
+  coverage?: number
+  label_version?: string | null
+  exec_status_breakdown?: Record<string, number>
+  tradable_status?: string
+  tradable_note?: string
+  metric_scope?: string
+  note?: string
+}
+
+export interface SnapshotResearchResponse {
+  source: string
+  snapshot_id: string
+  strategy: string
+  feature_version: string
+  schema_hash: string
+  label_version?: string | null
+  start_date: string
+  end_date: string
+  holding_days: number
+  universe_source: string
+  cross_section_days: number
+  partitions_reusable: number
+  partitions_skipped: string[]
+  rows_total: number
+  scored_valid: number
+  coverage: number
+  metric_scopes: string[]
+  executable_metric_scope: string
+  funnel?: SnapshotResearchFunnel
+  daily_funnel: SnapshotDailyFunnelRow[]
+  scopes: Record<string, SnapshotScopeIc>
+  note?: string
+}
+
+export async function getSnapshotFactorResearch(params: {
+  strategy: string
+  snapshotId: string
+  startDate: string
+  endDate: string
+  holdingDays?: number
+  labelVersion?: string
+  featureVersion?: string
+}): Promise<SnapshotResearchResponse> {
+  const res = await request.get<SnapshotResearchResponse>('/factor/snapshot-research', {
+    params,
+    timeout: 60000
+  })
   return unwrap(res)
 }
 
@@ -121,6 +218,8 @@ export interface UnifiedReportHorizonRow {
 }
 
 export interface UnifiedFactorReport {
+  /** LEGACY_SELECTION_BIASED（V2-MP-022）：sparse selector_result，仅供历史对照。 */
+  source?: string
   strategy: string
   start_date: string
   end_date: string

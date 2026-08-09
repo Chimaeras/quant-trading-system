@@ -534,6 +534,9 @@ const REASON_LABELS: Record<string, string> = {
   financial_imputed_count: '财报填充项',
   log_mv_source: 'ln(MV)来源',
   log_mv_reliable: 'ln(MV)可靠',
+  log_mv_reliability: 'ln(MV)可靠度',
+  mv_reliable_count: '可靠市值样本数',
+  mv_total_count: '市值样本总数',
   min_codex_score_warning: 'Codex阈值提示',
   pass_ma_trend: '均线趋势闸',
   pass_ret20: '20日收益闸',
@@ -693,7 +696,8 @@ function formatNeutralizationMode(row: Record<string, any>) {
     FULL_MV_INDUSTRY_REGRESSION: '全回归(lnMV+行业)',
     LOG_MV_ONLY_REGRESSION: '仅ln(MV)回归',
     INDUSTRY_DEMEAN_FALLBACK: '行业市值加权去均值',
-    PASSTHROUGH: '直通(样本不足)'
+    PASSTHROUGH: '直通(样本不足)',
+    SKIPPED_MV_RELIABILITY: '跳过市值中性化(可靠市值不足)'
   }
   return labels[mode] ?? mode
 }

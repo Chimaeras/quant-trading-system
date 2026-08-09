@@ -2,13 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://quant.local/contracts/model_manifest.schema.json",
   "title": "ModelManifest",
-  "description": "MP-012/021 minimal model artifact contract. Java validates schema_hash before registry load.",
+  "description": "MP-012/021 minimal model artifact contract. Java validates schema_hash before registry load. V2-MP-025: fields (name+dtype) required for audited import; missing dtype rejects import.",
   "type": "object",
   "required": [
     "data_snapshot_id",
     "feature_set_version",
     "schema_hash",
     "columns",
+    "fields",
     "model_version",
     "algorithm"
   ],
@@ -21,11 +22,32 @@
       "minItems": 1,
       "items": { "type": "string", "minLength": 1 }
     },
+    "fields": {
+      "type": "array",
+      "minItems": 1,
+      "description": "字段级 schema（与 columns 对齐）。每项必须声明 name+dtype；unit/asOfRule/missingPolicy 可选但若声明须与代码注册一致。缺 dtype 导入直接拒绝。",
+      "items": {
+        "type": "object",
+        "required": ["name", "dtype"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "dtype": { "type": "string", "minLength": 1, "description": "float64 / int64 / string 等" },
+          "unit": { "type": "string" },
+          "as_of_rule": { "type": "string" },
+          "missing_policy": { "type": "string" }
+        }
+      }
+    },
     "model_version": { "type": "string", "minLength": 1 },
     "algorithm": { "type": "string", "minLength": 1 },
     "label_version": { "type": "string" },
     "code_version": { "type": "string" },
-    "artifact_hash": { "type": "string" },
+    "artifact_hash": { "type": "string", "description": "artifact 内联 JSON 的 SHA-256（导入完整性校验）" },
+    "output_kind": {
+      "type": "string",
+      "description": "probability | rule_score | baseline_calibrator"
+    },
+    "calibrator_hash": { "type": "string", "description": "校准器/契约哈希（V2-MP-025 lineage）" },
     "train_window": {
       "type": "object",
       "properties": {

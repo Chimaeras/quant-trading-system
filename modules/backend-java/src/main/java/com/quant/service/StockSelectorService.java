@@ -53,7 +53,8 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         PointInTimeUniverseProvider.UniverseView universe = pointInTimeUniverseProvider.loadAsOf(tradeDate);
         boolean fullHistory = parseBool(request.get("fullHistory"), true);
         int lookbackDaysRequested = parseInt(request.get("lookbackDays"), 60, 20, 3650);
-        int topN = parseInt(request.get("topN"), 10, 1, 500);
+        // topN<=0 表示「无上限」：V2-MP-016 完整特征截面回放用 topN=0 获取全部打分候选
+        int topN = parseInt(request.get("topN"), 10, 0, 500);
         double minAvgAmount = parseDouble(request.get("minAvgAmount"), 30000000d, 0d, 1_000_000_000_000d);
         double minTrendScore = parseDouble(request.get("minTrendScore"), 40d, 0d, 100d);
         String templateId = String.valueOf(request.getOrDefault("templateId", "")).trim();

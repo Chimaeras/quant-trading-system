@@ -44,7 +44,7 @@ logging:
     com.quant: DEBUG
     org.hibernate.SQL: DEBUG
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} [%X{correlationId:-}] - %msg%n"
 
 # 历史行情：搜狐为主时一般无需再拉东财；为 true 时在搜狐有数据时仍拉东财并合并（搜狐优先，东财补缺）
 historical:

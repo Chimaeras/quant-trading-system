@@ -3,6 +3,7 @@ package com.quant.repository;
 import com.quant.entity.MarketPriceRaw;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -33,6 +34,14 @@ public interface MarketPriceRawRepository extends JpaRepository<MarketPriceRaw, 
 
     @Query("SELECT COUNT(DISTINCT m.tradeDate) FROM MarketPriceRaw m")
     long countDistinctTradeDates();
+
+    /** 区间内不复权行情实际覆盖的交易日数（MP-006 区间覆盖检查）。 */
+    @Query("SELECT COUNT(DISTINCT m.tradeDate) FROM MarketPriceRaw m WHERE m.tradeDate BETWEEN :start AND :end")
+    long countDistinctTradeDatesBetween(@Param("start") LocalDate start, @Param("end") LocalDate end);
+
+    /** 区间内不复权行情覆盖的（股票|交易所）对数量（MP-006 区间覆盖检查）。 */
+    @Query("SELECT COUNT(DISTINCT m.stockCode || '|' || m.exchangeType) FROM MarketPriceRaw m WHERE m.tradeDate BETWEEN :start AND :end")
+    long countDistinctStocksBetween(@Param("start") LocalDate start, @Param("end") LocalDate end);
 
     @Query("SELECT MAX(m.tradeDate) FROM MarketPriceRaw m")
     Optional<LocalDate> findMaxTradeDate();

@@ -33,6 +33,10 @@ public class ModelVersion {
     @Column(nullable = false, length = 40)
     private String algorithm;
 
+    /** 部署绑定策略（V2-MP-004）：CLASSIC_SELECTOR / OVERSOLD_REBOUND。 */
+    @Column(length = 40)
+    private String strategyType;
+
     /** 特征版本：如 rule_score_v1。 */
     @Column(length = 40)
     private String featureVersion;
@@ -61,9 +65,46 @@ public class ModelVersion {
     @Column(columnDefinition = "TEXT")
     private String metrics;
 
-    /** 状态：champion / challenger / archived。 */
+    /** 状态：champion / challenger / archived / DRAFT（导入待审）。 */
     @Column(nullable = false, length = 20)
     private String stage = "challenger";
+
+    // ── V2-MP-025 显式 lineage / schema / 导入审核列 ─────────────────────────
+    @Column(length = 40)
+    private String dataSnapshotId;
+
+    @Column(length = 64)
+    private String featureSetVersion;
+
+    @Column(length = 64)
+    private String schemaHash;
+
+    @Column(length = 64)
+    private String codeVersion;
+
+    @Column(length = 64)
+    private String artifactHash;
+
+    @Column(length = 32)
+    private String outputKind;
+
+    @Column(length = 64)
+    private String calibratorHash;
+
+    /** 推理精确查找键：algorithm:feature_set:schema_hash。 */
+    @Column(length = 120)
+    private String deployKey;
+
+    @Column(length = 255)
+    private String importSource;
+
+    /** DRAFT=导入待审 / TRAINED=训练直写 / REGISTERED=已审核。 */
+    @Column(length = 20)
+    private String importStatus;
+
+    /** 有序特征列快照（JSON 数组，导入时随 schema 固化）。 */
+    @Column(columnDefinition = "TEXT")
+    private String modelColumns;
 
     @Column(updatable = false)
     private LocalDateTime createdAt;

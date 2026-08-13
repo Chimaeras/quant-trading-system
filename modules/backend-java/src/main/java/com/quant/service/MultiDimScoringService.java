@@ -284,7 +284,8 @@ public class MultiDimScoringService {
         int L = bars.size() - 1;
         double c0 = bars.get(L).getClosePrice() != null ? bars.get(L).getClosePrice().doubleValue() : 0;
         double c5 = bars.get(L - 5).getClosePrice() != null ? bars.get(L - 5).getClosePrice().doubleValue() : 0;
-        Double ret5 = c5 > 1e-9 ? (c0 - c5) / c5 * 100.0 : null;
+        // c0 或 c5 缺失（≤0）时 ret5 = null（跳过），不能算出 -100% 当暴跌污染行业排名。
+        Double ret5 = (c0 > 1e-9 && c5 > 1e-9) ? (c0 - c5) / c5 * 100.0 : null;
         Double indAvgRet = indAvgs.avgRet5ByIndustry().get(industry.isBlank() ? "_none_" : industry);
 
         int indCmp = FundamentalDocScoring.industryCompareFromPriceAndPe(
@@ -485,7 +486,7 @@ public class MultiDimScoringService {
             int L = bars.size() - 1;
             double c0 = bars.get(L).getClosePrice() != null ? bars.get(L).getClosePrice().doubleValue() : 0;
             double c5 = bars.get(L - 5).getClosePrice() != null ? bars.get(L - 5).getClosePrice().doubleValue() : 0;
-            if (c5 < 1e-9) continue;
+            if (c0 < 1e-9 || c5 < 1e-9) continue;
             double ret = (c0 - c5) / c5 * 100.0;
             StockInfo inf = infoByKey.get(key);
             String sec = (inf != null && inf.getSector() != null && !inf.getSector().isBlank())

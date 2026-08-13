@@ -75,28 +75,37 @@ public class MarketEnvironmentAnalyzer {
     }
 
     /**
-     * 计算指数涨跌幅（使用全市场平均）
+     * 计算指数涨跌幅（使用全市场平均收盘价环比）。
+     *
+     * <p>用 prevBars map 取每只股票在 tradeDate 前最近一根 bar，与 calculateAvgMarketReturn 口径一致。
+     * 原实现用 allBars.get(i-1) 只看相邻一个位置，当窗口内某股最早一根就是当天时，
+     * i-1 属于另一只股票被跳过，真正的前一交易日 bar 永远匹配不到，导致指数涨跌幅失真。
      */
     private double calculateIndexChange(List<MarketData> allBars, LocalDate tradeDate) {
+        java.util.Map<String, MarketData> todayBars = new java.util.HashMap<>();
+        java.util.Map<String, MarketData> prevBars = new java.util.HashMap<>();
+
+        for (MarketData bar : allBars) {
+            if (bar.getTradeDate().equals(tradeDate)) {
+                todayBars.put(bar.getStockCode() + "|" + bar.getExchangeType(), bar);
+            } else if (bar.getTradeDate().isBefore(tradeDate)) {
+                // allBars 按日期升序，持续覆盖以保留 tradeDate 前最近一根 bar（前一交易日）
+                prevBars.put(bar.getStockCode() + "|" + bar.getExchangeType(), bar);
+            }
+        }
+
         double todaySum = 0;
         double prevSum = 0;
         int count = 0;
 
-        for (int i = 0; i < allBars.size(); i++) {
-            MarketData bar = allBars.get(i);
-            if (bar.getTradeDate().equals(tradeDate) && bar.getClosePrice() != null) {
-                todaySum += bar.getClosePrice().doubleValue();
-                // 查找前一天的数据
-                if (i > 0) {
-                    MarketData prevBar = allBars.get(i - 1);
-                    if (prevBar.getClosePrice() != null &&
-                            prevBar.getStockCode().equals(bar.getStockCode()) &&
-                            prevBar.getExchangeType() != null &&
-                            prevBar.getExchangeType().equals(bar.getExchangeType())) {
-                        prevSum += prevBar.getClosePrice().doubleValue();
-                        count++;
-                    }
-                }
+        for (String key : todayBars.keySet()) {
+            MarketData today = todayBars.get(key);
+            MarketData prev = prevBars.get(key);
+            if (today != null && prev != null &&
+                today.getClosePrice() != null && prev.getClosePrice() != null) {
+                todaySum += today.getClosePrice().doubleValue();
+                prevSum += prev.getClosePrice().doubleValue();
+                count++;
             }
         }
 

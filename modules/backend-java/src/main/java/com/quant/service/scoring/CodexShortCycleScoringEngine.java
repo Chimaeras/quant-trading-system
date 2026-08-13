@@ -389,6 +389,10 @@ public class CodexShortCycleScoringEngine {
 
         List<ScoredRow> rows = new ArrayList<>(raws.size());
         for (int i = 0; i < raws.size(); i++) {
+            // T 因子 = 中期动量(er20m5 +0.28, er5 +0.20) + 日内反转(er1 -0.15) + 趋势/技术面。
+            // er1 取负权重是有意设计（非符号错误）：A 股存在显著的日内/隔日反转效应，
+            // 当日涨幅过大(er1 高)的股票次日回调概率高，故减分。
+            // er5/er20m5 为正权重捕捉中期趋势惯性。详见 doc_ref 指向的设计文档 v1.0。
             double t = 0.28 * zEr20m5.get(i) + 0.20 * zEr5.get(i) - 0.15 * zEr1.get(i)
                     + 0.17 * zMa.get(i) + 0.10 * zRsi.get(i) + 0.10 * zVolC.get(i);
             double quality = 0.40 * zRoe.get(i) + 0.25 * zRev.get(i) - 0.20 * zDebt.get(i) + 0.15 * zCurr.get(i);

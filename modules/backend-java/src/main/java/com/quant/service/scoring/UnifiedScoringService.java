@@ -16,9 +16,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -57,6 +59,7 @@ public class UnifiedScoringService {
     private final UnifiedScoringTaskRepository unifiedScoringTaskRepository;
     private final ObjectMapper objectMapper;
     private final ThreadPoolTaskExecutor unifiedTaskExecutor;
+    private final PlatformTransactionManager transactionManager;
     private final Set<String> queuedOrRunningTaskIds = ConcurrentHashMap.newKeySet();
     private final Map<String, Future<?>> taskFutures = new ConcurrentHashMap<>();
 
@@ -70,7 +73,8 @@ public class UnifiedScoringService {
             SelectorResultItemRepository selectorResultItemRepository,
             UnifiedScoringTaskRepository unifiedScoringTaskRepository,
             ObjectMapper objectMapper,
-            @Qualifier("singleThreadExecutor") ThreadPoolTaskExecutor unifiedTaskExecutor) {
+            @Qualifier("singleThreadExecutor") ThreadPoolTaskExecutor unifiedTaskExecutor,
+            PlatformTransactionManager transactionManager) {
         this.trendScoringService = trendScoringService;
         this.comprehensiveScoringService = comprehensiveScoringService;
         this.multiDimScoringService = multiDimScoringService;
@@ -81,9 +85,14 @@ public class UnifiedScoringService {
         this.unifiedScoringTaskRepository = unifiedScoringTaskRepository;
         this.objectMapper = objectMapper;
         this.unifiedTaskExecutor = unifiedTaskExecutor;
+        this.transactionManager = transactionManager;
     }
 
-    @Transactional
+    /**
+     * 注意：本方法不再标注 {@code @Transactional}。因为 {@code runTask} 在异步线程内通过
+     * {@code this.run(req)} 自调用，Spring AOP 代理被绕过，注解形同虚设。持久化事务改由
+     * {@link #persistUnified} 内部的 {@link TransactionTemplate} 显式保证，同步与异步调用一致。
+     */
     public Map<String, Object> run(Map<String, Object> request) {
         Map<String, Object> req = request != null ? request : Map.of();
         UnifiedScoringStrategy strategy = UnifiedScoringStrategy.parse(String.valueOf(req.getOrDefault("strategy", "CLASSIC_SELECTOR")));
@@ -782,6 +791,21 @@ public class UnifiedScoringService {
     }
 
     private String persistUnified(
+            UnifiedScoringStrategy strategy,
+            String factorVersion,
+            String tradeDate,
+            int topN,
+            Map<String, Object> strategyReq,
+            Map<String, Object> rawResult,
+            List<Map<String, Object>> items) {
+
+        // 显式事务包裹：run() 不再标注 @Transactional（异步自调用会绕过代理），
+        // 此处用 TransactionTemplate 保证父表+子项写入的原子性，中途异常整体回滚。
+        return new TransactionTemplate(transactionManager).execute(status ->
+                persistUnifiedInTransaction(strategy, factorVersion, tradeDate, topN, strategyReq, rawResult, items));
+    }
+
+    private String persistUnifiedInTransaction(
             UnifiedScoringStrategy strategy,
             String factorVersion,
             String tradeDate,

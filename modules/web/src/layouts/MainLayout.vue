@@ -25,15 +25,16 @@
     <nav class="tabs glass">
       <div v-for="group in navGroups" :key="group.title" class="nav-group">
         <span class="group-title">{{ group.title }}</span>
-        <button
-          v-for="item in group.items"
-          :key="item.path"
-          class="tab-item"
-          :class="{ active: route.path === item.path }"
-          @click="router.push(item.path)"
-        >
-          {{ item.label }}
-        </button>
+        <template v-for="item in group.items" :key="item.key || item.path">
+          <button
+            v-if="!item.visible || item.visible()"
+            class="tab-item"
+            :class="{ active: item.path && route.path === item.path }"
+            @click="handleNav(item)"
+          >
+            {{ item.label }}
+          </button>
+        </template>
       </div>
     </nav>
     <main class="page-main">
@@ -47,9 +48,31 @@ import { computed, onMounted, ref } from "vue"
 import { useRoute, useRouter } from "vue-router"
 import { getSystemReadiness, type SystemReadiness } from "@/api/system"
 import { errorText } from "@/api/request"
+import { authApi } from "@/api/auth"
 
 const route = useRoute()
 const router = useRouter()
+
+// 登录态：响应用户主动登出后的导航刷新
+const loggedIn = ref(authApi.isLoggedIn())
+
+interface NavItem {
+  key?: string
+  path?: string
+  label: string
+  action?: 'logout'
+  visible?: () => boolean
+}
+
+function handleNav(item: NavItem) {
+  if (item.action === 'logout') {
+    authApi.logout()
+    loggedIn.value = false
+    router.push('/login')
+    return
+  }
+  if (item.path) router.push(item.path)
+}
 
 // ── V2-MP-028：系统就绪度（后端聚合，绝不以本机时间充当健康）──────────────────────
 const readiness = ref<SystemReadiness | null>(null)
@@ -105,7 +128,8 @@ const healthTip = computed(() => {
 /** 市场时段为告知性信息（交易日以日历表判定），不参与系统健康判定。 */
 const sessionLabel = computed(() => readiness.value?.market_session?.label ?? '')
 
-const navGroups = computed(() => [
+const navGroups = computed(() => {
+  const groups: { title: string; items: NavItem[] }[] = [
   {
     title: "数据",
     items: [
@@ -150,10 +174,13 @@ const navGroups = computed(() => [
     items: [
       { path: "/account/overview", label: "模拟账户" },
       { path: "/reconcile/position", label: "持仓对账" },
-      { path: "/login", label: "登录" }
+      { key: "auth-logout", label: "退出登录", action: "logout", visible: () => loggedIn.value },
+      { key: "auth-login", path: "/login", label: "登录", visible: () => !loggedIn.value }
     ]
   }
-])
+  ]
+  return groups
+})
 
 onMounted(loadReadiness)
 </script>

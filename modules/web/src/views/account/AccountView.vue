@@ -254,12 +254,14 @@ function fmt4(v?: unknown) {
 }
 
 function fmtPct(v?: number) {
-  if (v == null) return '--'
+  if (v == null || !Number.isFinite(Number(v))) return '--'
   return `${(Number(v) * 100).toFixed(2)}%`
 }
 
 function pnlClass(v?: number) {
-  return v != null && Number(v) >= 0 ? 'text-success' : 'text-danger'
+  // 区分 null（无盈亏数据，不着色）与 0（持平）
+  if (v == null || !Number.isFinite(Number(v))) return ''
+  return Number(v) >= 0 ? 'text-success' : 'text-danger'
 }
 
 function feeValue(key: string): unknown {

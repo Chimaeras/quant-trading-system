@@ -18,6 +18,7 @@ import com.quant.service.scoring.ScoringRules;
 import com.quant.service.scoring.ScoringUtils;
 import com.quant.service.scoring.TechnicalIndicators;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -45,6 +46,10 @@ public class OversoldReboundScoringService {
     private final SelectorTemplateRepository selectorTemplateRepository;
     private final ProgressiveResultWriter progressiveResultWriter;
 
+    /** 局部打分线程池上限，与系统级异步线程池配置对齐，避免单请求开过多线程 */
+    @Value("${async.executor.max-pool-size:#{T(java.lang.Runtime).getRuntime().availableProcessors() * 2}}")
+    private int maxScoringThreads;
+
     /**
      * 计算超跌反弹打分
      */
@@ -66,8 +71,10 @@ public class OversoldReboundScoringService {
         String fixedResultId = ScoringUtils.parseString(req.get("resultId"), "");
         boolean resumeMode = ScoringUtils.parseBool(req.get("resumeMode"), false);
         boolean bulkFetch = ScoringUtils.parseBool(req.get("bulkFetch"), true);
+        // 线程数上限取系统级异步线程池配置，避免单请求开过多线程挤占全局资源
+        int threadCap = Math.max(1, maxScoringThreads);
         int threads = ScoringUtils.parseInt(req.get("threads"),
-                Math.max(1, Runtime.getRuntime().availableProcessors()), 1, 64);
+                Math.max(1, Runtime.getRuntime().availableProcessors()), 1, threadCap);
 
         LocalDate rangeStart = marketDataRepository.findMinTradeDate().orElse(tradeDate.minusDays(520));
         int effectiveLookbackDays = capCalendarDays(rangeStart, tradeDate);
@@ -657,21 +664,21 @@ public class OversoldReboundScoringService {
         detail.put("confirmation_summary", confirm.summary());
         detail.put("confirmation_has_signal", confirm.hasSignal());
 
-        ScoreResult r = new ScoreResult();
-        r.stockCode = stockCode;
-        r.exchangeType = exchangeType;
-        r.stockName = stockName != null ? stockName : stockCode;
-        r.asOfDate = tradeDate.toString();
-        r.trendScore40 = trendScore;
-        r.volumeScore30 = volumeScore;
-        r.oversoldScore30 = oversoldScore;
-        r.totalScore = ScoringUtils.round2(totalScore);
-        r.weightedScore = ScoringUtils.round2(weightedScore);
-        r.ret20 = ScoringUtils.round2(ret20);
-        r.ret60 = ScoringUtils.round2(ret60);
-        r.avgAmount20 = ScoringUtils.round2(avgAmount20);
-        r.detail = detail;
-        return r;
+        return new ScoreResult(
+                stockCode,
+                exchangeType,
+                stockName != null ? stockName : stockCode,
+                tradeDate.toString(),
+                trendScore,
+                volumeScore,
+                oversoldScore,
+                ScoringUtils.round2(totalScore),
+                ScoringUtils.round2(weightedScore),
+                ScoringUtils.round2(ret20),
+                ScoringUtils.round2(ret60),
+                ScoringUtils.round2(avgAmount20),
+                detail
+        );
     }
 
     private int consecutiveBearWeeks(List<MarketData> bars) {
@@ -751,20 +758,44 @@ public class OversoldReboundScoringService {
         return stockInfoRepository.findFirstByStockCode(stockCode).map(StockInfo::getStockName).orElse(stockCode);
     }
 
-    private static class ScoreResult {
-        String stockCode;
-        String exchangeType;
-        String stockName;
-        String asOfDate;
-        int trendScore40;
-        int volumeScore30;
-        int oversoldScore30;
-        double totalScore;
-        double weightedScore;
-        double ret20;
-        double ret60;
-        double avgAmount20;
-        Map<String, Object> detail;
+    /**
+     * 打分结果（不可变值对象）：所有字段 final，构造时一次性赋值，
+     * 避免跨线程逐步填充公共可变字段的脆弱风格。
+     */
+    private static final class ScoreResult {
+        final String stockCode;
+        final String exchangeType;
+        final String stockName;
+        final String asOfDate;
+        final int trendScore40;
+        final int volumeScore30;
+        final int oversoldScore30;
+        final double totalScore;
+        final double weightedScore;
+        final double ret20;
+        final double ret60;
+        final double avgAmount20;
+        final Map<String, Object> detail;
+
+        ScoreResult(String stockCode, String exchangeType, String stockName, String asOfDate,
+                    int trendScore40, int volumeScore30, int oversoldScore30,
+                    double totalScore, double weightedScore,
+                    double ret20, double ret60, double avgAmount20,
+                    Map<String, Object> detail) {
+            this.stockCode = stockCode;
+            this.exchangeType = exchangeType;
+            this.stockName = stockName;
+            this.asOfDate = asOfDate;
+            this.trendScore40 = trendScore40;
+            this.volumeScore30 = volumeScore30;
+            this.oversoldScore30 = oversoldScore30;
+            this.totalScore = totalScore;
+            this.weightedScore = weightedScore;
+            this.ret20 = ret20;
+            this.ret60 = ret60;
+            this.avgAmount20 = avgAmount20;
+            this.detail = detail;
+        }
 
         Map<String, Object> toMap() {
             Map<String, Object> m = new LinkedHashMap<>();

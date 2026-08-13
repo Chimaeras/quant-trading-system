@@ -1,10 +1,9 @@
 package com.quant.service;
 
-import com.quant.config.AuthProperties;
 import com.quant.entity.*;
 import com.quant.exception.BusinessException;
 import com.quant.repository.*;
-import com.quant.security.AuthContext;
+import com.quant.security.UserIdResolver;
 import com.quant.service.backtest.StrategyBacktestEngine;
 import com.quant.service.backtest.TradingLimitRules;
 import com.quant.service.execution.TradingFeePolicy;
@@ -45,7 +44,6 @@ public class SimAccountService {
     /** 在线账户会话哨兵：历史演练会话 id 均 &gt; 0。 */
     private static final long LIVE_SESSION = 0L;
 
-    private final AuthProperties authProperties;
     private final AuthService authService;
     private final UserAccountRepository userAccountRepository;
     private final PositionInfoRepository positionInfoRepository;
@@ -56,6 +54,7 @@ public class SimAccountService {
     private final TradingCalendarService tradingCalendarService;
     private final SimulationSessionRepository simulationSessionRepository;
     private final PositionLotRepository positionLotRepository;
+    private final UserIdResolver userIdResolver;
 
     public Map<String, Object> getAccountInfo(Long userId, Long sessionId) {
         UserAccount account = resolveAccount(userId);
@@ -429,18 +428,12 @@ public class SimAccountService {
         return result;
     }
 
+    /**
+     * 委托给统一的 {@link UserIdResolver}，避免与 UserIdResolver 逻辑重复（单一真相源）。
+     * 保留 public 方法签名以兼容现有 Controller 调用。
+     */
     public Long resolveUserId(Long explicitUserId) {
-        if (authProperties.isEnabled()) {
-            Long ctx = AuthContext.getUserId();
-            if (ctx == null) {
-                throw new BusinessException("未登录");
-            }
-            return ctx;
-        }
-        if (explicitUserId != null) {
-            return explicitUserId;
-        }
-        return 1L;
+        return userIdResolver.resolve(explicitUserId);
     }
 
     private void ensureTradableAtPrice(

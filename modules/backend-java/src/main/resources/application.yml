@@ -23,9 +23,9 @@ spring:
     baseline-on-migrate: true
   jpa:
     hibernate:
-      # TEMPORARY for local/dev transition: Hibernate may still add/alter columns not yet in migrations.
-      # Production profile (application-prod.yml) uses ddl-auto: validate — do not rely on update there.
-      ddl-auto: update
+      # DDL 全部由 Flyway 管理，dev 也使用 validate——避免 Hibernate 擅自加列绕过版本化迁移，
+      # 造成 schema 双真相源。新增字段/表请编写新的 Flyway 迁移脚本。
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:

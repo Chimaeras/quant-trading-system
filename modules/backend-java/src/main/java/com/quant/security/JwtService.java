@@ -41,17 +41,18 @@ public class JwtService {
     }
 
     public long getExpiresInSeconds() {
-        return authProperties.getJwtExpirationHours() * 3600;
+        return java.time.Duration.ofHours(authProperties.getJwtExpirationHours()).toSeconds();
     }
 
     private SecretKey secretKey() {
         byte[] bytes = authProperties.getJwtSecret().getBytes(StandardCharsets.UTF_8);
-        return Keys.hmacShaKeyFor(bytes.length >= 32 ? bytes : pad(bytes));
-    }
-
-    private static byte[] pad(byte[] src) {
-        byte[] out = new byte[32];
-        System.arraycopy(src, 0, out, 0, Math.min(src.length, 32));
-        return out;
+        // HS256 安全下限为 32 字节（256 bit）。短密钥静默补零会削弱签名强度，
+        // 这里改为直接拒绝——密钥不足时 fail-fast，避免运维误配弱密钥而不自知。
+        if (bytes.length < 32) {
+            throw new IllegalStateException(
+                    "JWT_SECRET 长度不足 32 字节（当前 " + bytes.length
+                            + "），HS256 要求至少 256 bit 密钥。请设置更强的密钥。");
+        }
+        return Keys.hmacShaKeyFor(bytes);
     }
 }

@@ -217,7 +217,8 @@ public final class StrategyBacktestEngine {
                     double commission = amount * COMMISSION;
                     cash -= amount + commission;
                     position = volume;
-                    avgCost = buyPrice;
+                    // 持仓成本基线含买入佣金，使卖出 pnl 直接反映净盈亏（否则胜率偏乐观）。
+                    avgCost = buyPrice * (1 + COMMISSION);
                     trades.add(new TradeRecord(
                             bar.getTradeDate().toString(), "buy", buyPrice, volume, amount, commission, cash, cash + position * markPrice
                     ));

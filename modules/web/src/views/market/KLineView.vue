@@ -20,8 +20,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import dayjs from 'dayjs'
 import { echarts, CHART_THEME, CHART_C1 } from '@/utils/echartsTheme'
 import { dataApi } from '@/api/data'
 import { marketApi } from '@/api/market'
@@ -36,6 +37,11 @@ const realtime = ref<{ close_price?: number; change_pct?: number } | null>(null)
 const realtimeLoading = ref(false)
 const dataSource = ref<'backend' | 'local'>('backend')
 let chart: echarts.ECharts | null = null
+
+/** 窗口尺寸变化时自适应，避免 canvas 残留旧尺寸 */
+function handleResize() {
+  chart?.resize()
+}
 
 async function loadRealtime() {
   const code = route.query.code as string
@@ -56,8 +62,9 @@ const loadData = async () => {
   const code = route.query.code as string
   if (!code) return
   const [start, end] = dateRange.value || [new Date(Date.now() - 365 * 24 * 3600 * 1000), new Date()]
-  const startDate = start.toISOString().slice(0, 10)
-  const endDate = end.toISOString().slice(0, 10)
+  // 用本地时区格式化，避免 toISOString() 的 UTC 偏移（东八区凌晨会得"昨天"）
+  const startDate = dayjs(start).format('YYYY-MM-DD')
+  const endDate = dayjs(end).format('YYYY-MM-DD')
   // 优先真实后端行情，失败回退本地 IndexedDB（并标注来源，避免误把离线/Mock 当线上数据）
   let data: KLineItem[] = []
   try {
@@ -96,7 +103,16 @@ onMounted(() => {
   if (!dateRange.value) dateRange.value = [new Date(Date.now() - 250 * 24 * 3600 * 1000), new Date()]
   loadData()
   if (route.query.code) loadRealtime()
+  window.addEventListener('resize', handleResize)
 })
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize)
+  // 必须主动 dispose，否则反复进出 K 线页会累积 canvas/zrender 实例导致内存泄漏
+  chart?.dispose()
+  chart = null
+})
+
 watch(() => route.query.code, (code) => {
   loadData()
   if (code) loadRealtime()

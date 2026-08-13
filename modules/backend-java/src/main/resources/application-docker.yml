@@ -5,9 +5,13 @@ spring:
     password: ${DB_PASSWORD:123456}
 
 # 生产/容器部署：默认开启 JWT 鉴权（可 AUTH_ENABLED=false 关闭），关闭 SQL/DEBUG 日志
+# 鉴权开启时，启动会校验 JWT_SECRET / DEFAULT_ADMIN_PASSWORD 不可为开发默认值——
+# 必须通过环境变量注入强密钥/强口令，否则启动 fail-fast。
 quant:
   auth:
     enabled: ${AUTH_ENABLED:true}
+    jwt-secret: ${JWT_SECRET:}
+    default-admin-password: ${DEFAULT_ADMIN_PASSWORD:}
 
 logging:
   level:

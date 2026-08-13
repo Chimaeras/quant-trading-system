@@ -1,5 +1,7 @@
 package com.quant;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
@@ -14,6 +16,8 @@ import java.util.Properties;
 
 @SpringBootApplication
 public class QuantBackendApplication {
+
+    private static final Logger log = LoggerFactory.getLogger(QuantBackendApplication.class);
 
     public static void main(String[] args) {
         // 启动前构建前端并复制到 static（可关闭：quant.properties 中 build-frontend-on-startup=false 或 -Dquant.skipFrontendBuild=true）
@@ -30,7 +34,7 @@ public class QuantBackendApplication {
         if (!skip) {
             buildFrontendIfNeeded();
         } else {
-            System.out.println("[Quant] 已跳过前端构建");
+            log.info("[Quant] 已跳过前端构建");
         }
         SpringApplication.run(QuantBackendApplication.class, args);
     }
@@ -76,7 +80,7 @@ public class QuantBackendApplication {
             }
 
             if (frontendDir == null || backendDir == null) return;
-            System.out.println("[Quant] 正在构建前端...");
+            log.info("[Quant] 正在构建前端...");
             ProcessBuilder pb = new ProcessBuilder();
             pb.directory(frontendDir.toFile());
             pb.inheritIO();
@@ -103,13 +107,13 @@ public class QuantBackendApplication {
                 }
             }
             if (!npmOk) {
-                System.err.println("[Quant] npm 不可用或构建失败（将使用已有前端资源）。请安装 Node.js 并确保 npm 在 PATH 中，或设置环境变量 NODE_HOME；也可在 VM 选项加 -Dquant.skipFrontendBuild=true 并在 modules/web 下手动执行 npm run build。");
+                log.warn("[Quant] npm 不可用或构建失败（将使用已有前端资源）。请安装 Node.js 并确保 npm 在 PATH 中，或设置环境变量 NODE_HOME；也可在 VM 选项加 -Dquant.skipFrontendBuild=true 并在 modules/web 下手动执行 npm run build。");
                 return;
             }
             // 复制 dist 到 target/classes/static
             Path distDir = frontendDir.resolve("dist");
             if (!Files.isDirectory(distDir)) {
-                System.err.println("[Quant] frontend/dist 不存在");
+                log.warn("[Quant] frontend/dist 不存在");
                 return;
             }
             Path staticDir = backendDir.resolve("target").resolve("classes").resolve("static");
@@ -118,9 +122,9 @@ public class QuantBackendApplication {
             }
             Files.createDirectories(staticDir);
             copyDir(distDir, staticDir);
-            System.out.println("[Quant] 前端构建完成");
+            log.info("[Quant] 前端构建完成");
         } catch (Exception e) {
-            System.err.println("[Quant] 前端构建异常（将使用已有资源）: " + e.getMessage());
+            log.warn("[Quant] 前端构建异常（将使用已有资源）: {}", e.getMessage());
         }
     }
 

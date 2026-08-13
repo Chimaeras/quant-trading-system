@@ -45,6 +45,10 @@ public class StockTrendScoringService {
     @Value("${scoring.trend.bias-threshold:5.0}")
     private double defaultBiasThreshold;
 
+    /** 局部打分线程池上限，与系统级异步线程池配置对齐 */
+    @Value("${async.executor.max-pool-size:#{T(java.lang.Runtime).getRuntime().availableProcessors() * 2}}")
+    private int maxScoringThreads;
+
     @Transactional(readOnly = true)
     public Map<String, Object> listScores(LocalDate tradeDate, int page, int size) {
         return listScores(tradeDate, page, size, StockTrendScore.SCORE_TYPE_TREND);
@@ -98,7 +102,7 @@ public class StockTrendScoringService {
         double biasThreshold = ScoringUtils.parseDouble(req.get("biasThreshold"), defaultBiasThreshold, 1.0, 50.0);
         boolean persist = ScoringUtils.parseBool(req.get("persist"), true);
         int threads = ScoringUtils.parseInt(req.get("threads"),
-                Math.max(1, Runtime.getRuntime().availableProcessors()), 1, 64);
+                Math.max(1, Runtime.getRuntime().availableProcessors()), 1, Math.max(1, maxScoringThreads));
         int lookbackDays = ScoringUtils.parseInt(req.get("lookbackDays"), ScoringConstants.DEFAULT_LOOKBACK_DAYS, 60, 2000);
         boolean bulkFetch = ScoringUtils.parseBool(req.get("bulkFetch"), true);
         boolean includeItems = ScoringUtils.parseBool(req.get("includeItems"), false);

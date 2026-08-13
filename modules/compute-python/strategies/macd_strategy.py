@@ -32,8 +32,9 @@ class MACDStrategy(BaseStrategy):
         slow_period = self.params['slow']
         signal_period = self.params['signal']
 
-        # 需足够长度产出稳定 signal 线（slow 的 EMA 需 warmup，再叠加 signal 的 EMA warmup）
-        if len(self.price_history) < slow_period + signal_period:
+        # warmup：slow EMA 种子需 slow 根收敛，signal EMA 再叠加 signal 根；
+        # 额外加 signal 根缓冲，避免刚过 warmup 阈值时 hist 仍在噪声区误触发交叉。
+        if len(self.price_history) < slow_period + 2 * signal_period:
             return 'hold'
 
         close = pd.Series(self.price_history, dtype=float)

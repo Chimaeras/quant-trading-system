@@ -284,7 +284,7 @@ public class PredictionService {
         run.setStatus(status);
         run.setAbstainReason(abstainReason);
         if (probModel != null) {
-            run.setModelVersion(probModel.modelVersion());
+            run.setModelVersion(probModel.modelVersion);
         }
         if (pick.result() != null) {
             run.setFactorVersion(pick.result().getFactorVersion());
@@ -331,12 +331,12 @@ public class PredictionService {
                 reasons.put("selector_rank", c.item().getRankNo());
                 if (PredictionRun.TRACK_PROBABILITY.equals(track) && inferModel != null) {
                     reasons.put("base_probability", round4(inferModel.baseProbability(c.ruleScore())));
-                    reasons.put("base_model_version", inferModel.modelVersion());
-                    reasons.put("output_kind", inferModel.outputKind());
-                    reasons.put("schema_hash", inferModel.schemaHash());
-                    reasons.put("deploy_key", inferModel.deployKey());
-                    reasons.put("calibrator_version", inferModel.calibratorVersion());
-                    reasons.put("calibrator_hash", inferModel.calibratorHash());
+                    reasons.put("base_model_version", inferModel.modelVersion);
+                    reasons.put("output_kind", inferModel.outputKind);
+                    reasons.put("schema_hash", inferModel.schemaHash);
+                    reasons.put("deploy_key", inferModel.deployKey);
+                    reasons.put("calibrator_version", inferModel.calibratorVersion);
+                    reasons.put("calibrator_hash", inferModel.calibratorHash);
                 }
                 row.setReasonsJson(writeJson(reasons));
                 snapshotItems.add(row);
@@ -501,13 +501,13 @@ public class PredictionService {
             lineage.put("strategy_type", pick.result().getStrategyType());
         }
         if (model != null) {
-            lineage.put("model_version", model.modelVersion());
-            lineage.put("feature_set_version", model.featureSetVersion());
-            lineage.put("schema_hash", model.schemaHash());
-            lineage.put("output_kind", model.outputKind());
-            lineage.put("deploy_key", model.deployKey());
-            lineage.put("calibrator_version", model.calibratorVersion());
-            lineage.put("calibrator_hash", model.calibratorHash());
+            lineage.put("model_version", model.modelVersion);
+            lineage.put("feature_set_version", model.featureSetVersion);
+            lineage.put("schema_hash", model.schemaHash);
+            lineage.put("output_kind", model.outputKind);
+            lineage.put("deploy_key", model.deployKey);
+            lineage.put("calibrator_version", model.calibratorVersion);
+            lineage.put("calibrator_hash", model.calibratorHash);
             lineage.put("inference_chain", "feature->base_probability/score->persisted_calibrator->calibrated_probability");
         }
         lineage.put("status", status);

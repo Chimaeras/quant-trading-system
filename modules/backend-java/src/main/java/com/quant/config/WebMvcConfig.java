@@ -2,7 +2,9 @@ package com.quant.config;
 
 import com.quant.security.AuthInterceptor;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -11,6 +13,28 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class WebMvcConfig implements WebMvcConfigurer {
 
     private final AuthInterceptor authInterceptor;
+
+    /**
+     * 受控 CORS：默认前后端同源部署（SPA 由 SpaController 托管），无需额外 CORS 头。
+     * 当前端独立部署时，通过 quant.cors.allowed-origins 配置显式允许的来源（逗号分隔），
+     * 不使用通配符 {@code *}，避免凭证型请求的跨站风险。
+     */
+    @Value("${quant.cors.allowed-origins:}")
+    private String allowedOrigins;
+
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        if (allowedOrigins == null || allowedOrigins.isBlank()) {
+            return;
+        }
+        String[] origins = allowedOrigins.split("\\s*,\\s*");
+        registry.addMapping("/api/**")
+                .allowedOrigins(origins)
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedHeaders("*")
+                .allowCredentials(true)
+                .maxAge(3600);
+    }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {

@@ -432,60 +432,10 @@ import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { ElMessageBox } from 'element-plus'
 import { dataApi } from '@/api/data'
+import type { QualityReport } from '@/api/data'
 import { useToast } from '@/composables/useToast'
 
 const router = useRouter()
-
-interface QualityReport {
-  earliest_date: string
-  latest_date: string
-  trading_days: { expected: number; actual: number; missing_count: number; missing_dates: string[]; note: string }
-  update_staleness: { today: string; latest_date?: string; days_behind: number | null; stale: boolean; threshold_days: number; warning: string | null }
-  list_date: { missing_count: number; backfillable_count: number; note: string }
-  adjust_factor: { current_basis: string; scope: string; warning: string }
-  raw_and_adjust?: {
-    market_price_raw: {
-      total_rows: number; distinct_stocks: number; distinct_trade_dates: number
-      earliest_date: string; latest_date: string; source: string; status: string
-    }
-    adjust_factor: {
-      total_rows: number; distinct_stocks: number
-      by_source?: { derived_local: number; official: number }
-      by_reliability?: { limited: number }
-      status: string; note: string
-    }
-  }
-  security_master?: {
-    total_rows: number; distinct_stocks: number
-    by_source?: { current_snapshot: number; eastmoney: number; tushare: number }
-    by_reliability?: { limited: number; official: number }
-    status: string; note: string
-  }
-  trading_calendar?: {
-    total_rows: number
-    earliest_date: string; latest_date: string
-    by_source?: { eastmoney_derived: number; tushare: number }
-    by_reliability?: { limited: number; official: number }
-    status: string; note: string
-    diff_vs_market_data?: {
-      calendar_days: number; market_data_days: number; missing_in_market_data: number
-      missing_dates: string[]; note: string
-    }
-  }
-  index_data?: {
-    total_rows: number; distinct_indices: number
-    indices?: Array<{ index_code: string; index_name: string; rows: number; earliest_date: string; latest_date: string }>
-    by_source?: { eastmoney: number; tushare: number }
-    by_reliability?: { limited: number; official: number }
-    status: string; note: string
-  }
-  data_snapshot?: {
-    total_snapshots: number
-    status: string; note: string
-    latest?: Array<{ snapshot_id: string; cutoff_time: string; hash: string; created_by: string; created_at: string; row_counts: string }>
-  }
-  health: { status: string; verdict: string }
-}
 
 const toast = useToast()
 const loading = ref(false)

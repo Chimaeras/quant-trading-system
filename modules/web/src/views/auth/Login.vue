@@ -34,8 +34,8 @@ import { useToast } from '@/composables/useToast'
 const router = useRouter()
 const route = useRoute()
 const toast = useToast()
-const username = ref('admin')
-const password = ref('admin123')
+const username = ref('')
+const password = ref('')
 const loading = ref(false)
 
 function resolvePostLoginPath(): string {
@@ -53,6 +53,8 @@ async function submit() {
     toast.success('登录成功')
     router.push(resolvePostLoginPath())
   } catch (e: any) {
+    // 登录失败兜底清理残留 token，避免无效凭证驻留
+    authApi.logout()
     toast.error(e?.message || '登录失败')
   } finally {
     loading.value = false

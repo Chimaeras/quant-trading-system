@@ -250,11 +250,22 @@ def cmd_research_run(args) -> int:
         json.dumps(artifact_payload, sort_keys=True).encode("utf-8")
     ).hexdigest()
 
+    # fields：schema (model_manifest.schema.json) 要求字段级 name+dtype 声明，
+    # 与 columns 对齐。demo/stub 模式下 features 一律视为 float64 数值列；
+    # 正式训练落地后应由真实训练器按列推断 dtype 并写入。
+    default_dtype = str(config.get("default_feature_dtype") or "float64")
+    explicit_fields = config.get("fields")
+    if isinstance(explicit_fields, list) and explicit_fields:
+        fields = explicit_fields
+    else:
+        fields = [{"name": c, "dtype": default_dtype} for c in columns]
+
     model_manifest: dict[str, Any] = {
         "data_snapshot_id": data_snapshot_id,
         "feature_set_version": feature_set_version,
         "schema_hash": schema_hash,
         "columns": columns,
+        "fields": fields,
         "model_version": model_version,
         "algorithm": algorithm,
         "label_version": label_version,

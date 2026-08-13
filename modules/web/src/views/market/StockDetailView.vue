@@ -268,8 +268,7 @@ async function loadDetail() {
   try {
     const res = await marketApi.getStockDetail(code, route.query.exchange as string)
     detail.value = res ?? {}
-  } catch (e) {
-    console.error('loadDetail', e)
+  } catch {
     toast.error('加载股票详情失败')
   }
 }
@@ -283,8 +282,7 @@ async function loadRealtime() {
     if (data && Object.keys(data).length > 0) {
       detail.value = { ...detail.value, ...data }
     }
-  } catch (e) {
-    console.error('loadRealtime', e)
+  } catch {
     toast.warning('实时行情获取失败')
   } finally {
     realtimeLoading.value = false
@@ -307,8 +305,7 @@ async function loadKline() {
     })
     klineData.value = Array.isArray(data) ? data : []
     renderChart()
-  } catch (e) {
-    console.error('loadKline', e)
+  } catch {
     klineData.value = []
     toast.error('K线数据加载失败')
   }
@@ -422,9 +419,13 @@ function renderChart() {
   chart.setOption(option, true)
 }
 
+const onResize = () => chart?.resize()
+
 onMounted(() => {
   quickCode.value = (route.query.code as string) || ''
   dateRange.value = [dayjs().subtract(1, 'year').format('YYYY-MM-DD'), dayjs().format('YYYY-MM-DD')]
+  // resize 监听先于 loadData 注册，确保 chart 创建后窗口缩放即生效
+  window.addEventListener('resize', onResize)
   if (route.query.code) loadData()
 })
 
@@ -445,16 +446,11 @@ watch(() => route.query.code, (code) => {
 watch(period, () => {
   renderChart()
 })
-const onResize = () => chart?.resize()
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize)
   chart?.dispose()
   chart = null
-})
-
-onMounted(() => {
-  window.addEventListener('resize', onResize)
 })
 </script>
 

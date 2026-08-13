@@ -17,18 +17,32 @@ def tradability_check(df: pd.DataFrame) -> Tuple[bool, str]:
     """检查 df 最后一根 bar 是否可交易。
 
     返回 (tradable, reason)。reason 在不可交易时给出原因，可交易时为 "可交易"。
+
+    区分「列缺失」与「值为 0/NaN」：仅有 close 的研究样本（无量数据）不应被
+    误判为停牌；volume 列缺失时跳过成交量检查而非一律阻塞。
     """
     if df is None or len(df) == 0:
         return False, "无数据"
 
     last = df.iloc[-1]
-    close = float(last.get("close", 0.0) or 0.0)
-    volume = float(last.get("volume", 0.0) or 0.0)
 
+    # close 是必检列：缺失或无效直接判不可交易
+    if "close" not in df.columns:
+        return False, "缺少 close 列"
+    close_raw = last.get("close")
+    # NaN 是 falsy 但 float('nan) > 0 为 False，需显式处理
+    if close_raw is None or pd.isna(close_raw):
+        return False, "价格无效（NaN）"
+    close = float(close_raw)
     if close <= 0:
         return False, "价格无效"
-    if volume <= 0:
-        return False, "停牌或无成交"
+
+    # volume 是可选列：缺失时（仅 close 的研究样本）跳过量检查；
+    # 存在但为 0/NaN 时才判停牌。避免「无量数据」被误杀。
+    if "volume" in df.columns:
+        vol_raw = last.get("volume")
+        if vol_raw is None or pd.isna(vol_raw) or float(vol_raw) <= 0:
+            return False, "停牌或无成交"
 
     # 可选列：一字涨跌停锁定（数据源若提供则启用）
     if "limit_up" in df.columns and bool(last.get("limit_up", False)):

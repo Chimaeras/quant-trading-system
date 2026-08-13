@@ -96,18 +96,33 @@ class CrossSectionNeutralizerTest {
         bar.setTotalMarketValue(BigDecimal.valueOf(50_000_000_000L));
         bar.setAmount(BigDecimal.valueOf(100_000_000));
         bar.setTurnoverRate(BigDecimal.valueOf(2.0));
+        // 官方总市值口径需显式标记可靠性（MP-025）。
+        bar.setMarketCapReliability(CrossSectionNeutralizer.REL_OFFICIAL);
         CrossSectionNeutralizer.LogMvEstimate est = CrossSectionNeutralizer.estimateLogMarketCap(bar, 1e6);
         assertThat(est.source()).isEqualTo(CrossSectionNeutralizer.LOG_MV_FROM_TOTAL_MV);
-        assertThat(CrossSectionNeutralizer.isReliableLogMvSource(est.source())).isTrue();
+        assertThat(est.reliability()).isEqualTo(CrossSectionNeutralizer.REL_OFFICIAL);
+        // 可靠性按 reliability 字段判定，而非 source 字符串。
+        assertThat(CrossSectionNeutralizer.isReliableLogMv(est.source(), est.reliability())).isTrue();
     }
 
     @Test
     void isReliableLogMvSourceAcceptsTurnoverOnly() {
+        // MP-025：source 字符串不再判定可靠性，isReliableLogMvSource 恒为 false。
+        // 历史常量（turnover/total_mv）保留兼容，但推算源一律不可靠。
         assertThat(CrossSectionNeutralizer.isReliableLogMvSource(CrossSectionNeutralizer.LOG_MV_FROM_TURNOVER))
-                .isTrue();
+                .isFalse();
+        assertThat(CrossSectionNeutralizer.isReliableLogMvSource(CrossSectionNeutralizer.LOG_MV_FROM_TOTAL_MV))
+                .isFalse();
         assertThat(CrossSectionNeutralizer.isReliableLogMvSource(CrossSectionNeutralizer.LOG_MV_FROM_NOTIONAL))
                 .isFalse();
         assertThat(CrossSectionNeutralizer.isReliableLogMvSource(CrossSectionNeutralizer.LOG_MV_FROM_AVG_AMOUNT))
+                .isFalse();
+        // 可靠性改由 reliability 字段判定：仅 OFFICIAL 视为可靠。
+        assertThat(CrossSectionNeutralizer.isReliableMarketCapReliability(CrossSectionNeutralizer.REL_OFFICIAL))
+                .isTrue();
+        assertThat(CrossSectionNeutralizer.isReliableMarketCapReliability(CrossSectionNeutralizer.REL_FLOAT_CAP_APPROX))
+                .isFalse();
+        assertThat(CrossSectionNeutralizer.isReliableMarketCapReliability(CrossSectionNeutralizer.REL_UNKNOWN_LEGACY))
                 .isFalse();
     }
 

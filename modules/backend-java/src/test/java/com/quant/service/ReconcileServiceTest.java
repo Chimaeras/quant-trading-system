@@ -97,7 +97,7 @@ class ReconcileServiceTest {
                         item("R1", 3, "000003", "SZSE")
                 ));
         // 实际持仓：000001（在候选）、000004（不在候选）
-        when(positionInfoRepository.findByAccountIdOrderByStockCodeAsc(accountId))
+        when(positionInfoRepository.findByAccountIdAndSessionIdOrderByStockCodeAsc(accountId, 0L))
                 .thenReturn(List.of(
                         position(accountId, "000001", "SZSE", 1000),
                         position(accountId, "000004", "SZSE", 500)
@@ -140,7 +140,7 @@ class ReconcileServiceTest {
                         item("R1", 4, "000004", "SZSE"),
                         item("R1", 5, "000005", "SZSE")
                 ));
-        when(positionInfoRepository.findByAccountIdOrderByStockCodeAsc(any()))
+        when(positionInfoRepository.findByAccountIdAndSessionIdOrderByStockCodeAsc(any(), eq(0L)))
                 .thenReturn(List.of());
 
         Map<String, Object> out = service().reconcile(userId, "R1", 3);

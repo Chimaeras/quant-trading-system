@@ -23,9 +23,11 @@ class BacktestStabilityServiceTest {
     private ScoringBacktestService scoringBacktestService;
     @Mock
     private IndexQuoteRepository indexQuoteRepository;
+    @Mock
+    private TradingCalendarService tradingCalendarService;
 
     private BacktestStabilityService service() {
-        return new BacktestStabilityService(scoringBacktestService, indexQuoteRepository);
+        return new BacktestStabilityService(scoringBacktestService, indexQuoteRepository, tradingCalendarService);
     }
 
     private static ScoringBacktestResponse resp(int signalDays, double avgReturn, double winRate, int obs) {

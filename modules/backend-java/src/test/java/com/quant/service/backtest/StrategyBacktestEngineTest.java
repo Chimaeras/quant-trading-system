@@ -1,13 +1,16 @@
 package com.quant.service.backtest;
 
 import com.quant.entity.MarketData;
+import com.quant.entity.MarketPriceRaw;
 import com.quant.research.ResearchConvention;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -47,9 +50,12 @@ class StrategyBacktestEngineTest {
             double open = 30 + i;
             bars.get(i).setOpenPrice(BigDecimal.valueOf(open));
         }
+        // V2-MP-014：成交执行价只读 market_price_raw 原始开盘价，须提供 rawByDate 才能成交
+        Map<LocalDate, MarketPriceRaw> rawByDate = rawFromBars(bars);
 
         StrategyBacktestEngine.BacktestMetrics metrics = StrategyBacktestEngine.run(
                 bars,
+                rawByDate,
                 StrategySignalType.MACD,
                 100_000,
                 2,
@@ -173,7 +179,7 @@ class StrategyBacktestEngineTest {
     void skipsBuyWhenLimitUpAtOpen() {
         List<MarketData> bars = maCrossGoldenCrossSeries();
         long normalBuys = StrategyBacktestEngine.run(
-                copyBars(bars), StrategySignalType.MA_CROSS, 100_000, 5, 20, 20, 2.0
+                copyBars(bars), rawFromBars(bars), StrategySignalType.MA_CROSS, 100_000, 5, 20, 20, 2.0
         ).trades().stream().filter(t -> "buy".equals(t.action())).count();
         assertThat(normalBuys).isGreaterThan(0);
 
@@ -183,8 +189,15 @@ class StrategyBacktestEngineTest {
         execBar.setPreClose(BigDecimal.valueOf(preClose));
         execBar.setOpenPrice(BigDecimal.valueOf(preClose * 1.10));
 
+        Map<LocalDate, MarketPriceRaw> limitedRaw = rawFromBars(limited);
+        // V2-MP-014：成交执行价读 raw 开盘价；同步把封板日的 raw 开盘/前收设为涨停，
+        // 否则引擎读到的 raw 开盘仍是原值，不会触发 isLimitUpAtExecOpen。
+        MarketPriceRaw execRaw = limitedRaw.get(execBar.getTradeDate());
+        execRaw.setPreClose(BigDecimal.valueOf(preClose));
+        execRaw.setOpenPrice(BigDecimal.valueOf(preClose * 1.10));
+
         long limitedBuys = StrategyBacktestEngine.run(
-                limited, StrategySignalType.MA_CROSS, 100_000, 5, 20, 20, 2.0
+                limited, limitedRaw, StrategySignalType.MA_CROSS, 100_000, 5, 20, 20, 2.0
         ).trades().stream().filter(t -> "buy".equals(t.action())).count();
         assertThat(limitedBuys).isLessThan(normalBuys);
     }
@@ -193,12 +206,13 @@ class StrategyBacktestEngineTest {
     void skipsSellWhenLimitDownAtOpen() {
         List<MarketData> bars = macdOscillationSeries();
         var baseline = StrategyBacktestEngine.run(
-                copyBars(bars), StrategySignalType.MACD, 100_000, 2, 5, 20, 2.0
+                copyBars(bars), rawFromBars(bars), StrategySignalType.MACD, 100_000, 2, 5, 20, 2.0
         );
         long normalSells = baseline.trades().stream().filter(t -> "sell".equals(t.action())).count();
         assertThat(normalSells).isGreaterThan(0);
 
         List<MarketData> limited = copyBars(bars);
+        Map<LocalDate, MarketPriceRaw> limitedRaw = rawFromBars(limited);
         for (StrategyBacktestEngine.TradeRecord trade : baseline.trades()) {
             if (!"sell".equals(trade.action())) {
                 continue;
@@ -208,11 +222,15 @@ class StrategyBacktestEngineTest {
             MarketData execBar = limited.get(idx);
             execBar.setPreClose(BigDecimal.valueOf(preClose));
             execBar.setOpenPrice(BigDecimal.valueOf(preClose * 0.90));
+            // V2-MP-014：同步 raw 原始开盘价为跌停，引擎才能识别 isLimitDownAtExecOpen
+            MarketPriceRaw execRaw = limitedRaw.get(execBar.getTradeDate());
+            execRaw.setPreClose(BigDecimal.valueOf(preClose));
+            execRaw.setOpenPrice(BigDecimal.valueOf(preClose * 0.90));
             break;
         }
 
         long limitedSells = StrategyBacktestEngine.run(
-                limited, StrategySignalType.MACD, 100_000, 2, 5, 20, 2.0
+                limited, limitedRaw, StrategySignalType.MACD, 100_000, 2, 5, 20, 2.0
         ).trades().stream().filter(t -> "sell".equals(t.action())).count();
         assertThat(limitedSells).isLessThan(normalSells);
     }
@@ -239,6 +257,31 @@ class StrategyBacktestEngineTest {
             }
         }
         throw new IllegalArgumentException("date not found: " + date);
+    }
+
+    /**
+     * V2-MP-014 成交口径：引擎只读 market_price_raw 原始开盘价作为成交执行价，
+     * 缺 raw 当日跳过成交。本工具按 bars 的开盘价构造一份原始行情，使回测能正常成交。
+     * preClose 默认取前一根 bar 收盘（首根用自身开盘），volume 默认 10000 避免被判停牌。
+     */
+    private static Map<LocalDate, MarketPriceRaw> rawFromBars(List<MarketData> bars) {
+        Map<LocalDate, MarketPriceRaw> rawByDate = new LinkedHashMap<>();
+        for (int i = 0; i < bars.size(); i++) {
+            MarketData bar = bars.get(i);
+            MarketPriceRaw raw = new MarketPriceRaw();
+            raw.setTradeDate(bar.getTradeDate());
+            raw.setOpenPrice(bar.getOpenPrice());
+            raw.setClosePrice(bar.getClosePrice());
+            raw.setHighPrice(bar.getHighPrice());
+            raw.setLowPrice(bar.getLowPrice());
+            BigDecimal preClose = (i > 0 && bars.get(i - 1).getClosePrice() != null)
+                    ? bars.get(i - 1).getClosePrice()
+                    : bar.getOpenPrice();
+            raw.setPreClose(preClose);
+            raw.setVolume(10_000L);
+            rawByDate.put(bar.getTradeDate(), raw);
+        }
+        return rawByDate;
     }
 
     /** 前 30 日横盘、第 31 日放量拉升触发 MA 金叉，第 32 日开盘买入 */
@@ -270,7 +313,7 @@ class StrategyBacktestEngineTest {
         double capital = Math.ceil(200 * buyPrice); // 恰好 200 股，不留佣金余量
 
         List<StrategyBacktestEngine.TradeRecord> trades = StrategyBacktestEngine.run(
-                copyBars(bars), StrategySignalType.MA_CROSS, capital, 5, 20, 20, 2.0
+                copyBars(bars), rawFromBars(bars), StrategySignalType.MA_CROSS, capital, 5, 20, 20, 2.0
         ).trades();
 
         List<StrategyBacktestEngine.TradeRecord> buys = trades.stream()

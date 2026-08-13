@@ -156,13 +156,15 @@ class CodexShortCycleScoringEngineTest {
 
     @Test
     void estimateMarketStateLargeCapDominatesWithReliableLogMv() {
+        // 市值可靠性须为 OFFICIAL，否则 estimateMarketState 退化为等权
+        // （isReliableLogMv 仅放行 reliability==OFFICIAL）。
         List<CodexShortCycleScoringEngine.RawFeatures> raws = List.of(
                 raw("000001", "SZSE", "大", "银行", 0, 0.20, 0.20, 0, 0, 0,
                         0, 0, 0, 0, 0, 0, 0, 0.10, 0, 0, 25, 0.20, 25.0,
-                        CrossSectionNeutralizer.LOG_MV_FROM_TURNOVER),
+                        CrossSectionNeutralizer.LOG_MV_FROM_TURNOVER, CrossSectionNeutralizer.REL_OFFICIAL),
                 raw("000002", "SZSE", "小", "银行", 0, -0.20, -0.20, 0, 0, 0,
                         0, 0, 0, 0, 0, 0, 0, 0.30, 0, 0, 1, -0.20, 18.0,
-                        CrossSectionNeutralizer.LOG_MV_FROM_TURNOVER)
+                        CrossSectionNeutralizer.LOG_MV_FROM_TURNOVER, CrossSectionNeutralizer.REL_OFFICIAL)
         );
         double gWeighted = CodexShortCycleScoringEngine.estimateMarketState(raws);
         assertThat(gWeighted).isGreaterThan(0);
@@ -309,11 +311,22 @@ class CodexShortCycleScoringEngineTest {
             double roe, double rev, double debt, double curr, double ey, double bm,
             double vol20, double downVol, double illiq, double maxGap, double avgAmt,
             double ret20, double logMarketCap, String logMvSource) {
+        return raw(code, ex, name, industry, er1, er5, er20m5, maAlign, rsiShape, volConfirm,
+                roe, rev, debt, curr, ey, bm,
+                vol20, downVol, illiq, maxGap, avgAmt, ret20, logMarketCap, logMvSource, null);
+    }
+
+    private static CodexShortCycleScoringEngine.RawFeatures raw(
+            String code, String ex, String name, String industry,
+            double er1, double er5, double er20m5, double maAlign, double rsiShape, double volConfirm,
+            double roe, double rev, double debt, double curr, double ey, double bm,
+            double vol20, double downVol, double illiq, double maxGap, double avgAmt,
+            double ret20, double logMarketCap, String logMvSource, String logMvReliability) {
         return new CodexShortCycleScoringEngine.RawFeatures(
                 code + "|" + ex, code, ex, name, industry,
                 er1, er5, er20m5, maAlign, rsiShape, volConfirm,
                 roe, rev, debt, curr, ey, bm,
-                vol20, downVol, illiq, maxGap, avgAmt, ret20, logMarketCap, logMvSource
+                vol20, downVol, illiq, maxGap, avgAmt, ret20, logMarketCap, logMvSource, logMvReliability
         );
     }
 

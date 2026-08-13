@@ -6,6 +6,7 @@ import com.quant.dto.ScoringBacktestResponse;
 import com.quant.entity.BacktestRun;
 import org.mockito.ArgumentCaptor;
 import com.quant.entity.MarketData;
+import com.quant.entity.MarketPriceRaw;
 import com.quant.entity.SelectorResult;
 import com.quant.entity.SelectorResultItem;
 import com.quant.repository.BacktestRunRepository;
@@ -41,9 +42,10 @@ class ScoringBacktestServiceTest {
         SelectorResultRepository resultRepository = mock(SelectorResultRepository.class);
         SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
+        com.quant.repository.MarketPriceRawRepository rawRepo = mock(com.quant.repository.MarketPriceRawRepository.class);
         ScoringBacktestService service =
                 new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
-                mock(com.quant.repository.MarketPriceRawRepository.class),
+                rawRepo,
                 mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
@@ -73,6 +75,8 @@ class ScoringBacktestServiceTest {
                 .thenReturn(List.of(signalDate, entryDate, exitDate));
         when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
                 .thenReturn(List.of(signalBar, entryBar, exitBar));
+        when(rawRepo.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
+                .thenReturn(List.of(rawBar(entryDate, 80, 88, "000001"), rawBar(exitDate, 88, 88, "000001")));
 
         ScoringBacktestRequest request = new ScoringBacktestRequest();
         request.setStrategyType("CLASSIC_SELECTOR");
@@ -160,9 +164,10 @@ class ScoringBacktestServiceTest {
         SelectorResultRepository resultRepository = mock(SelectorResultRepository.class);
         SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
+        com.quant.repository.MarketPriceRawRepository rawRepo = mock(com.quant.repository.MarketPriceRawRepository.class);
         ScoringBacktestService service =
                 new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
-                mock(com.quant.repository.MarketPriceRawRepository.class),
+                rawRepo,
                 mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
@@ -192,6 +197,8 @@ class ScoringBacktestServiceTest {
                 .thenReturn(List.of(signalDate, entryDate, exitDate));
         when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
                 .thenReturn(List.of(signalBar, entryBar, exitBar));
+        when(rawRepo.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
+                .thenReturn(List.of(rawBar(entryDate, 80, 999, "000001"), rawBar(exitDate, 88, 88, "000001")));
 
         ScoringBacktestRequest request = new ScoringBacktestRequest();
         request.setStrategyType("CLASSIC_SELECTOR");
@@ -215,9 +222,10 @@ class ScoringBacktestServiceTest {
         SelectorResultRepository resultRepository = mock(SelectorResultRepository.class);
         SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
+        com.quant.repository.MarketPriceRawRepository rawRepo = mock(com.quant.repository.MarketPriceRawRepository.class);
         ScoringBacktestService service =
                 new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
-                mock(com.quant.repository.MarketPriceRawRepository.class),
+                rawRepo,
                 mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
@@ -246,6 +254,11 @@ class ScoringBacktestServiceTest {
                 .thenReturn(List.of(signalDate, entryDate));
         when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
                 .thenReturn(List.of(signalBar, entryBar));
+        // raw 成交价：open=110 ≥ limitUpPrice(100×1.1=110)，触发涨停开盘跳过
+        MarketPriceRaw entryRaw = rawBar(entryDate, 110, 110, "000001");
+        entryRaw.setPreClose(BigDecimal.valueOf(100));
+        when(rawRepo.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
+                .thenReturn(List.of(entryRaw));
 
         ScoringBacktestRequest request = new ScoringBacktestRequest();
         request.setStrategyType("CLASSIC_SELECTOR");
@@ -321,9 +334,10 @@ class ScoringBacktestServiceTest {
         SelectorResultRepository resultRepository = mock(SelectorResultRepository.class);
         SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
+        com.quant.repository.MarketPriceRawRepository rawRepo = mock(com.quant.repository.MarketPriceRawRepository.class);
         ScoringBacktestService service =
                 new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
-                mock(com.quant.repository.MarketPriceRawRepository.class),
+                rawRepo,
                 mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
@@ -354,6 +368,11 @@ class ScoringBacktestServiceTest {
                 .thenReturn(List.of(signalDate, entryDate));
         when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
                 .thenReturn(List.of(signalBar, entryBar));
+        // raw 成交价：300001 创业板 20% 涨停限制，110 < 100×1.2=120 → 不触发涨停，正常入场
+        MarketPriceRaw entryRaw = rawBar(entryDate, 110, 112, "300001");
+        entryRaw.setPreClose(BigDecimal.valueOf(100));
+        when(rawRepo.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
+                .thenReturn(List.of(entryRaw));
 
         ScoringBacktestRequest request = new ScoringBacktestRequest();
         request.setStrategyType("CLASSIC_SELECTOR");
@@ -378,9 +397,10 @@ class ScoringBacktestServiceTest {
         SelectorResultRepository resultRepository = mock(SelectorResultRepository.class);
         SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
+        com.quant.repository.MarketPriceRawRepository rawRepo = mock(com.quant.repository.MarketPriceRawRepository.class);
         ScoringBacktestService service =
                 new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
-                mock(com.quant.repository.MarketPriceRawRepository.class),
+                rawRepo,
                 mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
@@ -412,6 +432,13 @@ class ScoringBacktestServiceTest {
                 .thenReturn(List.of(signalDate, entryDate, exitDate));
         when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
                 .thenReturn(List.of(signalBar, entryBar, exitBar));
+        // raw 成交价：entry@80 正常入场；exit close=81 ≤ 90×0.9=81 → 跌停收盘跳过
+        MarketPriceRaw entryRaw = rawBar(entryDate, 80, 90, "000001");
+        entryRaw.setPreClose(BigDecimal.valueOf(100));
+        MarketPriceRaw exitRaw = rawBar(exitDate, 81, 81, "000001");
+        exitRaw.setPreClose(BigDecimal.valueOf(90));
+        when(rawRepo.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
+                .thenReturn(List.of(entryRaw, exitRaw));
 
         ScoringBacktestRequest request = new ScoringBacktestRequest();
         request.setStrategyType("CLASSIC_SELECTOR");
@@ -440,9 +467,10 @@ class ScoringBacktestServiceTest {
         SelectorResultRepository resultRepository = mock(SelectorResultRepository.class);
         SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
+        com.quant.repository.MarketPriceRawRepository rawRepo = mock(com.quant.repository.MarketPriceRawRepository.class);
         ScoringBacktestService service =
                 new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
-                mock(com.quant.repository.MarketPriceRawRepository.class),
+                rawRepo,
                 mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
@@ -474,6 +502,9 @@ class ScoringBacktestServiceTest {
                 .thenReturn(List.of(signalDate, entryDate, exitDate));
         when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
                 .thenReturn(List.of(signalBar, entryBar, exitBar));
+        // raw 成交价：entry 正常（vol=1M）；exit raw vol=0 → 零成交跳过
+        when(rawRepo.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
+                .thenReturn(List.of(rawBar(entryDate, 80, 90, "000001"), rawBarZeroVol(exitDate, 88, 88, "000001")));
 
         ScoringBacktestRequest request = new ScoringBacktestRequest();
         request.setStrategyType("CLASSIC_SELECTOR");
@@ -500,9 +531,10 @@ class ScoringBacktestServiceTest {
         SelectorResultRepository resultRepository = mock(SelectorResultRepository.class);
         SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
+        com.quant.repository.MarketPriceRawRepository rawRepo = mock(com.quant.repository.MarketPriceRawRepository.class);
         ScoringBacktestService service =
                 new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
-                mock(com.quant.repository.MarketPriceRawRepository.class),
+                rawRepo,
                 mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
@@ -531,6 +563,9 @@ class ScoringBacktestServiceTest {
                 .thenReturn(List.of(signalDate, entryDate));
         when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
                 .thenReturn(List.of(signalBar, entryBar));
+        // raw 成交价 vol=0 → 零成交跳过
+        when(rawRepo.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
+                .thenReturn(List.of(rawBarZeroVol(entryDate, 10, 10, "000001")));
 
         ScoringBacktestRequest request = new ScoringBacktestRequest();
         request.setStrategyType("CLASSIC_SELECTOR");
@@ -554,9 +589,10 @@ class ScoringBacktestServiceTest {
         SelectorResultRepository resultRepository = mock(SelectorResultRepository.class);
         SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
         MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
+        com.quant.repository.MarketPriceRawRepository rawRepo = mock(com.quant.repository.MarketPriceRawRepository.class);
         ScoringBacktestService service =
                 new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
-                mock(com.quant.repository.MarketPriceRawRepository.class),
+                rawRepo,
                 mock(BacktestRunRepository.class), objectMapper());
 
         LocalDate signalDate = LocalDate.of(2025, 1, 2);
@@ -584,6 +620,7 @@ class ScoringBacktestServiceTest {
         }
 
         List<MarketData> bars = new ArrayList<>();
+        List<MarketPriceRaw> rawBars = new ArrayList<>();
         bars.add(bar(signalDate, 100, 100));
         bars.add(bar(entryDate, 80, 88));
         for (SelectorResultItem item : items) {
@@ -593,6 +630,9 @@ class ScoringBacktestServiceTest {
             exit.setStockCode(item.getStockCode());
             bars.add(entry);
             bars.add(exit);
+            // raw 成交价（topN=3 取前 3 只，但全截面也需 raw 用于退出收益）
+            rawBars.add(rawBar(entryDate, 80, 88, item.getStockCode()));
+            rawBars.add(rawBar(exitDate, 80 + item.getRankNo(), 80 + item.getRankNo(), item.getStockCode()));
         }
 
         when(resultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(any(), any()))
@@ -602,6 +642,8 @@ class ScoringBacktestServiceTest {
                 .thenReturn(tradingDays);
         when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
                 .thenReturn(bars);
+        when(rawRepo.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
+                .thenReturn(rawBars);
 
         ScoringBacktestRequest request = new ScoringBacktestRequest();
         request.setStrategyType("CLASSIC_SELECTOR");
@@ -742,6 +784,28 @@ class ScoringBacktestServiceTest {
         bar.setOpenPrice(BigDecimal.valueOf(open));
         bar.setClosePrice(BigDecimal.valueOf(close));
         return bar;
+    }
+
+    /**
+     * 构造 MarketPriceRaw（成交价只读 raw，V2-MP-014）。
+     * volume 默认 1_000_000（非零），表示当日正常成交。
+     */
+    private static MarketPriceRaw rawBar(LocalDate date, double open, double close, String code) {
+        MarketPriceRaw raw = new MarketPriceRaw();
+        raw.setStockCode(code);
+        raw.setExchangeType("SZSE");
+        raw.setTradeDate(date);
+        raw.setOpenPrice(BigDecimal.valueOf(open));
+        raw.setClosePrice(BigDecimal.valueOf(close));
+        raw.setVolume(1_000_000L);
+        return raw;
+    }
+
+    /** rawBar 的零成交量版本（测试停牌/零成交跳过场景）。 */
+    private static MarketPriceRaw rawBarZeroVol(LocalDate date, double open, double close, String code) {
+        MarketPriceRaw raw = rawBar(date, open, close, code);
+        raw.setVolume(0L);
+        return raw;
     }
 
     private static org.assertj.core.data.Offset<Double> within(double value) {

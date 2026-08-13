@@ -1,11 +1,18 @@
 package com.quant.service;
 
 import com.quant.entity.MarketData;
+import com.quant.entity.MarketPriceRaw;
 import com.quant.entity.SelectorResult;
 import com.quant.entity.SelectorResultItem;
+import com.quant.repository.FeatureSnapshotManifestRepository;
+import com.quant.repository.FeatureSnapshotRowRepository;
+import com.quant.repository.LabelSnapshotRepository;
 import com.quant.repository.MarketDataRepository;
+import com.quant.repository.MarketPriceRawRepository;
 import com.quant.repository.SelectorResultItemRepository;
 import com.quant.repository.SelectorResultRepository;
+import com.quant.research.FeatureSchemaRegistry;
+import com.quant.service.DataSnapshotService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -31,9 +38,30 @@ class FactorResearchServiceTest {
     private SelectorResultItemRepository selectorResultItemRepository;
     @Mock
     private MarketDataRepository marketDataRepository;
+    @Mock
+    private MarketPriceRawRepository marketPriceRawRepository;
+    @Mock
+    private FeatureSnapshotManifestRepository featureSnapshotManifestRepository;
+    @Mock
+    private FeatureSnapshotRowRepository featureSnapshotRowRepository;
+    @Mock
+    private LabelSnapshotRepository labelSnapshotRepository;
+    @Mock
+    private FeatureSchemaRegistry featureSchemaRegistry;
+    @Mock
+    private DataSnapshotService dataSnapshotService;
 
     private FactorResearchService service() {
-        return new FactorResearchService(selectorResultRepository, selectorResultItemRepository, marketDataRepository);
+        return new FactorResearchService(
+                selectorResultRepository,
+                selectorResultItemRepository,
+                marketDataRepository,
+                marketPriceRawRepository,
+                featureSnapshotManifestRepository,
+                featureSnapshotRowRepository,
+                labelSnapshotRepository,
+                featureSchemaRegistry,
+                dataSnapshotService);
     }
 
     private static SelectorResult result(String resultId, String strategy, LocalDate tradeDate) {
@@ -71,6 +99,24 @@ class FactorResearchServiceTest {
         return m;
     }
 
+    private static MarketPriceRaw rawBar(String code, String ex, LocalDate date, double close) {
+        MarketPriceRaw m = new MarketPriceRaw();
+        m.setStockCode(code);
+        m.setExchangeType(ex);
+        m.setTradeDate(date);
+        m.setClosePrice(BigDecimal.valueOf(close));
+        return m;
+    }
+
+    private static MarketPriceRaw rawOpen(String code, String ex, LocalDate date, double open) {
+        MarketPriceRaw m = new MarketPriceRaw();
+        m.setStockCode(code);
+        m.setExchangeType(ex);
+        m.setTradeDate(date);
+        m.setOpenPrice(BigDecimal.valueOf(open));
+        return m;
+    }
+
     @Test
     void researchComputesCoverageAndDistribution() {
         LocalDate d = LocalDate.of(2025, 1, 2);
@@ -90,6 +136,10 @@ class FactorResearchServiceTest {
                 .thenReturn(List.of(d, d.plusDays(1), d.plusDays(2), d.plusDays(3),
                         d.plusDays(4), d.plusDays(5)));
         when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(
+                eq(d), eq(calEnd)))
+                .thenReturn(List.of());
+        // loadPriceCache 也会拉取 market_price_raw；此处无 raw 行情
+        when(marketPriceRawRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(
                 eq(d), eq(calEnd)))
                 .thenReturn(List.of());
 
@@ -153,6 +203,17 @@ class FactorResearchServiceTest {
         when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(
                 any(), any()))
                 .thenReturn(bulkBars);
+        // V2-MP-014：净收益成交价只读 market_price_raw（不复权），需提供 raw open@t1 / close@t3
+        List<MarketPriceRaw> bulkRaw = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            String code = codes.get(i);
+            String ex = i < 5 ? "SZSE" : "SSE";
+            bulkRaw.add(rawOpen(code, ex, t1, 10.0));              // open@t1 (净收益入场)
+            bulkRaw.add(rawBar(code, ex, t3, 10.0 + i * 0.01));    // close@t3 (净收益退出)
+        }
+        when(marketPriceRawRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(
+                any(), any()))
+                .thenReturn(bulkRaw);
 
         Map<String, Object> out = service().unifiedReport("CLASSIC_SELECTOR", t, t);
 
@@ -165,7 +226,8 @@ class FactorResearchServiceTest {
             assertThat(hb.get("embargo_note")).asString().contains("不外推");
             @SuppressWarnings("unchecked")
             Map<String, Object> net = (Map<String, Object>) hb.get("executable_net_ic");
-            assertThat(net.get("basis_note")).asString().contains("open[t+1]");
+            // V2-MP-014：净收益成交价改读 raw，basis_note 文案为 rawOpen[t+1]
+            assertThat(net.get("basis_note")).asString().contains("rawOpen[t+1]");
             if (Integer.valueOf(2).equals(hb.get("holding_days"))) {
                 // h=2：netEntry=t1(open 有值)、netExit=t3(close 有值) → 有净收益观测
                 assertThat((int) net.get("cross_section_days")).isGreaterThan(0);
@@ -221,6 +283,10 @@ class FactorResearchServiceTest {
         when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(
                 eq(t), eq(calEnd)))
                 .thenReturn(bulkBars);
+        // 本用例只校验毛收益 IC，无需 raw 行情（loadPriceCache 仍会拉取 raw，返回空避免 NPE）
+        when(marketPriceRawRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(
+                eq(t), eq(calEnd)))
+                .thenReturn(List.of());
 
         Map<String, Object> out = service().research("CLASSIC_SELECTOR", t, t, 2);
 

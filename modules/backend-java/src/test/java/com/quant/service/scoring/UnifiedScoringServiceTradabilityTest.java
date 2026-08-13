@@ -11,6 +11,7 @@ import com.quant.service.StockTrendScoringService;
 import com.quant.service.scoring.ComprehensiveScoringService;
 import org.junit.jupiter.api.Test;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,7 +42,8 @@ class UnifiedScoringServiceTradabilityTest {
                 mock(SelectorResultItemRepository.class),
                 mock(UnifiedScoringTaskRepository.class),
                 new ObjectMapper(),
-                mock(ThreadPoolTaskExecutor.class)
+                mock(ThreadPoolTaskExecutor.class),
+                mock(PlatformTransactionManager.class)
         );
     }
 

@@ -192,7 +192,8 @@ class DataQualityServiceTest {
         Map<String, Object> rel = (Map<String, Object>) sm.get("by_reliability");
         assertThat(rel.get("limited")).isEqualTo(4000L);
         assertThat(rel.get("official")).isEqualTo(0L);
-        assertThat(sm.get("status")).asString().contains("已启用");
+        assertThat(sm.get("coverage_tag")).asString().isEqualTo("LIMITED_BOOTSTRAP");
+        assertThat(sm.get("status")).asString().contains("LIMITED_BOOTSTRAP");
     }
 
     /**

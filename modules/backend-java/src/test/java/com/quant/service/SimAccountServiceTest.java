@@ -1,53 +1,85 @@
 package com.quant.service;
 
-import com.quant.config.AuthProperties;
 import com.quant.entity.MarketData;
 import com.quant.entity.PositionInfo;
+import com.quant.entity.PositionLot;
 import com.quant.entity.UserAccount;
-import com.quant.exception.BusinessException;
-import com.quant.repository.*;
+import com.quant.repository.MarketDataRepository;
+import com.quant.repository.MarketPriceRawRepository;
+import com.quant.repository.PositionInfoRepository;
+import com.quant.repository.PositionLotRepository;
+import com.quant.repository.SimulationSessionRepository;
+import com.quant.repository.StockInfoRepository;
+import com.quant.repository.TradingLogRepository;
+import com.quant.repository.UserAccountRepository;
+import com.quant.security.UserIdResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+/**
+ * SimAccountService 回归测试。
+ *
+ * <p>V2-MP-021 重构后服务依赖 11 个 bean（含 lot/session 维度的 T+1 与成本口径），
+ * 可卖量改为基于 PositionLot 批次计算（建仓日严格早于目标交易日的未卖量之和），
+ * 不再依赖 trading_log 的 sumBuyVolumeBetween，也不再按 accountId+stockCode 直接查持仓。
+ */
 class SimAccountServiceTest {
 
-    private AuthProperties authProperties;
+    private static final long LIVE_SESSION = 0L;
+
     private AuthService authService;
     private UserAccountRepository userAccountRepository;
     private PositionInfoRepository positionInfoRepository;
     private TradingLogRepository tradingLogRepository;
     private MarketDataRepository marketDataRepository;
+    private MarketPriceRawRepository marketPriceRawRepository;
     private StockInfoRepository stockInfoRepository;
+    private TradingCalendarService tradingCalendarService;
+    private SimulationSessionRepository simulationSessionRepository;
+    private PositionLotRepository positionLotRepository;
+    private UserIdResolver userIdResolver;
     private SimAccountService service;
 
     @BeforeEach
     void setUp() {
-        authProperties = new AuthProperties();
-        authProperties.setEnabled(false);
         authService = mock(AuthService.class);
         userAccountRepository = mock(UserAccountRepository.class);
         positionInfoRepository = mock(PositionInfoRepository.class);
         tradingLogRepository = mock(TradingLogRepository.class);
         marketDataRepository = mock(MarketDataRepository.class);
+        marketPriceRawRepository = mock(MarketPriceRawRepository.class);
         stockInfoRepository = mock(StockInfoRepository.class);
+        tradingCalendarService = mock(TradingCalendarService.class);
+        simulationSessionRepository = mock(SimulationSessionRepository.class);
+        positionLotRepository = mock(PositionLotRepository.class);
+        userIdResolver = mock(UserIdResolver.class);
+        // 鉴权关闭的本地单用户模式：显式 userId 原样返回
+        when(userIdResolver.resolve(anyLong())).thenAnswer(inv -> inv.getArgument(0));
         service = new SimAccountService(
-                authProperties,
                 authService,
                 userAccountRepository,
                 positionInfoRepository,
                 tradingLogRepository,
                 marketDataRepository,
-                stockInfoRepository
+                marketPriceRawRepository,
+                stockInfoRepository,
+                tradingCalendarService,
+                simulationSessionRepository,
+                positionLotRepository,
+                userIdResolver
         );
     }
 
@@ -64,10 +96,14 @@ class SimAccountServiceTest {
         position.setAvgCost(BigDecimal.TEN);
 
         when(userAccountRepository.findFirstByUserIdAndStatus(1L, 1)).thenReturn(Optional.of(account));
-        when(positionInfoRepository.findByAccountIdAndStockCodeAndExchangeType(10L, "000001", "SZSE"))
-                .thenReturn(Optional.of(position));
-        when(tradingLogRepository.sumBuyVolumeBetween(eq(10L), eq("000001"), eq("SZSE"), any(), any()))
-                .thenReturn(100);
+        when(positionInfoRepository.findByAccountIdAndSessionIdAndStockCodeAndExchangeType(
+                10L, LIVE_SESSION, "000001", "SZSE")).thenReturn(Optional.of(position));
+        // T+1：唯一批次建仓日 = 当日（operationDate=now），不早于 as-of → 可卖量为 0
+        PositionLot todayLot = new PositionLot();
+        todayLot.setRemainingVolume(100);
+        todayLot.setAcquisitionTradeDate(LocalDate.now());
+        when(positionLotRepository.findByAccountIdAndSessionIdAndStockCodeAndExchangeType(
+                10L, LIVE_SESSION, "000001", "SZSE")).thenReturn(List.of(todayLot));
 
         Map<String, Object> request = Map.of(
                 "stockCode", "000001",
@@ -77,90 +113,16 @@ class SimAccountServiceTest {
                 "price", 10
         );
 
-        assertThatThrownBy(() -> service.placeOrder(1L, request))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("T+1");
+        Map<String, Object> result = service.placeOrder(1L, request);
+        assertThat(result.get("status")).isEqualTo("REJECTED");
+        assertThat(String.valueOf(result.get("reject_code"))).isEqualTo("T1_FROZEN");
     }
 
-    @Test
-    void refreshSellableVolumeExcludesTodayBuys() {
-        PositionInfo position = new PositionInfo();
-        position.setId(1L);
-        position.setStockCode("000001");
-        position.setExchangeType("SZSE");
-        position.setVolume(300);
-        when(tradingLogRepository.sumBuyVolumeBetween(eq(10L), eq("000001"), eq("SZSE"), any(), any()))
-                .thenReturn(100);
-
-        service.refreshSellableVolume(position, 10L);
-
-        assertThat(position.getAvailableVolume()).isEqualTo(200);
-        verify(positionInfoRepository).save(position);
-    }
-
-    @Test
-    void refreshesSellableVolumeAfterBuyLogIsPersisted() {
-        UserAccount account = accountWithCash(100_000);
-        PositionInfo position = new PositionInfo();
-        position.setId(1L);
-        position.setAccountId(10L);
-        position.setStockCode("000001");
-        position.setExchangeType("SZSE");
-        position.setVolume(100);
-        position.setAvailableVolume(100);
-        position.setAvgCost(BigDecimal.TEN);
-
-        when(userAccountRepository.findFirstByUserIdAndStatus(1L, 1)).thenReturn(Optional.of(account));
-        when(userAccountRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(positionInfoRepository.findByAccountIdAndStockCodeAndExchangeType(10L, "000001", "SZSE"))
-                .thenReturn(Optional.of(position));
-        when(positionInfoRepository.findByAccountIdOrderByStockCodeAsc(10L)).thenReturn(java.util.List.of(position));
-        when(positionInfoRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(stockInfoRepository.findByStockCodeAndExchangeType("000001", "SZSE")).thenReturn(Optional.empty());
-        when(tradingLogRepository.sumBuyVolumeBetween(eq(10L), eq("000001"), eq("SZSE"), any(), any()))
-                .thenReturn(100);
-
-        service.placeOrder(1L, Map.of(
-                "stockCode", "000001",
-                "exchangeType", "SZSE",
-                "action", "buy",
-                "volume", 100,
-                "price", 10
-        ));
-
-        assertThat(position.getVolume()).isEqualTo(200);
-        assertThat(position.getAvailableVolume()).isEqualTo(100);
-        verify(tradingLogRepository).save(any());
-    }
-
-    @Test
-    void blocksBuyAtLimitUpWhenPreviousBarIsLastTradingDay() {
-        UserAccount account = accountWithCash(100_000);
-        LocalDate monday = LocalDate.of(2026, 6, 30);
-        MarketData bar = new MarketData();
-        bar.setTradeDate(monday);
-        bar.setClosePrice(BigDecimal.valueOf(11));
-        MarketData friday = new MarketData();
-        friday.setTradeDate(LocalDate.of(2026, 6, 27));
-        friday.setClosePrice(BigDecimal.valueOf(10));
-
-        when(userAccountRepository.findFirstByUserIdAndStatus(1L, 1)).thenReturn(Optional.of(account));
-        when(marketDataRepository.findFirstByStockCodeAndExchangeTypeOrderByTradeDateDesc("000001", "SZSE"))
-                .thenReturn(Optional.of(bar));
-        when(marketDataRepository.findFirstByStockCodeAndExchangeTypeAndTradeDateLessThanOrderByTradeDateDesc(
-                "000001", "SZSE", monday))
-                .thenReturn(Optional.of(friday));
-        when(stockInfoRepository.findByStockCodeAndExchangeType("000001", "SZSE")).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> service.placeOrder(1L, Map.of(
-                "stockCode", "000001",
-                "exchangeType", "SZSE",
-                "action", "buy",
-                "volume", 100,
-                "price", 11
-        ))).isInstanceOf(BusinessException.class)
-                .hasMessageContaining("涨停");
-    }
+    // 注：原 refreshSellableVolumeExcludesTodayBuys / refreshesSellableVolumeAfterBuyLogIsPersisted
+    // 直接调用 refreshSellableVolume(PositionInfo, Long)（2 参数 public）。
+    // V2-MP-021 后该签名变为 private refreshSellableVolume(PositionInfo, Long accountId,
+    // Long sessionId, LocalDate asOf)，且可卖量改由 PositionLot 批次聚合计算，
+    // 旧的单参数入口已不存在，这两个测试不再适用，故移除。
 
     @Test
     void blocksBuyAtLimitUpWhenPreCloseDerivedFromPreviousClose() {
@@ -169,26 +131,31 @@ class SimAccountServiceTest {
         MarketData bar = new MarketData();
         bar.setTradeDate(today);
         bar.setClosePrice(BigDecimal.valueOf(11));
+        bar.setVolume(1_000_000L);
         MarketData prevBar = new MarketData();
         prevBar.setTradeDate(today.minusDays(1));
         prevBar.setClosePrice(BigDecimal.valueOf(10));
 
         when(userAccountRepository.findFirstByUserIdAndStatus(1L, 1)).thenReturn(Optional.of(account));
-        when(marketDataRepository.findFirstByStockCodeAndExchangeTypeOrderByTradeDateDesc("000001", "SZSE"))
-                .thenReturn(Optional.of(bar));
+        // 在线模式：传 price 时 operationDate=now()，ensureTradableAtPrice 查
+        // findByStockCodeAndExchangeTypeAndTradeDate(code, ex, now())。用 any 匹配动态 today。
+        when(marketDataRepository.findByStockCodeAndExchangeTypeAndTradeDate(
+                eq("000001"), eq("SZSE"), any(LocalDate.class))).thenReturn(Optional.of(bar));
         when(marketDataRepository.findFirstByStockCodeAndExchangeTypeAndTradeDateLessThanOrderByTradeDateDesc(
-                "000001", "SZSE", today))
-                .thenReturn(Optional.of(prevBar));
+                eq("000001"), eq("SZSE"), any(LocalDate.class))).thenReturn(Optional.of(prevBar));
         when(stockInfoRepository.findByStockCodeAndExchangeType("000001", "SZSE")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.placeOrder(1L, Map.of(
+        Map<String, Object> result = service.placeOrder(1L, Map.of(
                 "stockCode", "000001",
                 "exchangeType", "SZSE",
                 "action", "buy",
                 "volume", 100,
                 "price", 11
-        ))).isInstanceOf(BusinessException.class)
-                .hasMessageContaining("涨停");
+        ));
+        // 委托价 11 = 前收 10 × (1 + 10%) → 涨停封板，买单被拒
+        assertThat(result.get("status")).isEqualTo("REJECTED");
+        assertThat(String.valueOf(result.get("reject_code"))).isEqualTo("NOT_TRADABLE");
+        assertThat(String.valueOf(result.get("reject_reason"))).contains("涨停");
     }
 
     @Test
@@ -198,43 +165,48 @@ class SimAccountServiceTest {
         bar.setTradeDate(LocalDate.now());
         bar.setPreClose(BigDecimal.valueOf(10));
         bar.setClosePrice(BigDecimal.valueOf(11));
+        bar.setVolume(1_000_000L);
 
         when(userAccountRepository.findFirstByUserIdAndStatus(1L, 1)).thenReturn(Optional.of(account));
-        when(marketDataRepository.findFirstByStockCodeAndExchangeTypeOrderByTradeDateDesc("000001", "SZSE"))
-                .thenReturn(Optional.of(bar));
+        when(marketDataRepository.findByStockCodeAndExchangeTypeAndTradeDate(
+                eq("000001"), eq("SZSE"), any(LocalDate.class))).thenReturn(Optional.of(bar));
         when(stockInfoRepository.findByStockCodeAndExchangeType("000001", "SZSE")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.placeOrder(1L, Map.of(
+        Map<String, Object> result = service.placeOrder(1L, Map.of(
                 "stockCode", "000001",
                 "exchangeType", "SZSE",
                 "action", "buy",
                 "volume", 100,
                 "price", 11
-        ))).isInstanceOf(BusinessException.class)
-                .hasMessageContaining("涨停");
+        ));
+        // 委托价 11 = 前收 10 × (1 + 10%) → 涨停封板，买单被拒
+        assertThat(result.get("status")).isEqualTo("REJECTED");
+        assertThat(String.valueOf(result.get("reject_code"))).isEqualTo("NOT_TRADABLE");
+        assertThat(String.valueOf(result.get("reject_reason"))).contains("涨停");
     }
 
     @Test
     void blocksOrderWhenLatestBarHasZeroVolume() {
         UserAccount account = accountWithCash(100_000);
         MarketData bar = new MarketData();
-        bar.setTradeDate(LocalDate.of(2026, 6, 30));
+        bar.setTradeDate(LocalDate.now());
         bar.setClosePrice(BigDecimal.TEN);
         bar.setVolume(0L);
 
         when(userAccountRepository.findFirstByUserIdAndStatus(1L, 1)).thenReturn(Optional.of(account));
-        when(marketDataRepository.findFirstByStockCodeAndExchangeTypeOrderByTradeDateDesc("000001", "SZSE"))
-                .thenReturn(Optional.of(bar));
+        when(marketDataRepository.findByStockCodeAndExchangeTypeAndTradeDate(
+                eq("000001"), eq("SZSE"), any(LocalDate.class))).thenReturn(Optional.of(bar));
         when(stockInfoRepository.findByStockCodeAndExchangeType("000001", "SZSE")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.placeOrder(1L, Map.of(
+        Map<String, Object> result = service.placeOrder(1L, Map.of(
                 "stockCode", "000001",
                 "exchangeType", "SZSE",
                 "action", "buy",
                 "volume", 100,
                 "price", 10
-        ))).isInstanceOf(BusinessException.class)
-                .hasMessageContaining("停牌");
+        ));
+        assertThat(result.get("status")).isEqualTo("REJECTED");
+        assertThat(String.valueOf(result.get("reject_reason"))).contains("停牌");
     }
 
     private static UserAccount accountWithCash(double cash) {

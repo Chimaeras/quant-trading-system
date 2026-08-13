@@ -2,6 +2,7 @@ package com.quant.service;
 
 import com.quant.entity.DataSnapshot;
 import com.quant.repository.AdjustFactorRepository;
+import com.quant.repository.DataSnapshotPartitionManifestRepository;
 import com.quant.repository.DataSnapshotRepository;
 import com.quant.repository.IndexQuoteRepository;
 import com.quant.repository.MarketDataRepository;
@@ -30,6 +31,8 @@ class DataSnapshotServiceTest {
 
     @Mock
     private DataSnapshotRepository dataSnapshotRepository;
+    @Mock
+    private DataSnapshotPartitionManifestRepository partitionManifestRepository;
     @Mock
     private MarketDataRepository marketDataRepository;
     @Mock

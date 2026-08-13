@@ -92,7 +92,7 @@ class T1CandidateServiceTest {
                 .thenReturn(Map.of("is_limit_up", true, "lianban_days", 1,
                         "volume_ratio", 2.0, "turnover_rate", 5.0, "change_pct", 10.0));
         when(limitUpEcologyService.ecology(any(), anyInt())).thenReturn(Map.of("limit_up_count", 1));
-        when(limitUpEcologyService.nextDayPremium(any(), anyInt()))
+        when(limitUpEcologyService.historicalNextDayPremium(any(), anyInt()))
                 .thenReturn(Map.of("avg_gap", 0.01, "high_open_rate", 0.6));
         when(modelVersionRepository.findFirstByHorizonAndStageOrderByCreatedAtDesc(any(), any()))
                 .thenReturn(Optional.empty());
@@ -125,11 +125,12 @@ class T1CandidateServiceTest {
         info.setListDate(d.minusDays(500));
         info.setStatus(1);
         stubUniverse(d, info);
+        // 信号足够强（涨停 + 量比放大）→ rule_score ≥ 40 通过入选门禁
         when(limitUpEcologyService.stockLimitUpFeatures(any(), any(), any()))
-                .thenReturn(Map.of("is_limit_up", false, "lianban_days", 0,
-                        "volume_ratio", 1.2, "turnover_rate", 3.0, "change_pct", 3.0));
+                .thenReturn(Map.of("is_limit_up", true, "lianban_days", 1,
+                        "volume_ratio", 3.5, "turnover_rate", 8.0, "change_pct", 10.0));
         when(limitUpEcologyService.ecology(any(), anyInt())).thenReturn(Map.of("limit_up_count", 0));
-        when(limitUpEcologyService.nextDayPremium(any(), anyInt()))
+        when(limitUpEcologyService.historicalNextDayPremium(any(), anyInt()))
                 .thenReturn(Map.of("avg_gap", 0.01, "high_open_rate", 0.5));
         // horizon=1 模型存在：artifact 含权重 1.0 / bias 0 / min 0 / max 100
         com.quant.entity.ModelVersion mv = new com.quant.entity.ModelVersion();
@@ -179,7 +180,7 @@ class T1CandidateServiceTest {
                 .thenReturn(Map.of("is_limit_up", false, "lianban_days", 0,
                         "volume_ratio", 1.0, "turnover_rate", 2.0, "change_pct", 1.0));
         when(limitUpEcologyService.ecology(any(), anyInt())).thenReturn(Map.of("limit_up_count", 0));
-        when(limitUpEcologyService.nextDayPremium(any(), anyInt()))
+        when(limitUpEcologyService.historicalNextDayPremium(any(), anyInt()))
                 .thenReturn(Map.of("avg_gap", 0.0, "high_open_rate", 0.5));
         when(modelVersionRepository.findFirstByHorizonAndStageOrderByCreatedAtDesc(any(), any()))
                 .thenReturn(Optional.empty());

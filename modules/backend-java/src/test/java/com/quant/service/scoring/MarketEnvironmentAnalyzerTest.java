@@ -104,10 +104,11 @@ class MarketEnvironmentAnalyzerTest {
 
         MarketEnvironmentAnalyzer.MarketIndicators mi = analyzer().analyze(d2, 60);
 
-        // 修复后：SSE 有前日 bar（100→110），SZSE 无前日 bar 不参与 prevSum
-        // todaySum=110+10=120, prevSum=100 → (120-100)/100*100 = 20%
-        // 修复前：SZSE 串用 SSE 的 d2 close=110 作为前收 → prevSum=100+110=210 → (120-210)/210 ≈ -42.9%
-        assertThat(mi.indexChange()).isCloseTo(20.0, org.assertj.core.data.Offset.offset(0.01));
+        // 修复后：SSE 000001 有前日 bar（100→110），SZSE 000001 无前日 bar → 仅 SSE 参与计算
+        // todaySum=110, prevSum=100 → (110-100)/100*100 = 10%
+        // 修复前：SZSE 串用 SSE 的 d2 close=110 作为前收 → todaySum=110+10=120, prevSum=100+110=210
+        //   → (120-210)/210 ≈ -42.9%（错误的大幅下跌假象）
+        assertThat(mi.indexChange()).isCloseTo(10.0, org.assertj.core.data.Offset.offset(0.01));
     }
 
 }

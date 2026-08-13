@@ -372,13 +372,24 @@ export interface PortfolioCashAudit {
   note?: string
 }
 
-export interface PortfolioRunDetail extends Record<string, unknown> {
+export interface PortfolioRunDetail {
   run_id?: string
   status?: string
   progress?: number
   error_message?: string | null
   prediction_run_id?: string | null
+  strategy_type?: string
+  track?: string | null
+  start_date?: string
+  end_date?: string
+  horizon?: number
+  top_n?: number
+  initial_cash?: number
+  max_positions?: number
+  weighting?: string
   storage_version?: string
+  execution_version?: string
+  cost_version?: string
   created_at?: string | null
   updated_at?: string | null
   final_nav?: number
@@ -389,6 +400,9 @@ export interface PortfolioRunDetail extends Record<string, unknown> {
   reject_funnel?: Record<string, number>
   cash_audit?: PortfolioCashAudit
   prediction_lineage?: Record<string, unknown> | null
+  signal_source?: string
+  unrealized_pnl?: number
+  final_position_count?: number
   nav?: PortfolioNavPoint[]
   nav_count?: number
   open_positions?: PortfolioPosition[]

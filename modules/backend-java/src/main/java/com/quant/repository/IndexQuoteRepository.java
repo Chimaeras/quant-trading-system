@@ -6,12 +6,19 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public interface IndexQuoteRepository extends JpaRepository<IndexQuote, Long> {
 
     Optional<IndexQuote> findByIndexCodeAndTradeDate(String indexCode, LocalDate tradeDate);
+
+    /** 批量查询已存在的交易日（避免逐行 findByIndexCodeAndTradeDate 的 N+1）。 */
+    @Query("SELECT i.tradeDate FROM IndexQuote i WHERE i.indexCode = :indexCode AND i.tradeDate IN :dates")
+    Set<LocalDate> findExistingTradeDates(@Param("indexCode") String indexCode,
+                                          @Param("dates") Collection<LocalDate> dates);
 
     List<IndexQuote> findByIndexCodeAndTradeDateBetweenOrderByTradeDateAsc(
             String indexCode, LocalDate startDate, LocalDate endDate);

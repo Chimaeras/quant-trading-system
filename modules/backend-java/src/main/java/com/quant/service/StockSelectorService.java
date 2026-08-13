@@ -374,9 +374,7 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
             progressiveResultWriter.replaceResultItems(finalResultId, persistedItems);
         } else {
             selectorResultItemRepository.deleteByResultId(finalResultId);
-            for (SelectorResultItem item : persistedItems) {
-                selectorResultItemRepository.save(item);
-            }
+            selectorResultItemRepository.saveAll(persistedItems);
         }
         enrichFactorSnapshot(finalResultId, persistedItems.size());
         int totalTargets = targetsSize(pairs);
@@ -744,9 +742,7 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
             progressiveResultWriter.replaceResultItems(finalResultId, persistedItems);
         } else {
             selectorResultItemRepository.deleteByResultId(finalResultId);
-            for (SelectorResultItem item : persistedItems) {
-                selectorResultItemRepository.save(item);
-            }
+            selectorResultItemRepository.saveAll(persistedItems);
         }
         enrichFactorSnapshot(finalResultId, persistedItems.size());
         int totalTargets = targetsSize(pairs);

@@ -20,10 +20,12 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 指数行情拉取服务（QP-005）。
@@ -80,11 +82,16 @@ public class IndexDataService {
                                                LocalDate startDate, LocalDate endDate) {
         List<IndexQuote> fetched = fetchIndexKline(secId, indexCode, indexName, startDate, endDate);
 
+        // 批量查询已存在的交易日，避免逐行 findByIndexCodeAndTradeDate 的 N+1 查询
+        Set<LocalDate> existingDates = fetched.isEmpty() ? Set.of()
+                : indexQuoteRepository.findExistingTradeDates(indexCode,
+                        fetched.stream().map(IndexQuote::getTradeDate).collect(java.util.stream.Collectors.toList()));
+
         int inserted = 0;
         int skipped = 0;
         List<IndexQuote> toSave = new ArrayList<>();
         for (IndexQuote q : fetched) {
-            if (indexQuoteRepository.findByIndexCodeAndTradeDate(indexCode, q.getTradeDate()).isPresent()) {
+            if (existingDates.contains(q.getTradeDate())) {
                 skipped++;
                 continue;
             }

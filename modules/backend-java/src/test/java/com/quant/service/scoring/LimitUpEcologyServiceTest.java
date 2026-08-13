@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 /**
@@ -78,7 +79,7 @@ class LimitUpEcologyServiceTest {
         info.setStockCode("000001");
         info.setExchangeType("SZSE");
         info.setStockName("测试股份");
-        when(stockInfoRepository.findAll()).thenReturn(List.of(info));
+        when(stockInfoRepository.findByStockKeyIn(any())).thenReturn(List.of(info));
 
         Map<String, Object> out = service().nextDayPremium(t, 50);
 
@@ -109,7 +110,7 @@ class LimitUpEcologyServiceTest {
         when(marketDataRepository.findByTradeDate(t)).thenReturn(List.of(today));
         when(marketDataRepository.findByTradeDate(t1)).thenReturn(List.of(next));
         when(marketDataRepository.findByTradeDate(prev)).thenReturn(List.of());
-        when(stockInfoRepository.findAll()).thenReturn(List.of());
+        when(stockInfoRepository.findByStockKeyIn(any())).thenReturn(List.of());
 
         Map<String, Object> out = service().nextDayPremium(t, 50);
 

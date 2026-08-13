@@ -520,6 +520,8 @@ public class ScoringBacktestService {
             backtestRunRepository.save(run);
         } catch (Exception e) {
             log.warn("回测结果持久化失败: {}", e.getMessage());
+            // 持久化失败时清除 resultId，避免返回指向未落库记录的悬空引用
+            response.setResultId(null);
         }
     }
 

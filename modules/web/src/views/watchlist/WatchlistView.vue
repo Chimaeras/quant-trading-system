@@ -237,8 +237,9 @@ function queryStock(keyword: string, cb: (suggestions: Record<string, any>[]) =>
     .then((res: unknown) => {
       // 防止乱序返回覆盖最新输入
       if (token !== searchToken) return
-      const data = (res as { data?: { list?: StockListItem[] } })?.data
-      const suggestions: Record<string, any>[] = (data?.list ?? []).map(item => ({
+      // unwrap() 已剥离 ApiResponse 外层，返回 { list, total } 直接结构
+      const list = (res as { list?: StockListItem[] })?.list ?? []
+      const suggestions: Record<string, any>[] = list.map(item => ({
         ...item,
         value: item.stock_code,
         label: `${item.stock_code} ${item.stock_name}`

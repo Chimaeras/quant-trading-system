@@ -56,7 +56,7 @@ public class LimitUpEcologyService {
         List<MarketData> todayBars = marketDataRepository.findByTradeDate(tradeDate);
         Map<String, MarketData> todayByKey = todayBars.stream()
                 .collect(Collectors.toMap(m -> m.getStockCode() + "|" + m.getExchangeType(), Function.identity(), (a, b) -> a));
-        Map<String, String> nameByKey = nameMap();
+        Map<String, String> nameByKey = nameMap(byStock.keySet());
 
         int limitUpCount = 0;
         int limitDownCount = 0;
@@ -208,7 +208,7 @@ public class LimitUpEcologyService {
         LocalDate dataEnd = tradingCalendarService.findTradingDays(lastSignalDay, lastSignalDay.plusDays(7))
                 .stream().filter(d -> d.isAfter(lastSignalDay) && !d.isAfter(tradeDate.minusDays(1)))
                 .findFirst().orElse(null);
-        Map<String, String> nameByKey = nameMap();
+        Map<String, String> nameByKey = nameMap(byStock.keySet());
 
         List<double[]> premiums = new ArrayList<>(); // [高开, 次日收盘涨幅]
         int highOpenCount = 0;
@@ -281,7 +281,9 @@ public class LimitUpEcologyService {
                 ? marketDataRepository.findByTradeDate(prevDay).stream()
                 .collect(Collectors.toMap(m -> m.getStockCode() + "|" + m.getExchangeType(), Function.identity(), (a, b) -> a))
                 : Map.of();
-        Map<String, String> nameByKey = nameMap();
+        Map<String, String> nameByKey = nameMap(todayBars.stream()
+                .map(m -> m.getStockCode() + "|" + m.getExchangeType())
+                .collect(Collectors.toSet()));
 
         List<double[]> premiums = new ArrayList<>(); // [高开, 次日收盘涨幅, 次日最高涨幅]
         int highOpenCount = 0;
@@ -395,11 +397,20 @@ public class LimitUpEcologyService {
         return (double) lastVol / (sum / (double) count);
     }
 
-    private Map<String, String> nameMap() {
-        Map<String, String> map = new HashMap<>();
-        for (com.quant.entity.StockInfo s : stockInfoRepository.findAll()) {
-            map.put(s.getStockCode() + "|" + s.getExchangeType(), s.getStockName());
+    /**
+     * 构建 stockKey → stockName 映射（仅查询所需标的，避免全表扫描）。
+     *
+     * @param keys 需要查询的 stockCode|exchangeType 集合（来自已拉取的行情 bar）
+     */
+    private Map<String, String> nameMap(java.util.Collection<String> keys) {
+        if (keys == null || keys.isEmpty()) {
+            return Map.of();
         }
-        return map;
+        List<String> keyList = new ArrayList<>(keys);
+        return stockInfoRepository.findByStockKeyIn(keyList).stream()
+                .collect(Collectors.toMap(
+                        s -> s.getStockCode() + "|" + s.getExchangeType(),
+                        com.quant.entity.StockInfo::getStockName,
+                        (a, b) -> a));
     }
 }

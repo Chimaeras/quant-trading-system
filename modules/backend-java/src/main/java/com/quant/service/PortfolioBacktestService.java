@@ -365,6 +365,8 @@ public class PortfolioBacktestService {
 
         double cash = initialCash;
         Map<String, Position> positions = new LinkedHashMap<>();
+        // 每个持仓最近可得 mark 价（向前回溯），用于停牌期 NAV 标记，避免回退 entryPrice 冻结 NAV。
+        Map<String, Double> lastKnownMark = new HashMap<>();
         Map<LocalDate, List<PendingBuy>> pendingBuys = new LinkedHashMap<>();
 
         List<PortfolioOrder> orderBuffer = new ArrayList<>();
@@ -441,6 +443,7 @@ public class PortfolioBacktestService {
                         buyCashOut += totalCost;
                         positions.put(b.key(), new Position(
                                 b.stockCode, b.exchangeType, b.stockName, shares, entryPx, day, b.exitDate));
+                        lastKnownMark.put(b.key(), entryPx);
                         PortfolioOrder o = fillBuy(runId, ++seqCounter, day, b, entryPx, shares, gross, totalCost, commission, bar.source);
                         orderBuffer.add(o);
                         tradeCount++;
@@ -493,6 +496,7 @@ public class PortfolioBacktestService {
                 PortfolioOrder o = fillSell(runId, ++seqCounter, day, p, exitPx, gross, proceeds, commission, stampTax, bar.source);
                 orderBuffer.add(o);
                 tradeCount++;
+                lastKnownMark.remove(key);
             }
 
             // --- schedule new signals ---
@@ -528,11 +532,21 @@ public class PortfolioBacktestService {
                 }
             }
 
-            // --- NAV（标记价：优先 raw close，缺失时可用 qfq 仅用于净值展示，非成交） ---
+            // --- NAV（标记价：优先 raw close，缺失时用最近可得历史 mark，非 entryPrice） ---
             double posValue = 0;
             for (Position p : positions.values()) {
+                String posKey = p.stockCode + "|" + p.exchangeType;
                 PriceBar bar = resolvePriceBar(p.stockCode, p.exchangeType, day, rawMap, qfqMap);
-                double px = bar != null && bar.close != null ? bar.close : p.entryPrice;
+                double px;
+                if (bar != null && bar.close != null && bar.close > 0) {
+                    px = bar.close;
+                    lastKnownMark.put(posKey, px);
+                } else {
+                    // 停牌/缺价：沿用最近可得的历史 mark 价，而非 entryPrice（成本价）。
+                    // 回退 entryPrice 会把 NAV 冻结在成本线，系统性低估 maxDrawdown。
+                    Double lastMark = lastKnownMark.get(posKey);
+                    px = lastMark != null ? lastMark : p.entryPrice;
+                }
                 posValue += px * p.shares;
             }
             double nav = cash + posValue;

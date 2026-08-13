@@ -585,29 +585,46 @@ public class SimAccountService {
     // ---------- 资产刷新（mark source） ----------
 
     /**
-     * 价格标记来源：在线账户取最新行情收盘价；演练会话取 as-of 交易日（≤ asOf）最近收盘价，
-     * 绝不用「今天最新价」标记历史持仓。
+     * 价格标记来源：raw 不复权收盘价（与成交/成本同源，V2-MP-014）。
+     * 在线账户取最新 raw 收盘价；演练会话取 as-of 交易日（≤ asOf）最近 raw 收盘价，
+     * 绝不用「今天最新价」标记历史持仓，也不用 qfq 复权价标记 raw 成本基准（除权标的会虚假浮亏）。
+     * raw 缺失时回退 qfq（仅用于净值展示，不影响成交），并标注 current_price_source。
      */
     private void refreshPositionPrice(PositionInfo p, Long accountId, Long sessionId, LocalDate asOf) {
-        Optional<MarketData> markOpt = sessionId != LIVE_SESSION
-                ? marketDataRepository
-                        .findFirstByStockCodeAndExchangeTypeAndTradeDateLessThanOrderByTradeDateDesc(
-                                p.getStockCode(), p.getExchangeType(), asOf.plusDays(1))
-                : marketDataRepository.findFirstByStockCodeAndExchangeTypeOrderByTradeDateDesc(
+        Optional<MarketPriceRaw> rawOpt = sessionId != LIVE_SESSION
+                ? marketPriceRawRepository
+                        .findFirstByStockCodeAndExchangeTypeAndTradeDateLessThanEqualOrderByTradeDateDesc(
+                                p.getStockCode(), p.getExchangeType(), asOf)
+                : marketPriceRawRepository.findFirstByStockCodeAndExchangeTypeOrderByTradeDateDesc(
                         p.getStockCode(), p.getExchangeType());
-        markOpt.ifPresent(bar -> {
-            BigDecimal price = bar.getClosePrice();
-            if (price == null || price.signum() <= 0) {
+        // raw 缺失时回退 qfq（仅展示用，标注来源）
+        BigDecimal price;
+        String priceSource;
+        if (rawOpt.isPresent() && rawOpt.get().getClosePrice() != null
+                && rawOpt.get().getClosePrice().signum() > 0) {
+            price = rawOpt.get().getClosePrice();
+            priceSource = "market_price_raw";
+        } else {
+            Optional<MarketData> qfqOpt = sessionId != LIVE_SESSION
+                    ? marketDataRepository
+                            .findFirstByStockCodeAndExchangeTypeAndTradeDateLessThanOrderByTradeDateDesc(
+                                    p.getStockCode(), p.getExchangeType(), asOf.plusDays(1))
+                    : marketDataRepository.findFirstByStockCodeAndExchangeTypeOrderByTradeDateDesc(
+                            p.getStockCode(), p.getExchangeType());
+            if (qfqOpt.isEmpty() || qfqOpt.get().getClosePrice() == null
+                    || qfqOpt.get().getClosePrice().signum() <= 0) {
                 return;
             }
-            p.setCurrentPrice(price);
-            p.setMarketValue(price.multiply(BigDecimal.valueOf(p.getVolume())));
-            if (p.getAvgCost() != null && p.getAvgCost().compareTo(BigDecimal.ZERO) > 0) {
-                p.setProfitLoss(price.subtract(p.getAvgCost()).multiply(BigDecimal.valueOf(p.getVolume())));
-                p.setProfitRate(price.subtract(p.getAvgCost()).divide(p.getAvgCost(), 4, RoundingMode.HALF_UP));
-            }
-            positionInfoRepository.save(p);
-        });
+            price = qfqOpt.get().getClosePrice();
+            priceSource = "market_data_qfq_fallback";
+        }
+        p.setCurrentPrice(price);
+        p.setMarketValue(price.multiply(BigDecimal.valueOf(p.getVolume())));
+        if (p.getAvgCost() != null && p.getAvgCost().compareTo(BigDecimal.ZERO) > 0) {
+            p.setProfitLoss(price.subtract(p.getAvgCost()).multiply(BigDecimal.valueOf(p.getVolume())));
+            p.setProfitRate(price.subtract(p.getAvgCost()).divide(p.getAvgCost(), 4, RoundingMode.HALF_UP));
+        }
+        positionInfoRepository.save(p);
     }
 
     private void refreshAccountMetrics(UserAccount account) {

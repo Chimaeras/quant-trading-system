@@ -29,6 +29,8 @@ public final class StrategyBacktestEngine {
     private static final double COMMISSION = ResearchConvention.DEFAULT_COMMISSION_RATE;
     private static final double SLIPPAGE = ResearchConvention.DEFAULT_SLIPPAGE_RATE;
     private static final double STAMP_DUTY = ResearchConvention.DEFAULT_SELL_TAX_RATE;
+    /** 每笔最低佣金（元），与 TradingFeePolicy.MIN_COMMISSION / PortfolioBacktestService 对齐。 */
+    private static final double MIN_COMMISSION = 5.0;
     /** 主板默认涨跌停幅度（10%），用于判断开盘是否封板不可成交 */
     private static final double DEFAULT_LIMIT_PCT = 0.10;
     /** 涨停/跌停价容差，覆盖四舍五入与最小报价单位 */
@@ -47,6 +49,7 @@ public final class StrategyBacktestEngine {
         assumptions.put("entry", "SAME_DAY_OPEN");
         assumptions.put("exit", "SAME_DAY_OPEN");
         assumptions.put("commission_rate", COMMISSION);
+        assumptions.put("min_commission", MIN_COMMISSION);
         assumptions.put("stamp_duty_rate", STAMP_DUTY);
         assumptions.put("slippage_rate_each_side", SLIPPAGE);
         assumptions.put("costs_source", "ResearchConvention." + ResearchConvention.CONVENTION_VERSION);
@@ -214,11 +217,11 @@ public final class StrategyBacktestEngine {
                 int volume = (int) (cash / (buyPrice * (1 + COMMISSION)) / 100) * 100;
                 if (volume >= 100) {
                     double amount = buyPrice * volume;
-                    double commission = amount * COMMISSION;
+                    double commission = Math.max(amount * COMMISSION, MIN_COMMISSION);
                     cash -= amount + commission;
                     position = volume;
                     // 持仓成本基线含买入佣金，使卖出 pnl 直接反映净盈亏（否则胜率偏乐观）。
-                    avgCost = buyPrice * (1 + COMMISSION);
+                    avgCost = buyPrice + commission / volume;
                     trades.add(new TradeRecord(
                             bar.getTradeDate().toString(), "buy", buyPrice, volume, amount, commission, cash, cash + position * markPrice
                     ));
@@ -229,7 +232,7 @@ public final class StrategyBacktestEngine {
                     && !isLimitDownAtExecOpen(execPrice, preClose, limitPct)) {
                 double sellPrice = execPrice * (1 - SLIPPAGE);
                 double amount = sellPrice * position;
-                double commission = amount * COMMISSION;
+                double commission = Math.max(amount * COMMISSION, MIN_COMMISSION);
                 double stamp = amount * STAMP_DUTY;
                 double pnl = (sellPrice - avgCost) * position - commission - stamp;
                 if (pnl > 0) {

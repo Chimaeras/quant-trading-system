@@ -14,6 +14,14 @@ public interface MarketPriceRawRepository extends JpaRepository<MarketPriceRaw, 
     Optional<MarketPriceRaw> findByStockCodeAndExchangeTypeAndTradeDate(
             String stockCode, String exchangeType, LocalDate tradeDate);
 
+    /** as-of 标记价：取 ≤ asOf 的最近一个交易日 raw 收盘价（历史演练会话用）。 */
+    Optional<MarketPriceRaw> findFirstByStockCodeAndExchangeTypeAndTradeDateLessThanEqualOrderByTradeDateDesc(
+            String stockCode, String exchangeType, LocalDate tradeDate);
+
+    /** 在线标记价：取最新 raw 收盘价。 */
+    Optional<MarketPriceRaw> findFirstByStockCodeAndExchangeTypeOrderByTradeDateDesc(
+            String stockCode, String exchangeType);
+
     List<MarketPriceRaw> findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
             String stockCode, String exchangeType, LocalDate startDate, LocalDate endDate);
 

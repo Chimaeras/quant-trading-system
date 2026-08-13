@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * 回测分段稳定性报告：将回测区间按日历中点切分为前半段与后半段，
@@ -37,6 +38,7 @@ public class BacktestStabilityService {
 
     private final ScoringBacktestService scoringBacktestService;
     private final IndexQuoteRepository indexQuoteRepository;
+    private final TradingCalendarService tradingCalendarService;
 
     @Transactional(readOnly = true)
     public Map<String, Object> analyze(String strategy, LocalDate startDate, LocalDate endDate,
@@ -83,6 +85,15 @@ public class BacktestStabilityService {
         double lastClose = q(quotes.get(quotes.size() - 1));
         double indexReturn = firstClose > 0 ? lastClose / firstClose - 1 : 0;
 
+        // 指数 close 按日索引，供 H 日窗口 forward return 计算使用
+        TreeMap<LocalDate, Double> indexCloseByDate = new TreeMap<>();
+        for (IndexQuote iq : quotes) {
+            double c = q(iq);
+            if (c > 0) {
+                indexCloseByDate.put(iq.getTradeDate(), c);
+            }
+        }
+
         // 每日方向：close[t] >= close[t-1] → bull
         Map<LocalDate, Boolean> bullByDate = new HashMap<>();
         Map<LocalDate, Double> dayIndexRet = new HashMap<>();
@@ -124,13 +135,21 @@ public class BacktestStabilityService {
                 ? full.getHoldingPeriodStats().get(holdingDay) : null;
         double strategyAvgReturn = fullStat != null ? fullStat.getAvgReturn() : 0;
 
+        // 基准 H 日 forward return 均值：对每个信号日，取指数从信号日到 entry+H 收盘的同口径收益，
+        // 与策略 avgReturn（H 日单票 forward return 均值）口径对齐。
+        // 原实现拿 H 日单票收益 vs 整段区间指数累计收益比较，口径不可比。
+        double benchmarkAvgReturn = benchmarkForwardReturnAvg(full, holdingDay, indexCloseByDate);
+
         out.put("benchmark", Map.of(
                 "available", true,
                 "index_code", BENCHMARK_INDEX_CODE,
                 "index_name", BENCHMARK_INDEX_NAME,
                 "index_return", round4(indexReturn),
+                "index_return_note", "整个信号区间的累计收益（参考用，非对比口径）",
                 "strategy_avg_return", round4(strategyAvgReturn),
-                "outperform", strategyAvgReturn > indexReturn));
+                "benchmark_avg_return", round4(benchmarkAvgReturn),
+                "benchmark_horizon", holdingDay,
+                "outperform", strategyAvgReturn > benchmarkAvgReturn));
         out.put("market_segments", Map.of(
                 "bull", Map.of(
                         "days", bullDays,
@@ -140,6 +159,48 @@ public class BacktestStabilityService {
                         "days", bearDays,
                         "avg_win_rate", bearDays > 0 ? round4(bearWinSum / bearDays) : 0,
                         "index_return", round4(bearIdxSum))));
+    }
+
+    /**
+     * 基准 H 日 forward return 算术平均：与策略 avgReturn（H 日单票 forward return 均值）同口径。
+     *
+     * <p>对每个信号日 signalDate：entry = 信号日次日，exit = entry 后第 holdingDay 个交易日，
+     * 基准收益 = indexClose[exit] / indexClose[signalDate] - 1。
+     * 缺失指数收盘的日期跳过（不计入分母）。
+     */
+    private double benchmarkForwardReturnAvg(ScoringBacktestResponse full, int holdingDay,
+                                             TreeMap<LocalDate, Double> indexCloseByDate) {
+        if (full == null || full.getDailyDetails() == null || indexCloseByDate.isEmpty()) {
+            return 0;
+        }
+        double sum = 0;
+        int count = 0;
+        for (ScoringBacktestResponse.DailyDetail dd : full.getDailyDetails()) {
+            LocalDate signalDate = dd.getTradeDate();
+            if (signalDate == null) {
+                continue;
+            }
+            Double signalClose = indexCloseByDate.get(signalDate);
+            if (signalClose == null || signalClose <= 0) {
+                continue;
+            }
+            // entry = 信号日次日，exit = entry 后第 holdingDay 个交易日
+            LocalDate entry = tradingCalendarService.nextTradingDay(signalDate).orElse(null);
+            if (entry == null) {
+                continue;
+            }
+            LocalDate exit = tradingCalendarService.tradingDayAfterN(entry, holdingDay).orElse(null);
+            if (exit == null) {
+                continue;
+            }
+            Double exitClose = indexCloseByDate.get(exit);
+            if (exitClose == null || exitClose <= 0) {
+                continue;
+            }
+            sum += exitClose / signalClose - 1;
+            count++;
+        }
+        return count > 0 ? sum / count : 0;
     }
 
     private static double q(IndexQuote iq) {

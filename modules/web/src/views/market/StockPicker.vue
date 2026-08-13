@@ -396,6 +396,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import dayjs from 'dayjs'
 import { selectorApi } from '@/api/selector'
 import { scoringApi, type UnifiedScoringStrategy, type UnifiedScoringTaskStatus } from '@/api/scoring'
+import { errorText } from '@/api/request'
 import { useToast } from '@/composables/useToast'
 
 type ModeType = 'classic' | 'oversold' | 'trend' | 'comprehensive' | 'multi_dim'
@@ -876,9 +877,9 @@ async function runAndWaitTask(payload: Record<string, unknown>) {
         if (t.status === 'CANCELLED') {
           throw new Error(t.message || '任务已取消')
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         errorCount += 1
-        const msg = String(e?.message || '')
+        const msg = errorText(e)
         if (msg.includes('任务执行失败')) {
           throw e
         }
@@ -921,8 +922,8 @@ async function refreshTaskStatus() {
     if (t.result_id) {
       await syncPartialResult(t.result_id)
     }
-  } catch (e: any) {
-    toast.error(e?.message || '刷新任务状态失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   }
 }
 
@@ -932,8 +933,8 @@ async function refreshResultData() {
   try {
     const data = await scoringApi.getUnifiedResult(resultMeta.result_id, { page: 1, size: currentScorePoolSize() })
     applyResult(data as Record<string, any>)
-  } catch (e: any) {
-    toast.error(e?.message || '刷新结果失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     loading.value = false
   }
@@ -954,8 +955,8 @@ async function queryByTaskId() {
       queryResultId.value = t.result_id
       await refreshResultData()
     }
-  } catch (e: any) {
-    toast.error(e?.message || '任务查询失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   }
 }
 
@@ -970,8 +971,8 @@ async function queryByResultId() {
     const data = await scoringApi.getUnifiedResult(id, { page: 1, size: currentScorePoolSize() })
     applyResult(data as Record<string, any>)
     resultMeta.result_id = id
-  } catch (e: any) {
-    toast.error(e?.message || '结果查询失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     loading.value = false
   }
@@ -1002,8 +1003,8 @@ async function loadHistoryTask(taskId: string) {
     } else {
       toast.info('该任务尚无完成的结果')
     }
-  } catch (e: any) {
-    toast.error(e?.message || '载入历史任务失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   }
 }
 
@@ -1119,8 +1120,8 @@ async function runSelection() {
       : await scoringApi.getUnifiedLatest({ strategy: 'CLASSIC_SELECTOR', tradeDate: form.tradeDate, page: 1, size: form.scoreTopN })
     applyResult(data)
     scoringCompleteToast()
-  } catch (e: any) {
-    taskError.value = String(e?.message || '运行选股失败')
+  } catch (e: unknown) {
+    taskError.value = errorText(e)
     toast.error(taskError.value)
   } finally {
     running.value = false
@@ -1148,8 +1149,8 @@ async function runOversold() {
       : await scoringApi.getUnifiedLatest({ strategy: 'OVERSOLD_REBOUND', tradeDate: oversoldForm.tradeDate, page: 1, size: oversoldForm.scoreTopN })
     applyResult(data)
     scoringCompleteToast()
-  } catch (e: any) {
-    taskError.value = String(e?.message || '运行超跌筛选失败')
+  } catch (e: unknown) {
+    taskError.value = errorText(e)
     toast.error(taskError.value)
   } finally {
     running.value = false
@@ -1169,8 +1170,8 @@ async function runGeneric() {
       : await scoringApi.getUnifiedLatest({ strategy, tradeDate: commonForm.tradeDate, page: 1, size: commonForm.scoreTopN })
     applyResult(data)
     scoringCompleteToast()
-  } catch (e: any) {
-    taskError.value = String(e?.message || '运行打分失败')
+  } catch (e: unknown) {
+    taskError.value = errorText(e)
     toast.error(taskError.value)
   } finally {
     running.value = false
@@ -1221,9 +1222,9 @@ async function resumeTaskWatch() {
         if (t.status === 'CANCELLED') {
           throw new Error(t.message || '任务已取消')
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         errorCount += 1
-        const msg = String(e?.message || '')
+        const msg = errorText(e)
         if (msg.includes('任务执行失败')) {
           throw e
         }
@@ -1235,8 +1236,8 @@ async function resumeTaskWatch() {
       await sleep(Math.min(2000 + errorCount * 1000, 6000))
     }
     throw new Error(pollStopReason.value || '任务监控已停止')
-  } catch (e: any) {
-    taskError.value = String(e?.message || '恢复监控失败')
+  } catch (e: unknown) {
+    taskError.value = errorText(e)
     toast.error(taskError.value)
   } finally {
     isPollingActive.value = false
@@ -1256,8 +1257,8 @@ async function cancelTaskServer() {
     const msg = String(ret?.message || '')
     taskMessage.value = msg || '任务已取消'
     await resumeTaskWatch()
-  } catch (e: any) {
-    toast.error(e?.message || '取消任务失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   }
 }
 
@@ -1269,8 +1270,8 @@ async function prioritizeCurrentTask() {
     taskMessage.value = msg
     toast.success(msg)
     await resumeTaskWatch()
-  } catch (e: any) {
-    toast.error(e?.message || '优先执行失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   }
 }
 
@@ -1285,8 +1286,8 @@ async function clearPendingQueue() {
     if (taskId.value) {
       await resumeTaskWatch()
     }
-  } catch (e: any) {
-    toast.error(e?.message || '清空待执行队列失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   }
 }
 
@@ -1317,8 +1318,8 @@ async function forceRestartCurrentTask() {
     } else {
       await runGeneric()
     }
-  } catch (e: any) {
-    const msg = String(e?.message || '强制重跑失败')
+  } catch (e: unknown) {
+    const msg = errorText(e)
     taskError.value = msg
     toast.error(msg)
   }
@@ -1415,8 +1416,8 @@ async function loadLatest() {
     })
     applyResult(data)
     if (!results.value.length) toast.info('当日暂无结果，请先执行打分')
-  } catch (e: any) {
-    toast.error(e?.message || '加载结果失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     loading.value = false
   }

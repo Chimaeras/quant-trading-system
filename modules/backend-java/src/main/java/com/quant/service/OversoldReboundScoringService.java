@@ -395,11 +395,12 @@ public class OversoldReboundScoringService {
             progressiveResultWriter.replaceResultItems(resultId, items);
         } else {
             selectorResultItemRepository.deleteByResultId(resultId);
+            List<SelectorResultItem> items = new ArrayList<>();
             int rank = 1;
             for (ScoreResult r : top) {
-                SelectorResultItem item = toItem(resultId, rank++, r);
-                selectorResultItemRepository.save(item);
+                items.add(toItem(resultId, rank++, r));
             }
+            selectorResultItemRepository.saveAll(items);
         }
         return resultId;
     }

@@ -1,6 +1,7 @@
 package com.quant.service;
 
 import com.quant.entity.DataUpdateTask;
+import com.quant.exception.BusinessException;
 import com.quant.entity.DataUpdateTaskItem;
 import com.quant.repository.DataUpdateTaskItemRepository;
 import com.quant.repository.DataUpdateTaskRepository;
@@ -22,6 +23,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 
 @Slf4j
 @Service
@@ -83,8 +85,17 @@ public class HistoricalDataUpdateService {
         final LocalDate e = endDate;
         final long delayBetween = delayMs;
         final boolean stockInfoStyleMainBoard = "MAIN_BOARD".equals(mode);
-        Future<?> future = dataUpdateTaskExecutor.submit(() -> runTask(task.getTaskId(), targetsForRun, s, e, delayBetween, stockInfoStyleMainBoard));
-        taskFutures.put(task.getTaskId(), future);
+        try {
+            Future<?> future = dataUpdateTaskExecutor.submit(() -> runTask(task.getTaskId(), targetsForRun, s, e, delayBetween, stockInfoStyleMainBoard));
+            taskFutures.put(task.getTaskId(), future);
+        } catch (RejectedExecutionException ex) {
+            // executor 饱和或关闭时 submit 抛异常，须将 PENDING 任务标记为 FAILED 避免孤儿
+            task.setStatus("FAILED");
+            task.setMessage("executor rejected task: " + ex.getMessage());
+            dataUpdateTaskRepository.save(task);
+            log.error("task {} rejected by executor", task.getTaskId(), ex);
+            throw new BusinessException("任务提交失败（执行器饱和）: " + ex.getMessage());
+        }
 
         Map<String, Object> res = new LinkedHashMap<>();
         res.put("task_id", task.getTaskId());
@@ -152,8 +163,16 @@ public class HistoricalDataUpdateService {
         retry.setTotalStocks(targets.size());
         dataUpdateTaskRepository.save(retry);
 
-        Future<?> future = dataUpdateTaskExecutor.submit(() -> runTask(retry.getTaskId(), targets, retry.getStartDate(), retry.getEndDate(), 150L, false));
-        taskFutures.put(retry.getTaskId(), future);
+        try {
+            Future<?> future = dataUpdateTaskExecutor.submit(() -> runTask(retry.getTaskId(), targets, retry.getStartDate(), retry.getEndDate(), 150L, false));
+            taskFutures.put(retry.getTaskId(), future);
+        } catch (RejectedExecutionException ex) {
+            retry.setStatus("FAILED");
+            retry.setMessage("executor rejected task: " + ex.getMessage());
+            dataUpdateTaskRepository.save(retry);
+            log.error("retry task {} rejected by executor", retry.getTaskId(), ex);
+            throw new BusinessException("重试任务提交失败（执行器饱和）: " + ex.getMessage());
+        }
         return Map.of("task_id", retry.getTaskId(), "status", retry.getStatus(), "total_stocks", retry.getTotalStocks());
     }
 

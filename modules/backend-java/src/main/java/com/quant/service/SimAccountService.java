@@ -73,7 +73,7 @@ public class SimAccountService {
             data.put("todayPnl", BigDecimal.ZERO);
             data.put("totalProfit", s.getTotalProfit());
             data.put("positionCount", positionInfoRepository
-                    .findByAccountIdAndSessionIdOrderByStockCodeAsc(account.getId(), scope).size());
+                    .countByAccountIdAndSessionId(account.getId(), scope));
             return data;
         }
         refreshAccountMetrics(account);
@@ -87,7 +87,7 @@ public class SimAccountService {
         data.put("todayPnl", account.getTodayProfit());
         data.put("totalProfit", account.getTotalProfit());
         data.put("positionCount", positionInfoRepository
-                .findByAccountIdAndSessionIdOrderByStockCodeAsc(account.getId(), LIVE_SESSION).size());
+                .countByAccountIdAndSessionId(account.getId(), LIVE_SESSION));
         return data;
     }
 

@@ -883,7 +883,7 @@ public class UnifiedScoringService {
         selectorResultRepository.save(sr);
 
         Set<String> existing = selectorResultItemRepository.findStockKeysByResultId(resultId);
-        int rank = selectorResultItemRepository.findByResultIdOrderByRankNoAsc(resultId).size() + 1;
+        int rank = (int) selectorResultItemRepository.countByResultId(resultId) + 1;
         int processed = 0;
         int success = 0;
         for (Map<String, Object> item : items) {

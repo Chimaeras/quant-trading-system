@@ -1437,8 +1437,9 @@ onBeforeUnmount(() => {
   text-align: right;
 }
 
-.text-success { color: var(--text-success); }
-.text-danger { color: var(--text-danger); }
+/* 收益/指标正负色：与全站 A 股红涨绿跌一致（text-up/text-down 同口径） */
+.text-success { color: var(--up); }
+.text-danger { color: var(--down); }
 .text-muted { color: var(--text-dim); }
 
 .chart-box {

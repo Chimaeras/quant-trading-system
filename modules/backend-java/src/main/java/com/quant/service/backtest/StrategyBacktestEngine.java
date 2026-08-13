@@ -401,8 +401,10 @@ public final class StrategyBacktestEngine {
     }
 
     /**
-     * 涨停开盘：开盘价落在涨停价容差带内，买单无法成交（A 股封板买入排队）。
-     * 口径：涨停价 = 前收 × (1 + limitPct)；仅当开盘价贴近涨停价时视为封板，避免把异常跳空误判为涨停。
+     * 涨停开盘：开盘价达到或超过涨停价（容差下界），买单无法成交（A 股封板买入排队）。
+     * 口径：涨停价 = 前收 × (1 + limitPct)；开盘价 ≥ 涨停价×(1-tol) 即视为封板不可买。
+     * <p>注意：不做上界判定。开盘价超过涨停价（脏数据、除权日 preClose 未更新）时，
+     * 实际比封板更不可能成交，必须判为不可买入而非放行。
      */
     public static boolean isLimitUpAtOpen(MarketData bar, double preClose, double limitPct) {
         if (preClose <= 0 || bar.getOpenPrice() == null) {
@@ -413,12 +415,14 @@ public final class StrategyBacktestEngine {
             return false;
         }
         double limitUpPrice = preClose * (1 + limitPct);
-        return open >= limitUpPrice * (1 - LIMIT_PRICE_TOLERANCE)
-                && open <= limitUpPrice * (1 + LIMIT_PRICE_TOLERANCE);
+        return open >= limitUpPrice * (1 - LIMIT_PRICE_TOLERANCE);
     }
 
     /**
-     * 跌停开盘：开盘价落在跌停价容差带内，卖单无法成交（A 股封板卖出排队）。
+     * 跌停开盘：开盘价达到或低于跌停价（容差上界），卖单无法成交（A 股封板卖出排队）。
+     * 口径：跌停价 = 前收 × (1 - limitPct)；开盘价 ≤ 跌停价×(1+tol) 即视为封板不可卖。
+     * <p>注意：不做下界判定。开盘价低于跌停价（脏数据、除权日 preClose 未更新）时，
+     * 实际比封板更不可能成交，必须判为不可卖出而非放行。
      */
     public static boolean isLimitDownAtOpen(MarketData bar, double preClose, double limitPct) {
         if (preClose <= 0 || bar.getOpenPrice() == null) {
@@ -429,8 +433,7 @@ public final class StrategyBacktestEngine {
             return false;
         }
         double limitDownPrice = preClose * (1 - limitPct);
-        return open <= limitDownPrice * (1 + LIMIT_PRICE_TOLERANCE)
-                && open >= limitDownPrice * (1 - LIMIT_PRICE_TOLERANCE);
+        return open <= limitDownPrice * (1 + LIMIT_PRICE_TOLERANCE);
     }
 
     /**

@@ -170,6 +170,97 @@ public class LimitUpEcologyService {
         return f;
     }
 
+    /**
+     * <b>历史口径</b>涨停次日溢价统计：汇总 tradeDate 之前所有已完成的"涨停→次日"事件。
+     *
+     * <p>与 {@link #nextDayPremium(LocalDate, int)} 的关键区别：
+     * <ul>
+     *   <li>{@code nextDayPremium(tradeDate, ...)} 统计的是 <b>tradeDate 当天涨停的股票在 T+1 的表现</b>，
+     *       必须读取 T+1 数据——在次日核销（settle）阶段合法，但在 T 日候选<b>生成</b>阶段属未来函数。</li>
+     *   <li>本方法只统计 <b>信号日 ≤ tradeDate-2</b> 的涨停股（其次日 ≤ tradeDate-1），
+     *       所用数据截止 T-1，可在 T 日收盘后安全调用，不泄漏未来信息。</li>
+     * </ul>
+     *
+     * <p>用于 {@link com.quant.service.T1CandidateService#generateCandidates} 生成阶段的历史高开经验值。
+     *
+     * @param tradeDate    信号日（T），本方法只读 ≤ T-1 的数据
+     * @param lookbackDays 向前回溯的日历日数（与 ecology/nextDayPremium 保持一致口径）
+     */
+    public Map<String, Object> historicalNextDayPremium(LocalDate tradeDate, int lookbackDays) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        // 候选"涨停信号日"区间：最早 lookbackDays 前，最晚 tradeDate-2（确保其次日 ≤ tradeDate-1 已已知）
+        LocalDate rangeStart = tradeDate.minusDays(lookbackDays);
+        LocalDate lastSignalDay = tradingCalendarService.findTradingDays(tradeDate.minusDays(7), tradeDate.minusDays(1))
+                .stream().reduce((a, b) -> b).orElse(null);
+        if (lastSignalDay == null) {
+            out.put("available", false);
+            out.put("sample_count", 0);
+            out.put("note", "无 tradeDate 前的交易日，无法计算历史涨停次日溢价");
+            return out;
+        }
+        // 批量取区间行情
+        List<MarketData> all = marketDataRepository
+                .findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(rangeStart, lastSignalDay);
+        Map<String, List<MarketData>> byStock = all.stream()
+                .collect(Collectors.groupingBy(
+                        m -> m.getStockCode() + "|" + m.getExchangeType(), LinkedHashMap::new, Collectors.toList()));
+        // 次日行情：需覆盖到 tradeDate-1（最后一个信号日 lastSignalDay 的次日可能 = tradeDate-1）
+        LocalDate dataEnd = tradingCalendarService.findTradingDays(lastSignalDay, lastSignalDay.plusDays(7))
+                .stream().filter(d -> d.isAfter(lastSignalDay) && !d.isAfter(tradeDate.minusDays(1)))
+                .findFirst().orElse(null);
+        Map<String, String> nameByKey = nameMap();
+
+        List<double[]> premiums = new ArrayList<>(); // [高开, 次日收盘涨幅]
+        int highOpenCount = 0;
+        int upCount = 0;
+        for (Map.Entry<String, List<MarketData>> e : byStock.entrySet()) {
+            String key = e.getKey();
+            List<MarketData> bars = e.getValue();
+            String name = nameByKey.get(key);
+            for (int i = 0; i < bars.size(); i++) {
+                MarketData bar = bars.get(i);
+                double preClose = resolvePreClose(bar, bars.subList(0, i + 1));
+                double limitPct = TradingLimitRules.resolveLimitPct(bar.getStockCode(), bar.getExchangeType(), name);
+                if (!StrategyBacktestEngine.isLimitUpAtClose(bar, preClose, limitPct)) {
+                    continue;
+                }
+                // 找该股在涨停信号日之后的第一个交易日（≤ tradeDate-1）
+                MarketData next = null;
+                for (int j = i + 1; j < bars.size(); j++) {
+                    if (bars.get(j).getTradeDate().isAfter(bar.getTradeDate())) {
+                        next = bars.get(j);
+                        break;
+                    }
+                }
+                if (next == null || next.getOpenPrice() == null || next.getClosePrice() == null
+                        || bar.getClosePrice() == null || bar.getClosePrice().doubleValue() <= 0) {
+                    continue;
+                }
+                double gap = next.getOpenPrice().doubleValue() / bar.getClosePrice().doubleValue() - 1;
+                double ret = next.getClosePrice().doubleValue() / bar.getClosePrice().doubleValue() - 1;
+                premiums.add(new double[]{gap, ret});
+                if (gap > 0) highOpenCount++;
+                if (ret > 0) upCount++;
+            }
+        }
+        int n = premiums.size();
+        out.put("available", n > 0);
+        out.put("sample_count", n);
+        if (n > 0) {
+            double avgGap = premiums.stream().mapToDouble(p -> p[0]).average().orElse(0);
+            double avgRet = premiums.stream().mapToDouble(p -> p[1]).average().orElse(0);
+            out.put("high_open_rate", Math.round((double) highOpenCount / n * 10000.0) / 10000.0);
+            out.put("avg_gap", Math.round(avgGap * 10000.0) / 10000.0);
+            out.put("avg_next_ret", Math.round(avgRet * 10000.0) / 10000.0);
+            out.put("up_rate", Math.round((double) upCount / n * 10000.0) / 10000.0);
+        }
+        out.put("range_start", rangeStart.toString());
+        out.put("last_signal_day", lastSignalDay.toString());
+        out.put("data_end", dataEnd != null ? dataEnd.toString() : null);
+        out.put("note", "历史涨停次日溢价（信号日 ≤ " + lastSignalDay + "，数据截止 ≤ T-1），生成阶段无未来信息");
+        return out;
+    }
+
     /** 涨停次日溢价统计（tradeDate 涨停股在 nextTradeDay 的表现），用于候选解释与验证。 */
     public Map<String, Object> nextDayPremium(LocalDate tradeDate, int topLimitUpCount) {
         Map<String, Object> out = new LinkedHashMap<>();

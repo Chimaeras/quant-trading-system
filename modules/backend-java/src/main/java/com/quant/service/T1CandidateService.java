@@ -114,7 +114,9 @@ public class T1CandidateService {
         Map<String, StockInfo> infoByKey = universe.byKey();
 
         // 涨停股次日溢价历史分布（用于次日可买性/高开追高风险预判）
-        Map<String, Object> premium = limitUpEcologyService.nextDayPremium(actualDate, 50);
+        // 注意：生成阶段只能用 ≤ T-1 的历史数据，不能读 T+1（否则未来函数）。
+        // historicalNextDayPremium 只统计信号日 ≤ T-2 的涨停事件，数据截止 T-1。
+        Map<String, Object> premium = limitUpEcologyService.historicalNextDayPremium(actualDate, 50);
 
         // 尝试加载 horizon=1 的 champion 概率模型；无匹配 champion 则仅输出规则分
         T1ProbLoadResult modelLoad = loadT1ProbModelWithReason();

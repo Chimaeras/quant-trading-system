@@ -19,6 +19,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,11 +75,15 @@ public class TradingCalendarService {
     public Map<String, Object> deriveFromShIndex(LocalDate startDate, LocalDate endDate) {
         Set<LocalDate> fetched = fetchShIndexTradeDates(startDate, endDate);
 
+        // 批量查询已存在的交易日，避免逐行 findByTradeDate 的 N+1 查询
+        Set<LocalDate> existing = new HashSet<>(
+                tradingCalendarDayRepository.findTradeDatesBetween(startDate, endDate));
+
         int inserted = 0;
         int skippedExisting = 0;
         List<TradingCalendarDay> toSave = new ArrayList<>();
         for (LocalDate d : fetched) {
-            if (tradingCalendarDayRepository.findByTradeDate(d).isPresent()) {
+            if (existing.contains(d)) {
                 skippedExisting++;
                 continue;
             }

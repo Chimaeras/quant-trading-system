@@ -98,7 +98,8 @@ function pct(v: number): string {
 }
 function retClass(v: number): string {
   if (!Number.isFinite(v)) return ''
-  return v > 0 ? 'text-success' : v < 0 ? 'text-danger' : ''
+  // A股红涨绿跌：正收益→红(text-up)，负收益→绿(text-down)
+  return v > 0 ? 'text-up' : v < 0 ? 'text-down' : ''
 }
 
 const verdict = computed(() => {
@@ -185,6 +186,4 @@ onMounted(() => run())
   font-size: 13px;
   color: var(--text-secondary);
 }
-.text-danger { color: var(--up); }
-.text-success { color: var(--down); }
 </style>

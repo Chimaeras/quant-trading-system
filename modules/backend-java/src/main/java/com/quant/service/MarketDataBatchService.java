@@ -1,5 +1,6 @@
 package com.quant.service;
 
+import com.quant.exception.BusinessException;
 import com.quant.repository.AdjustFactorRepository;
 import com.quant.repository.MarketDataRepository;
 import com.quant.repository.MarketPriceRawRepository;
@@ -111,14 +112,11 @@ public class MarketDataBatchService {
             out.put("note", "MP-014 pragmatic batch: full atomic staging tables are future work");
             return out;
         } catch (Exception e) {
-            out.put("publish_status", PUBLISH_FAILED);
-            out.put("publish_reason", e.getMessage());
-            checklist.add("update:FAILED:" + e.getMessage());
-            out.put("consistency_checklist", checklist);
-            out.put("qfq_count", 0);
-            out.put("raw_count", 0);
-            out.put("factor_count", 0);
-            return out;
+            // 更新过程异常（数据拉取/DB 写入失败等）不应伪装为成功，
+            // 否则调用方仅凭 HTTP 200 / ApiResponse.code=success 无法发现数据未入库。
+            // 重新抛出为 BusinessException → 全局异常处理器返回 HTTP 400。
+            log.error("batch {} update failed: {}", out.get("batch_id"), e.getMessage(), e);
+            throw new BusinessException("数据批量更新失败: " + e.getMessage());
         }
     }
 }

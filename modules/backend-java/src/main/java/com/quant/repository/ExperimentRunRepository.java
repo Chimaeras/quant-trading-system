@@ -14,6 +14,9 @@ public interface ExperimentRunRepository extends JpaRepository<ExperimentRun, Lo
 
     List<ExperimentRun> findByExperimentIdStartingWith(String prefix);
 
+    /** 统计某日前缀的实验数（用于生成序号，避免水合全部实体）。 */
+    long countByExperimentIdStartingWith(String prefix);
+
     @Query("SELECT e FROM ExperimentRun e ORDER BY e.createdAt DESC")
     List<ExperimentRun> findLatest(Pageable pageable);
 

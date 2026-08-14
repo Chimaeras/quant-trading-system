@@ -15,6 +15,7 @@ A股代码映射表导入脚本
 import csv
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # 市场类型到 exchange_type / exchange_type_name 的映射
@@ -33,7 +34,9 @@ def map_market(market: str) -> tuple[str, str]:
 
 
 def load_csv(csv_path: str) -> list[dict]:
-    """加载 CSV 并返回记录列表"""
+    """加载 CSV 并返回记录列表。
+    若 CSV 含 status 列（上市/退市标记）则一并保留，否则默认 status=1（上市）。
+    """
     rows = []
     with open(csv_path, "r", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
@@ -42,7 +45,13 @@ def load_csv(csv_path: str) -> list[dict]:
             name = (row.get("name") or "").strip()
             market = (row.get("market") or "").strip()
             if code and name and market:
-                rows.append({"code": code, "name": name, "market": market})
+                status = (row.get("status") or "").strip()
+                rows.append({
+                    "code": code,
+                    "name": name,
+                    "market": market,
+                    "status": status if status else "1",
+                })
     return rows
 
 
@@ -54,10 +63,14 @@ def suffix_from_exchange(exchange_type: str) -> str:
     return "SZ"
 
 
-def write_universe_file(rows: list[dict], output_path: str) -> int:
+def write_universe_file(rows: list[dict], output_path: str, csv_filename: str = "") -> int:
     """
     生成项目内固定全量清单（code.suffix，每行一只）
-    返回写入条数
+    返回写入条数。
+
+    注意：此清单基于导入时的存量快照，仅含当时在市的标的（survivorship bias）。
+    回测/研究若需 point-in-time 成员资格，应以 SecurityMasterHistory（含 valid_from/valid_to）
+    为准，而非此静态清单。清单头部记录快照来源与日期以便溯源。
     """
     lines = set()
     for row in rows:
@@ -68,11 +81,17 @@ def write_universe_file(rows: list[dict], output_path: str) -> int:
         suffix = suffix_from_exchange(exchange_type)
         lines.add(f'{row["code"]}.{suffix}')
 
+    snapshot_date = datetime.now().strftime("%Y-%m-%d")
     out = Path(output_path)
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", encoding="utf-8") as f:
-        f.write("# A-share fixed universe list (generated)\n")
+        f.write("# A-share universe snapshot (generated)\n")
         f.write("# format: stock_code.exchange_suffix\n")
+        f.write(f"# snapshot_date: {snapshot_date}\n")
+        if csv_filename:
+            f.write(f"# source_csv: {csv_filename}\n")
+        f.write("# WARNING: 仅含快照日存量标的（survivorship bias）；"
+                "回测须用 SecurityMasterHistory PIT 成员资格\n")
         for line in sorted(lines):
             f.write(f"{line}\n")
     return len(lines)
@@ -131,10 +150,11 @@ def main():
 
         sql = """
             INSERT INTO stock_info (stock_code, stock_name, exchange_type, exchange_type_name, status)
-            VALUES (%s, %s, %s, %s, 1)
+            VALUES (%s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
                 stock_name = VALUES(stock_name),
                 exchange_type_name = VALUES(exchange_type_name),
+                status = VALUES(status),
                 updated_at = CURRENT_TIMESTAMP
         """
 
@@ -146,7 +166,7 @@ def main():
             exchange_type, exchange_type_name = map_market(market)
             cursor.execute(
                 sql,
-                (row["code"], row["name"], exchange_type, exchange_type_name),
+                (row["code"], row["name"], exchange_type, exchange_type_name, row.get("status", "1")),
             )
             if cursor.rowcount == 1:
                 inserted += 1
@@ -159,7 +179,8 @@ def main():
         conn.close()
 
     # 额外输出项目内固定全量清单（供 ALL 模式读取）
-    written = write_universe_file(rows, universe_output)
+    csv_basename = Path(csv_path).name
+    written = write_universe_file(rows, universe_output, csv_basename)
     print(f"已生成全量清单: {universe_output} ({written} 条)")
 
 

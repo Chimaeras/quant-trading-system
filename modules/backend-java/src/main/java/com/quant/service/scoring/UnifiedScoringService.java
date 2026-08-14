@@ -14,6 +14,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -86,6 +88,40 @@ public class UnifiedScoringService {
         this.objectMapper = objectMapper;
         this.unifiedTaskExecutor = unifiedTaskExecutor;
         this.transactionManager = transactionManager;
+    }
+
+    /**
+     * 应用启动恢复：崩溃后 RUNNING 任务无 worker 附着（内存 queuedOrRunningTaskIds/taskFutures 重启清空），
+     * 标记为 FAILED；PENDING 任务重新排队（打分任务幂等，可安全重放；部分写入的 selector_result 由
+     * requestFingerprint 去重 + RESULT_RESUMABLE_STATUSES 续传，不会重复落库）。
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    @Transactional
+    public void recoverOnStartup() {
+        try {
+            List<com.quant.entity.UnifiedScoringTask> running =
+                    unifiedScoringTaskRepository.findByStatusOrderByCreatedAtAsc("RUNNING");
+            int markedFailed = 0;
+            for (com.quant.entity.UnifiedScoringTask t : running) {
+                t.setStatus("FAILED");
+                t.setMessage("应用重启恢复：原 RUNNING 状态无 worker 附着，标记 FAILED");
+                unifiedScoringTaskRepository.save(t);
+                markedFailed++;
+            }
+
+            List<com.quant.entity.UnifiedScoringTask> pending =
+                    unifiedScoringTaskRepository.findByStatusOrderByCreatedAtAsc("PENDING");
+            for (com.quant.entity.UnifiedScoringTask t : pending) {
+                Map<String, Object> req = readRequestJson(t.getRequestJson());
+                scheduleTaskAfterCommit(t.getTaskId(), req);
+            }
+
+            if (markedFailed > 0 || !pending.isEmpty()) {
+                log.info("统一打分任务启动恢复: {} 个 RUNNING 转 FAILED, {} 个 PENDING 重新排队", markedFailed, pending.size());
+            }
+        } catch (Exception e) {
+            log.warn("统一打分任务启动恢复失败（DB 可能未就绪）: {}", e.getMessage());
+        }
     }
 
     /**

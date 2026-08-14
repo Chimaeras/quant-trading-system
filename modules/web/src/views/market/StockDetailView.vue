@@ -43,7 +43,9 @@
         <el-radio-button value="week">周K</el-radio-button>
         <el-radio-button value="month">月K</el-radio-button>
       </el-radio-group>
-      <span class="adj-note">前复权</span>
+      <el-tooltip content="图表与近期行情表均为前复权（qfq）价格，用于趋势可视化。实际成交/回测执行价以不复权原始价为准（V2-MP-014）。" placement="bottom">
+        <span class="adj-note">前复权（仅图表，非成交价）</span>
+      </el-tooltip>
       <el-date-picker
         v-model="dateRange"
         type="daterange"

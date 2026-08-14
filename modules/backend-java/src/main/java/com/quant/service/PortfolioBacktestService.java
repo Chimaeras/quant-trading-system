@@ -28,6 +28,8 @@ import com.quant.service.backtest.StrategyBacktestEngine;
 import com.quant.service.backtest.TradingLimitRules;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -133,6 +135,26 @@ public class PortfolioBacktestService {
         this.tradingCalendarService = tradingCalendarService;
         this.objectMapper = objectMapper;
         this.portfolioTaskExecutor = portfolioTaskExecutor;
+    }
+
+    /**
+     * 应用启动恢复：崩溃后 RUNNING 行无 worker 附着（内存 runningRunIds 重启清空），
+     * 批量标记为 FAILED。组合回测无 PENDING 中间态（submitRun 直接落 RUNNING），故仅处理 RUNNING 孤儿。
+     * 回测参数已持久化在 PortfolioBacktestRun 行内，用户可据 error 提示重新提交。
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    @Transactional
+    public void recoverOnStartup() {
+        try {
+            int orphaned = portfolioBacktestRunRepository.markOrphanedRunsFailed(
+                    "应用重启恢复：原 RUNNING 状态无 worker 附着，标记 FAILED，请重新提交", LocalDateTime.now());
+            runningRunIds.clear();
+            if (orphaned > 0) {
+                log.warn("组合回测启动恢复: {} 个孤儿 RUNNING 行已标记 FAILED，请重新提交", orphaned);
+            }
+        } catch (Exception e) {
+            log.warn("组合回测启动恢复失败（DB 可能未就绪）: {}", e.getMessage());
+        }
     }
 
     // ========================================================================

@@ -35,4 +35,14 @@ public interface PortfolioBacktestRunRepository extends JpaRepository<PortfolioB
             @Param("status") String status,
             @Param("error") String error,
             @Param("ts") LocalDateTime ts);
+
+    /**
+     * 启动恢复：将上次崩溃遗留的 RUNNING 行批量标记为 FAILED。
+     * 组合回测无 PENDING 中间态（submitRun 直接落 RUNNING），故仅处理 RUNNING 孤儿。
+     */
+    @Modifying
+    @Transactional
+    @Query("UPDATE PortfolioBacktestRun r SET r.status = 'FAILED', "
+            + "r.errorMessage = :error, r.updatedAt = :ts WHERE r.status = 'RUNNING'")
+    int markOrphanedRunsFailed(@Param("error") String error, @Param("ts") LocalDateTime ts);
 }

@@ -70,6 +70,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { compareStrategies, type CompareResponse } from '@/api/compare'
+import { errorText } from '@/api/request'
 import { useToast } from '@/composables/useToast'
 import dayjs from 'dayjs'
 
@@ -104,8 +105,8 @@ async function runCompare() {
   loading.value = true
   try {
     result.value = await compareStrategies(tradeDate.value, topN.value)
-  } catch (e: any) {
-    toast.error(e?.message || '策略对比失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     loading.value = false
   }

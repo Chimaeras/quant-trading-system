@@ -348,7 +348,7 @@ public class DataQualityGateService {
         int effectiveRows = 0;
         int totalRows = 0;
         for (LocalDate day : sampled) {
-            int n = securityMasterHistoryRepository.findAllEffectiveAt(day).size();
+            int n = (int) securityMasterHistoryRepository.countAllEffectiveAt(day);
             totalRows += n;
             effectiveRows += n;
         }

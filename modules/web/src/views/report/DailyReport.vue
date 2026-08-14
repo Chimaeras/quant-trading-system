@@ -369,7 +369,7 @@ async function loadReport() {
     // 版本选择器跟随实际解析到的日期（未选日期时以后端解析的最新信号日刷新）
     const resolvedDate = report.value?.trade_date || tradeDate.value || undefined
     await loadVersions(resolvedDate)
-  } catch (e: any) {
+  } catch (e: unknown) {
     reportError.value = errorText(e)
     toast.error(reportError.value)
   } finally {
@@ -408,8 +408,8 @@ async function realize() {
       realization: result
     }
     toast.success(result.status === 'NOT_READY' ? '未到期，稍后再查' : 'realization 已就绪')
-  } catch (e: any) {
-    toast.error(e?.message || 'realization 追加失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     realizing.value = false
   }
@@ -427,8 +427,8 @@ async function loadTrend() {
   trendLoading.value = true
   try {
     trend.value = await getTrendReport(trendStart.value, trendEnd.value)
-  } catch (e: any) {
-    toast.error(e?.message || '趋势查询失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     trendLoading.value = false
   }

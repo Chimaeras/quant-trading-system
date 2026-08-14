@@ -28,6 +28,13 @@ public interface SecurityMasterHistoryRepository extends JpaRepository<SecurityM
             "WHERE h.validFrom <= :asOf AND (h.validTo IS NULL OR h.validTo > :asOf)")
     List<SecurityMasterHistory> findAllEffectiveAt(@Param("asOf") LocalDate asOf);
 
+    /**
+     * 批量统计：某日生效的证券主数据条数。用于按日抽样统计时避免水合全部实体（.size()）。
+     */
+    @Query("SELECT COUNT(h) FROM SecurityMasterHistory h " +
+            "WHERE h.validFrom <= :asOf AND (h.validTo IS NULL OR h.validTo > :asOf)")
+    long countAllEffectiveAt(@Param("asOf") LocalDate asOf);
+
     /** 是否已存在某 (stock_code, exchange_type, valid_from) 记录（初始化幂等检查）。 */
     Optional<SecurityMasterHistory> findByStockCodeAndExchangeTypeAndValidFrom(
             String stockCode, String exchangeType, LocalDate validFrom);

@@ -97,6 +97,7 @@ import { nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import dayjs from 'dayjs'
 import { echarts, CHART_THEME } from '@/utils/echartsTheme'
 import { backtestApi, type StrategyBacktestResponse } from '@/api/backtest'
+import { errorText } from '@/api/request'
 
 const running = ref(false)
 const errorMsg = ref('')
@@ -161,8 +162,8 @@ async function run() {
     result.value = await backtestApi.runStrategyBacktest({ ...form })
     await nextTick()
     renderChart()
-  } catch (e: any) {
-    errorMsg.value = e?.message || '回测失败'
+  } catch (e: unknown) {
+    errorMsg.value = errorText(e)
   } finally {
     running.value = false
   }

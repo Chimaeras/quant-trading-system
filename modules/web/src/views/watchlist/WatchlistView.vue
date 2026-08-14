@@ -166,6 +166,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { listWatchlist, addWatchlist, removeWatchlist, scanWatchlistAlerts, getWatchlistSignalCoverage, batchAddWatchlist, type WatchlistItem, type WatchlistAlertScan, type SignalCoverageResponse, type BatchAddResult } from '@/api/watchlist'
 import { marketApi, type StockListItem } from '@/api/market'
+import { errorText } from '@/api/request'
 import { useToast } from '@/composables/useToast'
 import dayjs from 'dayjs'
 
@@ -210,8 +211,8 @@ async function loadList() {
   loading.value = true
   try {
     items.value = await listWatchlist()
-  } catch (e: any) {
-    toast.error(e?.message || '加载自选股失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     loading.value = false
   }
@@ -272,8 +273,8 @@ async function addItem() {
     form.stockCode = ''
     form.note = ''
     await loadList()
-  } catch (e: any) {
-    toast.error(e?.message || '加入自选失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     adding.value = false
   }
@@ -285,8 +286,8 @@ async function removeItem(row: WatchlistItem) {
     await removeWatchlist(row.stock_code, row.exchange_type)
     toast.success('已移除')
     await loadList()
-  } catch (e: any) {
-    toast.error(e?.message || '移除失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     removingKey.value = ''
   }
@@ -304,8 +305,8 @@ async function scanAlerts() {
   scanning.value = true
   try {
     scan.value = await scanWatchlistAlerts()
-  } catch (e: any) {
-    toast.error(e?.message || '异动扫描失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     scanning.value = false
   }
@@ -315,8 +316,8 @@ async function loadCoverage() {
   coverageLoading.value = true
   try {
     coverage.value = await getWatchlistSignalCoverage()
-  } catch (e: any) {
-    toast.error(e?.message || '信号覆盖查询失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     coverageLoading.value = false
   }
@@ -333,8 +334,8 @@ async function doBatchAdd() {
     batchResult.value = await batchAddWatchlist(batchText.value)
     toast.success(`新增 ${batchResult.value.added} 只，跳过 ${batchResult.value.skipped} 只`)
     await loadList()
-  } catch (e: any) {
-    toast.error(e?.message || '批量导入失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     batching.value = false
   }

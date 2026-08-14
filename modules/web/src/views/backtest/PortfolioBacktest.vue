@@ -344,6 +344,7 @@ import {
 } from '@/api/backtest'
 import { getPredictionRuns, type PredictionTrack } from '@/api/predictions'
 import { backtestApi } from '@/api/backtest'
+import { errorText } from '@/api/request'
 
 const ORDERS_SIZE = 50
 
@@ -465,8 +466,8 @@ async function submitRun() {
     } else {
       errorMsg.value = '提交成功但未返回 run_id'
     }
-  } catch (e: any) {
-    errorMsg.value = e?.message || '提交失败'
+  } catch (e: unknown) {
+    errorMsg.value = errorText(e)
   } finally {
     running.value = false
   }
@@ -510,8 +511,8 @@ async function loadDetail() {
     await loadOrders(1)
     await nextTick()
     renderChart()
-  } catch (e: any) {
-    errorMsg.value = e?.message || '读取回测结果失败'
+  } catch (e: unknown) {
+    errorMsg.value = errorText(e)
   }
 }
 
@@ -592,8 +593,8 @@ async function downloadCurrentRun() {
       orders
     }
     triggerDownload(`portfolio_${currentRunId.value}.json`, JSON.stringify(payload, null, 2))
-  } catch (e: any) {
-    errorMsg.value = e?.message || '导出失败'
+  } catch (e: unknown) {
+    errorMsg.value = errorText(e)
   }
 }
 

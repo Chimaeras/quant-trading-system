@@ -96,6 +96,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { reconcilePosition, type ReconcileResponse } from '@/api/reconcile'
+import { errorText } from '@/api/request'
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
@@ -122,8 +123,8 @@ async function runReconcile() {
   loading.value = true
   try {
     result.value = await reconcilePosition(resultId.value.trim(), topN.value)
-  } catch (e: any) {
-    toast.error(e?.message || '对账失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     loading.value = false
   }

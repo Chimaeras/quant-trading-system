@@ -29,6 +29,7 @@
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { authApi } from '@/api/auth'
+import { errorText } from '@/api/request'
 import { useToast } from '@/composables/useToast'
 
 const router = useRouter()
@@ -52,10 +53,10 @@ async function submit() {
     await authApi.login(username.value, password.value)
     toast.success('登录成功')
     router.push(resolvePostLoginPath())
-  } catch (e: any) {
+  } catch (e: unknown) {
     // 登录失败兜底清理残留 token，避免无效凭证驻留
     authApi.logout()
-    toast.error(e?.message || '登录失败')
+    toast.error(errorText(e))
   } finally {
     loading.value = false
   }
@@ -67,8 +68,8 @@ async function register() {
     await authApi.register(username.value, password.value)
     toast.success('注册并登录成功')
     router.push(resolvePostLoginPath())
-  } catch (e: any) {
-    toast.error(e?.message || '注册失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     loading.value = false
   }

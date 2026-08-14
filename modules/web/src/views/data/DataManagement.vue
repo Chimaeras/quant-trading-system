@@ -319,6 +319,7 @@ import { ref, computed, onMounted, reactive } from 'vue'
 import dayjs from 'dayjs'
 import { useDataStore } from '@/stores/data'
 import { dataApi, type HotStockItem, type HotStocksResponse } from '@/api/data'
+import { errorText } from '@/api/request'
 import { applyTradingDayPreset, type PresetKey } from '@/utils/tradingDays'
 import { useToast } from '@/composables/useToast'
 
@@ -423,8 +424,8 @@ const loadHotStocks = async () => {
     })
     hotMeta.value = data
     hotRows.value = data.items ?? []
-  } catch (e: any) {
-    toast.error(e?.message || '热门股票计算失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     hotLoading.value = false
   }
@@ -466,8 +467,8 @@ const runBackfillListDate = async () => {
     toast.success(`上市日期回填完成：新增 ${result.updated} 条`)
     // 回填后自动刷新概览，避免 missing_count 仍显示旧值造成「未回填成功」的误判
     await refresh()
-  } catch (e: any) {
-    toast.error(e?.message || '上市日期回填失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     backfillLoading.value = false
   }
@@ -554,8 +555,8 @@ const runUpdateTask = async () => {
     }
     const data = await dataApi.runUpdateTask(payload)
     toast.success(`任务已创建：${data.task_id}，请点击「刷新任务列表」查看进度`)
-  } catch (e: any) {
-    toast.error(e?.message || '创建任务失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     taskSubmitting.value = false
   }
@@ -598,8 +599,8 @@ const retryTask = async (taskId: string) => {
   try {
     const data = await dataApi.retryUpdateTask(taskId)
     toast.success(`已创建重试任务：${data.task_id}，请点击「刷新任务列表」查看进度`)
-  } catch (e: any) {
-    toast.error(e?.message || '重试任务创建失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   }
 }
 
@@ -618,8 +619,8 @@ const stopTask = async (taskId: string) => {
     if (detailVisible.value && detailTaskId.value === taskId) {
       await loadTaskDetail(taskId, detailPage.value, detailSize.value)
     }
-  } catch (e: any) {
-    toast.error(e?.message || '停止任务失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     stoppingTaskId.value = ''
   }

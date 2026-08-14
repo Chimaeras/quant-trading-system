@@ -72,6 +72,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { runWalkForward, type WalkForwardResponse } from '@/api/walkforward'
+import { errorText } from '@/api/request'
 import { useToast } from '@/composables/useToast'
 import dayjs from 'dayjs'
 
@@ -159,8 +160,8 @@ async function run() {
       topN: topN.value,
       holdingDay: holdingDay.value
     })
-  } catch (e: any) {
-    toast.error(e?.message || '分段稳定性运行失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     loading.value = false
   }

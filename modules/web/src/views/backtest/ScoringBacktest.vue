@@ -552,6 +552,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { echarts, CHART_THEME, CHART_UP, CHART_DOWN, CHART_C1, CHART_C2 } from '@/utils/echartsTheme'
 import dayjs from 'dayjs'
 import { backtestApi, analyzeTurnover, analyzeStability, type ScoringBacktestResponse, type DailyDetail, type StockReturn, type TurnoverResponse, type StabilityResponse } from '@/api/backtest'
+import { errorText } from '@/api/request'
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
@@ -1079,8 +1080,8 @@ async function runBacktest() {
       toast.info('该条件下无回测数据')
     }
     response.value = data
-  } catch (e: any) {
-    errorMsg.value = e?.message || '回测执行失败'
+  } catch (e: unknown) {
+    errorMsg.value = errorText(e)
     toast.error(errorMsg.value)
   } finally {
     running.value = false
@@ -1125,8 +1126,8 @@ async function loadRun(resultId: string) {
     form.startDate = data.startDate
     form.endDate = data.endDate
     form.topN = data.topN || 10
-  } catch (e: any) {
-    errorMsg.value = e?.message || '回溯历史回测失败'
+  } catch (e: unknown) {
+    errorMsg.value = errorText(e)
     toast.error(errorMsg.value)
   } finally {
     running.value = false
@@ -1201,8 +1202,8 @@ async function runTurnover() {
       endDate: form.endDate,
       topN: form.topN
     })
-  } catch (e: any) {
-    toast.error(e?.message || '换手率分析失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     turnoverLoading.value = false
   }
@@ -1222,8 +1223,8 @@ async function runStability() {
       topN: form.topN,
       holdingDay: form.holdingDays[0] ?? 5
     })
-  } catch (e: any) {
-    toast.error(e?.message || '稳定性分析失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     stabilityLoading.value = false
   }

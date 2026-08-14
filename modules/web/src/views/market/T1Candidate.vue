@@ -184,6 +184,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { generateT1Candidates, settleT1Candidates, getT1Candidates, getT1Recent, getT1Stats, type T1CandidatesResponse, type T1StatsResponse } from '@/api/research'
+import { errorText } from '@/api/request'
 import { useToast } from '@/composables/useToast'
 import dayjs from 'dayjs'
 
@@ -254,8 +255,8 @@ async function generate() {
     result.value = await generateT1Candidates({ tradeDate: tradeDate.value, topN: topN.value })
     toast.success(`已生成 ${result.value?.top_n ?? 0} 条 T+1 候选`)
     await loadRecent()
-  } catch (e: any) {
-    toast.error(e?.message || '生成失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     genLoading.value = false
   }
@@ -274,8 +275,8 @@ async function settle() {
     }
     toast.success(`核销完成：命中率 ${res.summary ? pct(res.summary.hit_rate) : '—'}`)
     await loadRecent()
-  } catch (e: any) {
-    toast.error(e?.message || '核销失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     settleLoading.value = false
   }
@@ -297,8 +298,8 @@ async function loadDate(date: string) {
       result.value = null
       toast.info('该日无候选记录')
     }
-  } catch (e: any) {
-    toast.error(e?.message || '加载失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   }
 }
 
@@ -321,8 +322,8 @@ async function loadStats() {
   statsLoading.value = true
   try {
     stats.value = await getT1Stats({ startDate: statsStart.value, endDate: statsEnd.value })
-  } catch (e: any) {
-    toast.error(e?.message || '绩效统计失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     statsLoading.value = false
   }

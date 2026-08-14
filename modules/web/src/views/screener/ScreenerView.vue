@@ -99,6 +99,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { runScreener, saveScreenerTemplate, listScreenerTemplates, deleteScreenerTemplate, type ScreenerResponse, type ScreenerTemplate } from '@/api/screener'
+import { errorText } from '@/api/request'
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
@@ -132,8 +133,8 @@ async function run() {
       page: page.value,
       size: pageSize.value
     })
-  } catch (e: any) {
-    toast.error(e?.message || '筛选失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     loading.value = false
   }
@@ -153,8 +154,8 @@ async function loadTemplates() {
   loadingTpl.value = true
   try {
     templates.value = await listScreenerTemplates()
-  } catch (e: any) {
-    toast.error(e?.message || '加载模板失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     loadingTpl.value = false
   }
@@ -178,8 +179,8 @@ async function saveTemplate() {
     toast.success('模板已保存')
     templateName.value = ''
     await loadTemplates()
-  } catch (e: any) {
-    toast.error(e?.message || '保存模板失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     saving.value = false
   }
@@ -202,8 +203,8 @@ async function removeTemplate(t: ScreenerTemplate) {
     await deleteScreenerTemplate(t.id)
     toast.success('已删除')
     await loadTemplates()
-  } catch (e: any) {
-    toast.error(e?.message || '删除失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     deletingId.value = null
   }

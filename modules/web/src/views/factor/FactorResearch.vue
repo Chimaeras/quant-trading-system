@@ -358,6 +358,7 @@ import {
   type UnifiedFactorReport,
   type SnapshotResearchResponse
 } from '@/api/factor'
+import { errorText } from '@/api/request'
 import { useToast } from '@/composables/useToast'
 import dayjs from 'dayjs'
 
@@ -445,8 +446,8 @@ async function run() {
       endDate: endDate.value,
       holdingDays: holdingDays.value
     })
-  } catch (e: any) {
-    toast.error(e?.message || '因子研究失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     loading.value = false
   }
@@ -464,8 +465,8 @@ async function runUnified() {
       startDate: startDate.value,
       endDate: endDate.value
     })
-  } catch (e: any) {
-    toast.error(e?.message || '多周期 IC 研究失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     unifiedLoading.value = false
   }
@@ -495,8 +496,8 @@ async function runSnapshot() {
       holdingDays: snapHoldingDays.value,
       labelVersion: snapLabelVersion.value.trim() || undefined
     })
-  } catch (e: any) {
-    toast.error(e?.message || '快照截面因子研究失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     snapshotLoading.value = false
   }

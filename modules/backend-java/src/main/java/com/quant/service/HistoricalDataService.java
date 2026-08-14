@@ -618,7 +618,9 @@ public class HistoricalDataService {
                 if (divisor.compareTo(BigDecimal.ZERO) != 0) {
                     m.setPreClose(m.getClosePrice().divide(divisor, 4, java.math.RoundingMode.HALF_UP));
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                log.debug("preClose 由 changePct 反推失败（close={}, changePct={}）: {}", m.getClosePrice(), m.getChangePct(), e.getMessage());
+            }
         }
         return isValidDailyBar(m) ? m : null;
     }

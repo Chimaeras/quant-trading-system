@@ -13,6 +13,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -47,6 +49,27 @@ public class HistoricalDataUpdateService {
         this.dataUpdateTaskRepository = dataUpdateTaskRepository;
         this.dataUpdateTaskItemRepository = dataUpdateTaskItemRepository;
         this.dataUpdateTaskExecutor = dataUpdateTaskExecutor;
+    }
+
+    /**
+     * 应用启动恢复：将上次崩溃遗留的非终态任务（PENDING/RUNNING/STOPPING）标记为 FAILED。
+     * 这些任务已无对应 worker 附着（内存 taskFutures 在重启后为空），若不清理会永久卡在非终态，
+     * 前端仍显示"可停止"但 stopTask 找不到 future。标记 FAILED 后用户可走 retryFailed 重放。
+     * dataUpdateTaskItems 的逐标的进度不动——部分成功的明细仍可追溯。
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    @org.springframework.transaction.annotation.Transactional
+    public void recoverOnStartup() {
+        try {
+            int orphaned = dataUpdateTaskRepository.markOrphanedTasksFailed();
+            // 内存追踪表重启后本就为空，无需清理；仅清理可能残留的 cancel 标记
+            cancelRequestedTaskIds.clear();
+            if (orphaned > 0) {
+                log.warn("历史数据更新任务启动恢复: {} 个孤儿任务（PENDING/RUNNING/STOPPING）已标记为 FAILED，可走重试重放", orphaned);
+            }
+        } catch (Exception e) {
+            log.warn("历史数据更新任务启动恢复失败（DB 可能未就绪）: {}", e.getMessage());
+        }
     }
 
     public Map<String, Object> createTask(Map<String, Object> request) {

@@ -31,6 +31,16 @@ except ImportError:
     sys.exit(1)
 
 
+def require_db_password(env_var: str) -> str:
+    """读取数据库密码，强制使用环境变量，禁止硬编码默认值（安全）。"""
+    val = os.getenv(env_var)
+    if not val:
+        print(f"错误：未设置环境变量 {env_var}（数据库密码）。"
+              f"请先设置后再运行，例如：export {env_var}='your_password'")
+        sys.exit(1)
+    return val
+
+
 def infer_exchange_type(stock_code: str) -> str:
     """根据股票代码推断交易所"""
     code = str(stock_code).strip()
@@ -84,7 +94,7 @@ def main():
         "host": os.getenv("SRC_DB_HOST", "localhost"),
         "port": int(os.getenv("SRC_DB_PORT", "3306")),
         "user": os.getenv("SRC_DB_USER", "root"),
-        "password": os.getenv("SRC_DB_PASSWORD", "123456"),
+        "password": require_db_password("SRC_DB_PASSWORD"),
         "database": "query",
         "charset": "utf8mb4",
     }
@@ -92,7 +102,7 @@ def main():
         "host": os.getenv("DST_DB_HOST", "localhost"),
         "port": int(os.getenv("DST_DB_PORT", "3306")),
         "user": os.getenv("DST_DB_USER", "root"),
-        "password": os.getenv("DST_DB_PASSWORD", "123456"),
+        "password": require_db_password("DST_DB_PASSWORD"),
         "database": "quant_db",
         "charset": "utf8mb4",
     }

@@ -103,6 +103,12 @@ def main():
         print("请先安装 pymysql: pip install pymysql")
         sys.exit(1)
 
+    db_password = os.getenv("DB_PASSWORD")
+    if not db_password:
+        print("错误：未设置环境变量 DB_PASSWORD（数据库密码）。"
+              "请先设置后再运行，例如：export DB_PASSWORD='your_password'")
+        sys.exit(1)
+
     rows = load_csv(csv_path)
     print(f"从 CSV 加载了 {len(rows)} 条记录")
 
@@ -111,7 +117,7 @@ def main():
         "host": os.getenv("DB_HOST", "localhost"),
         "port": int(os.getenv("DB_PORT", "3306")),
         "user": os.getenv("DB_USER", "root"),
-        "password": os.getenv("DB_PASSWORD", "123456"),
+        "password": db_password,
         "database": "quant_db",
         "charset": "utf8mb4",
     }

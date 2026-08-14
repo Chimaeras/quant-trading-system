@@ -433,6 +433,7 @@ import dayjs from 'dayjs'
 import { ElMessageBox } from 'element-plus'
 import { dataApi } from '@/api/data'
 import type { QualityReport } from '@/api/data'
+import { errorText } from '@/api/request'
 import { useToast } from '@/composables/useToast'
 
 const router = useRouter()
@@ -507,8 +508,8 @@ async function loadSnapshots() {
     if (!labelForm.dataSnapshotId && snapshots.value.length) {
       labelForm.dataSnapshotId = snapshots.value[0].snapshot_id
     }
-  } catch (e: any) {
-    toast.warning(e?.message || '加载数据快照列表失败')
+  } catch (e: unknown) {
+    toast.warning(errorText(e))
   }
 }
 
@@ -522,8 +523,8 @@ async function createSnapshotForLabels() {
       toast.success(`已创建快照 ${s.snapshot_id}`)
       await loadSnapshots()
     }
-  } catch (e: any) {
-    toast.error(e?.message || '创建快照失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     snapshotCreating.value = false
   }
@@ -538,8 +539,8 @@ async function load() {
   loading.value = true
   try {
     report.value = await dataApi.getQuality()
-  } catch (e: any) {
-    toast.error(e?.message || '数据质量报告加载失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     loading.value = false
   }
@@ -561,8 +562,8 @@ async function runBackfillRaw() {
     toast.success(res.message || `不复号新增 ${res.raw_inserted} 条，复权因子生成 ${res.factor_generated} 条`)
     rawDialogVisible.value = false
     await load()
-  } catch (e: any) {
-    toast.error(e?.message || '不复权数据回填失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     rawLoading.value = false
   }
@@ -583,8 +584,8 @@ async function confirmInitSecurityMaster() {
     const res = await dataApi.initSecurityMaster()
     toast.success(`初始化完成：新增 ${res.initialized} 条，跳过已存在 ${res.skipped_existing} 条，跳过无上市日 ${res.skipped_no_listdate} 条`)
     await load()
-  } catch (e: any) {
-    toast.error(e?.message || '历史证券主数据初始化失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     smInitLoading.value = false
   }
@@ -604,8 +605,8 @@ async function runInitCalendar() {
     toast.success(`反推完成：拉取 ${res.total_fetched} 个交易日，新增 ${res.inserted} 条，跳过已存在 ${res.skipped_existing} 条`)
     calendarDialogVisible.value = false
     await load()
-  } catch (e: any) {
-    toast.error(e?.message || '交易日历反推失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     calendarLoading.value = false
   }
@@ -631,8 +632,8 @@ async function runFetchIndex() {
     }
     indexDialogVisible.value = false
     await load()
-  } catch (e: any) {
-    toast.error(e?.message || '指数行情拉取失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     indexLoading.value = false
   }
@@ -644,8 +645,8 @@ async function runCreateSnapshot() {
     const res = await dataApi.createSnapshot()
     toast.success(res.message || `快照已创建：${res.snapshot_id}`)
     await load()
-  } catch (e: any) {
-    toast.error(e?.message || '数据快照创建失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     snapshotCreating.value = false
   }
@@ -667,8 +668,8 @@ async function runReplay() {
     } else {
       toast.success(`重放完成：${replayResult.value?.trading_days_count ?? 0} 个交易日`)
     }
-  } catch (e: any) {
-    toast.error(e?.message || '历史重放失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     replayLoading.value = false
   }
@@ -696,8 +697,8 @@ async function runBuildLabels() {
     } else {
       toast.success(`标签生成完成：${labelResult.value?.generated ?? 0} 条`)
     }
-  } catch (e: any) {
-    toast.error(e?.message || '标签生成失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     labelBuilding.value = false
   }

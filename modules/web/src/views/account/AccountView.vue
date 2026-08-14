@@ -193,6 +193,7 @@ import {
   type SimulationSession,
   type PlaceOrderResult
 } from '@/api/account'
+import { errorText } from '@/api/request'
 import { useToast } from '@/composables/useToast'
 import dayjs from 'dayjs'
 
@@ -286,8 +287,8 @@ async function loadAll() {
     account.value = await accountApi.getInfo(undefined, sid)
     positions.value = await accountApi.listPositions(undefined, sid)
     await loadOrders()
-  } catch (e: any) {
-    toast.error(e?.message || '加载失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     loading.value = false
   }
@@ -298,8 +299,8 @@ async function loadOrders() {
   try {
     const sid = activeSession.value?.sessionId
     orders.value = await accountApi.getOrderHistory(undefined, sid)
-  } catch (e: any) {
-    toast.error(e?.message || '订单历史加载失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     ordersLoading.value = false
   }
@@ -308,8 +309,8 @@ async function loadOrders() {
 async function loadSessions() {
   try {
     sessions.value = await accountApi.listSimSessions()
-  } catch (e: any) {
-    toast.error(e?.message || '会话列表加载失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   }
 }
 
@@ -329,8 +330,8 @@ async function createSession() {
     sessionForm.name = ''
     sessionForm.cash = undefined
     await loadSessions()
-  } catch (e: any) {
-    toast.error(e?.message || '创建会话失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     creatingSession.value = false
   }
@@ -358,8 +359,8 @@ async function closeActiveSession() {
     }
     await loadSessions()
     await loadAll()
-  } catch (e: any) {
-    toast.error(e?.message || '关闭会话失败')
+  } catch (e: unknown) {
+    toast.error(errorText(e))
   } finally {
     closingSession.value = false
   }
@@ -408,8 +409,8 @@ async function place() {
     toast.success(`下单成功：${ret.orderId}${src}`)
     await loadAll()
     if (sid != null) await loadSessions()
-  } catch (e: any) {
-    const msg = e?.message || '下单失败'
+  } catch (e: unknown) {
+    const msg = errorText(e)
     lastReject.value = msg
     toast.error(msg)
   } finally {

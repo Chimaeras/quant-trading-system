@@ -74,7 +74,7 @@ class DataSnapshotServiceTest {
         when(marketPriceRawRepository.findMinTradeDate()).thenReturn(java.util.Optional.of(LocalDate.of(2023, 1, 3)));
         when(marketPriceRawRepository.findMaxTradeDate()).thenReturn(java.util.Optional.of(cutoff));
 
-        when(dataSnapshotRepository.findBySnapshotIdStartingWith("20250731")).thenReturn(List.of());
+        when(dataSnapshotRepository.countBySnapshotIdStartingWith("20250731")).thenReturn(0L);
 
         DataSnapshot snap = service.createSnapshot(cutoff);
 
@@ -110,8 +110,7 @@ class DataSnapshotServiceTest {
         when(marketPriceRawRepository.findMinTradeDate()).thenReturn(java.util.Optional.empty());
         when(marketPriceRawRepository.findMaxTradeDate()).thenReturn(java.util.Optional.empty());
         // 当日已有 2 条 → 序号 003
-        when(dataSnapshotRepository.findBySnapshotIdStartingWith("20250731"))
-                .thenReturn(List.of(new DataSnapshot(), new DataSnapshot()));
+        when(dataSnapshotRepository.countBySnapshotIdStartingWith("20250731")).thenReturn(2L);
 
         DataSnapshot snap = service.createSnapshot(cutoff);
 
@@ -140,7 +139,7 @@ class DataSnapshotServiceTest {
         when(marketDataRepository.findMinTradeDate()).thenReturn(java.util.Optional.empty());
         when(marketPriceRawRepository.findMinTradeDate()).thenReturn(java.util.Optional.empty());
         when(marketPriceRawRepository.findMaxTradeDate()).thenReturn(java.util.Optional.empty());
-        when(dataSnapshotRepository.findBySnapshotIdStartingWith("20250630")).thenReturn(List.of());
+        when(dataSnapshotRepository.countBySnapshotIdStartingWith("20250630")).thenReturn(0L);
 
         DataSnapshot snap = service.createSnapshot(null);
 
@@ -153,12 +152,12 @@ class DataSnapshotServiceTest {
         // 同样的行数与 source 分布应产生相同 hash
         LocalDate cutoff = LocalDate.of(2025, 7, 31);
         setupStubsForDeterministicHash(cutoff);
-        when(dataSnapshotRepository.findBySnapshotIdStartingWith("20250731")).thenReturn(List.of());
+        when(dataSnapshotRepository.countBySnapshotIdStartingWith("20250731")).thenReturn(0L);
 
         DataSnapshot s1 = service.createSnapshot(cutoff);
 
         // 重置序号 mock
-        when(dataSnapshotRepository.findBySnapshotIdStartingWith("20250731")).thenReturn(List.of(new DataSnapshot()));
+        when(dataSnapshotRepository.countBySnapshotIdStartingWith("20250731")).thenReturn(1L);
         setupStubsForDeterministicHash(cutoff);
 
         DataSnapshot s2 = service.createSnapshot(cutoff);

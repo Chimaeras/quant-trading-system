@@ -18,6 +18,9 @@ public interface DataSnapshotRepository extends JpaRepository<DataSnapshot, Long
 
     List<DataSnapshot> findBySnapshotIdStartingWith(String prefix);
 
+    /** 按 prefix 计数（避免全量水合仅取 size）。 */
+    long countBySnapshotIdStartingWith(String prefix);
+
     @Query("SELECT s FROM DataSnapshot s ORDER BY s.createdAt DESC")
     List<DataSnapshot> findLatest(Pageable pageable);
 

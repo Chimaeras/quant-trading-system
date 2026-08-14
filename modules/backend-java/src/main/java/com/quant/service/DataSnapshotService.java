@@ -272,7 +272,7 @@ public class DataSnapshotService {
 
     private String generateSnapshotId(LocalDate cutoff) {
         String prefix = cutoff.format(DateTimeFormatter.BASIC_ISO_DATE);
-        long existing = dataSnapshotRepository.findBySnapshotIdStartingWith(prefix).size();
+        long existing = dataSnapshotRepository.countBySnapshotIdStartingWith(prefix);
         return prefix + "-" + String.format("%03d", existing + 1);
     }
 

@@ -450,6 +450,9 @@ async function submitRun() {
       if (!form.startDate || !form.endDate) {
         throw new Error('区间模式需提供起始/结束日期')
       }
+      if (form.startDate > form.endDate) {
+        throw new Error('开始日期不能晚于结束日期')
+      }
       body.startDate = form.startDate
       body.endDate = form.endDate
       body.strategyType = form.strategyType

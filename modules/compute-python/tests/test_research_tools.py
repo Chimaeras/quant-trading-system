@@ -9,6 +9,7 @@ from research.evaluation import (
     brier_score,
     expected_calibration_error,
     group_returns,
+    newey_west_se,
     rank_ic,
 )
 from research.labels import forward_return, label_up
@@ -112,3 +113,28 @@ def test_ece_positive_when_miscalibrated():
     prob = pd.Series([0.9, 0.9, 0.9, 0.9])
     actual = pd.Series([0.0, 0.0, 0.0, 1.0])  # 实际频率 0.25，预测 0.9 → 偏差大
     assert expected_calibration_error(prob, actual, n_bins=4) > 0.3
+
+
+def test_newey_west_se_matches_sample_mean_se():
+    """iid 数据上 HAC 标准误（lag=0）应≈ 样本标准差/sqrt(n)——均值的 SE，而非标准差本身。
+
+    回归 R17-P1：此前漏除 n，返回值偏大 sqrt(n) 倍，t 值被同倍低估。
+    """
+    rng = np.random.default_rng(42)
+    v = pd.Series(rng.standard_normal(10_000))
+    se = newey_west_se(v, max_lag=0)
+    expected = v.std(ddof=0) / (len(v) ** 0.5)
+    assert abs(se - expected) / expected < 0.01
+
+
+def test_newey_west_se_positive_lag_reduces_vs_iid_only_for_persistent_series():
+    """强正自相关序列的 HAC SE 应大于 iid 假设下的 SE（重叠 IC 场景）。"""
+    rng = np.random.default_rng(7)
+    n = 5_000
+    eps = rng.standard_normal(n)
+    ar = np.empty(n)
+    ar[0] = eps[0]
+    for i in range(1, n):
+        ar[i] = 0.9 * ar[i - 1] + eps[i]
+    v = pd.Series(ar)
+    assert newey_west_se(v, max_lag=5) > newey_west_se(v, max_lag=0)

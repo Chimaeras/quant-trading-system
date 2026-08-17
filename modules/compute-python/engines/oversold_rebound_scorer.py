@@ -49,6 +49,10 @@ def score_oversold_rebound(df: pd.DataFrame) -> Optional[ScoreResult]:
         return None
 
     close = df["close"].astype(float).reset_index(drop=True)
+    # close 含 NaN 时所有下游比较（< ma20、rsi、分位数）静默为 False，输出看似可信的 0 分。
+    # fail-closed：脏数据直接拒绝评分，而非输出误导性结果。
+    if close.isna().any():
+        return None
     open_ = df["open"].astype(float).reset_index(drop=True)
     high = df["high"].astype(float).reset_index(drop=True) if "high" in df.columns else open_
     low = df["low"].astype(float).reset_index(drop=True) if "low" in df.columns else open_
@@ -58,9 +62,18 @@ def score_oversold_rebound(df: pd.DataFrame) -> Optional[ScoreResult]:
     n = len(close)
     last_close = float(close.iloc[-1])
 
-    ret60 = (last_close / float(close.iloc[-61]) - 1) * 100 if n >= 61 else 0.0
-    ret120 = (last_close / float(close.iloc[-121]) - 1) * 100 if n >= 121 else 0.0
-    ret20 = (last_close / float(close.iloc[-21]) - 1) * 100 if n >= 21 else 0.0
+    def _pct_change(k: int) -> float:
+        """k 日涨跌幅（%）。基期价 <= 0（坏数据/复权异常）视为无效返回 0，防止 inf 静默拿满分。"""
+        if n < k + 1:
+            return 0.0
+        base = float(close.iloc[-(k + 1)])
+        if base <= 0:
+            return 0.0
+        return (last_close / base - 1) * 100
+
+    ret60 = _pct_change(60)
+    ret120 = _pct_change(120)
+    ret20 = _pct_change(20)
 
     ma20 = float(close.rolling(20).mean().iloc[-1])
     ma60 = float(close.rolling(60).mean().iloc[-1])

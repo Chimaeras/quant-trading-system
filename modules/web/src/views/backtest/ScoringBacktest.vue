@@ -1057,6 +1057,10 @@ async function runBacktest() {
     errorMsg.value = '请选择起始和结束日期'
     return
   }
+  if (form.startDate > form.endDate) {
+    errorMsg.value = '开始日期不能晚于结束日期'
+    return
+  }
   if (form.holdingDays.length === 0) {
     errorMsg.value = '请至少选择一个持仓周期'
     return

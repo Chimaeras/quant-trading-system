@@ -156,8 +156,24 @@ function formatAssumptionValue(value: unknown) {
 }
 
 async function run() {
-  running.value = true
   errorMsg.value = ''
+  if (!form.stockCode?.trim()) {
+    errorMsg.value = '请输入股票代码'
+    return
+  }
+  if (!form.startDate || !form.endDate) {
+    errorMsg.value = '请选择开始与结束日期'
+    return
+  }
+  if (form.startDate > form.endDate) {
+    errorMsg.value = '开始日期不能晚于结束日期'
+    return
+  }
+  if (form.strategyType === 'MA_CROSS' && form.shortPeriod >= form.longPeriod) {
+    errorMsg.value = '短期均线周期须小于长期均线周期'
+    return
+  }
+  running.value = true
   try {
     result.value = await backtestApi.runStrategyBacktest({ ...form })
     await nextTick()

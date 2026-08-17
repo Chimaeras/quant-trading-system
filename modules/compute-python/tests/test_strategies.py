@@ -108,3 +108,20 @@ def test_strategies_hold_when_insufficient():
     assert s2.on_bar({"close": 10.0}) == "hold"
     s3 = MACDStrategy()
     assert s3.on_bar({"close": 10.0}) == "hold"
+
+
+def test_strategies_raise_on_missing_close():
+    """缺 close 键的 bar 须抛错（fail-closed），不得默认 0 污染均线/布林序列（R18）。"""
+    import pytest
+
+    for strat in (MACrossStrategy(), MACDStrategy(), BOLLStrategy()):
+        with pytest.raises(ValueError):
+            strat.on_bar({'open': 10.0, 'volume': 100})
+
+
+def test_ma_cross_hold_at_exact_long_period_boundary():
+    """len==long_period 时长均线仅 1 个有效值（prev 为 NaN），须 hold 而非静默比较（R18）。"""
+    strat = MACrossStrategy(short_period=3, long_period=5)
+    bars = [{'close': p} for p in [10.0, 9.5, 9.0, 8.5, 8.0]]
+    signals = [strat.on_bar(b) for b in bars]
+    assert all(s == 'hold' for s in signals)

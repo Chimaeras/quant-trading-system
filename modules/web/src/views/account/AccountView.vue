@@ -371,6 +371,14 @@ async function place() {
   lastReject.value = ''
   lastOrder.value = null
   try {
+    if (!order.symbol?.trim()) {
+      toast.error('请输入股票代码')
+      return
+    }
+    if (!order.volume || order.volume <= 0) {
+      toast.error('请输入有效的委托数量（大于 0）')
+      return
+    }
     const body: {
       symbol: string
       exchangeType?: string

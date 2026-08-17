@@ -25,7 +25,10 @@ class MACDStrategy(BaseStrategy):
 
     def on_bar(self, bar: Dict) -> Optional[str]:
         """K线处理逻辑"""
-        close_price = bar.get('close', bar.get('Close', 0))
+        close_price = bar.get('close', bar.get('Close'))
+        # 缺键默认 0 会污染 EMA 全序列（0 种子的贡献无法衰减干净）——fail-closed 直接抛错
+        if not isinstance(close_price, (int, float)):
+            raise ValueError(f"bar 缺少有效 close 字段: {bar!r}")
         self.price_history.append(close_price)
 
         fast_period = self.params['fast']

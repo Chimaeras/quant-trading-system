@@ -27,7 +27,10 @@ class MACrossStrategy(BaseStrategy):
 
     def on_bar(self, bar: Dict) -> Optional[str]:
         """K线处理逻辑"""
-        close_price = bar.get('close', bar.get('Close', 0))
+        close_price = bar.get('close', bar.get('Close'))
+        # 缺键默认 0 会污染整段均线（EMA/SMA 无法从 0 种子恢复）——fail-closed 直接抛错
+        if not isinstance(close_price, (int, float)):
+            raise ValueError(f"bar 缺少有效 close 字段: {bar!r}")
         self.price_history.append(close_price)
 
         long_period = self.params['long_period']
@@ -38,7 +41,9 @@ class MACrossStrategy(BaseStrategy):
         short_ma = sma(close, self.params['short_period'])
         long_ma = sma(close, long_period)
 
-        if len(short_ma.dropna()) < 2:
+        # 短/长均线都须有 ≥2 个非 NaN 值：len==long_period 时长均线仅 1 个有效值，
+        # l_prev 为 NaN 使所有比较为 False，交叉信号永不触发
+        if len(short_ma.dropna()) < 2 or len(long_ma.dropna()) < 2:
             return 'hold'
         # 均线末值
         s_prev = float(short_ma.iloc[-2])

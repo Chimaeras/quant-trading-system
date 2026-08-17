@@ -237,6 +237,73 @@ class CodexShortCycleScoringEngineTest {
         assertThat(CodexShortCycleScoringEngine.countImputedFinancialFields(raws.get(0), imputed.get(0))).isGreaterThan(0);
     }
 
+    /** R20-P2 回归：全行业真实中位数为 0 时，缺失值应填 0（真实中位数）而非兜底常量。 */
+    @Test
+    void imputeFinancialUsesLegitimateZeroMedianNotFallback() {
+        // 两只股票 debtRatio 都是真实 0（全债务豁免行业），第三只缺失 → 中位数 0 应被采纳
+        List<CodexShortCycleScoringEngine.RawFeatures> raws = List.of(
+                raw("000001", "SZSE", "A", "银行", 0, 0, 0, 0, 0, 0,
+                        0.1, 5, 0, 1.5, 0.04, 0.2, 0, 0, 0, 0, 1, 0, 22, "test"),
+                raw("000002", "SZSE", "B", "银行", 0, 0, 0, 0, 0, 0,
+                        0.2, 6, 0, 1.6, 0.04, 0.2, 0, 0, 0, 0, 1, 0, 22, "test"),
+                raw("000003", "SZSE", "C", "银行", 0, 0, 0, 0, 0, 0,
+                        0.3, 7, Double.NaN, 1.7, 0.04, 0.2, 0, 0, 0, 0, 1, 0, 22, "test")
+        );
+        List<CodexShortCycleScoringEngine.RawFeatures> imputed = CodexShortCycleScoringEngine.imputeFinancialByIndustry(raws);
+        // 修复前：|0|>1e-9 为 false → 错误填兜底 50；修复后：isNaN 才走兜底 → 填真实中位数 0
+        assertThat(imputed.get(2).debtRatio()).isEqualTo(0);
+    }
+
+    /** R20-P3 边界：全行业该字段全缺失 → 兜底常量。 */
+    @Test
+    void imputeFinancialAllMissingFallsBackToConstants() {
+        List<CodexShortCycleScoringEngine.RawFeatures> raws = List.of(
+                raw("000001", "SZSE", "A", "银行", 0, 0, 0, 0, 0, 0,
+                        Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN,
+                        0, 0, 0, 0, 1, 0, 22, "test"),
+                raw("000002", "SZSE", "B", "银行", 0, 0, 0, 0, 0, 0,
+                        Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN,
+                        0, 0, 0, 0, 1, 0, 22, "test")
+        );
+        List<CodexShortCycleScoringEngine.RawFeatures> imputed = CodexShortCycleScoringEngine.imputeFinancialByIndustry(raws);
+        assertThat(imputed.get(0).debtRatio()).isEqualTo(50);
+        assertThat(imputed.get(0).currentRatio()).isEqualTo(1.5);
+        assertThat(imputed.get(0).roe()).isEqualTo(0);
+    }
+
+    /** R20-P3 边界：单股成组 → 中位数即自身；空行业名 → "_none_" 桶共享中位数。 */
+    @Test
+    void imputeFinancialSingleStockAndBlankIndustryBucket() {
+        // 空行业名的两只股票须落入同一 "_none_" 桶，缺失 roe 用另一只的中位数填充
+        List<CodexShortCycleScoringEngine.RawFeatures> raws = List.of(
+                raw("000001", "SZSE", "A", "", 0, 0, 0, 0, 0, 0,
+                        Double.NaN, 5, 40, 1.5, 0.04, 0.2, 0, 0, 0, 0, 1, 0, 22, "test"),
+                raw("000002", "SZSE", "B", "", 0, 0, 0, 0, 0, 0,
+                        11, 5, 40, 1.5, 0.04, 0.2, 0, 0, 0, 0, 1, 0, 22, "test")
+        );
+        List<CodexShortCycleScoringEngine.RawFeatures> imputed = CodexShortCycleScoringEngine.imputeFinancialByIndustry(raws);
+        assertThat(imputed.get(0).roe()).isEqualTo(11);
+    }
+
+    /** R20-P3 边界：偶数个非缺失值 → 中位数取中间两值均值。 */
+    @Test
+    void imputeFinancialEvenCountMedianAverages() {
+        // 4 只股票中 2 只 roe 缺失，非缺失为 [10, 30] → 偶数中位数 (10+30)/2 = 20
+        List<CodexShortCycleScoringEngine.RawFeatures> raws = List.of(
+                raw("000001", "SZSE", "A", "银行", 0, 0, 0, 0, 0, 0,
+                        Double.NaN, 5, 40, 1.5, 0.04, 0.2, 0, 0, 0, 0, 1, 0, 22, "test"),
+                raw("000002", "SZSE", "B", "银行", 0, 0, 0, 0, 0, 0,
+                        Double.NaN, 5, 40, 1.5, 0.04, 0.2, 0, 0, 0, 0, 1, 0, 22, "test"),
+                raw("000003", "SZSE", "C", "银行", 0, 0, 0, 0, 0, 0,
+                        10, 5, 40, 1.5, 0.04, 0.2, 0, 0, 0, 0, 1, 0, 22, "test"),
+                raw("000004", "SZSE", "D", "银行", 0, 0, 0, 0, 0, 0,
+                        30, 5, 40, 1.5, 0.04, 0.2, 0, 0, 0, 0, 1, 0, 22, "test")
+        );
+        List<CodexShortCycleScoringEngine.RawFeatures> imputed = CodexShortCycleScoringEngine.imputeFinancialByIndustry(raws);
+        assertThat(imputed.get(0).roe()).isEqualTo(20);
+        assertThat(imputed.get(1).roe()).isEqualTo(20);
+    }
+
     @Test
     void scoreUniverseRecordsTurnoverLogMvSource() {
         List<CodexShortCycleScoringEngine.StockBarContext> contexts = List.of(

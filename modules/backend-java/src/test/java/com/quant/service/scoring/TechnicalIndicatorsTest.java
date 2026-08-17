@@ -13,6 +13,18 @@ class TechnicalIndicatorsTest {
         assertThat(TechnicalIndicators.smaAt(values, 4, 3)).isEqualTo(4.0);
     }
 
+    /** R20-P1 回归：数组 sma 的 warmup 区间须返回 NaN（与 smaAt/Python 口径一致），此前返回原始价。 */
+    @Test
+    void arraySmaWarmupReturnsNanNotRawValue() {
+        double[] values = {1, 2, 3, 4, 5};
+        double[] ma3 = TechnicalIndicators.sma(values, 3);
+
+        assertThat(ma3[0]).isNaN();
+        assertThat(ma3[1]).isNaN();
+        assertThat(ma3[2]).isEqualTo(2.0);
+        assertThat(ma3[4]).isEqualTo(4.0);
+    }
+
     @Test
     void risingSeriesProducesHighRsi() {
         double[] close = new double[30];

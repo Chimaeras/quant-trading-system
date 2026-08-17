@@ -34,13 +34,15 @@ public final class TechnicalIndicators {
     // ==================== SMA 计算 ====================
 
     /**
-     * 计算简单移动平均线（数组形式）
+     * 计算简单移动平均线（数组形式）。
+     * warmup（i < period-1）返回 NaN，与 {@link #smaAt} 及 Python utils.indicators.sma 口径一致；
+     * 此前返回原始价会使 warmup 区间的"均线"实为价格本身，且消费方的 NaN 守卫成为死代码。
      */
     public static double[] sma(double[] values, int period) {
         double[] out = new double[values.length];
         for (int i = 0; i < values.length; i++) {
             if (i < period - 1) {
-                out[i] = values[i];
+                out[i] = Double.NaN;
             } else {
                 double sum = 0;
                 for (int j = i - period + 1; j <= i; j++) {

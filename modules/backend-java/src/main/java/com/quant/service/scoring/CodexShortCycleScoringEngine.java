@@ -324,7 +324,9 @@ public class CodexShortCycleScoringEngine {
 
     private static double imputeFin(double value, double industryMedian, double fallback) {
         if (Double.isNaN(value)) {
-            return Math.abs(industryMedian) > 1e-9 ? industryMedian : fallback;
+            // 用 isNaN 区分"无中位数"与"合法中位数为 0"：此前用 |median|>1e-9 判空会把
+            // 全行业 debtRatio 真实中位数 0 误判为无数据、错误套用兜底常量 50。
+            return Double.isNaN(industryMedian) ? fallback : industryMedian;
         }
         return value;
     }
@@ -340,7 +342,7 @@ public class CodexShortCycleScoringEngine {
         vals.sort(Double::compare);
         int n = vals.size();
         if (n == 0) {
-            return 0;
+            return Double.NaN;
         }
         return n % 2 == 1 ? vals.get(n / 2) : (vals.get(n / 2 - 1) + vals.get(n / 2)) / 2.0;
     }

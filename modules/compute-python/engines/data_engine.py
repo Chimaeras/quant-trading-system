@@ -41,6 +41,38 @@ class DataEngine:
                 f"正式 research 路径禁止静默造数；若仅做烟雾测试请传 demo=True 或 CLI --demo。"
             )
         df = pd.read_csv(path, index_col=0, parse_dates=True)
+        return self._validate(df, path)
+
+    @staticmethod
+    def _validate(df: pd.DataFrame, path: Path) -> pd.DataFrame:
+        """加载后校验：缺列 / 价格列非数值 / 索引非日期 / 未排序。
+
+        fail-closed：坏数据在入口抛带文件路径的明确错误，
+        而非让 KeyError/NaN 在下游打分器里以误导性结果显现。
+        """
+        required = ['open', 'high', 'low', 'close', 'volume']
+        missing = [c for c in required if c not in df.columns]
+        if missing:
+            raise ValueError(f"{path}: 缺少必需列 {missing}，实际列 {list(df.columns)}")
+
+        for c in ('open', 'high', 'low', 'close'):
+            coerced = pd.to_numeric(df[c], errors='coerce')
+            bad = coerced.isna() & df[c].notna()
+            if bad.any():
+                raise ValueError(
+                    f"{path}: 列 '{c}' 含非数值（如千分位/脏字符串），"
+                    f"首个坏行索引: {df.index[bad.argmax()]}"
+                )
+            df[c] = coerced
+
+        if not isinstance(df.index, pd.DatetimeIndex):
+            raise ValueError(
+                f"{path}: 首列不是可解析的日期索引（得到 {type(df.index).__name__}），"
+                f"无法保证时间序，下游滚动窗口/前瞻标签将失真"
+            )
+
+        if not df.index.is_monotonic_increasing:
+            df = df.sort_index()
         return df
 
     def _generate_sample_data(self, symbol: str, days: int = 300) -> pd.DataFrame:

@@ -134,8 +134,30 @@ class TestPerCandidate:
         assert intents[0].reason_codes == ["ALREADY_FILLED"]
 
     def test_duplicate_order(self):
-        orders = [MxOrder(order_id="1", code="600519", side="buy", price=100.0, qty=100, filled_qty=0, status="待成交")]
+        orders = [MxOrder(order_id="1", code="600519", side="buy", price=100.0, qty=100,
+                          filled_qty=0, status="2")]
         intents = _run([_cand()], {"600519": _quote()}, orders=orders)
+        assert intents[0].reason_codes == ["DUPLICATE_ORDER"]
+
+    def test_filled_order_not_duplicate(self):
+        """已成的历史委托（status=4）不阻止新买入。"""
+        orders = [MxOrder(order_id="1", code="600519", side="buy", price=100.0, qty=100,
+                          filled_qty=100, status="4")]
+        intents = _run([_cand()], {"600519": _quote()}, orders=orders)
+        assert intents[0].intent_type == IntentType.BUY_LIMIT
+
+    def test_increment_buy(self):
+        """P0-05：目标 400 股、已有 100 股 → 只买 300 股增量。"""
+        intents = _run([_cand()], {"600519": _quote()}, positions={"600519": 100})
+        assert intents[0].intent_type == IntentType.BUY_LIMIT
+        assert intents[0].qty == 300
+
+    def test_active_buy_covers_target_no_buy(self):
+        """P0-05：活动买单已覆盖目标 → 不再生成买入。"""
+        orders = [MxOrder(order_id="1", code="600519", side="buy", price=100.0, qty=400,
+                          filled_qty=0, status="2")]
+        intents = _run([_cand()], {"600519": _quote()}, orders=orders)
+        assert intents[0].intent_type == IntentType.NOOP
         assert intents[0].reason_codes == ["DUPLICATE_ORDER"]
 
     def test_qty_too_small(self):

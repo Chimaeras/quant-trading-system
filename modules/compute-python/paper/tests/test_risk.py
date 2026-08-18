@@ -21,7 +21,8 @@ def _config(**kw) -> PaperConfig:
 
 def _quote(last=100.0) -> Quote:
     return Quote(code="600519", name="t", exchange="SH", last=last, pct_chg=1.0,
-                 volume=1000, market_time=T, received_at=T, validity=QuoteValidity.VALID)
+                 volume=1000, market_time=T, received_at=T, validity=QuoteValidity.VALID,
+                 limit_up_price=110.0, limit_up_source="test")
 
 
 def _intent(qty=400, price=100.2) -> Intent:
@@ -90,9 +91,18 @@ class TestGates:
         assert intent.risk_reject_reason == "MAX_TRADES_PER_RUN"
 
     def test_duplicate_order(self):
-        orders = [MxOrder(order_id="1", code="600519", side="buy", price=100.2, qty=400, filled_qty=0, status="x")]
+        orders = [MxOrder(order_id="1", code="600519", side="buy", price=100.2, qty=400,
+                          filled_qty=0, status="2")]
         intent = _check(_intent(), orders=orders)
         assert intent.risk_reject_reason == "DUPLICATE_ORDER"
+
+    def test_filled_history_order_not_duplicate(self):
+        """已成（4）/已撤（8）/废单（9）不阻止新买入。"""
+        for status in ("4", "8", "9"):
+            orders = [MxOrder(order_id="1", code="600519", side="buy", price=100.2, qty=400,
+                              filled_qty=0, status=status)]
+            intent = _check(_intent(), orders=orders)
+            assert intent.risk_status == RiskStatus.PASS, status
 
     def test_halt(self):
         intent = _check(_intent(), config=_config(halt=True))

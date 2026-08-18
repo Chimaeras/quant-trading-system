@@ -48,18 +48,28 @@ class TestEnvelope:
 
 
 class TestSanitize:
-    """脱敏与哈希。"""
+    """脱敏与哈希（P1-10：递归遮蔽账户标识，P2-01：完整 SHA-256）。"""
 
-    def test_sanitize_removes_uid(self):
-        payload = {"code": "200", "data": {"uid": "123", "accUID": "123", "totalAssets": 1.0}}
+    def test_sanitize_masks_uid_recursively(self):
+        payload = {"code": "200", "data": {"uid": "123", "accUID": "123", "totalAssets": 1.0,
+                                           "nested": [{"accID": "x", "accName": "y", "ok": 2}]}}
         cleaned = sanitize_payload(payload)
-        assert "uid" not in cleaned["data"] and "accUID" not in cleaned["data"]
-        assert cleaned["data"]["totalAssets"] == 1.0
+        assert cleaned["data"]["uid"] == "***"
+        assert cleaned["data"]["accUID"] == "***"
+        assert cleaned["data"]["nested"][0]["accID"] == "***"
+        assert cleaned["data"]["nested"][0]["accName"] == "***"
+        assert cleaned["data"]["totalAssets"] == 1.0  # 非敏感业务字段保留
+        assert cleaned["data"]["nested"][0]["ok"] == 2
 
-    def test_raw_hash_stable(self):
+    def test_sanitize_real_fixture_masked(self):
+        cleaned = sanitize_payload(_load("balance_success.json"))
+        text = json.dumps(cleaned, ensure_ascii=False)
+        assert "262294100000058188" not in text  # 真实 accID 不可出现
+
+    def test_raw_hash_stable_full_sha256(self):
         payload = {"b": 1, "a": 2}
         assert raw_hash(payload) == raw_hash({"a": 2, "b": 1})
-        assert len(raw_hash(payload)) == 16
+        assert len(raw_hash(payload)) == 64  # 完整 SHA-256
 
 
 class TestBalanceModel:
@@ -72,7 +82,6 @@ class TestBalanceModel:
         balance = Balance.from_mx(data)
         assert balance.total_assets == 200000.0
         assert balance.avail_balance == 200000.0
-        assert balance.acc_name == "模拟组合2958188"
 
     def test_missing_field_raises(self):
         from paper.models import Balance

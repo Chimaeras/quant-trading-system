@@ -45,5 +45,5 @@ class QuoteClient:
             return None, result
         quote.raw_hash = raw_hash(result.raw)
         quote.raw_path = result.raw_path
-        apply_freshness(quote, self._config.quote_stale_sec)
+        apply_freshness(quote, self._config.quote_stale_sec, self._config.clock_skew_sec)
         return quote, result

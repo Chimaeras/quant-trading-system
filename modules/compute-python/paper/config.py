@@ -46,7 +46,68 @@ class PaperConfig:
     max_retry: int = 3
     query_interval_sec: int = 60
     max_observe_codes: int = 10
+    clock_skew_sec: int = 30  # 允许的行情时钟偏差（P1-02/P2-02）
+    # 盘中自动盯盘配置（watch V1）
+    watch_strategy: str = "MA_CROSS"
+    bar_period_min: int = 5
+    watchlist_file: str = ""
+    cooldown_min: int = 15
+    watch_live: bool = False
+    max_trades_per_day: int = 20
+    max_trades_per_cycle: int = 3
+    ma_short: int = 5
+    ma_long: int = 20
+    boll_period: int = 20
+    boll_std: float = 2.0
+    max_total_weight: float = 0.80
+    max_positions: int = 5
+    min_cash_reserve: float = 5000.0
+    index_circuit_breaker: bool = True
+    trading_calendar_file: str = ""
     extra: dict = field(default_factory=dict)
+
+    def validate(self) -> None:
+        """P1-11：数值范围与矛盾配置校验；错误必须在启动阶段暴露，不得拖到下单阶段。"""
+        if self.max_trades_per_run <= 0:
+            raise ValueError(f"max_trades_per_run 必须大于 0，当前 {self.max_trades_per_run}")
+        if not (0 < self.max_name_weight <= 1):
+            raise ValueError(f"max_name_weight 必须在 (0,1]，当前 {self.max_name_weight}")
+        if self.quote_stale_sec <= 0:
+            raise ValueError(f"quote_stale_sec 必须大于 0，当前 {self.quote_stale_sec}")
+        if self.slippage_bps < 0:
+            raise ValueError(f"slippage_bps 不能为负，当前 {self.slippage_bps}")
+        if self.max_retry < 0:
+            raise ValueError(f"max_retry 不能为负，当前 {self.max_retry}")
+        if self.query_interval_sec <= 0:
+            raise ValueError(f"query_interval_sec 必须大于 0，当前 {self.query_interval_sec}")
+        if not (1 <= self.max_observe_codes <= 50):
+            raise ValueError(f"max_observe_codes 必须在 [1,50]，当前 {self.max_observe_codes}")
+        if self.clock_skew_sec < 0:
+            raise ValueError(f"clock_skew_sec 不能为负，当前 {self.clock_skew_sec}")
+        if self.watch_strategy not in {"MA_CROSS", "MACD", "BOLL"}:
+            raise ValueError(f"watch_strategy 非法: {self.watch_strategy}")
+        if self.bar_period_min <= 0 or 60 % self.bar_period_min != 0:
+            raise ValueError("bar_period_min 必须是正数且能整除 60")
+        if self.cooldown_min < 0:
+            raise ValueError("cooldown_min 不能为负")
+        if self.max_trades_per_day <= 0:
+            raise ValueError("max_trades_per_day 必须大于 0")
+        if self.max_trades_per_cycle <= 0:
+            raise ValueError("max_trades_per_cycle 必须大于 0")
+        if self.ma_short <= 0 or self.ma_long <= self.ma_short:
+            raise ValueError("ma_short 必须大于 0 且小于 ma_long")
+        if self.boll_period < 2 or self.boll_std <= 0:
+            raise ValueError("boll_period/boll_std 非法")
+        if not (0 < self.max_total_weight <= 1):
+            raise ValueError("max_total_weight 必须在 (0,1] 内")
+        if self.max_positions <= 0:
+            raise ValueError("max_positions 必须大于 0")
+        if self.min_cash_reserve < 0:
+            raise ValueError("min_cash_reserve 不能为负")
+        if not self.api_key or not self.api_key.strip():
+            raise ValueError("api_key 不能为空或纯空白")
+        if self.api_base != ALLOWED_API_BASE:
+            raise ValueError(f"api_base 只允许官方基址 {ALLOWED_API_BASE}")
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> "PaperConfig":
@@ -58,7 +119,7 @@ class PaperConfig:
         api_key = e.get("MX_APIKEY", "")
         if not api_key:
             raise ValueError("未配置 MX_APIKEY 环境变量（妙想 API 密钥必填，禁止写入文件或代码）")
-        return cls(
+        config = cls(
             api_key=api_key,
             api_base=api_base,
             halt=e.get("PAPER_HALT", "0") == "1",
@@ -75,7 +136,26 @@ class PaperConfig:
             max_retry=int(e.get("PAPER_MAX_RETRY", "3")),
             query_interval_sec=int(e.get("PAPER_QUERY_INTERVAL_SEC", "60")),
             max_observe_codes=int(e.get("PAPER_MAX_OBSERVE_CODES", "10")),
+            clock_skew_sec=int(e.get("PAPER_CLOCK_SKEW_SEC", "30")),
+            watch_strategy=e.get("PAPER_WATCH_STRATEGY", "MA_CROSS").strip().upper(),
+            bar_period_min=int(e.get("PAPER_BAR_PERIOD_MIN", "5")),
+            watchlist_file=e.get("PAPER_WATCHLIST_FILE", ""),
+            cooldown_min=int(e.get("PAPER_COOLDOWN_MIN", "15")),
+            watch_live=e.get("PAPER_WATCH_LIVE", "0") == "1",
+            max_trades_per_day=int(e.get("PAPER_MAX_TRADES_PER_DAY", "20")),
+            max_trades_per_cycle=int(e.get("PAPER_MAX_TRADES_PER_CYCLE", "3")),
+            ma_short=int(e.get("PAPER_MA_SHORT", "5")),
+            ma_long=int(e.get("PAPER_MA_LONG", "20")),
+            boll_period=int(e.get("PAPER_BOLL_PERIOD", "20")),
+            boll_std=float(e.get("PAPER_BOLL_STD", "2")),
+            max_total_weight=float(e.get("PAPER_MAX_TOTAL_WEIGHT", "0.8")),
+            max_positions=int(e.get("PAPER_MAX_POSITIONS", "5")),
+            min_cash_reserve=float(e.get("PAPER_MIN_CASH_RESERVE", "5000")),
+            index_circuit_breaker=e.get("PAPER_INDEX_CIRCUIT_BREAKER", "1") == "1",
+            trading_calendar_file=e.get("PAPER_TRADING_CALENDAR_FILE", ""),
         )
+        config.validate()
+        return config
 
     def public_snapshot(self) -> dict:
         """对外快照：不含密钥（contains_secret=false 的保证）。"""
@@ -92,4 +172,21 @@ class PaperConfig:
             "max_retry": self.max_retry,
             "query_interval_sec": self.query_interval_sec,
             "max_observe_codes": self.max_observe_codes,
+            "clock_skew_sec": self.clock_skew_sec,
+            "watch_strategy": self.watch_strategy,
+            "bar_period_min": self.bar_period_min,
+            "watchlist_file": self.watchlist_file,
+            "cooldown_min": self.cooldown_min,
+            "watch_live": self.watch_live,
+            "max_trades_per_day": self.max_trades_per_day,
+            "max_trades_per_cycle": self.max_trades_per_cycle,
+            "ma_short": self.ma_short,
+            "ma_long": self.ma_long,
+            "boll_period": self.boll_period,
+            "boll_std": self.boll_std,
+            "max_total_weight": self.max_total_weight,
+            "max_positions": self.max_positions,
+            "min_cash_reserve": self.min_cash_reserve,
+            "index_circuit_breaker": self.index_circuit_breaker,
+            "trading_calendar_file": self.trading_calendar_file,
         }

@@ -13,11 +13,16 @@ from .models import PaperRun
 from .mx_http import sanitize_payload
 
 
+def _dumps(payload) -> str:
+    """统一落盘序列化：先递归脱敏（P1-10），再缩进输出。"""
+    return json.dumps(sanitize_payload(payload), ensure_ascii=False, indent=2, default=str)
+
+
 def config_hash(config: PaperConfig) -> str:
-    """配置快照哈希（confirm 前后一致性校验用）。"""
+    """配置快照哈希（confirm 前后一致性校验用，完整 SHA-256）。"""
     return hashlib.sha256(
         json.dumps(config.public_snapshot(), sort_keys=True).encode("utf-8")
-    ).hexdigest()[:16]
+    ).hexdigest()
 
 
 def run_dir(base: Path, trade_date: str, run_id: str) -> Path:
@@ -42,25 +47,21 @@ def write_run(base: Path, run: PaperRun, config: PaperConfig) -> Path:
         "trade_date": run.trade_date,
         "candidate_source": run.candidate_source,
         "strategy_version": run.strategy_version,
+        "status": run.status,
+        "preview_run_id": run.preview_run_id,
         "config_hash": config_hash(config),
         "api_base": config.api_base,
         "contains_secret": False,
     }
-    (out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-    (out / "candidates.json").write_text(json.dumps(run.candidates, ensure_ascii=False, indent=2), encoding="utf-8")
-    (out / "account_before.json").write_text(
-        json.dumps(sanitize_payload(run.account_before), ensure_ascii=False, indent=2, default=str), encoding="utf-8")
-    (out / "account_after.json").write_text(
-        json.dumps(sanitize_payload(run.account_after), ensure_ascii=False, indent=2, default=str), encoding="utf-8")
-    (out / "intents.json").write_text(
-        json.dumps(run.intents, ensure_ascii=False, indent=2), encoding="utf-8")
-    (out / "risk.json").write_text(
-        json.dumps(run.risk_rejects, ensure_ascii=False, indent=2), encoding="utf-8")
-    (out / "submits.json").write_text(
-        json.dumps(run.submits, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    (out / "manifest.json").write_text(_dumps(manifest), encoding="utf-8")
+    (out / "candidates.json").write_text(_dumps(run.candidates), encoding="utf-8")
+    (out / "account_before.json").write_text(_dumps(run.account_before), encoding="utf-8")
+    (out / "account_after.json").write_text(_dumps(run.account_after), encoding="utf-8")
+    (out / "intents.json").write_text(_dumps(run.intents), encoding="utf-8")
+    (out / "risk.json").write_text(_dumps(run.risk_rejects), encoding="utf-8")
+    (out / "submits.json").write_text(_dumps(run.submits), encoding="utf-8")
     for code, quote_payload in run.quotes.items():
-        (out / "quotes" / f"{code}.json").write_text(
-            json.dumps(quote_payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        (out / "quotes" / f"{code}.json").write_text(_dumps(quote_payload), encoding="utf-8")
     (out / "daily.md").write_text(render_daily_md(run), encoding="utf-8")
     return out
 

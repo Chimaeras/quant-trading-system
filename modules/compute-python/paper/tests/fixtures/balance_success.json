@@ -1,1 +1,46 @@
-{"code": "200", "message": "成功", "data": {"result": {"status": 0, "interval": 200}, "accID": "262294100000058188", "accName": "模拟组合2958188", "mktType": 30106, "isValid": 1, "currency": 1, "initMoney": 200000.0, "totalAssets": 200000.0, "balanceActual": 200000.0, "availBalance": 200000.0, "permit": 0, "concerned": 0, "intro": "模拟交易账户分析", "nav": 1.0, "nameAuditSt": 2, "realNameAuditSt": 0, "introAuditSt": 2, "realIntroAuditSt": 2, "oprDays": 0, "calcTime": 1787041843, "currencyUnit": 1, "idxMkt": 1, "idxCode": "000300", "openDate": 20260818, "frozenMoney": 0.0, "totalPosValue": 0.0, "totalPosPct": 0.0, "tagList": [{"tagName": "空仓", "tagCode": "", "tagID": ""}], "rc": 0, "rmsg": ""}, "traceId": null}
+{
+  "code": "200",
+  "message": "成功",
+  "data": {
+    "result": {
+      "status": 0,
+      "interval": 200
+    },
+    "accID": "***",
+    "accName": "***",
+    "mktType": 30106,
+    "isValid": 1,
+    "currency": 1,
+    "initMoney": 200000.0,
+    "totalAssets": 200000.0,
+    "balanceActual": 200000.0,
+    "availBalance": 200000.0,
+    "permit": 0,
+    "concerned": 0,
+    "intro": "模拟交易账户分析",
+    "nav": 1.0,
+    "nameAuditSt": 2,
+    "realNameAuditSt": 0,
+    "introAuditSt": 2,
+    "realIntroAuditSt": 2,
+    "oprDays": 0,
+    "calcTime": 1787041843,
+    "currencyUnit": 1,
+    "idxMkt": 1,
+    "idxCode": "000300",
+    "openDate": 20260818,
+    "frozenMoney": 0.0,
+    "totalPosValue": 0.0,
+    "totalPosPct": 0.0,
+    "tagList": [
+      {
+        "tagName": "空仓",
+        "tagCode": "",
+        "tagID": ""
+      }
+    ],
+    "rc": 0,
+    "rmsg": ""
+  },
+  "traceId": null
+}

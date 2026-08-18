@@ -7,11 +7,14 @@ from __future__ import annotations
 import math
 from datetime import datetime
 
-from .config import BUYABILITY_BLOCKED, PaperConfig, PRICE_DECIMALS
+from .broker_client import ACTIVE_ORDER_STATUSES, order_remaining_qty
+from .config import BUYABILITY_BLOCKED, LOT_SIZE, PaperConfig, PRICE_DECIMALS
 from .models import Balance, Candidate, Intent, IntentType, MxOrder, Quote, QuoteValidity
 
-# 弱涨停信号阈值：T 日 is_limit_up 且今日涨幅 ≥ 9.8% 视为锁死
+# 弱涨停信号阈值（辅助信号，禁止作为最终安全依据，硬闸见 risk.py limit_up_price）
 _WEAK_LIMIT_PCT = 9.8
+# 主板涨停幅度（用于从 last/pct_chg 反推涨停价，来源记录在 limit_up_source）
+_MAIN_BOARD_LIMIT_PCT = 10.0
 
 
 def in_trading_window(now: datetime) -> bool:
@@ -55,6 +58,34 @@ def affordable_qty(avail_balance: float, last: float, commission_estimate: float
     return math.floor(usable / last / 100) * 100
 
 
+def derive_limit_up_price(quote: Quote) -> Quote:
+    """从 last 与 pct_chg 反推主板涨停价：prev_close=last/(1+pct/100)，limit_up=round(prev*1.1, 2)。
+
+    仅当两个输入均可用才推导，并在 limit_up_source 记录计算方式（审计）。
+    pct_chg 缺失时保持 None，由风控闸 LIMIT_DATA_UNAVAILABLE 阻断（P0-06）。
+    """
+    if quote.limit_up_price is not None or quote.last <= 0 or quote.pct_chg is None:
+        return quote
+    if quote.pct_chg <= -100:
+        return quote
+    prev_close = quote.last / (1 + quote.pct_chg / 100)
+    quote.limit_up_price = round(prev_close * (1 + _MAIN_BOARD_LIMIT_PCT / 100), 2)
+    quote.limit_up_source = (
+        f"derived:prev_close=last/(1+pct_chg/100)={prev_close:.4f};"
+        f"limit_up=round(prev*{_MAIN_BOARD_LIMIT_PCT/100+1:.2f},2)"
+    )
+    return quote
+
+
+def active_buy_qty(open_orders: list[MxOrder], code: str) -> int:
+    """同一证券的活动买入委托剩余数量之和（P0-05：目标仓位扣减项）。"""
+    total = 0
+    for order in open_orders:
+        if order.code == code and order.side == "buy" and order.status in ACTIVE_ORDER_STATUSES:
+            total += order_remaining_qty(order)
+    return total
+
+
 def decide(
     candidates: list[Candidate],
     quotes: dict[str, Quote],
@@ -78,8 +109,6 @@ def decide(
     if config.halt:
         return [_noop(c.stock_code, "HALT", c.source) for c in candidates]
 
-    buy_codes_with_open_order = {o.code for o in open_orders if _is_buy_side(o.side)}
-
     for cand in candidates:
         code = cand.stock_code
         quote = quotes.get(code)
@@ -91,10 +120,7 @@ def decide(
             continue
 
         # 行情闸
-        if quote is None or quote.error:
-            intents.append(_noop(code, "QUOTE_MISSING", cand.source))
-            continue
-        if quote.last <= 0:
+        if quote is None:
             intents.append(_noop(code, "QUOTE_MISSING", cand.source))
             continue
         if quote.validity == QuoteValidity.STALE:
@@ -103,8 +129,17 @@ def decide(
         if quote.validity == QuoteValidity.NOT_TRADABLE or (quote.volume or 0) == 0:
             intents.append(_noop(code, "NOT_TRADABLE", cand.source))
             continue
+        # P1-02：INVALID（含 FUTURE_TIMESTAMP/解析失败）绝不生成 BUY
+        if quote.validity != QuoteValidity.VALID:
+            intents.append(_noop(code, f"QUOTE_{quote.validity.value}", cand.source))
+            continue
+        if quote.error or quote.last <= 0:
+            intents.append(_noop(code, "QUOTE_MISSING", cand.source))
+            continue
 
-        # 涨停锁死：真实涨停价接口未冻结，用弱信号（T 日涨停 + 今日涨幅≥9.8%）
+        # 涨停价推导（P0-06 硬闸输入；缺失时由风控 LIMIT_DATA_UNAVAILABLE 阻断）
+        quote = derive_limit_up_price(quote)
+        # 弱涨停信号（辅助）：T 日涨停 + 今日涨幅≥9.8%
         if cand.is_limit_up and (quote.pct_chg or 0) >= _WEAK_LIMIT_PCT:
             intents.append(_noop(code, "LIMIT_LOCKED", cand.source))
             continue
@@ -114,18 +149,28 @@ def decide(
             intents.append(_noop(code, "BUYABILITY_BLOCKED", cand.source))
             continue
 
-        # 已持仓/重复委托
+        # 仓位增量（P0-05）：desired = target - current - active_buy，禁止把目标当新增
         target = target_qty(balance.avail_balance, quote.last, config.max_name_weight)
-        if positions_qty.get(code, 0) >= target and target > 0:
+        current = positions_qty.get(code, 0)
+        active_buy = active_buy_qty(open_orders, code)
+        if target <= 0:
+            intents.append(_noop(code, "QTY_TOO_SMALL", cand.source))
+            continue
+        if current >= target:
             intents.append(_noop(code, "ALREADY_FILLED", cand.source))
             continue
-        if code in buy_codes_with_open_order:
+        if active_buy > 0:
+            # 已有活动买单：本轮不重复下单（剩余目标由既有委托补足）
             intents.append(_noop(code, "DUPLICATE_ORDER", cand.source))
             continue
+        desired = max(target - current - active_buy, 0)
+        if desired < LOT_SIZE:
+            intents.append(_noop(code, "QTY_TOO_SMALL", cand.source))
+            continue
 
-        # 目标数量
-        qty = min(target, affordable_qty(balance.avail_balance, quote.last))
-        if qty < 100:
+        # 目标数量（增量口径 + 资金可买上限）
+        qty = min(desired, affordable_qty(balance.avail_balance, quote.last))
+        if qty < LOT_SIZE:
             intents.append(_noop(code, "QTY_TOO_SMALL", cand.source))
             continue
 
@@ -144,8 +189,3 @@ def decide(
             )
         )
     return intents
-
-
-def _is_buy_side(side: str) -> bool:
-    """委托方向判断：枚举未冻结，兼容 buy/买/1/B 等常见形式。"""
-    return str(side).strip().lower() in ("buy", "b", "1", "买", "买入")

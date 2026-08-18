@@ -169,13 +169,22 @@ def parse_query(payload: dict, code: str, *, received_at: datetime | None = None
     return quote
 
 
-def apply_freshness(quote: Quote, stale_sec: int) -> Quote:
-    """按本地时钟计算 freshness；行情时间缺失记 INVALID（文档 §8.3）。"""
+def apply_freshness(quote: Quote, stale_sec: int, allowed_clock_skew_sec: int = 30) -> Quote:
+    """按本地时钟计算 freshness；行情时间缺失记 INVALID（文档 §8.3）。
+
+    P1-02：market_time 晚于 received + allowed_clock_skew 视为未来时间戳，
+    记 INVALID（error=FUTURE_TIMESTAMP），不再把未来时间压成 freshness=0。
+    """
     if quote.received_at is None or quote.market_time is None:
         quote.validity = QuoteValidity.INVALID if quote.validity == QuoteValidity.VALID else quote.validity
         quote.freshness_seconds = None
         return quote
     delta = (quote.received_at - quote.market_time).total_seconds()
+    if delta < -allowed_clock_skew_sec:
+        quote.validity = QuoteValidity.INVALID
+        quote.error = "FUTURE_TIMESTAMP"
+        quote.freshness_seconds = None
+        return quote
     quote.freshness_seconds = max(delta, 0.0)
     if quote.validity == QuoteValidity.VALID and delta > stale_sec:
         quote.validity = QuoteValidity.STALE

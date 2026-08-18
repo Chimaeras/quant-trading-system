@@ -55,6 +55,10 @@ class Quote:
     validity: QuoteValidity = QuoteValidity.VALID
     freshness_seconds: float | None = None
     error: str = ""  # 解析失败原因（validity=INVALID 时）
+    limit_up_price: float | None = None  # 涨停价硬闸（P0-06）
+    limit_up_source: str = ""  # 涨停价来源与计算方式（审计用）
+    limit_down_price: float | None = None  # 跌停价（当前仅作为卖出安全信息）
+    limit_down_source: str = ""
 
     def is_tradable_snapshot(self) -> bool:
         """有效且未过期且成交活跃。"""
@@ -221,3 +225,6 @@ class PaperRun:
     account_before: dict = field(default_factory=dict)
     account_after: dict = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
+    status: str = "CREATED"  # CREATED/PREPARING/PREVIEW_READY/CONFIRMING/SUBMITTING/SUCCESS/PARTIAL/BLOCKED/UNKNOWN/STOPPED
+    preview_run_id: str = ""  # confirm 关联的 preview（P0-04 审计链）
+    metrics: dict = field(default_factory=dict)  # P2-04 运行级指标

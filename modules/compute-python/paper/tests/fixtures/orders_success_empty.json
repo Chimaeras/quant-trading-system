@@ -1,1 +1,19 @@
-{"code": "200", "message": "成功", "data": {"result": {"status": 0, "interval": 200}, "uid": "3322027171237898", "accID": "262294100000058188", "currency": 1, "currencyUnit": 1000, "totalNum": 0, "orders": [], "rc": 0, "rmsg": ""}, "traceId": null}
+{
+  "code": "200",
+  "message": "成功",
+  "data": {
+    "result": {
+      "status": 0,
+      "interval": 200
+    },
+    "uid": "***",
+    "accID": "***",
+    "currency": 1,
+    "currencyUnit": 1000,
+    "totalNum": 0,
+    "orders": [],
+    "rc": 0,
+    "rmsg": ""
+  },
+  "traceId": null
+}

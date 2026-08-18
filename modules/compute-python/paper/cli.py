@@ -10,11 +10,13 @@ import argparse
 import sys
 from pathlib import Path
 
-from .artifacts import config_hash
 from .config import PaperConfig
 
 # 默认审计根目录：compute-python/logs
 LOG_BASE = Path(__file__).resolve().parent.parent / "logs"
+
+# 本进程创建的 HTTP 客户端（P2-03：命令结束时统一关闭 Session）
+_open_http_clients: list = []
 
 
 def _build_clients(config: PaperConfig):
@@ -24,7 +26,26 @@ def _build_clients(config: PaperConfig):
     from .quote_client import QuoteClient
 
     http = MxHttpClient(config, artifact_dir=LOG_BASE / "paper" / "raw")
+    _open_http_clients.append(http)
     return http, QuoteClient(http, config), BrokerClient(http)
+
+
+def _close_clients() -> None:
+    """关闭本进程创建的全部 HTTP Session。"""
+    while _open_http_clients:
+        _open_http_clients.pop().close()
+
+
+def _trading_calendar():
+    """P1-03：交易日历；未提供数据文件时返回 None（confirm 将阻断）。"""
+    import os
+
+    path = os.environ.get("PAPER_TRADING_CALENDAR_FILE", "")
+    if not path:
+        return None
+    from .trading_calendar import load_calendar_from_file
+
+    return load_calendar_from_file(path)
 
 
 def _load_config() -> PaperConfig:
@@ -118,7 +139,8 @@ def _runner(config: PaperConfig, now=None):
     from .runner import PaperRunner
 
     http, quote_client, broker = _build_clients(config)
-    return PaperRunner(config, quote_client, broker, log_base=LOG_BASE, now=now)
+    return PaperRunner(config, quote_client, broker, log_base=LOG_BASE, now=now,
+                       trading_calendar=_trading_calendar())
 
 
 def cmd_dry_run(args: argparse.Namespace) -> int:
@@ -142,7 +164,7 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    """run：必须 --confirm；先展示摘要再要求输入确认码（config_hash）。"""
+    """run：必须 --confirm；dry-run 生成不可变 Preview 后凭一次性确认码提交。"""
     config = _load_config()
     if not args.confirm:
         print("[paper] run 需要 --confirm（人工确认，禁止无人值守）", file=sys.stderr)
@@ -153,24 +175,27 @@ def cmd_run(args: argparse.Namespace) -> int:
         from .candidates import load_from_file
 
         override = load_from_file(args.candidates_file)
-    # 第一步：dry-run 预览
+    # 第一步：dry-run 预览（生成不可变 Preview 计划 + 一次性 confirm_token）
     preview, abort = runner.dry_run(args.signal_date, candidates_override=override)
     if abort:
         print(f"[paper] 预检中止: {abort}", file=sys.stderr)
         return 1
-    print(f"\n[paper][模拟] === 订单摘要（config_hash={config_hash(config)}）===")
+    token = runner.preview_token()
+    print(f"\n[paper][模拟] === 订单摘要（preview_run_id={preview.run_id}，10 分钟内有效）===")
     buyable = [i for i in preview.intents if i["intent_type"] == "BUY_LIMIT"]
     if not buyable:
         print("[paper] 无可买意图，结束（不调用 trade）")
         return 0
     for it in buyable:
         print(f"  买入 {it['stock_code']} qty={it['qty']} 限价={it['limit_price']}")
-    ack = input(f"\n确认提交以上 {len(buyable)} 笔模拟委托？输入确认码 {config_hash(config)} 继续: ").strip()
-    if ack != config_hash(config):
+    ack = input(f"\n确认提交以上 {len(buyable)} 笔模拟委托？输入一次性确认码 {token} 继续: ").strip()
+    if ack != token:
         print("[paper] 确认码不匹配，已取消（未发任何委托）")
         return 1
-    # 第二步：正式 run（重新走一遍全流程，行情/账户取最新）
-    run, abort2 = runner.run_confirm(args.signal_date, ack, candidates_override=override)
+    # 第二步：confirm 执行 Preview 不可变计划（不重新生成 intents）
+    run, abort2 = runner.run_confirm(
+        args.signal_date, ack, preview_run_id=preview.run_id
+    )
     from .artifacts import run_dir
 
     _print_run_summary(run, run_dir(LOG_BASE, run.trade_date, run.run_id))
@@ -181,16 +206,19 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 
 def cmd_cancel(args: argparse.Namespace) -> int:
-    """撤单：--order-id 指定或 --all 全撤（后者必须 --confirm）。"""
+    """撤单：--order-id + --stock-code 指定或 --all 全撤（均须 --confirm）。"""
     config = _load_config()
-    if args.all and not args.confirm:
-        print("[paper] cancel --all 需要 --confirm", file=sys.stderr)
+    if not args.confirm:
+        print("[paper] cancel 需要 --confirm", file=sys.stderr)
         return 2
     _http, _quote, broker = _build_clients(config)
     if args.all:
         result = broker.cancel_all()
     elif args.order_id:
-        result = broker.cancel_order(args.order_id)
+        if not args.stock_code:
+            print("[paper] 单笔撤单必须提供 --stock-code（经 orders 查询验证的证券代码）", file=sys.stderr)
+            return 2
+        result = broker.cancel_order(args.order_id, args.stock_code)
     else:
         print("[paper] 需要 --order-id 或 --all", file=sys.stderr)
         return 2
@@ -234,6 +262,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     c = sub.add_parser("cancel", help="撤单")
     c.add_argument("--order-id", default="")
+    c.add_argument("--stock-code", default="", help="单笔撤单必须提供（6 位证券代码）")
     c.add_argument("--all", action="store_true")
     c.add_argument("--confirm", action="store_true")
 
@@ -249,12 +278,15 @@ def main(argv: list[str] | None = None) -> int:
         "ping": cmd_ping,
         "quote": cmd_quote,
         "account": cmd_account,
-        "dry-run": cmd_dry_run,
+        "dry_run": cmd_dry_run,
         "run": cmd_run,
         "cancel": cmd_cancel,
         "reconcile": cmd_reconcile,
     }
-    return handlers[args.command](args)
+    try:
+        return handlers[args.command](args)
+    finally:
+        _close_clients()
 
 
 if __name__ == "__main__":

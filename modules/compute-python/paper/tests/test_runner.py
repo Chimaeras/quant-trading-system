@@ -84,7 +84,10 @@ def _quote(code="600519", last=100.0) -> Quote:
 
 
 def _runner(tmp_path, quotes, broker, **cfg):
-    return PaperRunner(_config(**cfg), StubQuoteClient(quotes), broker, log_base=tmp_path, now=T)
+    from paper.trading_calendar import TradingCalendarService
+
+    return PaperRunner(_config(**cfg), StubQuoteClient(quotes), broker, log_base=tmp_path, now=T,
+                       trading_calendar=TradingCalendarService())
 
 
 class TestDryRun:
@@ -124,76 +127,179 @@ class TestDryRun:
 
 
 class TestRunConfirm:
-    """run --confirm 逐笔同步提交。"""
+    """run --confirm：preview + 一次性 token 后逐笔同步提交。"""
+
+    def _preview(self, tmp_path, broker, quotes=None, cands=None):
+        cands = cands or [Candidate(stock_code="600519", stock_name="t", exchange_type="SH", source="file")]
+        runner = _runner(tmp_path, quotes or {"600519": _quote()}, broker)
+        preview, abort = runner.dry_run("2026-08-18", candidates_override=cands)
+        assert abort is None
+        return runner, preview
 
     def test_confirm_ok(self, tmp_path):
         broker = StubBroker()
-        cands = [Candidate(stock_code="600519", stock_name="t", exchange_type="SH", source="file")]
-        runner = _runner(tmp_path, {"600519": _quote()}, broker)
+        runner, preview = self._preview(tmp_path, broker)
         run, abort = runner.run_confirm(
-            "2026-08-18", config_hash(runner._config), candidates_override=cands
+            "2026-08-18", runner.preview_token(), preview_run_id=preview.run_id
         )
         assert abort is None
         assert len(broker.trade_calls) == 1
         assert broker.trade_calls[0]["qty"] == 400
         assert run.submits[0]["status"] == "SUBMITTED"
         assert run.submits[0]["order_id"] == "ORD-1"
+        assert run.account_after != {}
 
-    def test_confirm_mismatch(self, tmp_path):
+    def test_confirm_without_preview_blocked(self, tmp_path):
         broker = StubBroker()
         runner = _runner(tmp_path, {}, broker)
-        run, abort = runner.run_confirm("2026-08-18", "wrong-ack", candidates_override=[])
-        assert abort == "CONFIRM_MISMATCH"
+        run, abort = runner.run_confirm("2026-08-18", "any-token")
+        assert abort == "PREVIEW_REQUIRED"
         assert broker.trade_calls == []
 
-    def test_duplicate_second_run(self, tmp_path):
-        """重复 run：第一笔在外部委托中 → DUPLICATE_ORDER。"""
+    def test_confirm_token_mismatch(self, tmp_path):
         broker = StubBroker()
-        cands = [Candidate(stock_code="600519", stock_name="t", exchange_type="SH", source="file")]
-        runner = _runner(tmp_path, {"600519": _quote()}, broker)
-        run1, _ = runner.run_confirm("2026-08-18", config_hash(runner._config), candidates_override=cands)
+        runner, _preview = self._preview(tmp_path, broker)
+        run, abort = runner.run_confirm("2026-08-18", "wrong-token", preview_run_id=_preview.run_id)
+        assert abort == "CONFIRM_TOKEN_MISMATCH"
+        assert broker.trade_calls == []
+
+    def test_confirm_token_one_shot(self, tmp_path):
+        """token 用后即失效：第二次 confirm 必须 BLOCKED。"""
+        broker = StubBroker()
+        runner, preview = self._preview(tmp_path, broker)
+        token = runner.preview_token()
+        run1, _ = runner.run_confirm("2026-08-18", token, preview_run_id=preview.run_id)
         assert len(broker.trade_calls) == 1
-        # 第二次：外部已有同标的委托
-        broker._orders = [MxOrder(order_id="ORD-1", code="600519", side="buy", price=100.2, qty=400,
-                                  filled_qty=0, status="待成交")]
-        runner2 = _runner(tmp_path, {"600519": _quote()}, broker)
-        run2, _ = runner2.run_confirm("2026-08-18", config_hash(runner2._config), candidates_override=cands)
-        assert run2.intents[0]["intent_type"] == "NOOP"
-        assert run2.intents[0]["reason_codes"] == ["DUPLICATE_ORDER"]
-        assert len(broker.trade_calls) == 1  # 未重复下单
+        run2, abort2 = runner.run_confirm("2026-08-18", token, preview_run_id=preview.run_id)
+        assert abort2 == "CONFIRM_TOKEN_REUSED"
+        assert len(broker.trade_calls) == 1  # 未重复提交
+
+    def test_confirm_expired_token(self, tmp_path):
+        """token 过期后 confirm 不得调用 trade。"""
+        from datetime import timedelta
+
+        broker = StubBroker()
+        runner, preview = self._preview(tmp_path, broker)
+        runner._now = runner._now + timedelta(seconds=601)
+        run, abort = runner.run_confirm(
+            "2026-08-18", runner.preview_token(), preview_run_id=preview.run_id
+        )
+        assert abort == "CONFIRM_TOKEN_EXPIRED"
+        assert broker.trade_calls == []
+
+    def test_confirm_config_changed(self, tmp_path):
+        """preview 后修改配置 → 旧 token 失效。"""
+        broker = StubBroker()
+        runner, preview = self._preview(tmp_path, broker)
+        runner._config.max_name_weight = 0.10
+        run, abort = runner.run_confirm(
+            "2026-08-18", runner.preview_token(), preview_run_id=preview.run_id
+        )
+        assert abort == "CONFIG_CHANGED"
+        assert broker.trade_calls == []
+
+    def test_confirm_account_changed(self, tmp_path):
+        """preview 后外部持仓/委托变化 → 要求重新 dry-run。"""
+        broker = StubBroker()
+        runner, preview = self._preview(tmp_path, broker)
+        broker._orders = [MxOrder(order_id="ORD-X", code="600519", side="buy", price=100.2,
+                                  qty=100, filled_qty=0, status="2")]
+        run, abort = runner.run_confirm(
+            "2026-08-18", runner.preview_token(), preview_run_id=preview.run_id
+        )
+        assert abort == "ACCOUNT_CHANGED"
+        assert broker.trade_calls == []
+
+    def test_confirm_submits_preview_intents_only(self, tmp_path):
+        """confirm 提交的 intents 必须与 preview 完全一致（不重新生成）。"""
+        broker = StubBroker()
+        runner, preview = self._preview(tmp_path, broker)
+        # preview 后行情大幅变化（重新查询也不会改变计划）
+        run, abort = runner.run_confirm(
+            "2026-08-18", runner.preview_token(), preview_run_id=preview.run_id
+        )
+        assert abort is None
+        assert broker.trade_calls[0]["qty"] == preview.intents[0]["qty"]
+        assert broker.trade_calls[0]["price"] == preview.intents[0]["limit_price"]
 
 
 class TestReconcile:
-    """对账。"""
+    """对账（P1-06：状态分类，已撤/废单不判成功）。"""
+
+    def _write_submits(self, tmp_path, submits):
+        day = tmp_path / "paper" / "2026-08-19" / "run1"
+        day.mkdir(parents=True)
+        (day / "submits.json").write_text(json.dumps(submits), encoding="utf-8")
 
     def test_reconcile_ok(self, tmp_path):
         from paper.reconcile import reconcile_day
 
         broker = StubBroker()
         broker._orders = [MxOrder(order_id="ORD-1", code="600519", side="buy", price=100.2, qty=400,
-                                  filled_qty=0, status="已成")]
-        # 预置 submits
-        day = tmp_path / "paper" / "2026-08-19" / "run1"
-        day.mkdir(parents=True)
-        (day / "submits.json").write_text(
-            json.dumps([{"stock_code": "600519", "qty": 400, "status": "SUBMITTED", "order_id": "ORD-1"}]),
-            encoding="utf-8",
-        )
+                                  filled_qty=400, status="4")]
+        self._write_submits(tmp_path, [{"stock_code": "600519", "side": "buy", "qty": 400,
+                                        "status": "SUBMITTED", "order_id": "ORD-1"}])
         report = reconcile_day(broker, tmp_path, "2026-08-19")
         assert report["status"] == "OK"
-        assert report["matched"] == 1
+        assert report["success_count"] == 1
+
+    def test_reconcile_canceled_not_success(self, tmp_path):
+        from paper.reconcile import reconcile_day
+
+        broker = StubBroker()
+        broker._orders = [MxOrder(order_id="ORD-1", code="600519", side="buy", price=100.2, qty=400,
+                                  filled_qty=0, status="8")]
+        self._write_submits(tmp_path, [{"stock_code": "600519", "side": "buy", "qty": 400,
+                                        "status": "SUBMITTED", "order_id": "ORD-1"}])
+        report = reconcile_day(broker, tmp_path, "2026-08-19")
+        assert report["status"] == "BLOCKED"
+        assert report["canceled_count"] == 1
+        assert report["success_count"] == 0
+
+    def test_reconcile_partial(self, tmp_path):
+        from paper.reconcile import reconcile_day
+
+        broker = StubBroker()
+        broker._orders = [MxOrder(order_id="ORD-1", code="600519", side="buy", price=100.2, qty=400,
+                                  filled_qty=100, status="3")]
+        self._write_submits(tmp_path, [{"stock_code": "600519", "side": "buy", "qty": 400,
+                                        "status": "SUBMITTED", "order_id": "ORD-1"}])
+        report = reconcile_day(broker, tmp_path, "2026-08-19")
+        assert report["partial_count"] == 1
+        assert report["results"][0]["remaining_qty"] == 300
+
+    def test_reconcile_qty_conflict_blocked(self, tmp_path):
+        from paper.reconcile import reconcile_day
+
+        broker = StubBroker()
+        broker._orders = [MxOrder(order_id="ORD-1", code="600519", side="buy", price=100.2, qty=100,
+                                  filled_qty=100, status="4")]
+        self._write_submits(tmp_path, [{"stock_code": "600519", "side": "buy", "qty": 400,
+                                        "status": "SUBMITTED", "order_id": "ORD-1"}])
+        report = reconcile_day(broker, tmp_path, "2026-08-19")
+        assert report["status"] == "BLOCKED"  # 数量冲突不能判成功
+
+    def test_reconcile_orders_query_failed(self, tmp_path):
+        from paper.reconcile import reconcile_day
+
+        broker = StubBroker()
+
+        def _fail(run_id="adhoc"):
+            return None, None
+
+        broker.orders = _fail
+        self._write_submits(tmp_path, [{"stock_code": "600519", "side": "buy", "qty": 400,
+                                        "status": "SUBMITTED", "order_id": "ORD-1"}])
+        report = reconcile_day(broker, tmp_path, "2026-08-19")
+        assert report["status"] == "BLOCKED"
+        assert report["query_error_count"] == 1
 
     def test_reconcile_unknown(self, tmp_path):
         from paper.reconcile import reconcile_day
 
         broker = StubBroker()
         broker._orders = []
-        day = tmp_path / "paper" / "2026-08-19" / "run1"
-        day.mkdir(parents=True)
-        (day / "submits.json").write_text(
-            json.dumps([{"stock_code": "600519", "qty": 400, "status": "UNKNOWN_SUBMIT", "order_id": ""}]),
-            encoding="utf-8",
-        )
+        self._write_submits(tmp_path, [{"stock_code": "600519", "qty": 400, "status": "UNKNOWN_SUBMIT", "order_id": ""}])
         report = reconcile_day(broker, tmp_path, "2026-08-19")
         assert report["status"] == "BLOCKED"
-        assert report["unknown"] == 1
+        assert report["unknown_count"] == 1

@@ -3,11 +3,14 @@
 只读命令：ping / quote / account
 研判命令：dry-run（生成意图与审计，绝不发单）
 交易命令：run --confirm（人工确认码）/ cancel / reconcile
+盘中命令：watch-once / watch（默认 dry-run；live 需双重确认）
 """
 from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 
 from .config import PaperConfig
@@ -241,6 +244,88 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
     return 0 if report["status"] == "OK" else 1
 
 
+def _watch_loop(config: PaperConfig, args: argparse.Namespace):
+    from .watch.kline_client import KlineClient
+    from .watch.loop import WatchLoop
+
+    http, quote_client, broker = _build_clients(config)
+    return WatchLoop(
+        config,
+        quote_client,
+        broker,
+        kline_client=KlineClient(http, config),
+        log_base=LOG_BASE,
+    )
+
+
+def _watch_config(config: PaperConfig, args: argparse.Namespace) -> PaperConfig:
+    strategy = getattr(args, "strategy", "") or config.watch_strategy
+    return replace(config, watch_strategy=strategy.upper())
+
+
+def _watch_override(args):
+    if not getattr(args, "candidates_file", ""):
+        return None
+    from .candidates import load_from_file
+
+    return load_from_file(args.candidates_file, source="watch_override")
+
+
+def _print_watch_tick(tick) -> None:
+    print(
+        f"[paper][模拟][watch] {tick.finished_at} status={tick.status} "
+        f"live={tick.live} bars={len(tick.new_closed_bars)} "
+        f"signals={len(tick.signals)} intents={len(tick.intents)} submits={len(tick.submits)}"
+    )
+    for intent in tick.intents:
+        print(
+            f"  {intent.get('stock_code')} {intent.get('intent_type')} "
+            f"qty={intent.get('qty')} px={intent.get('limit_price')} "
+            f"risk={intent.get('risk_status')} "
+            f"reason={','.join(intent.get('reason_codes', []))}"
+        )
+    for error in tick.errors:
+        print(f"  错误: {error}", file=sys.stderr)
+
+
+def cmd_watch_once(args: argparse.Namespace) -> int:
+    """只执行一轮盘中已收盘 bar 检查。"""
+    config = _watch_config(_load_config(), args)
+    override = _watch_override(args)
+    loop = _watch_loop(config, args)
+    signal_date = args.signal_date or datetime.now().strftime("%Y-%m-%d")
+    tick = loop.run_once(
+        signal_date,
+        live=args.live,
+        confirm=args.confirm,
+        candidates_override=override,
+    )
+    _print_watch_tick(tick)
+    return 0 if tick.status not in {"BLOCKED"} else 1
+
+
+def cmd_watch(args: argparse.Namespace) -> int:
+    """持续盘中盯盘；默认 dry-run，live 必须 --live --confirm 且环境变量开启。"""
+    config = _watch_config(_load_config(), args)
+    override = _watch_override(args)
+    loop = _watch_loop(config, args)
+    signal_date = args.signal_date or datetime.now().strftime("%Y-%m-%d")
+    try:
+        ticks = loop.run(
+            signal_date,
+            live=args.live,
+            confirm=args.confirm,
+            candidates_override=override,
+            max_cycles=args.max_cycles or None,
+        )
+    except KeyboardInterrupt:
+        print("[paper][模拟][watch] 已退出，未自动撤单", file=sys.stderr)
+        return 0
+    for tick in ticks:
+        _print_watch_tick(tick)
+    return 0 if all(tick.status != "BLOCKED" for tick in ticks) else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     """CLI 参数定义。"""
     parser = argparse.ArgumentParser(prog="paper.cli", description="妙想模拟盘 Paper Live（模拟交易，非实盘）")
@@ -268,6 +353,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     rc = sub.add_parser("reconcile", help="收盘对账")
     rc.add_argument("--trade-date", required=True)
+
+    def add_watch_args(parser):
+        parser.add_argument("--signal-date", default="", help="观察池信号日，默认今日")
+        parser.add_argument("--strategy", choices=["MA_CROSS", "MACD", "BOLL"], default="")
+        parser.add_argument("--candidates-file", default="", help="离线观察池覆盖文件")
+        parser.add_argument("--live", action="store_true", help="允许进入模拟盘提交分支")
+        parser.add_argument("--confirm", action="store_true", help="会话级人工确认")
+
+    wo = sub.add_parser("watch-once", help="执行一轮盘中盯盘（默认 dry-run）")
+    add_watch_args(wo)
+    w = sub.add_parser("watch", help="持续盘中盯盘（默认 dry-run）")
+    add_watch_args(w)
+    w.add_argument("--max-cycles", type=int, default=0, help="测试/短跑用循环次数，0 表示持续运行")
     return parser
 
 
@@ -282,6 +380,8 @@ def main(argv: list[str] | None = None) -> int:
         "run": cmd_run,
         "cancel": cmd_cancel,
         "reconcile": cmd_reconcile,
+        "watch-once": cmd_watch_once,
+        "watch": cmd_watch,
     }
     try:
         return handlers[args.command](args)

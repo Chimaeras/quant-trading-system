@@ -1,0 +1,20 @@
+{
+  "signal_date": "2026-08-18",
+  "trade_date": "2026-08-19",
+  "candidates": [
+    {
+      "stock_code": "600519",
+      "exchange_type": "SH",
+      "stock_name": "贵州茅台",
+      "score": 0.61,
+      "buyability": "可买"
+    },
+    {
+      "stock_code": "000001",
+      "exchange_type": "SZ",
+      "stock_name": "平安银行",
+      "score": 0.55,
+      "buyability": "可买"
+    }
+  ]
+}

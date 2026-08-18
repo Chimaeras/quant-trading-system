@@ -54,3 +54,9 @@ yarn-error.log*
 
 ### Local dev tools (JDK/Maven downloads, not for commit) ###
 .local-tools/
+### 妙想模拟盘机密信息（含API密钥，禁止入库）
+docs/paper-captures/妙想模拟盘账户信息.txt
+docs/paper-captures/*_capture_raw.json
+
+### Paper Live 审计日志（含行情原始JSON）
+modules/compute-python/logs/

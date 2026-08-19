@@ -136,9 +136,18 @@ class WatchLoop:
             )
 
         required = self.adapter.required_bars()
+        if source == "full_market":
+            # 全市场模式每轮先走批量快照，不能在启动阶段为数千只股票
+            # 逐只请求分钟 K 线；未持仓标的从实时 bar 累积到 warmup 后
+            # 才产生技术信号，持仓标的在账户查询后走定向预热。
+            self._prepare_errors.append(
+                f"FULL_UNIVERSE_WARMUP:未持仓标的需累计 {required} 根已收盘 bar"
+            )
         for candidate in candidates:
             code = candidate.stock_code
             try:
+                if source == "full_market":
+                    continue
                 if code in self._seed_bars:
                     bars = list(self._seed_bars[code])
                 elif self.kline_client is not None:
@@ -172,8 +181,9 @@ class WatchLoop:
         self._prepared_date = trade_date
         self._prepare_errors_pending = True
         events = self._event_log(trade_date)
+        candidate_names = {candidate.stock_code: candidate.stock_name for candidate in candidates}
         for code, reason in self._disabled_codes.items():
-            events.emit("ERROR", code=code, detail={"scope": "KLINE_DISABLED", "message": reason}, now=current)
+            events.emit("ERROR", code=code, name=candidate_names.get(code, ""), detail={"scope": "KLINE_DISABLED", "message": reason}, now=current)
         if errors:
             events.emit("ERROR", detail={"scope": "UNIVERSE", "messages": errors}, now=current)
         return list(self._prepare_errors)
@@ -217,6 +227,37 @@ class WatchLoop:
                 for order in orders
             ],
         }
+
+    def _warmup_positions(self, positions: list[Position], current: datetime, trade_date: str, tick: WatchTick) -> None:
+        """全市场模式只为已有持仓定向预热，避免卖出信号永远等待 20 根 bar。"""
+        if self._universe_source != "full_market" or self.kline_client is None:
+            return
+        candidate_map = {candidate.stock_code: candidate for candidate in self._candidates}
+        required = self.adapter.required_bars()
+        for position in positions:
+            candidate = candidate_map.get(position.code)
+            if candidate is None or self.adapter.ready(position.code):
+                continue
+            if self.bar_store.history(position.code):
+                continue
+            try:
+                bars, result = self.kline_client.fetch_history(
+                    position.code,
+                    candidate.stock_name,
+                    self.config.bar_period_min,
+                    max(required + 10, 80),
+                    run_id=f"watch-position-prep-{trade_date}",
+                    as_of=current,
+                    exchange=candidate.exchange_type,
+                )
+                if bars is None:
+                    raise ValueError(_result_message(result))
+                self.bar_store.seed(position.code, bars, discard_first_forming=True)
+                self.adapter.seed(position.code, self.bar_store.history(position.code))
+                if not self.adapter.ready(position.code):
+                    tick.errors.append(f"{position.code}:{candidate.stock_name}:WARMUP不足({len(bars)}/{required})")
+            except (OSError, TypeError, ValueError) as exc:
+                tick.errors.append(f"{position.code}:{candidate.stock_name}:POSITION_KLINE_DISABLED:{exc}")
 
     @staticmethod
     def _order_id(result) -> str:
@@ -420,6 +461,13 @@ class WatchLoop:
             tick.errors.append("DATA_SOURCE_BLOCKED:T1 观察池不可用，live 不允许空名单继续")
             tick.status = "BLOCKED"
             return self._finish(tick)
+        if live and any(
+            error.startswith(("FULL_UNIVERSE_UNAVAILABLE", "FULL_UNIVERSE_TRUNCATED"))
+            for error in self._prepare_errors
+        ):
+            tick.errors.append("DATA_SOURCE_BLOCKED:全量股票主数据不可用或不完整，live 不允许继续")
+            tick.status = "BLOCKED"
+            return self._finish(tick)
         if not self._candidates:
             tick.status = "NO_UNIVERSE"
             return self._finish(tick)
@@ -456,6 +504,7 @@ class WatchLoop:
             tick.status = "BLOCKED"
             return self._finish(tick)
         tick.account = self._account_snapshot(balance, positions, orders)
+        self._warmup_positions(positions, current, trade_date, tick)
         for message in self._reconcile_unknown_submits(orders, trade_date):
             tick.errors.append(message)
             events.emit("ACCOUNT", cycle=self._cycle, detail={
@@ -477,30 +526,46 @@ class WatchLoop:
         quotes: dict[str, object] = {}
         updates: dict[str, object] = {}
 
+        batch_quotes = None
+        if self._universe_source == "full_market" and hasattr(self.quote_client, "snapshot_many"):
+            try:
+                batch_quotes = self.quote_client.snapshot_many(
+                    self._candidates,
+                    run_id=run_id,
+                    received_at=current,
+                )
+            except Exception as exc:
+                tick.errors.append(f"FULL_QUOTE_BATCH_FAILED:{type(exc).__name__}:{exc}")
+
         # 先完成本轮所有行情和 bar 聚合，再计算观察池中位数风控。
         for candidate in self._candidates:
             if candidate.stock_code in self._disabled_codes:
                 continue
-            quote, result = self.quote_client.snapshot(
-                candidate.stock_code,
-                candidate.stock_name,
-                run_id=run_id,
-                received_at=current,
-            )
+            if batch_quotes is not None:
+                quote, result = batch_quotes.get(candidate.stock_code, (None, None))
+            else:
+                quote, result = self.quote_client.snapshot(
+                    candidate.stock_code,
+                    candidate.stock_name,
+                    run_id=run_id,
+                    received_at=current,
+                )
             if quote is None:
                 message = _result_message(result)
                 tick.errors.append(f"quote {candidate.stock_code} 失败: {message}")
-                events.emit("QUOTE_FAIL", code=candidate.stock_code, cycle=self._cycle,
+                events.emit("QUOTE_FAIL", code=candidate.stock_code, name=candidate.stock_name, cycle=self._cycle,
                             detail={"message": message}, now=current)
                 if result is not None and result.stop_run():
                     self._live_halted = True
                     tick.errors.append("STOP_RUN: 行情错误触发停止性错误")
-                    events.emit("ERROR", code=candidate.stock_code, cycle=self._cycle,
+                    events.emit("ERROR", code=candidate.stock_code, name=candidate.stock_name, cycle=self._cycle,
                                 detail={"scope": "STOP_RUN", "message": "行情错误触发停止性错误"}, now=current)
                     break
                 continue
             quotes[candidate.stock_code] = quote
-            events.emit("QUOTE", code=candidate.stock_code, cycle=self._cycle, detail={
+            display_name = str(getattr(quote, "name", "") or candidate.stock_name)
+            events.emit("QUOTE", code=candidate.stock_code, name=display_name, cycle=self._cycle, detail={
+                "stock_name": display_name,
                 "last": quote.last,
                 "pct_chg": quote.pct_chg,
                 "volume": quote.volume,
@@ -529,7 +594,7 @@ class WatchLoop:
                 continue
             updates[candidate.stock_code] = update
             for closed_bar in update.new_closed:
-                events.emit("BAR_CLOSED", code=candidate.stock_code, cycle=self._cycle, detail={
+                events.emit("BAR_CLOSED", code=candidate.stock_code, name=display_name, cycle=self._cycle, detail={
                     "open": closed_bar.open, "high": closed_bar.high, "low": closed_bar.low,
                     "close": closed_bar.close, "volume": closed_bar.volume,
                     "start_ts": closed_bar.start_ts.isoformat(), "end_ts": closed_bar.end_ts.isoformat(),
@@ -544,24 +609,58 @@ class WatchLoop:
             quote = quotes.get(candidate.stock_code)
             if update is None or quote is None:
                 continue
+            display_name = str(getattr(quote, "name", "") or candidate.stock_name)
             for bar in update.new_closed:
-                if not self.adapter.ready(candidate.stock_code):
-                    tick.signals.append({
-                        "code": candidate.stock_code,
-                        "action": "hold",
-                        "strategy": self.config.watch_strategy,
-                        "bar_ts": bar.end_ts.isoformat(),
-                        "reason_codes": ["WARMUP"],
-                    })
-                    continue
+                ready_before = self.adapter.ready(candidate.stock_code)
                 position = position_map.get(candidate.stock_code)
                 signal = self.adapter.on_closed_bar(
                     candidate.stock_code,
                     bar,
                     position.qty if position else 0,
                 )
+                if not ready_before:
+                    signal.action = "hold"
+                    signal.reason_codes = ["WARMUP", "BAR_CLOSED"]
                 tick.signals.append(signal.to_dict())
-                events.emit("SIGNAL", code=candidate.stock_code, cycle=self._cycle, detail=signal.to_dict(), now=current)
+                events.emit("SIGNAL", code=candidate.stock_code, name=display_name, cycle=self._cycle, detail=signal.to_dict(), now=current)
+                if not ready_before:
+                    continue
+                if (
+                    self._universe_source == "full_market"
+                    and getattr(quote, "source", "") == "eastmoney_batch"
+                    and signal.action in {"buy", "sell"}
+                ):
+                    # 批量行情用于全市场扫描；真正产生意图后，再用妙想
+                    # 查询涨跌停价、行情时间等执行级字段，避免把批量源
+                    # 的近似数据直接交给下单风控。
+                    authoritative, auth_result = self.quote_client.snapshot(
+                        candidate.stock_code,
+                        candidate.stock_name,
+                        run_id=run_id,
+                        received_at=current,
+                    )
+                    if authoritative is None or authoritative.validity != QuoteValidity.VALID:
+                        quote.validity = QuoteValidity.INVALID
+                        quote.error = "AUTHORITATIVE_QUOTE_UNAVAILABLE"
+                        tick.errors.append(
+                            f"quote {candidate.stock_code} 权威补充失败: {_result_message(auth_result)}"
+                        )
+                        if auth_result is not None and auth_result.stop_run():
+                            self._live_halted = True
+                        # 继续走风险闸，确保日志明确记录 QUOTE_NOT_VALID，
+                        # 而不是静默跳过这次信号。
+                    else:
+                        quote = authoritative
+                        quotes[candidate.stock_code] = quote
+                        display_name = str(getattr(quote, "name", "") or display_name)
+                        events.emit("QUOTE", code=candidate.stock_code, name=display_name, cycle=self._cycle, detail={
+                            "stock_name": display_name,
+                            "last": quote.last,
+                            "pct_chg": quote.pct_chg,
+                            "volume": quote.volume,
+                            "validity": quote.validity.value,
+                            "authoritative": True,
+                        }, now=current)
                 intent = build_watch_intent(
                     candidate,
                     signal,
@@ -576,7 +675,7 @@ class WatchLoop:
                     intent.risk_reject_reason = "FROZEN_PREVIOUS_UNKNOWN"
                     intent.reason_codes.append("FROZEN_PREVIOUS_UNKNOWN")
                 if intent.intent_type in {IntentType.BUY_LIMIT, IntentType.SELL_LIMIT}:
-                    events.emit("SIZING", code=candidate.stock_code, cycle=self._cycle, detail=sizing_detail(
+                    events.emit("SIZING", code=candidate.stock_code, name=display_name, cycle=self._cycle, detail=sizing_detail(
                         balance, quote.last, self.config, intent.side,
                         available_qty=position.avail_qty if position else 0,
                     ), now=current)
@@ -599,7 +698,7 @@ class WatchLoop:
                     strict_limit_data=actual_live,
                     gate_trace=gate_trace,
                 )
-                events.emit("RISK_GATE", code=candidate.stock_code, cycle=self._cycle, detail={
+                events.emit("RISK_GATE", code=candidate.stock_code, name=display_name, cycle=self._cycle, detail={
                     "intent": original_intent_type,
                     "qty": intent.qty,
                     "limit_price": intent.limit_price,
@@ -613,7 +712,7 @@ class WatchLoop:
                 if not actual_live:
                     checked.reason_codes.append("DRY_RUN_NO_SUBMIT")
                     tick.intents[-1] = checked.to_dict()
-                    events.emit("SUBMIT", code=candidate.stock_code, cycle=self._cycle, detail={
+                    events.emit("SUBMIT", code=candidate.stock_code, name=display_name, cycle=self._cycle, detail={
                         "status": "DRY_RUN", "side": checked.side, "qty": checked.qty, "price": checked.limit_price,
                     }, now=current)
                     continue
@@ -625,7 +724,7 @@ class WatchLoop:
                     continue
                 record = self._submit(checked, run_id)
                 tick.submits.append(asdict(record))
-                events.emit("SUBMIT", code=candidate.stock_code, cycle=self._cycle, detail={
+                events.emit("SUBMIT", code=candidate.stock_code, name=display_name, cycle=self._cycle, detail={
                     "status": record.status, "side": checked.side, "qty": checked.qty,
                     "price": checked.limit_price, "order_id": record.order_id,
                     "error_code": record.error_code, "error_message": record.error_message,
@@ -688,6 +787,16 @@ class WatchLoop:
         if self._live_halted:
             tick.errors.append("LIVE_DISABLED_AFTER_STOP_RUN")
             tick.live = False
+        tick.metrics.update({
+            "universe_source": self._universe_source,
+            "universe_count": len(self._candidates),
+            "quote_count": len(quotes),
+            "valid_quote_count": sum(
+                1 for quote in quotes.values() if getattr(quote, "validity", None) == QuoteValidity.VALID
+            ),
+            "buy_signal_count": sum(1 for signal in tick.signals if signal.get("action") == "buy"),
+            "sell_signal_count": sum(1 for signal in tick.signals if signal.get("action") == "sell"),
+        })
         if tick.errors and tick.status == "OK":
             tick.status = "DEGRADED"
         return self._finish(tick)

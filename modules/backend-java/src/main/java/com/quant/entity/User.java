@@ -2,6 +2,8 @@ package com.quant.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -23,7 +25,7 @@ public class User {
     @Column(length = 100)
     private String email;
 
-    @Column(columnDefinition = "TINYINT DEFAULT 1")
+    @JdbcTypeCode(SqlTypes.TINYINT)
     private Integer status = 1;
 
     @Column(name = "create_time", updatable = false)

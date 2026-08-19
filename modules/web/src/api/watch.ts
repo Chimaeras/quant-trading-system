@@ -10,6 +10,7 @@ export interface WatchEvent {
   cycle: number
   type: string
   code: string
+  name?: string
   detail: Record<string, unknown>
 }
 

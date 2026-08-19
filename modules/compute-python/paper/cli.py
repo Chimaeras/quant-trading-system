@@ -273,6 +273,11 @@ def _watch_override(args):
 
 
 def _print_watch_tick(tick) -> None:
+    names = {
+        str(item.get("stock_code")): str(item.get("stock_name", ""))
+        for item in getattr(tick, "universe", [])
+        if item.get("stock_code")
+    }
     print(
         f"[paper][模拟][watch] {tick.finished_at} status={tick.status} "
         f"live={tick.live} bars={len(tick.new_closed_bars)} "
@@ -280,7 +285,7 @@ def _print_watch_tick(tick) -> None:
     )
     for intent in tick.intents:
         print(
-            f"  {intent.get('stock_code')} {intent.get('intent_type')} "
+            f"  {intent.get('stock_code')} {names.get(str(intent.get('stock_code')), '')} {intent.get('intent_type')} "
             f"qty={intent.get('qty')} px={intent.get('limit_price')} "
             f"risk={intent.get('risk_status')} "
             f"reason={','.join(intent.get('reason_codes', []))}"
@@ -383,7 +388,7 @@ def build_parser() -> argparse.ArgumentParser:
     ws = sub.add_parser("watch-serve", help="监控面板只读 API（默认 127.0.0.1:8790）")
     ws.add_argument("--host", default="127.0.0.1")
     ws.add_argument("--port", type=int, default=8790)
-    ws.add_argument("--log-base", default="logs/paper")
+    ws.add_argument("--log-base", default="logs", help="与 paper.cli watch 写入目录一致（其下 watch/<date>/）")
     return parser
 
 

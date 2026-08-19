@@ -2,6 +2,8 @@ package com.quant.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -21,7 +23,8 @@ public class UserAccount {
     @Column(name = "account_name", length = 50)
     private String accountName;
 
-    @Column(name = "account_type", columnDefinition = "TINYINT DEFAULT 1")
+    @JdbcTypeCode(SqlTypes.TINYINT)
+    @Column(name = "account_type")
     private Integer accountType = 1;
 
     @Column(name = "total_asset", precision = 20, scale = 4)
@@ -42,7 +45,7 @@ public class UserAccount {
     @Column(name = "today_profit", precision = 20, scale = 4)
     private BigDecimal todayProfit = BigDecimal.ZERO;
 
-    @Column(columnDefinition = "TINYINT DEFAULT 1")
+    @JdbcTypeCode(SqlTypes.TINYINT)
     private Integer status = 1;
 
     @Column(name = "created_at", updatable = false)

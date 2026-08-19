@@ -51,6 +51,7 @@
               <el-link type="primary" :underline="false">{{ row.code }}</el-link>
             </template>
           </el-table-column>
+          <el-table-column prop="name" label="名称" min-width="105" show-overflow-tooltip />
           <el-table-column label="最新价" width="80" align="right">
             <template #default="{ row }">{{ row.last?.toFixed(2) ?? '—' }}</template>
           </el-table-column>
@@ -98,6 +99,7 @@
             </template>
           </el-table-column>
           <el-table-column prop="code" label="代码" width="80" />
+          <el-table-column prop="name" label="名称" width="105" show-overflow-tooltip />
           <el-table-column label="内容" min-width="240">
             <template #default="{ row }">
               <span :class="eventSummaryClass(row)">{{ eventSummary(row) }}</span>
@@ -130,6 +132,7 @@
               <template #default="{ row }">{{ row.ts.slice(11) }}</template>
             </el-table-column>
             <el-table-column prop="code" label="代码" width="76" />
+            <el-table-column prop="name" label="名称" width="100" show-overflow-tooltip />
             <el-table-column label="方向" width="56">
               <template #default="{ row }">
                 <span :class="(row.detail as any).side === 'buy' ? 'up' : 'down'">
@@ -182,7 +185,7 @@
     </div>
 
     <!-- ⑥ 标的明细 -->
-    <el-drawer v-model="detailVisible" size="62%" :title="`${detailCode} 盘中分析`">
+    <el-drawer v-model="detailVisible" size="62%" :title="`${detailCode} ${detailName} 盘中分析`">
       <div ref="chartRef" class="detail-chart" />
       <el-table :data="codeSignals(detailCode)" size="small" border class="signal-table">
         <el-table-column prop="ts" label="时间" width="100">
@@ -230,6 +233,7 @@ const typeOptions = ['CYCLE', 'QUOTE', 'QUOTE_FAIL', 'BAR_CLOSED', 'SIGNAL', 'SI
 
 const detailVisible = ref(false)
 const detailCode = ref('')
+const detailName = ref('')
 const chartRef = ref<HTMLElement | null>(null)
 let chart: echarts.ECharts | null = null
 let timer: number | null = null
@@ -252,12 +256,17 @@ const halted = computed(() =>
 const maxTrades = 20
 
 const universeRows = computed(() => {
-  const rows = new Map<string, { code: string; last?: number; pct?: number; disabled?: string }>()
+  const rows = new Map<string, { code: string; name?: string; last?: number; pct?: number; disabled?: string }>()
   for (const e of events.value) {
     if (e.type === 'QUOTE' && e.code) {
-      rows.set(e.code, { code: e.code, last: (e.detail as any).last, pct: (e.detail as any).pct_chg })
+      rows.set(e.code, {
+        code: e.code,
+        name: e.name || String((e.detail as any).stock_name || ''),
+        last: (e.detail as any).last,
+        pct: (e.detail as any).pct_chg
+      })
     } else if (e.type === 'ERROR' && e.code && (e.detail as any).scope === 'KLINE_DISABLED' && !rows.has(e.code)) {
-      rows.set(e.code, { code: e.code, disabled: String((e.detail as any).message || 'KLINE_DISABLED') })
+      rows.set(e.code, { code: e.code, name: e.name, disabled: String((e.detail as any).message || 'KLINE_DISABLED') })
     }
   }
   return [...rows.values()]
@@ -392,8 +401,9 @@ async function initialLoad() {
   }
 }
 
-function openDetail(row: { code: string }) {
+function openDetail(row: { code: string; name?: string }) {
   detailCode.value = row.code
+  detailName.value = row.name || ''
   detailVisible.value = true
   nextTick(() => renderChart())
 }

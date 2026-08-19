@@ -2,6 +2,8 @@ package com.quant.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -44,7 +46,8 @@ public class TradingLog {
     @Column(name = "stamp_duty")
     private BigDecimal stampDuty = BigDecimal.ZERO;
 
-    @Column(name = "order_type", columnDefinition = "TINYINT DEFAULT 1")
+    @JdbcTypeCode(SqlTypes.TINYINT)
+    @Column(name = "order_type")
     private Integer orderType = 1;
 
     @Column(name = "order_time")
@@ -53,7 +56,8 @@ public class TradingLog {
     @Column(name = "trade_time")
     private LocalDateTime tradeTime;
 
-    @Column(name = "order_status", columnDefinition = "TINYINT DEFAULT 3")
+    @JdbcTypeCode(SqlTypes.TINYINT)
+    @Column(name = "order_status")
     private Integer orderStatus = 3;
 
     @Column(name = "account_id")

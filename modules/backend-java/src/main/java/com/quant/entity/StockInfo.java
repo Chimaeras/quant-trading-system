@@ -2,6 +2,8 @@ package com.quant.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -37,7 +39,7 @@ public class StockInfo {
 
     private LocalDate listDate;
 
-    @Column(columnDefinition = "TINYINT DEFAULT 1")
+    @JdbcTypeCode(SqlTypes.TINYINT)
     private Integer status = 1;
 
     @Column(updatable = false)

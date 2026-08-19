@@ -3,7 +3,7 @@
 每行一个 JSON 事件（已脱敏），格式：
 {"seq": 1, "ts": "09:35:02", "date": "2026-08-19", "cycle": 18,
  "type": "QUOTE|BAR_CLOSED|SIGNAL|SIZING|RISK_GATE|SUBMIT|ACCOUNT|CYCLE|ERROR",
- "code": "600519", "detail": {...}}
+"code": "600519", "name": "贵州茅台", "detail": {...}}
 """
 from __future__ import annotations
 
@@ -90,6 +90,7 @@ class EventLog:
         event_type: str,
         *,
         code: str = "",
+        name: str = "",
         cycle: int = 0,
         detail: dict | None = None,
         now: datetime | None = None,
@@ -105,6 +106,7 @@ class EventLog:
             "cycle": cycle,
             "type": event_type,
             "code": code,
+            "name": name,
             "detail": sanitize_payload(detail or {}),
         }
         self._handle.write(json.dumps(event, ensure_ascii=False, default=str) + "\n")

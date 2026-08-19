@@ -53,6 +53,9 @@ class PaperConfig:
     # 分钟 K 线来源：eastmoney 为官方公开历史 K 线接口；mx_query 保留兼容旧问句。
     kline_source: str = "eastmoney"
     watchlist_file: str = ""
+    # FULL：默认扫描 Java 股票主数据中的全部沪深 A 股；T1 保留为兼容模式。
+    watch_universe_mode: str = "FULL"
+    max_watch_universe_codes: int = 10000
     cooldown_min: int = 15
     watch_live: bool = False
     max_trades_per_day: int = 20
@@ -92,6 +95,10 @@ class PaperConfig:
             raise ValueError("bar_period_min 必须是正数且能整除 60")
         if self.kline_source not in {"eastmoney", "mx_query", "auto"}:
             raise ValueError("kline_source 必须是 eastmoney/mx_query/auto")
+        if self.watch_universe_mode not in {"FULL", "T1"}:
+            raise ValueError("watch_universe_mode 必须是 FULL/T1")
+        if not (1 <= self.max_watch_universe_codes <= 10000):
+            raise ValueError("max_watch_universe_codes 必须在 [1,10000]")
         if self.cooldown_min < 0:
             raise ValueError("cooldown_min 不能为负")
         if self.max_trades_per_day <= 0:
@@ -145,6 +152,8 @@ class PaperConfig:
             bar_period_min=int(e.get("PAPER_BAR_PERIOD_MIN", "5")),
             kline_source=e.get("PAPER_KLINE_SOURCE", "eastmoney").strip().lower(),
             watchlist_file=e.get("PAPER_WATCHLIST_FILE", ""),
+            watch_universe_mode=e.get("PAPER_WATCH_UNIVERSE_MODE", "FULL").strip().upper(),
+            max_watch_universe_codes=int(e.get("PAPER_MAX_WATCH_UNIVERSE_CODES", "10000")),
             cooldown_min=int(e.get("PAPER_COOLDOWN_MIN", "15")),
             watch_live=e.get("PAPER_WATCH_LIVE", "0") == "1",
             max_trades_per_day=int(e.get("PAPER_MAX_TRADES_PER_DAY", "20")),
@@ -182,6 +191,8 @@ class PaperConfig:
             "bar_period_min": self.bar_period_min,
             "kline_source": self.kline_source,
             "watchlist_file": self.watchlist_file,
+            "watch_universe_mode": self.watch_universe_mode,
+            "max_watch_universe_codes": self.max_watch_universe_codes,
             "cooldown_min": self.cooldown_min,
             "watch_live": self.watch_live,
             "max_trades_per_day": self.max_trades_per_day,

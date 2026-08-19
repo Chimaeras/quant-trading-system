@@ -172,6 +172,13 @@ def check_watch_intent(
         note("LOT_SIZE", False)
         return reject("LOT_SIZE_VIOLATION")
     note("LOT_SIZE", True)
+    if intent.intent_type == IntentType.BUY_LIMIT and intent.stock_code.startswith("300") and not config.allow_chinext:
+        note("BOARD_POLICY", False)
+        return reject("BOARD_BLOCKED_CHINEXT")
+    if intent.intent_type == IntentType.BUY_LIMIT and intent.stock_code.startswith(("688", "689")) and not config.allow_star:
+        note("BOARD_POLICY", False)
+        return reject("BOARD_BLOCKED_STAR")
+    note("BOARD_POLICY", True)
     if trades_this_day >= config.max_trades_per_day:
         note("MAX_TRADES_PER_DAY", False)
         return reject("MAX_TRADES_PER_DAY")

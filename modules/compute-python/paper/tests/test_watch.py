@@ -599,3 +599,83 @@ def test_dry_run_loop_emits_full_event_chain(tmp_path: Path):
     end_cycle = [e for e in events if e["type"] == "CYCLE"][-1]
     assert end_cycle["detail"]["phase"] == "end"
     assert end_cycle["detail"]["status"] == tick.status
+
+
+def test_blocked_cycle_still_emits_cycle_end(tmp_path: Path):
+    from paper.watch.events import read_events
+
+    loop = WatchLoop(
+        _config(watch_live=False),
+        _WatchQuote(),
+        _WatchBroker(),
+        log_base=tmp_path,
+        seed_bars={},
+        now_fn=lambda: T0 + timedelta(minutes=5),
+    )
+    tick = loop.run_once("2026-08-18", live=True, confirm=True, candidates_override=[], now=T0 + timedelta(minutes=5))
+    assert tick.status == "BLOCKED"
+    loop.close()
+    cycles = [e for e in read_events(tmp_path, "2026-08-18") if e["type"] == "CYCLE"]
+    assert cycles[0]["detail"]["phase"] == "start"
+    assert cycles[-1]["detail"]["phase"] == "end"
+    assert cycles[-1]["detail"]["status"] == "BLOCKED"
+
+
+def test_risk_gate_event_keeps_original_intent_type(tmp_path: Path):
+    from paper.watch.events import read_events
+
+    code = "600519"
+    # 限制 max_positions=0，让买入意图确定被拒
+    loop = WatchLoop(
+        _config(max_positions=0),
+        _WatchQuote(),
+        _WatchBroker(),
+        log_base=tmp_path,
+        seed_bars={code: _bars(code, [10.0] * 30)},
+        now_fn=lambda: T0,
+    )
+    candidate = Candidate(code, "测试", "SH", source="watchlist")
+    loop.run_once("2026-08-18", candidates_override=[candidate], now=T0 + timedelta(minutes=5))
+    loop.run_once("2026-08-18", candidates_override=[candidate], now=T0 + timedelta(minutes=9, seconds=30))
+    loop.run_once("2026-08-18", candidates_override=[candidate], now=T0 + timedelta(minutes=11))
+    loop.close()
+    events = read_events(tmp_path, "2026-08-18")
+    gates = [e for e in events if e["type"] == "RISK_GATE"]
+    assert gates, "应至少有一条 RISK_GATE 事件"
+    rejected = [g for g in gates if g["detail"]["result"] == "REJECT"]
+    assert rejected
+    # 被拒事件的 intent 必须保留原始 BUY_LIMIT，而不是被原地改写的 NOOP
+    assert all(g["detail"]["intent"] in {"BUY_LIMIT", "SELL_LIMIT"} for g in rejected)
+
+
+def test_close_releases_event_log_handle(tmp_path: Path):
+    loop = WatchLoop(
+        _config(),
+        _WatchQuote(),
+        _WatchBroker(),
+        log_base=tmp_path,
+        seed_bars={},
+        now_fn=lambda: T0,
+    )
+    loop.run_once("2026-08-18", candidates_override=[], now=T0 + timedelta(minutes=5))
+    loop.close()
+    # Windows 下句柄释放后目录可删；非 Windows 至少验证幂等
+    loop.close()
+    import shutil
+    shutil.rmtree(tmp_path)
+
+
+def test_serve_rejects_bad_query_params(tmp_path: Path):
+    from paper.watch.serve import make_handler
+
+    handler_cls = make_handler(tmp_path)
+    assert handler_cls is not None
+    from paper.watch.serve import _query_int, BadRequestError
+    assert _query_int({"after_seq": ["7"]}, "after_seq", 0) == 7
+    assert _query_int({}, "after_seq", 3) == 3
+    try:
+        _query_int({"after_seq": ["abc"]}, "after_seq", 0)
+    except BadRequestError:
+        pass
+    else:
+        raise AssertionError("非法参数必须抛 BadRequestError")

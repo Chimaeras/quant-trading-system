@@ -303,12 +303,15 @@ def cmd_watch_once(args: argparse.Namespace) -> int:
     override = _watch_override(args)
     loop = _watch_loop(config, args)
     signal_date = args.signal_date or datetime.now().strftime("%Y-%m-%d")
-    tick = loop.run_once(
-        signal_date,
-        live=args.live,
-        confirm=args.confirm,
-        candidates_override=override,
-    )
+    try:
+        tick = loop.run_once(
+            signal_date,
+            live=args.live,
+            confirm=args.confirm,
+            candidates_override=override,
+        )
+    finally:
+        loop.close()
     _print_watch_tick(tick)
     return 0 if tick.status not in {"BLOCKED"} else 1
 
@@ -330,6 +333,8 @@ def cmd_watch(args: argparse.Namespace) -> int:
     except KeyboardInterrupt:
         print("[paper][模拟][watch] 已退出，未自动撤单", file=sys.stderr)
         return 0
+    finally:
+        loop.close()
     for tick in ticks:
         _print_watch_tick(tick)
     return 0 if all(tick.status != "BLOCKED" for tick in ticks) else 1

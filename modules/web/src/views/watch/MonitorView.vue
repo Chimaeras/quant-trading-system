@@ -408,7 +408,7 @@ function renderChart() {
   const marks: any[] = events.value
     .filter((e) => e.code === detailCode.value && e.type === 'SIGNAL' && ['buy', 'sell'].includes((e.detail as any).action))
     .map((e) => ({
-      coord: [(e.detail as any).bar_ts, (e.detail as any).detail?.close ?? 0],
+      coord: [String((e.detail as any).bar_ts).slice(11, 16), (e.detail as any).detail?.close ?? 0],
       symbol: (e.detail as any).action === 'buy' ? 'triangle' : 'pin',
       symbolSize: 12,
       itemStyle: { color: (e.detail as any).action === 'buy' ? '#f23645' : '#089981' },

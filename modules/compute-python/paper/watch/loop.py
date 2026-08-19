@@ -263,10 +263,24 @@ class WatchLoop:
             raw=getattr(result, "raw", {}) if isinstance(getattr(result, "raw", {}), dict) else {},
         )
 
+    def close(self) -> None:
+        """释放事件流水句柄（Windows 下未关闭会锁住 events.jsonl）。"""
+        if self._events is not None:
+            self._events.close()
+            self._events = None
+
     def _finish(self, tick: WatchTick) -> WatchTick:
         tick.finished_at = self.now_fn().isoformat()
         write_tick(self.log_base, tick)
         append_daily_summary(self.log_base, tick)
+        # 所有退出路径（含 BLOCKED/SLEEPING 提前返回）都补记 CYCLE end，
+        # 否则面板「最近状态」停留在上一次正常轮。
+        if self._events is not None:
+            self._events.emit("CYCLE", cycle=self._cycle, detail={
+                "phase": "end", "run_id": tick.run_id, "status": tick.status, "live": tick.live,
+                "bars": len(tick.new_closed_bars), "signals": len(tick.signals),
+                "submits": len(tick.submits), "errors": len(tick.errors),
+            }, now=self.now_fn())
         return tick
 
     def run_once(
@@ -443,6 +457,8 @@ class WatchLoop:
                         available_qty=position.avail_qty if position else 0,
                     ), now=current)
                 gate_trace: list = []
+                # check_watch_intent 拒绝时会原地改成 NOOP，先记录原始意图类型
+                original_intent_type = intent.intent_type.value
                 checked = check_watch_intent(
                     intent,
                     quote,
@@ -460,7 +476,7 @@ class WatchLoop:
                     gate_trace=gate_trace,
                 )
                 events.emit("RISK_GATE", code=candidate.stock_code, cycle=self._cycle, detail={
-                    "intent": intent.intent_type.value,
+                    "intent": original_intent_type,
                     "qty": intent.qty,
                     "limit_price": intent.limit_price,
                     "result": "PASS" if checked.risk_status.value == "PASS" and checked.intent_type == intent.intent_type else "REJECT",
@@ -537,11 +553,6 @@ class WatchLoop:
             tick.live = False
         if tick.errors and tick.status == "OK":
             tick.status = "DEGRADED"
-        events.emit("CYCLE", cycle=self._cycle, detail={
-            "phase": "end", "run_id": run_id, "status": tick.status, "live": tick.live,
-            "bars": len(tick.new_closed_bars), "signals": len(tick.signals),
-            "submits": len(tick.submits), "errors": len(tick.errors),
-        }, now=self.now_fn())
         return self._finish(tick)
 
     def run(

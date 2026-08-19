@@ -49,13 +49,39 @@ def _state(log_base: Path, trade_date: str) -> dict:
             state = json.loads(state_path.read_text(encoding="utf-8"))
         except ValueError:
             state = {}
-    # 最近一轮 CYCLE 概要
+    # 最近一轮 CYCLE 概要：从文件尾部反向找，避免每 3s 全量读事件
     last_cycle = {}
-    for event in reversed(read_events(log_base, trade_date, limit=100000)):
-        if event.get("type") == "CYCLE" and event.get("detail", {}).get("phase") == "end":
+    tail = _read_tail(log_base, trade_date, lines=500)
+    for line in reversed(tail):
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(event, dict) and event.get("type") == "CYCLE" and event.get("detail", {}).get("phase") == "end":
             last_cycle = event
             break
     return {"state": state, "last_cycle": last_cycle}
+
+
+def _read_tail(log_base: Path, trade_date: str, *, lines: int = 500) -> list[str]:
+    path = log_base / "watch" / trade_date / "events.jsonl"
+    if not path.exists():
+        return []
+    with path.open("r", encoding="utf-8") as handle:
+        # 逐行读保留尾部 N 行；事件行很小，全文件顺序读 + 切片已足够轻
+        return [line.strip() for line in handle if line.strip()][-lines:]
+
+
+def _query_int(query: dict, key: str, default: int) -> int:
+    raw = query.get(key, [str(default)])[0]
+    try:
+        return int(raw)
+    except (TypeError, ValueError) as exc:
+        raise BadRequestError(f"参数 {key} 非法: {raw!r}") from exc
+
+
+class BadRequestError(ValueError):
+    pass
 
 
 def _ticks(log_base: Path, trade_date: str) -> list[dict]:
@@ -115,13 +141,18 @@ def make_handler(log_base: Path):
                 if trade_date not in _days(log_base):
                     return _json_response(self, {"error": "date_not_found", "date": trade_date}, 404)
                 if resource == "events":
+                    try:
+                        after_seq = _query_int(query, "after_seq", 0)
+                        limit = min(_query_int(query, "limit", 2000), 10000)
+                    except BadRequestError as exc:
+                        return _json_response(self, {"error": "bad_request", "message": str(exc)}, 400)
                     events = read_events(
                         log_base,
                         trade_date,
-                        after_seq=int(query.get("after_seq", ["0"])[0] or 0),
+                        after_seq=after_seq,
                         code=query.get("code", [""])[0],
                         event_type=query.get("type", [""])[0],
-                        limit=min(int(query.get("limit", ["2000"])[0] or 2000), 10000),
+                        limit=limit,
                     )
                     return _json_response(self, {"date": trade_date, "events": events})
                 if resource == "state":

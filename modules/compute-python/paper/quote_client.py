@@ -68,6 +68,7 @@ class QuoteClient:
     def __init__(self, http: MxHttpClient, config: PaperConfig):
         self._http = http
         self._config = config
+        self.last_batch_meta: dict = {}
 
     def snapshot(
         self,
@@ -120,6 +121,8 @@ class QuoteClient:
         page = 1
         total: int | None = None
         seen_page_fingerprints: set[tuple[str, ...]] = set()
+        seen_market_codes: set[str] = set()
+        duplicate_codes: set[str] = set()
         terminal_error: MxResult | None = None
         while len(result_by_code) < len(candidate_by_code):
             payload = None
@@ -206,6 +209,9 @@ class QuoteClient:
                     continue
                 code = str(row.get("f12", "")).strip().zfill(6)
                 page_codes.append(code)
+                if code in seen_market_codes:
+                    duplicate_codes.add(code)
+                seen_market_codes.add(code)
                 if code not in candidate_by_code:
                     continue
                 candidate = candidate_by_code[code]
@@ -272,4 +278,13 @@ class QuoteClient:
                     kind=MxErrorKind.BIZ_ERROR,
                 ),
             )
+        self.last_batch_meta = {
+            "page_count": page,
+            "market_total": total,
+            "seen_market_count": len(seen_market_codes),
+            "duplicate_codes": sorted(duplicate_codes),
+            "requested_count": len(candidate_by_code),
+            "returned_count": sum(1 for quote, _ in result_by_code.values() if quote is not None),
+            "terminal_error": getattr(terminal_error, "code", "") if terminal_error else "",
+        }
         return result_by_code

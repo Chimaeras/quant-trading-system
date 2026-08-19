@@ -38,6 +38,15 @@ export interface WatchTickSummary {
   account: Record<string, unknown>
 }
 
+export interface WatchMarketSnapshot {
+  date: string
+  available: boolean
+  quotes: Array<Record<string, any>>
+  active_pool: Array<Record<string, any>>
+  batch: Record<string, any>
+  error?: string
+}
+
 async function get<T>(path: string): Promise<T> {
   const token = localStorage.getItem('quant_token')
   const res = await fetch(`/pyapi${path}`, {
@@ -69,6 +78,10 @@ export function fetchState(date: string): Promise<WatchCycleSummary> {
 
 export function fetchTicks(date: string): Promise<{ date: string; ticks: WatchTickSummary[] }> {
   return get(`/api/watch/${date}/ticks`)
+}
+
+export function fetchMarket(date: string, limit = 10000): Promise<WatchMarketSnapshot> {
+  return get(`/api/watch/${date}/market?limit=${limit}`)
 }
 
 export function checkHealth(): Promise<boolean> {

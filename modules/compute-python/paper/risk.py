@@ -123,6 +123,8 @@ def check_watch_intent(
     pool_median_pct_chg: float | None = None,
     confirmed: bool = True,
     strict_limit_data: bool = False,
+    security_rule=None,
+    require_security_rule: bool = False,
     gate_trace: list | None = None,
 ) -> Intent:
     """盘中 watch 风控：买卖共用基础闸，卖出不被 HALT 错误禁止。
@@ -168,14 +170,40 @@ def check_watch_intent(
         note("PRICE", False)
         return reject("PRICE_INVALID")
     note("PRICE", True)
-    if intent.qty <= 0 or intent.qty % LOT_SIZE != 0:
+    def rule_value(name: str, default=None):
+        if security_rule is None:
+            return default
+        if isinstance(security_rule, dict):
+            return security_rule.get(name, default)
+        return getattr(security_rule, name, default)
+
+    if require_security_rule and security_rule is None:
+        note("SECURITY_RULE", False)
+        return reject("SECURITY_RULE_UNAVAILABLE")
+    rule_status = str(rule_value("status", "UNKNOWN"))
+    if require_security_rule and rule_status != "ACTIVE":
+        note("SECURITY_STATUS", False)
+        return reject(f"SECURITY_{rule_status}")
+    if security_rule is not None and rule_status not in {"ACTIVE", "UNKNOWN"}:
+        note("SECURITY_STATUS", False)
+        return reject(f"SECURITY_{rule_value('status', 'UNKNOWN')}")
+    note("SECURITY_RULE", True)
+    lot_size = int(rule_value("buy_lot", LOT_SIZE) or LOT_SIZE)
+    odd_lot_sell = bool(rule_value("odd_lot_sell", False))
+    if intent.qty <= 0 or (
+        intent.qty % lot_size != 0
+        and not (intent.intent_type == IntentType.SELL_LIMIT and odd_lot_sell)
+    ):
         note("LOT_SIZE", False)
         return reject("LOT_SIZE_VIOLATION")
     note("LOT_SIZE", True)
-    if intent.intent_type == IntentType.BUY_LIMIT and intent.stock_code.startswith("300") and not config.allow_chinext:
+    board = str(rule_value("board", ""))
+    is_chinext = board == "CHINEXT" if board else intent.stock_code.startswith(("300", "301"))
+    is_star = board == "STAR" if board else intent.stock_code.startswith(("688", "689"))
+    if intent.intent_type == IntentType.BUY_LIMIT and is_chinext and not config.allow_chinext:
         note("BOARD_POLICY", False)
         return reject("BOARD_BLOCKED_CHINEXT")
-    if intent.intent_type == IntentType.BUY_LIMIT and intent.stock_code.startswith(("688", "689")) and not config.allow_star:
+    if intent.intent_type == IntentType.BUY_LIMIT and is_star and not config.allow_star:
         note("BOARD_POLICY", False)
         return reject("BOARD_BLOCKED_STAR")
     note("BOARD_POLICY", True)
@@ -198,8 +226,12 @@ def check_watch_intent(
 
     if intent.intent_type == IntentType.SELL_LIMIT:
         # HALT 只禁开仓，允许减仓/退出风险。
-        available_lot = available_qty - available_qty % LOT_SIZE
-        if available_lot < LOT_SIZE:
+        allow_odd_lot_sell = odd_lot_sell
+        available_lot = (
+            available_qty if allow_odd_lot_sell
+            else available_qty - available_qty % lot_size
+        )
+        if available_lot <= 0:
             note("SELLABLE", False)
             return reject("NO_SELLABLE")
         note("SELLABLE", True)

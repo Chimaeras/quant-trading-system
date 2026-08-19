@@ -16,7 +16,8 @@ from ..mx_http import sanitize_payload
 EVENT_TYPES = {
     "QUOTE", "QUOTE_FAIL", "BAR_CLOSED", "SIGNAL", "SIZING",
     "RISK_GATE", "ORDER", "SUBMIT", "FILL", "CANCEL", "ACCOUNT",
-    "READINESS", "CYCLE", "ERROR",
+    "READINESS", "CYCLE", "ERROR", "MARKET_DATA", "ACTIVE_POOL",
+    "QUOTE_QUALITY",
 }
 
 

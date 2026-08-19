@@ -17,8 +17,9 @@ STAMP_TAX_RATE = 0.0005  # 仅卖出
 SLIPPAGE_RATE = 0.0002
 LOT_SIZE = 100
 
-# 限价小数位：沪市/北交所 2 位，深市 3 位
-PRICE_DECIMALS = {"SH": 2, "SZ": 3, "BJ": 2}
+# 当前 universe 仅为 A 股股票，最小报价单位统一按 0.01；基金/债券接入后
+# 必须由证券规则主数据覆盖，不能继续按交易所粗分。
+PRICE_DECIMALS = {"SH": 2, "SZ": 2, "BJ": 2}
 
 # 妙想 buyability 中文枚举（T1CandidateService 实际产出）
 BUYABILITY_BLOCKED = "大概率买不进"
@@ -58,6 +59,15 @@ class PaperConfig:
     max_watch_universe_codes: int = 10000
     # live 最低行情覆盖率；低于阈值时市场中位数和持仓监控均不再可信。
     min_quote_coverage: float = 0.95
+    # 批次 C 两级行情管线：L1 全市场分钟扫描，L2 活跃池秒级轮询。
+    market_pipeline_v2: bool = True
+    l1_scan_interval_sec: int = 60
+    l2_poll_interval_sec: int = 5
+    max_l2_codes: int = 30
+    l2_min_residence_sec: int = 300
+    quote_missing_disable_cycles: int = 2
+    execution_quote_stale_sec: int = 10
+    emit_quote_events: bool = False
     # 可恢复运行库与 live 单实例租约。
     watch_store_path: str = ""
     lease_ttl_sec: int = 180
@@ -117,6 +127,18 @@ class PaperConfig:
             raise ValueError("max_watch_universe_codes 必须在 [1,10000]")
         if not (0 < self.min_quote_coverage <= 1):
             raise ValueError("min_quote_coverage 必须在 (0,1] 内")
+        if self.l1_scan_interval_sec <= 0 or self.l2_poll_interval_sec <= 0:
+            raise ValueError("L1/L2 行情间隔必须大于 0")
+        if self.l2_poll_interval_sec > self.l1_scan_interval_sec:
+            raise ValueError("l2_poll_interval_sec 不能大于 l1_scan_interval_sec")
+        if not (1 <= self.max_l2_codes <= 500):
+            raise ValueError("max_l2_codes 必须在 [1,500]")
+        if self.l2_min_residence_sec < 0:
+            raise ValueError("l2_min_residence_sec 不能为负")
+        if self.quote_missing_disable_cycles <= 0:
+            raise ValueError("quote_missing_disable_cycles 必须大于 0")
+        if self.execution_quote_stale_sec <= 0:
+            raise ValueError("execution_quote_stale_sec 必须大于 0")
         if self.lease_ttl_sec <= self.query_interval_sec:
             raise ValueError("lease_ttl_sec 必须大于 query_interval_sec")
         if not (0 < self.min_strategy_ready_coverage <= 1):
@@ -191,6 +213,14 @@ class PaperConfig:
             watch_universe_mode=e.get("PAPER_WATCH_UNIVERSE_MODE", "FULL").strip().upper(),
             max_watch_universe_codes=int(e.get("PAPER_MAX_WATCH_UNIVERSE_CODES", "10000")),
             min_quote_coverage=float(e.get("PAPER_MIN_QUOTE_COVERAGE", "0.95")),
+            market_pipeline_v2=e.get("PAPER_MARKET_PIPELINE_V2", "1") == "1",
+            l1_scan_interval_sec=int(e.get("PAPER_L1_SCAN_INTERVAL_SEC", "60")),
+            l2_poll_interval_sec=int(e.get("PAPER_L2_POLL_INTERVAL_SEC", "5")),
+            max_l2_codes=int(e.get("PAPER_MAX_L2_CODES", "30")),
+            l2_min_residence_sec=int(e.get("PAPER_L2_MIN_RESIDENCE_SEC", "300")),
+            quote_missing_disable_cycles=int(e.get("PAPER_QUOTE_MISSING_DISABLE_CYCLES", "2")),
+            execution_quote_stale_sec=int(e.get("PAPER_EXECUTION_QUOTE_STALE_SEC", "10")),
+            emit_quote_events=e.get("PAPER_EMIT_QUOTE_EVENTS", "0") == "1",
             watch_store_path=e.get("PAPER_WATCH_STORE_PATH", ""),
             lease_ttl_sec=int(e.get("PAPER_LEASE_TTL_SEC", "180")),
             min_strategy_ready_coverage=float(e.get("PAPER_MIN_STRATEGY_READY_COVERAGE", "0.95")),
@@ -243,6 +273,14 @@ class PaperConfig:
             "watch_universe_mode": self.watch_universe_mode,
             "max_watch_universe_codes": self.max_watch_universe_codes,
             "min_quote_coverage": self.min_quote_coverage,
+            "market_pipeline_v2": self.market_pipeline_v2,
+            "l1_scan_interval_sec": self.l1_scan_interval_sec,
+            "l2_poll_interval_sec": self.l2_poll_interval_sec,
+            "max_l2_codes": self.max_l2_codes,
+            "l2_min_residence_sec": self.l2_min_residence_sec,
+            "quote_missing_disable_cycles": self.quote_missing_disable_cycles,
+            "execution_quote_stale_sec": self.execution_quote_stale_sec,
+            "emit_quote_events": self.emit_quote_events,
             "watch_store_path": self.watch_store_path,
             "lease_ttl_sec": self.lease_ttl_sec,
             "min_strategy_ready_coverage": self.min_strategy_ready_coverage,

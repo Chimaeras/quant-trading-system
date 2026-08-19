@@ -135,4 +135,88 @@ public class MarketService {
         }
         return Map.of("list", list, "total", total);
     }
+
+    /**
+     * 批量证券交易规则快照。动态停牌/价格笼子仍需执行级行情确认；本接口只
+     * 输出当前主数据能够证明的规则，并显式携带 limited 可靠度，禁止调用方
+     * 把推断值冒充交易所实时状态。
+     */
+    public Map<String, Object> getSecurityRules(LocalDate asOf, int page, int size) {
+        LocalDate effectiveDate = asOf != null ? asOf : LocalDate.now();
+        int p = Math.max(0, page - 1);
+        int pageSize = Math.min(Math.max(1, size), 2000);
+        Page<StockInfo> pageData = stockInfoRepo.findAll(
+                PageRequest.of(p, pageSize, Sort.by(Sort.Direction.ASC, "stockCode"))
+        );
+        List<Map<String, Object>> rules = new ArrayList<>();
+        for (StockInfo stock : pageData.getContent()) {
+            String code = stock.getStockCode();
+            String exchange = stock.getExchangeType();
+            String board = inferBoard(code, exchange);
+            String name = Optional.ofNullable(stock.getStockName()).orElse("").trim();
+            boolean st = name.toUpperCase(Locale.ROOT).startsWith("ST")
+                    || name.toUpperCase(Locale.ROOT).startsWith("*ST");
+            String status = switch (Optional.ofNullable(stock.getStatus()).orElse(1)) {
+                case 0 -> "SUSPENDED";
+                case -1 -> "DELISTED";
+                default -> "ACTIVE";
+            };
+            long listDays = stock.getListDate() == null
+                    ? -1L : Math.max(0L, java.time.temporal.ChronoUnit.DAYS.between(stock.getListDate(), effectiveDate));
+
+            Double limitRate = st ? 0.05 : switch (board) {
+                case "STAR", "CHINEXT" -> 0.20;
+                case "BSE" -> 0.30;
+                default -> 0.10;
+            };
+            String limitRule = "NORMAL";
+            if (listDays >= 0 && listDays < 5) {
+                // 新股前若干交易日规则与板块、上市方式及交易日历有关；当前
+                // stock_info 不能可靠确定，必须交给执行级行情确认。
+                limitRate = null;
+                limitRule = "NEW_LISTING_EXECUTION_QUOTE_REQUIRED";
+            }
+
+            Map<String, Object> rule = new LinkedHashMap<>();
+            rule.put("stock_code", code);
+            rule.put("stock_name", name);
+            rule.put("exchange_type", exchange);
+            rule.put("board", board);
+            rule.put("status", status);
+            rule.put("is_st", st);
+            rule.put("list_date", stock.getListDate() == null ? null : stock.getListDate().toString());
+            rule.put("list_days", listDays);
+            rule.put("tick_size", 0.01);
+            rule.put("price_decimals", 2);
+            rule.put("limit_rate", limitRate);
+            rule.put("limit_rule", limitRule);
+            rule.put("price_cage", board.equals("STAR") || board.equals("CHINEXT")
+                    ? "EXECUTION_QUOTE_REQUIRED" : "NOT_APPLICABLE_OR_UNKNOWN");
+            rule.put("buy_lot", 100);
+            rule.put("odd_lot_sell", true);
+            rule.put("settlement", "T+1");
+            rule.put("effective_date", effectiveDate.toString());
+            rule.put("rule_version", "CN_A_POLICY_V1");
+            rule.put("source", "stock_info+versioned_exchange_policy");
+            rule.put("reliability", "limited");
+            rules.add(rule);
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("list", rules);
+        result.put("total", pageData.getTotalElements());
+        result.put("page", p + 1);
+        result.put("size", pageSize);
+        result.put("effective_date", effectiveDate.toString());
+        result.put("rule_version", "CN_A_POLICY_V1");
+        return result;
+    }
+
+    private String inferBoard(String stockCode, String exchangeType) {
+        String code = Optional.ofNullable(stockCode).orElse("");
+        if ("BSE".equalsIgnoreCase(exchangeType) || code.startsWith("4")
+                || code.startsWith("8") || code.startsWith("92")) return "BSE";
+        if (code.startsWith("688") || code.startsWith("689")) return "STAR";
+        if (code.startsWith("300") || code.startsWith("301")) return "CHINEXT";
+        return "MAIN";
+    }
 }

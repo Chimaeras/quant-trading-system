@@ -29,6 +29,14 @@
           <span class="label">最后更新</span>
           <span class="value">{{ lastCycle?.ts ?? '—' }}</span>
         </div>
+        <div class="status-item">
+          <span class="label">L1覆盖</span>
+          <span class="value">{{ l1Coverage }}</span>
+        </div>
+        <div class="status-item">
+          <span class="label">L2活跃池</span>
+          <span class="value">{{ marketSnapshot?.active_pool?.length ?? 0 }}</span>
+        </div>
         <div class="status-item grow">
           <el-alert v-if="!serviceUp" type="warning" :closable="false" show-icon
             title="watch-serve 未启动：请在 compute-python 下运行 python -m paper.cli watch-serve" />
@@ -68,7 +76,8 @@
               <el-tooltip v-if="row.disabled" :content="row.disabled" placement="top">
                 <el-tag type="info" size="small">禁用</el-tag>
               </el-tooltip>
-              <el-tag v-else type="success" size="small">盯盘中</el-tag>
+              <el-tag v-else-if="row.active" type="success" size="small">L2分析</el-tag>
+              <el-tag v-else type="info" size="small">L1扫描</el-tag>
             </template>
           </el-table-column>
         </el-table>
@@ -212,8 +221,10 @@ import { echarts, CHART_THEME } from '@/utils/echartsTheme'
 import {
   fetchDays,
   fetchEvents,
+  fetchMarket,
   fetchState,
-  type WatchEvent
+  type WatchEvent,
+  type WatchMarketSnapshot
 } from '@/api/watch'
 import { resolveSecurityName } from '@/utils/security'
 
@@ -224,13 +235,14 @@ const days = ref<string[]>([])
 const selectedDate = ref('')
 const events = ref<WatchEvent[]>([])
 const state = ref<Awaited<ReturnType<typeof fetchState>> | null>(null)
+const marketSnapshot = ref<WatchMarketSnapshot | null>(null)
 const serviceUp = ref(true)
 const autoRefresh = ref(true)
 
 const typeFilter = ref('')
 const codeFilter = ref('')
 const tradesOnly = ref(false)
-const typeOptions = ['CYCLE', 'READINESS', 'QUOTE', 'QUOTE_FAIL', 'BAR_CLOSED', 'SIGNAL', 'SIZING', 'RISK_GATE', 'ORDER', 'SUBMIT', 'FILL', 'CANCEL', 'ACCOUNT', 'ERROR']
+const typeOptions = ['CYCLE', 'READINESS', 'MARKET_DATA', 'ACTIVE_POOL', 'QUOTE', 'QUOTE_FAIL', 'QUOTE_QUALITY', 'BAR_CLOSED', 'SIGNAL', 'SIZING', 'RISK_GATE', 'ORDER', 'SUBMIT', 'FILL', 'CANCEL', 'ACCOUNT', 'ERROR']
 
 const detailVisible = ref(false)
 const detailCode = ref('')
@@ -256,11 +268,27 @@ const halted = computed(() =>
   events.value.some((e) => e.type === 'ERROR' && String((e.detail as any).scope) === 'STOP_RUN')
 )
 const maxTrades = 20
+const l1Coverage = computed(() => {
+  const value = Number(marketSnapshot.value?.batch?.coverage)
+  return Number.isFinite(value) ? `${(value * 100).toFixed(2)}%` : '—'
+})
 
 const universeRows = computed(() => {
-  const rows = new Map<string, { code: string; name?: string; last?: number; pct?: number; disabled?: string }>()
+  const rows = new Map<string, { code: string; name?: string; last?: number; pct?: number; disabled?: string; active?: boolean }>()
+  const active = new Set((marketSnapshot.value?.active_pool || []).map((item: any) => String(item.code)))
+  for (const quote of marketSnapshot.value?.quotes || []) {
+    rows.set(String(quote.code), {
+      code: String(quote.code),
+      name: String(quote.name || ''),
+      last: Number(quote.last),
+      pct: quote.pct_chg == null ? undefined : Number(quote.pct_chg),
+      disabled: ['INVALID', 'STALE', 'MISSING'].includes(String(quote.quality))
+        ? String(quote.quality_reason || quote.quality) : undefined,
+      active: active.has(String(quote.code))
+    })
+  }
   for (const e of events.value) {
-    if (e.type === 'QUOTE' && e.code) {
+    if (e.type === 'QUOTE' && e.code && !rows.has(e.code)) {
       rows.set(e.code, {
         code: e.code,
         name: eventName(e),
@@ -329,6 +357,10 @@ function eventSummary(row: WatchEvent): string {
       const warmup = (d.checks || []).find((item: any) => item.name === 'strategy_warmup')
       return `${d.ready ? '已就绪' : '未就绪'}，策略预热 ${warmup?.ready ?? 0}/${warmup?.total ?? 0}`
     }
+    case 'MARKET_DATA':
+      return `L1 ${d.returned_count}/${d.requested_count}，覆盖率 ${(Number(d.coverage || 0) * 100).toFixed(2)}%，耗时 ${d.elapsed_ms}ms`
+    case 'ACTIVE_POOL':
+      return `L2 ${d.active_count}，强制 ${d.mandatory_count}，晋级 ${(d.promoted || []).length}，淘汰 ${(d.demoted || []).length}`
     case 'CYCLE':
       return d.phase === 'start' ? `轮次开始（${d.live_requested ? '请求 live' : 'dry-run'}）` : `状态 ${d.status}，bar ${d.bars} 信号 ${d.signals} 提交 ${d.submits} 错误 ${d.errors}`
     case 'ERROR':
@@ -360,6 +392,7 @@ type WatchTagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
 function typeTagType(type: string): WatchTagType {
   const map: Record<string, WatchTagType> = {
     SIGNAL: 'warning', ORDER: 'primary', SUBMIT: 'danger', FILL: 'success', CANCEL: 'warning', RISK_GATE: 'primary', SIZING: 'primary',
+    MARKET_DATA: 'primary', ACTIVE_POOL: 'success', QUOTE_QUALITY: 'warning',
     BAR_CLOSED: 'info', QUOTE: 'info', QUOTE_FAIL: 'danger', ACCOUNT: 'success', READINESS: 'success', CYCLE: 'info', ERROR: 'danger'
   }
   return map[type] ?? 'info'
@@ -392,10 +425,15 @@ async function refresh(full = false) {
   if (!selectedDate.value) return
   try {
     if (full) {
-      const [{ events: all }, st] = await Promise.all([fetchEvents(selectedDate.value, 0, { limit: MAX_EVENTS }), fetchState(selectedDate.value)])
+      const [{ events: all }, st, market] = await Promise.all([
+        fetchEvents(selectedDate.value, 0, { limit: MAX_EVENTS }),
+        fetchState(selectedDate.value),
+        fetchMarket(selectedDate.value)
+      ])
       events.value = all
       cursor = all.length ? all[all.length - 1].seq : 0
       state.value = st
+      marketSnapshot.value = market
       void ensureSecurityNames(all)
     } else {
       const { events: inc } = await fetchEvents(selectedDate.value, cursor, { limit: MAX_EVENTS })
@@ -404,7 +442,9 @@ async function refresh(full = false) {
         cursor = inc[inc.length - 1].seq
         void ensureSecurityNames(inc)
       }
-      state.value = await fetchState(selectedDate.value)
+      ;[state.value, marketSnapshot.value] = await Promise.all([
+        fetchState(selectedDate.value), fetchMarket(selectedDate.value)
+      ])
     }
     serviceUp.value = true
     if (detailVisible.value && chart) renderChart()

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import re
+import sqlite3
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -112,7 +113,44 @@ def _ticks(log_base: Path, trade_date: str) -> list[dict]:
     return ticks
 
 
-def make_handler(log_base: Path):
+def _market_snapshot(store_path: Path, trade_date: str, *, limit: int = 10000) -> dict:
+    if not store_path.exists():
+        return {"quotes": [], "active_pool": [], "batch": {}, "available": False}
+    uri = f"file:{store_path.resolve().as_posix()}?mode=ro"
+    try:
+        conn = sqlite3.connect(uri, uri=True, timeout=2)
+        conn.row_factory = sqlite3.Row
+        try:
+            quotes = [dict(row) for row in conn.execute(
+                "SELECT * FROM latest_quote WHERE trade_date=? ORDER BY code LIMIT ?",
+                (trade_date, max(limit, 1)),
+            ).fetchall()]
+            active = [dict(row) for row in conn.execute(
+                "SELECT * FROM active_pool_member WHERE trade_date=? "
+                "ORDER BY mandatory DESC, score DESC, code", (trade_date,)
+            ).fetchall()]
+            batch_row = conn.execute(
+                "SELECT * FROM market_data_batch WHERE trade_date=? "
+                "ORDER BY started_at DESC LIMIT 1", (trade_date,)
+            ).fetchone()
+            batch = dict(batch_row) if batch_row is not None else {}
+            return {
+                "quotes": quotes,
+                "active_pool": active,
+                "batch": batch,
+                "available": True,
+            }
+        finally:
+            conn.close()
+    except sqlite3.Error as exc:
+        return {
+            "quotes": [], "active_pool": [], "batch": {}, "available": False,
+            "error": f"{type(exc).__name__}:{exc}",
+        }
+
+
+def make_handler(log_base: Path, store_path: Path | None = None):
+    runtime_store = store_path or (log_base / "watch" / "runtime.sqlite3")
     class WatchServeHandler(BaseHTTPRequestHandler):
         # 静默默认访问日志，避免刷屏；错误照常返回 4xx/5xx
         def log_message(self, fmt, *args):  # noqa: N802
@@ -159,6 +197,14 @@ def make_handler(log_base: Path):
                     return _json_response(self, _state(log_base, trade_date))
                 if resource == "ticks":
                     return _json_response(self, {"date": trade_date, "ticks": _ticks(log_base, trade_date)})
+                if resource == "market":
+                    try:
+                        limit = min(_query_int(query, "limit", 10000), 10000)
+                    except BadRequestError as exc:
+                        return _json_response(self, {"error": "bad_request", "message": str(exc)}, 400)
+                    return _json_response(
+                        self, {"date": trade_date, **_market_snapshot(runtime_store, trade_date, limit=limit)}
+                    )
                 return _json_response(self, {"error": "unknown_resource"}, 404)
 
             return _json_response(self, {"error": "not_found"}, 404)
@@ -166,8 +212,11 @@ def make_handler(log_base: Path):
     return WatchServeHandler
 
 
-def serve(log_base: Path, host: str = "127.0.0.1", port: int = 8790) -> None:
-    httpd = ThreadingHTTPServer((host, port), make_handler(Path(log_base)))
+def serve(log_base: Path, host: str = "127.0.0.1", port: int = 8790,
+          store_path: Path | None = None) -> None:
+    httpd = ThreadingHTTPServer(
+        (host, port), make_handler(Path(log_base), store_path=store_path)
+    )
     print(f"watch-serve 只读 API: http://{host}:{port}/api/watch/days (log_base={log_base})")
     try:
         httpd.serve_forever()

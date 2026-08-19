@@ -19,7 +19,7 @@ from typing import Iterable, Protocol
 from .models import WatchBar
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 LEASE_NAME = "paper-watch-live"
 
 
@@ -50,6 +50,17 @@ class WatchStore(Protocol):
                            payload: dict) -> None: ...
     def load_runtime_state(self, state_key: str, trade_date: str) -> dict | None: ...
     def save_cycle_metric(self, tick: dict) -> None: ...
+    def save_market_data_batch(self, batch: dict, quality_rows: Iterable[dict]) -> None: ...
+    def save_quote_quality(self, scope: str, trade_date: str, rows: Iterable[dict]) -> None: ...
+    def load_quote_quality(self, scope: str, trade_date: str) -> list[dict]: ...
+    def upsert_latest_quotes(self, rows: Iterable[dict]) -> None: ...
+    def list_latest_quotes(self, *, trade_date: str = "", limit: int = 10000) -> list[dict]: ...
+    def save_active_pool(self, trade_date: str, rows: Iterable[dict]) -> None: ...
+    def load_active_pool(self, trade_date: str) -> list[dict]: ...
+    def save_security_rules(self, trade_date: str, rows: Iterable[dict]) -> None: ...
+    def load_security_rules(self, trade_date: str) -> list[dict]: ...
+    def save_universe_snapshot(self, trade_date: str, source: str,
+                               universe_hash: str, rows: Iterable[dict]) -> None: ...
     def create_local_order(self, order: dict) -> tuple[dict, bool]: ...
     def get_local_order(self, client_order_id: str) -> dict | None: ...
     def list_local_orders(self, *, statuses: Iterable[str] | None = None,
@@ -189,6 +200,97 @@ class SqliteWatchStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_cycle_metric_date
                     ON cycle_metric(trade_date, started_at);
+
+                CREATE TABLE IF NOT EXISTS market_data_batch (
+                    batch_id TEXT PRIMARY KEY,
+                    provider TEXT NOT NULL,
+                    trade_date TEXT NOT NULL,
+                    started_at TEXT NOT NULL,
+                    received_at TEXT NOT NULL,
+                    finished_at TEXT NOT NULL,
+                    requested_count INTEGER NOT NULL,
+                    returned_count INTEGER NOT NULL,
+                    covered_count INTEGER NOT NULL,
+                    missing_count INTEGER NOT NULL,
+                    duplicate_count INTEGER NOT NULL,
+                    page_count INTEGER NOT NULL,
+                    coverage REAL NOT NULL,
+                    elapsed_ms INTEGER NOT NULL,
+                    status TEXT NOT NULL,
+                    payload_json TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_market_data_batch_date_time
+                    ON market_data_batch(trade_date, started_at DESC);
+
+                CREATE TABLE IF NOT EXISTS latest_quote (
+                    trade_date TEXT NOT NULL,
+                    code TEXT NOT NULL,
+                    name TEXT NOT NULL DEFAULT '',
+                    exchange TEXT NOT NULL DEFAULT '',
+                    last REAL NOT NULL,
+                    pct_chg REAL,
+                    volume REAL,
+                    amount REAL,
+                    source TEXT NOT NULL,
+                    market_time TEXT NOT NULL DEFAULT '',
+                    received_at TEXT NOT NULL DEFAULT '',
+                    processed_at TEXT NOT NULL,
+                    validity TEXT NOT NULL,
+                    quality TEXT NOT NULL,
+                    quality_reason TEXT NOT NULL DEFAULT '',
+                    batch_id TEXT NOT NULL DEFAULT '',
+                    freshness_seconds REAL,
+                    PRIMARY KEY(trade_date, code)
+                );
+                CREATE INDEX IF NOT EXISTS idx_latest_quote_quality
+                    ON latest_quote(trade_date, quality, processed_at DESC);
+
+                CREATE TABLE IF NOT EXISTS quote_quality_state (
+                    scope TEXT NOT NULL,
+                    trade_date TEXT NOT NULL,
+                    code TEXT NOT NULL,
+                    quality TEXT NOT NULL,
+                    reason TEXT NOT NULL DEFAULT '',
+                    consecutive_missing INTEGER NOT NULL DEFAULT 0,
+                    last_market_time TEXT NOT NULL DEFAULT '',
+                    last_received_at TEXT NOT NULL DEFAULT '',
+                    last_price REAL,
+                    last_volume REAL,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY(scope, trade_date, code)
+                );
+
+                CREATE TABLE IF NOT EXISTS active_pool_member (
+                    trade_date TEXT NOT NULL,
+                    code TEXT NOT NULL,
+                    mandatory INTEGER NOT NULL DEFAULT 0,
+                    reasons_json TEXT NOT NULL DEFAULT '[]',
+                    score REAL,
+                    as_of TEXT NOT NULL,
+                    PRIMARY KEY(trade_date, code)
+                );
+                CREATE INDEX IF NOT EXISTS idx_active_pool_date
+                    ON active_pool_member(trade_date, mandatory DESC, score DESC);
+
+                CREATE TABLE IF NOT EXISTS security_rule_snapshot (
+                    trade_date TEXT NOT NULL,
+                    code TEXT NOT NULL,
+                    rule_version TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    reliability TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    captured_at TEXT NOT NULL,
+                    PRIMARY KEY(trade_date, code)
+                );
+
+                CREATE TABLE IF NOT EXISTS universe_snapshot (
+                    universe_hash TEXT PRIMARY KEY,
+                    trade_date TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    security_count INTEGER NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    captured_at TEXT NOT NULL
+                );
 
                 CREATE TABLE IF NOT EXISTS local_order (
                     client_order_id TEXT PRIMARY KEY,
@@ -648,6 +750,282 @@ class SqliteWatchStore:
                 )
         except (TypeError, ValueError, sqlite3.Error) as exc:
             raise WatchStoreError(f"保存周期指标失败: {type(exc).__name__}:{exc}") from exc
+
+    # ------------------------- market data plane -------------------------
+
+    def save_market_data_batch(self, batch: dict, quality_rows: Iterable[dict]) -> None:
+        now = datetime.now().isoformat()
+        rows = list(quality_rows)
+        try:
+            encoded = json.dumps(batch, ensure_ascii=False, sort_keys=True, default=str)
+            with self._transaction():
+                self._conn.execute(
+                    """
+                    INSERT INTO market_data_batch(
+                        batch_id, provider, trade_date, started_at, received_at,
+                        finished_at, requested_count, returned_count, covered_count,
+                        missing_count, duplicate_count, page_count, coverage,
+                        elapsed_ms, status, payload_json
+                    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(batch_id) DO UPDATE SET
+                        finished_at=excluded.finished_at,
+                        status=excluded.status,
+                        payload_json=excluded.payload_json
+                    """,
+                    (
+                        str(batch.get("batch_id", "")), str(batch.get("provider", "")),
+                        str(batch.get("trade_date", "")), str(batch.get("started_at", "")),
+                        str(batch.get("received_at", "")), str(batch.get("finished_at", "")),
+                        int(batch.get("requested_count", 0) or 0),
+                        int(batch.get("returned_count", 0) or 0),
+                        int(batch.get("covered_count", 0) or 0),
+                        int(batch.get("missing_count", 0) or 0),
+                        int(batch.get("duplicate_count", 0) or 0),
+                        int(batch.get("page_count", 0) or 0),
+                        float(batch.get("coverage", 0.0) or 0.0),
+                        int(batch.get("elapsed_ms", 0) or 0), str(batch.get("status", "")),
+                        encoded,
+                    ),
+                )
+                for row in rows:
+                    self._conn.execute(
+                        """
+                        INSERT INTO quote_quality_state(
+                            scope, trade_date, code, quality, reason, consecutive_missing,
+                            last_market_time, last_received_at, last_price,
+                            last_volume, updated_at
+                        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(scope, trade_date, code) DO UPDATE SET
+                            quality=excluded.quality,
+                            reason=excluded.reason,
+                            consecutive_missing=excluded.consecutive_missing,
+                            last_market_time=excluded.last_market_time,
+                            last_received_at=excluded.last_received_at,
+                            last_price=excluded.last_price,
+                            last_volume=excluded.last_volume,
+                            updated_at=excluded.updated_at
+                        """,
+                        (
+                            "L1", str(batch.get("trade_date", "")),
+                            str(row.get("code", "")), str(row.get("quality", "MISSING")),
+                            str(row.get("reason", "")), int(row.get("consecutive_missing", 0) or 0),
+                            str(row.get("last_market_time", "")), str(row.get("last_received_at", "")),
+                            row.get("last_price"), row.get("last_volume"), now,
+                        ),
+                    )
+                    self._conn.execute(
+                        """
+                        UPDATE latest_quote
+                        SET quality=?, quality_reason=?, processed_at=?
+                        WHERE trade_date=? AND code=?
+                        """,
+                        (
+                            str(row.get("quality", "MISSING")),
+                            str(row.get("reason", "")), now,
+                            str(batch.get("trade_date", "")),
+                            str(row.get("code", "")),
+                        ),
+                    )
+        except (TypeError, ValueError, sqlite3.Error) as exc:
+            raise WatchStoreError(f"保存行情批次失败: {type(exc).__name__}:{exc}") from exc
+
+    def save_quote_quality(self, scope: str, trade_date: str, rows: Iterable[dict]) -> None:
+        values = list(rows)
+        if not values:
+            return
+        now = datetime.now().isoformat()
+        try:
+            with self._transaction():
+                self._conn.executemany(
+                    """
+                    INSERT INTO quote_quality_state(
+                        scope, trade_date, code, quality, reason, consecutive_missing,
+                        last_market_time, last_received_at, last_price,
+                        last_volume, updated_at
+                    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(scope, trade_date, code) DO UPDATE SET
+                        quality=excluded.quality, reason=excluded.reason,
+                        consecutive_missing=excluded.consecutive_missing,
+                        last_market_time=excluded.last_market_time,
+                        last_received_at=excluded.last_received_at,
+                        last_price=excluded.last_price, last_volume=excluded.last_volume,
+                        updated_at=excluded.updated_at
+                    """,
+                    [(
+                        scope, trade_date, str(row.get("code", "")), str(row.get("quality", "MISSING")),
+                        str(row.get("reason", "")), int(row.get("consecutive_missing", 0) or 0),
+                        str(row.get("last_market_time", "")), str(row.get("last_received_at", "")),
+                        row.get("last_price"), row.get("last_volume"), now,
+                    ) for row in values if row.get("code")],
+                )
+                self._conn.executemany(
+                    """
+                    UPDATE latest_quote
+                    SET quality=?, quality_reason=?, processed_at=?
+                    WHERE trade_date=? AND code=?
+                    """,
+                    [(
+                        str(row.get("quality", "MISSING")),
+                        str(row.get("reason", "")), now, trade_date,
+                        str(row.get("code", "")),
+                    ) for row in values if row.get("code")],
+                )
+        except (TypeError, ValueError, sqlite3.Error) as exc:
+            raise WatchStoreError(f"保存行情质量状态失败: {type(exc).__name__}:{exc}") from exc
+
+    def load_quote_quality(self, scope: str, trade_date: str) -> list[dict]:
+        try:
+            rows = self._conn.execute(
+                "SELECT * FROM quote_quality_state WHERE scope=? AND trade_date=?",
+                (scope, trade_date),
+            ).fetchall()
+            return [dict(row) for row in rows]
+        except sqlite3.Error as exc:
+            raise WatchStoreError(f"读取行情质量状态失败: {type(exc).__name__}:{exc}") from exc
+
+    def upsert_latest_quotes(self, rows: Iterable[dict]) -> None:
+        values = list(rows)
+        if not values:
+            return
+        try:
+            with self._transaction():
+                self._conn.executemany(
+                    """
+                    INSERT INTO latest_quote(
+                        trade_date, code, name, exchange, last, pct_chg, volume, amount,
+                        source, market_time, received_at, processed_at, validity,
+                        quality, quality_reason, batch_id, freshness_seconds
+                    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(trade_date, code) DO UPDATE SET
+                        name=excluded.name, exchange=excluded.exchange, last=excluded.last,
+                        pct_chg=excluded.pct_chg, volume=excluded.volume, amount=excluded.amount,
+                        source=excluded.source, market_time=excluded.market_time,
+                        received_at=excluded.received_at, processed_at=excluded.processed_at,
+                        validity=excluded.validity, quality=excluded.quality,
+                        quality_reason=excluded.quality_reason, batch_id=excluded.batch_id,
+                        freshness_seconds=excluded.freshness_seconds
+                    """,
+                    [(
+                        str(row.get("trade_date", "")),
+                        str(row.get("code", "")), str(row.get("name", "")),
+                        str(row.get("exchange", "")), float(row.get("last", 0.0) or 0.0),
+                        row.get("pct_chg"), row.get("volume"), row.get("amount"),
+                        str(row.get("source", "")), str(row.get("market_time", "")),
+                        str(row.get("received_at", "")), str(row.get("processed_at", "")),
+                        str(row.get("validity", "INVALID")), str(row.get("quality", "INVALID")),
+                        str(row.get("quality_reason", "")), str(row.get("batch_id", "")),
+                        row.get("freshness_seconds"),
+                    ) for row in values if row.get("code")],
+                )
+        except (TypeError, ValueError, sqlite3.Error) as exc:
+            raise WatchStoreError(f"保存最新行情失败: {type(exc).__name__}:{exc}") from exc
+
+    def list_latest_quotes(self, *, trade_date: str = "", limit: int = 10000) -> list[dict]:
+        try:
+            if trade_date:
+                rows = self._conn.execute(
+                    "SELECT * FROM latest_quote WHERE trade_date=? ORDER BY code LIMIT ?",
+                    (trade_date, max(int(limit), 1)),
+                ).fetchall()
+            else:
+                rows = self._conn.execute(
+                    "SELECT * FROM latest_quote ORDER BY processed_at DESC LIMIT ?",
+                    (max(int(limit), 1),),
+                ).fetchall()
+            return [dict(row) for row in rows]
+        except sqlite3.Error as exc:
+            raise WatchStoreError(f"读取最新行情失败: {type(exc).__name__}:{exc}") from exc
+
+    def save_active_pool(self, trade_date: str, rows: Iterable[dict]) -> None:
+        values = list(rows)
+        try:
+            with self._transaction():
+                self._conn.execute("DELETE FROM active_pool_member WHERE trade_date=?", (trade_date,))
+                self._conn.executemany(
+                    """
+                    INSERT INTO active_pool_member(
+                        trade_date, code, mandatory, reasons_json, score, as_of
+                    ) VALUES(?, ?, ?, ?, ?, ?)
+                    """,
+                    [(
+                        trade_date, str(row.get("code", "")), 1 if row.get("mandatory") else 0,
+                        json.dumps(row.get("reasons", []), ensure_ascii=False),
+                        row.get("score"), str(row.get("as_of", "")),
+                    ) for row in values if row.get("code")],
+                )
+        except (TypeError, ValueError, sqlite3.Error) as exc:
+            raise WatchStoreError(f"保存活跃池失败: {type(exc).__name__}:{exc}") from exc
+
+    def load_active_pool(self, trade_date: str) -> list[dict]:
+        try:
+            rows = self._conn.execute(
+                "SELECT * FROM active_pool_member WHERE trade_date=?", (trade_date,)
+            ).fetchall()
+            return [dict(row) for row in rows]
+        except sqlite3.Error as exc:
+            raise WatchStoreError(f"读取活跃池失败: {type(exc).__name__}:{exc}") from exc
+
+    def save_security_rules(self, trade_date: str, rows: Iterable[dict]) -> None:
+        now = datetime.now().isoformat()
+        values = list(rows)
+        try:
+            with self._transaction():
+                self._conn.executemany(
+                    """
+                    INSERT INTO security_rule_snapshot(
+                        trade_date, code, rule_version, source, reliability,
+                        payload_json, captured_at
+                    ) VALUES(?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(trade_date, code) DO UPDATE SET
+                        rule_version=excluded.rule_version, source=excluded.source,
+                        reliability=excluded.reliability, payload_json=excluded.payload_json,
+                        captured_at=excluded.captured_at
+                    """,
+                    [(
+                        trade_date, str(row.get("code", "")), str(row.get("rule_version", "unknown")),
+                        str(row.get("source", "unknown")), str(row.get("reliability", "limited")),
+                        json.dumps(row, ensure_ascii=False, sort_keys=True, default=str), now,
+                    ) for row in values if row.get("code")],
+                )
+        except (TypeError, ValueError, sqlite3.Error) as exc:
+            raise WatchStoreError(f"保存证券规则失败: {type(exc).__name__}:{exc}") from exc
+
+    def load_security_rules(self, trade_date: str) -> list[dict]:
+        try:
+            rows = self._conn.execute(
+                "SELECT payload_json FROM security_rule_snapshot WHERE trade_date=?",
+                (trade_date,),
+            ).fetchall()
+            out: list[dict] = []
+            for row in rows:
+                payload = json.loads(str(row["payload_json"]))
+                if isinstance(payload, dict):
+                    out.append(payload)
+            return out
+        except (ValueError, sqlite3.Error) as exc:
+            raise WatchStoreError(f"读取证券规则失败: {type(exc).__name__}:{exc}") from exc
+
+    def save_universe_snapshot(self, trade_date: str, source: str,
+                               universe_hash: str, rows: Iterable[dict]) -> None:
+        values = list(rows)
+        try:
+            payload = json.dumps(values, ensure_ascii=False, sort_keys=True, default=str)
+            with self._transaction():
+                self._conn.execute(
+                    """
+                    INSERT INTO universe_snapshot(
+                        universe_hash, trade_date, source, security_count,
+                        payload_json, captured_at
+                    ) VALUES(?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(universe_hash) DO NOTHING
+                    """,
+                    (
+                        universe_hash, trade_date, source, len(values), payload,
+                        datetime.now().isoformat(),
+                    ),
+                )
+        except (TypeError, ValueError, sqlite3.Error) as exc:
+            raise WatchStoreError(f"保存证券池版本失败: {type(exc).__name__}:{exc}") from exc
 
     # ---------------------------- OMS / fills ----------------------------
 

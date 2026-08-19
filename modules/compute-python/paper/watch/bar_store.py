@@ -131,13 +131,31 @@ class BarStore:
                 start_ts=start,
                 end_ts=end,
                 closed=False,
-                source="snapshot",
+                source=quote.source or "snapshot",
             )
             self._forming[code] = current
             return BarUpdate(code, current, new_closed)
 
         if start < current.start_ts:
             # 迟到快照不能污染已经建立的时间序列。
+            return BarUpdate(code, current, new_closed)
+
+        if current.source != (quote.source or "snapshot"):
+            # 不同供应商的复权、成交量和时间口径可能不同；源切换时当前
+            # forming bar 作废并从新源重新起桶，绝不拼接成一根可交易 bar。
+            self._discard_next_closed.add(code)
+            try:
+                cumulative_volume = max(float(quote.volume or 0), 0.0)
+            except (TypeError, ValueError):
+                cumulative_volume = 0.0
+            self._last_volume[code] = cumulative_volume
+            current = WatchBar(
+                code=code, period_min=self.period_min,
+                open=quote.last, high=quote.last, low=quote.last, close=quote.last,
+                volume=0.0, start_ts=start, end_ts=end, closed=False,
+                source=quote.source or "snapshot",
+            )
+            self._forming[code] = current
             return BarUpdate(code, current, new_closed)
 
         try:
@@ -179,7 +197,7 @@ class BarStore:
             start_ts=start,
             end_ts=end,
             closed=False,
-            source="snapshot",
+            source=quote.source or "snapshot",
         )
         self._forming[code] = current
         return BarUpdate(code, current, new_closed)

@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import secrets
 import time
+import requests
 from dataclasses import asdict, replace
 from datetime import datetime
+from hashlib import sha256
 from pathlib import Path
 from statistics import median
 
@@ -12,6 +14,15 @@ from ..broker_client import ACTIVE_ORDER_STATUSES, order_remaining_qty
 from ..config import PaperConfig
 from ..decide import in_trading_window
 from ..models import Candidate, IntentType, MxOrder, Position, QuoteValidity, SubmitRecord
+from ..marketdata import (
+    ActivePoolManager,
+    LegacyMarketDataRouter,
+    MarketDataCapability,
+    MarketDataQualityEngine,
+    SecurityRule,
+    SecurityRuleClient,
+    apply_rule_price_limits,
+)
 from ..mx_result import MxErrorKind
 from ..risk import check_watch_intent, estimate_commission
 from ..trading_calendar import TradingCalendarService, load_calendar_from_file
@@ -64,6 +75,7 @@ class WatchLoop:
     ):
         self.config = config
         self.quote_client = quote_client
+        self.market_data = LegacyMarketDataRouter(quote_client)
         self.broker = broker
         self.kline_client = kline_client
         self.log_base = Path(log_base)
@@ -104,6 +116,25 @@ class WatchLoop:
         self._events: EventLog | None = None
         self._events_date = ""
         self._cycle = 0
+        self._l1_quality_engine = MarketDataQualityEngine(
+            missing_disable_cycles=config.quote_missing_disable_cycles,
+            clock_skew_sec=config.clock_skew_sec,
+        )
+        self._l2_quality_engine = MarketDataQualityEngine(
+            missing_disable_cycles=config.quote_missing_disable_cycles,
+            clock_skew_sec=config.clock_skew_sec,
+        )
+        self._active_pool = ActivePoolManager(
+            max_candidates=config.max_l2_codes,
+            min_residence_sec=config.l2_min_residence_sec,
+        )
+        self._active_pool_snapshot = None
+        self._latest_l1_quotes: dict[str, object] = {}
+        self._latest_l1_batch = None
+        self._latest_l1_quality: dict[str, dict] = {}
+        self._last_l1_scan_at: datetime | None = None
+        self._security_rules: dict[str, object] = {}
+        self._quote_event_state: dict[str, tuple] = {}
 
     @property
     def calendar(self) -> TradingCalendarService:
@@ -118,6 +149,21 @@ class WatchLoop:
 
     def _state_path(self, trade_date: str) -> Path:
         return self.log_base / "watch" / trade_date / "state.json"
+
+    @staticmethod
+    def _percentiles(values: list[float | int]) -> dict:
+        if not values:
+            return {"count": 0, "p50": None, "p95": None, "p99": None, "max": None}
+        ordered = sorted(float(value) for value in values)
+        def pick(q: float) -> float:
+            return ordered[min(round((len(ordered) - 1) * q), len(ordered) - 1)]
+        return {
+            "count": len(ordered),
+            "p50": round(pick(0.50), 3),
+            "p95": round(pick(0.95), 3),
+            "p99": round(pick(0.99), 3),
+            "max": round(ordered[-1], 3),
+        }
 
     def _load_state(self, trade_date: str) -> tuple[WatchState, CooldownBook]:
         """SQLite 为主状态，兼容迁移旧 state.json。"""
@@ -192,11 +238,41 @@ class WatchLoop:
             # 的最后快照或 position-dependent strategy state 带到新的一天。
             self.bar_store.reset()
             self.adapter.reset()
+            self._l1_quality_engine.reset()
+            self._l2_quality_engine.reset()
+            self._active_pool.reset()
         candidates, source, errors = load_watch_universe(self.config, signal_date, candidates_override)
         self._candidates = candidates
         self._universe_source = source
         self._prepare_errors = list(errors)
         self._disabled_codes = {}
+        if self.store is not None and callable(getattr(self.store, "save_universe_snapshot", None)):
+            universe_rows = [
+                {
+                    "code": item.stock_code,
+                    "name": item.stock_name,
+                    "exchange": item.exchange_type,
+                }
+                for item in sorted(candidates, key=lambda candidate: candidate.stock_code)
+            ]
+            material = "\n".join(
+                f"{item['code']}|{item['exchange']}|{item['name']}" for item in universe_rows
+            )
+            try:
+                self.store.save_universe_snapshot(
+                    trade_date, source,
+                    sha256(material.encode("utf-8")).hexdigest(), universe_rows,
+                )
+            except WatchStoreError as exc:
+                self._prepare_errors.append(
+                    f"UNIVERSE_SNAPSHOT_PERSIST_FAILED:{type(exc).__name__}:{exc}"
+                )
+        if self._prepared_date != trade_date:
+            self._latest_l1_quotes = {}
+            self._latest_l1_batch = None
+            self._latest_l1_quality = {}
+            self._last_l1_scan_at = None
+            self._security_rules = {}
         if self._store_init_error:
             self._live_halted = True
             self._prepare_errors.append(
@@ -226,6 +302,11 @@ class WatchLoop:
                 forming_checkpoints = self.store.load_forming_checkpoints(
                     trade_date, self.config.bar_period_min
                 )
+                if callable(getattr(self.store, "load_quote_quality", None)):
+                    self._l1_quality_engine.restore(self.store.load_quote_quality("L1", trade_date))
+                    self._l2_quality_engine.restore(self.store.load_quote_quality("L2", trade_date))
+                if callable(getattr(self.store, "load_active_pool", None)):
+                    self._active_pool.restore(self.store.load_active_pool(trade_date))
             except WatchStoreError as exc:
                 self._live_halted = True
                 self._prepare_errors.append(
@@ -292,6 +373,38 @@ class WatchLoop:
                     f"其余标的需累计 {required} 根已收盘 bar"
                 )
 
+            # 规则主数据是独立快照：接口不可用时继续 dry-run 监控，但 live
+            # 会在下方 readiness 中降级，绝不使用无来源的隐式规则冒充。
+            try:
+                rules, rule_errors = SecurityRuleClient(
+                    self.config.t1_base, self.config.java_token
+                ).fetch_all(trade_date, max_codes=self.config.max_watch_universe_codes)
+                self._security_rules = rules
+                self._prepare_errors.extend(rule_errors)
+                if self.store is not None and callable(getattr(self.store, "save_security_rules", None)):
+                    self.store.save_security_rules(
+                        trade_date, (rule.to_dict() for rule in rules.values())
+                    )
+            except (OSError, TypeError, ValueError, requests.RequestException, WatchStoreError) as exc:
+                cached_rules: list[dict] = []
+                if self.store is not None and callable(getattr(self.store, "load_security_rules", None)):
+                    try:
+                        cached_rules = self.store.load_security_rules(trade_date)
+                    except WatchStoreError:
+                        cached_rules = []
+                if cached_rules:
+                    self._security_rules = {
+                        rule.code: rule
+                        for rule in (SecurityRule.from_dict(item) for item in cached_rules)
+                    }
+                    self._prepare_errors.append(
+                        f"SECURITY_RULES_USING_SAME_DAY_CACHE:{type(exc).__name__}"
+                    )
+                else:
+                    self._prepare_errors.append(
+                        f"SECURITY_RULES_UNAVAILABLE:{type(exc).__name__}:{exc}"
+                    )
+
         self._prepared_date = trade_date
         self._prepare_errors_pending = True
         events = self._event_log(trade_date)
@@ -301,6 +414,84 @@ class WatchLoop:
         if errors:
             events.emit("ERROR", detail={"scope": "UNIVERSE", "messages": errors}, now=current)
         return list(self._prepare_errors)
+
+    def _pipeline_v2_enabled(self) -> bool:
+        return bool(
+            self.config.market_pipeline_v2
+            and self._universe_source == "full_market"
+            and MarketDataCapability.FULL_SNAPSHOT in self.market_data.capabilities()
+        )
+
+    def _l1_due(self, current: datetime) -> bool:
+        if self._last_l1_scan_at is None or self._latest_l1_batch is None:
+            return True
+        return (current - self._last_l1_scan_at).total_seconds() >= self.config.l1_scan_interval_sec
+
+    def _unknown_order_codes(self) -> set[str]:
+        codes: set[str] = set()
+        if self._state is not None:
+            codes.update(
+                str(item.get("stock_code", ""))
+                for item in self._state.unknown_submits if item.get("stock_code")
+            )
+        if self.store is not None and callable(getattr(self.store, "list_local_orders", None)):
+            try:
+                for order in self.store.list_local_orders(
+                    statuses=[OrderStatus.UNKNOWN.value, OrderStatus.CANCEL_PENDING.value],
+                    channel=self.execution_mode,
+                    session_id=self.config.paper_session_id,
+                ):
+                    if order.get("code"):
+                        codes.add(str(order["code"]))
+            except WatchStoreError:
+                pass
+        return codes
+
+    def _warmup_codes(self, codes: set[str], current: datetime, trade_date: str, tick: WatchTick) -> None:
+        if self.kline_client is None or not codes:
+            return
+        candidate_map = {candidate.stock_code: candidate for candidate in self._candidates}
+        required = self.adapter.required_bars()
+        for code in sorted(codes):
+            candidate = candidate_map.get(code)
+            if candidate is None or self.adapter.ready(code) or self.bar_store.history(code):
+                continue
+            try:
+                bars, result = self.kline_client.fetch_history(
+                    code, candidate.stock_name, self.config.bar_period_min,
+                    max(required + 10, 80), run_id=f"watch-l2-prep-{trade_date}",
+                    as_of=current, exchange=candidate.exchange_type,
+                )
+                if bars is None:
+                    raise ValueError(_result_message(result))
+                self.bar_store.seed(code, bars, discard_first_forming=True)
+                self.adapter.seed(code, self.bar_store.history(code))
+                if not self.adapter.ready(code):
+                    tick.errors.append(f"{code}:L2_WARMUP不足({len(bars)}/{required})")
+            except (OSError, TypeError, ValueError) as exc:
+                tick.errors.append(f"{code}:L2_KLINE_DISABLED:{exc}")
+
+    def _persist_latest_quotes(self, quotes: dict, quality: dict[str, dict], *,
+                               batch_id: str, processed_at: datetime) -> None:
+        if self.store is None or not callable(getattr(self.store, "upsert_latest_quotes", None)):
+            return
+        rows = []
+        for code, quote in quotes.items():
+            q = quality.get(code, {})
+            rows.append({
+                "trade_date": processed_at.strftime("%Y-%m-%d"),
+                "code": code, "name": getattr(quote, "name", ""),
+                "exchange": getattr(quote, "exchange", ""), "last": getattr(quote, "last", 0.0),
+                "pct_chg": getattr(quote, "pct_chg", None), "volume": getattr(quote, "volume", None),
+                "amount": getattr(quote, "amount", None), "source": getattr(quote, "source", ""),
+                "market_time": quote.market_time.isoformat() if getattr(quote, "market_time", None) else "",
+                "received_at": quote.received_at.isoformat() if getattr(quote, "received_at", None) else "",
+                "processed_at": processed_at.isoformat(),
+                "validity": getattr(getattr(quote, "validity", None), "value", "INVALID"),
+                "quality": q.get("quality", "INVALID"), "quality_reason": q.get("reason", ""),
+                "batch_id": batch_id, "freshness_seconds": getattr(quote, "freshness_seconds", None),
+            })
+        self.store.upsert_latest_quotes(rows)
 
     def _account(self, run_id: str):
         balance, b_result = self.broker.balance(run_id)
@@ -750,7 +941,18 @@ class WatchLoop:
                 tick.errors.append(f"UNIVERSE_PREPARE_FAILED:{type(exc).__name__}:{exc}")
                 tick.status = "BLOCKED"
                 return self._finish(tick)
-        tick.universe = [asdict(candidate) for candidate in self._candidates]
+        if self._pipeline_v2_enabled():
+            universe_material = "\n".join(
+                f"{item.stock_code}|{item.exchange_type}|{item.stock_name}"
+                for item in sorted(self._candidates, key=lambda candidate: candidate.stock_code)
+            )
+            tick.universe = [{
+                "universe_hash": sha256(universe_material.encode("utf-8")).hexdigest(),
+                "count": len(self._candidates),
+                "source": self._universe_source,
+            }]
+        else:
+            tick.universe = [asdict(candidate) for candidate in self._candidates]
         if self._prepare_errors_pending:
             tick.errors.extend(self._prepare_errors)
             self._prepare_errors_pending = False
@@ -912,8 +1114,87 @@ class WatchLoop:
                     tick.status = "BLOCKED"
                     return self._finish(tick)
 
+        pipeline_v2 = self._pipeline_v2_enabled()
+        l1_scanned = False
+        if pipeline_v2 and self._l1_due(current):
+            try:
+                l1_batch = self.market_data.snapshot_all(
+                    self._candidates, run_id=run_id, received_at=current
+                )
+                self._latest_l1_quality = self._l1_quality_engine.assess_batch(
+                    l1_batch, now=current
+                )
+                self._latest_l1_quotes = dict(l1_batch.quotes)
+                self._latest_l1_batch = l1_batch
+                self._last_l1_scan_at = current
+                l1_scanned = True
+                summary = l1_batch.to_summary()
+                summary["trade_date"] = trade_date
+                if self.store is not None and callable(getattr(self.store, "save_market_data_batch", None)):
+                    self.store.save_market_data_batch(
+                        summary, self._latest_l1_quality.values()
+                    )
+                self._persist_latest_quotes(
+                    self._latest_l1_quotes, self._latest_l1_quality,
+                    batch_id=l1_batch.batch_id, processed_at=current,
+                )
+                events.emit("MARKET_DATA", cycle=self._cycle, detail={
+                    "phase": "L1_BATCH", **summary,
+                }, now=current)
+            except (OSError, TypeError, ValueError, WatchStoreError, requests.RequestException) as exc:
+                tick.errors.append(f"L1_MARKET_SCAN_FAILED:{type(exc).__name__}:{exc}")
+                events.emit("ERROR", cycle=self._cycle, detail={
+                    "scope": "L1_MARKET_DATA", "message": tick.errors[-1],
+                }, now=current)
+
+        if pipeline_v2:
+            self._active_pool_snapshot = self._active_pool.refresh(
+                candidates=self._candidates,
+                quotes=self._latest_l1_quotes,
+                positions=positions,
+                orders=orders,
+                unknown_codes=self._unknown_order_codes(),
+                now=current,
+                excluded_codes={
+                    item.stock_code for item in self._candidates
+                    if self._l2_quality_engine.is_disabled(item.stock_code)
+                },
+            )
+            self._warmup_codes(
+                self._active_pool_snapshot.promoted,
+                current, trade_date, tick,
+            )
+            if self.store is not None and callable(getattr(self.store, "save_active_pool", None)):
+                try:
+                    self.store.save_active_pool(
+                        trade_date, self._active_pool_snapshot.rows()
+                    )
+                except WatchStoreError as exc:
+                    tick.errors.append(f"ACTIVE_POOL_PERSIST_FAILED:{type(exc).__name__}:{exc}")
+            if self._active_pool_snapshot.promoted or self._active_pool_snapshot.demoted:
+                events.emit("ACTIVE_POOL", cycle=self._cycle, detail={
+                    "active_count": len(self._active_pool_snapshot.codes),
+                    "mandatory_count": len(self._active_pool_snapshot.mandatory_codes),
+                    "promoted": sorted(self._active_pool_snapshot.promoted),
+                    "demoted": sorted(self._active_pool_snapshot.demoted),
+                    "capacity_exceeded": self._active_pool_snapshot.capacity_exceeded,
+                }, now=current)
+            if self._active_pool_snapshot.capacity_exceeded:
+                tick.errors.append("L2_CAPACITY_EXCEEDED:强制标的数量超过配置容量，禁止新增开仓")
+
         strategy_ready_count = sum(
-            1 for candidate in self._candidates if self.adapter.ready(candidate.stock_code)
+            1 for candidate in self._candidates
+            if self.adapter.ready(candidate.stock_code)
+            and (
+                not pipeline_v2
+                or self._active_pool_snapshot is None
+                or candidate.stock_code in self._active_pool_snapshot.codes
+            )
+        )
+        readiness_universe_count = (
+            len(self._active_pool_snapshot.codes)
+            if pipeline_v2 and self._active_pool_snapshot is not None
+            else len(self._candidates)
         )
         if self.store is not None:
             store_health = self.store.health()
@@ -931,7 +1212,7 @@ class WatchLoop:
                 and not self._state.unknown_submits
                 and oms_unknown_count == 0
             ),
-            universe_count=len(self._candidates),
+            universe_count=readiness_universe_count,
             strategy_ready_count=strategy_ready_count,
             min_strategy_ready_coverage=self.config.min_strategy_ready_coverage,
             min_store_free_mb=self.config.min_store_free_mb,
@@ -946,6 +1227,18 @@ class WatchLoop:
              "unknown_orders": oms_unknown_count,
              "active_orders": self._oms_active_count()},
         ])
+        if pipeline_v2:
+            rule_coverage = len(self._security_rules) / len(self._candidates) if self._candidates else 0.0
+            readiness["checks"].extend([
+                {"name": "l1_market_data", "ok": self._latest_l1_batch is not None,
+                 "hard": True,
+                 "coverage": round(self._latest_l1_batch.coverage, 6) if self._latest_l1_batch else 0.0},
+                {"name": "security_rules", "ok": rule_coverage >= self.config.min_quote_coverage,
+                 "hard": True, "coverage": round(rule_coverage, 6)},
+                {"name": "l2_capacity", "ok": not self._active_pool_snapshot.capacity_exceeded,
+                 "hard": True, "active": len(self._active_pool_snapshot.codes),
+                 "mandatory": len(self._active_pool_snapshot.mandatory_codes)},
+            ])
         readiness["ready"] = all(
             check["ok"] for check in readiness["checks"] if check.get("hard")
         )
@@ -960,12 +1253,25 @@ class WatchLoop:
         # 账户查询是轮初快照；同轮后续意图必须看到前序买单的资金占用和
         # 活动委托承诺。使用副本避免改写 tick.account 中的柜台原始快照。
         projected_balance = replace(balance)
-        pool_pcts: list[float] = []
+        pool_pcts: list[float] = [
+            float(quote.pct_chg)
+            for quote in self._latest_l1_quotes.values()
+            if pipeline_v2
+            and getattr(quote, "validity", None) == QuoteValidity.VALID
+            and getattr(quote, "pct_chg", None) is not None
+        ]
         quotes: dict[str, object] = {}
         updates: dict[str, object] = {}
+        l2_quality: dict[str, dict] = {}
+        l2_request_ms: list[int] = []
+        l2_quote_age_sec: list[float] = []
 
         batch_quotes = None
-        if self._universe_source == "full_market" and hasattr(self.quote_client, "snapshot_many"):
+        if (
+            not pipeline_v2
+            and self._universe_source == "full_market"
+            and hasattr(self.quote_client, "snapshot_many")
+        ):
             try:
                 batch_quotes = self.quote_client.snapshot_many(
                     self._candidates,
@@ -979,7 +1285,31 @@ class WatchLoop:
         for candidate in self._candidates:
             if candidate.stock_code in self._disabled_codes:
                 continue
-            if batch_quotes is not None:
+            if pipeline_v2:
+                if (
+                    self._active_pool_snapshot is None
+                    or candidate.stock_code not in self._active_pool_snapshot.codes
+                ):
+                    continue
+                request_at = self.now_fn()
+                request_started = time.monotonic()
+                try:
+                    quote, result = self.market_data.snapshot_execution(
+                        candidate.stock_code,
+                        candidate.stock_name,
+                        run_id=run_id,
+                        received_at=request_at,
+                    )
+                except Exception as exc:  # 单标的供应商异常不得打断全池和 OMS 对账
+                    quote, result = None, None
+                    tick.errors.append(
+                        f"L2_QUOTE_EXCEPTION:{candidate.stock_code}:"
+                        f"{type(exc).__name__}:{exc}"
+                    )
+                l2_request_ms.append(
+                    max(int((time.monotonic() - request_started) * 1000), 0)
+                )
+            elif batch_quotes is not None:
                 quote, result = batch_quotes.get(candidate.stock_code, (None, None))
             else:
                 quote, result = self.quote_client.snapshot(
@@ -991,6 +1321,10 @@ class WatchLoop:
             if quote is None:
                 message = _result_message(result)
                 tick.errors.append(f"quote {candidate.stock_code} 失败: {message}")
+                if pipeline_v2:
+                    l2_quality[candidate.stock_code] = self._l2_quality_engine.assess_quote(
+                        candidate.stock_code, None, now=self.now_fn()
+                    )
                 events.emit("QUOTE_FAIL", code=candidate.stock_code, name=candidate.stock_name, cycle=self._cycle,
                             detail={"message": message}, now=current)
                 if result is not None and result.stop_run():
@@ -1000,15 +1334,44 @@ class WatchLoop:
                                 detail={"scope": "STOP_RUN", "message": "行情错误触发停止性错误"}, now=current)
                     break
                 continue
+            quality_now = self.now_fn() if pipeline_v2 else current
+            if pipeline_v2 and quote.market_time is not None:
+                execution_age = (quality_now - quote.market_time).total_seconds()
+                l2_quote_age_sec.append(max(execution_age, 0.0))
+                if execution_age > self.config.execution_quote_stale_sec:
+                    quote.validity = QuoteValidity.STALE
+                    quote.error = (
+                        f"EXECUTION_QUOTE_STALE:{execution_age:.1f}s>"
+                        f"{self.config.execution_quote_stale_sec}s"
+                    )
             quotes[candidate.stock_code] = quote
+            if pipeline_v2:
+                quality = self._l2_quality_engine.assess_quote(
+                    candidate.stock_code, quote, now=quality_now
+                )
+                l2_quality[candidate.stock_code] = quality
+                if quality["quality"] in {"INVALID", "STALE", "MISSING"}:
+                    quote.validity = (
+                        QuoteValidity.STALE if quality["quality"] == "STALE"
+                        else QuoteValidity.INVALID
+                    )
+                    quote.error = quality["reason"]
             display_name = str(getattr(quote, "name", "") or candidate.stock_name)
-            events.emit("QUOTE", code=candidate.stock_code, name=display_name, cycle=self._cycle, detail={
-                "stock_name": display_name,
-                "last": quote.last,
-                "pct_chg": quote.pct_chg,
-                "volume": quote.volume,
-                "validity": quote.validity.value,
-            }, now=current)
+            quote_event_state = (
+                quote.validity.value,
+                l2_quality.get(candidate.stock_code, {}).get("quality", quote.validity.value),
+            )
+            if self.config.emit_quote_events or self._quote_event_state.get(candidate.stock_code) != quote_event_state:
+                events.emit("QUOTE", code=candidate.stock_code, name=display_name, cycle=self._cycle, detail={
+                    "stock_name": display_name,
+                    "last": quote.last,
+                    "pct_chg": quote.pct_chg,
+                    "volume": quote.volume,
+                    "validity": quote.validity.value,
+                    "quality": quote_event_state[1],
+                    "level": "L2" if pipeline_v2 else "LEGACY",
+                }, now=current)
+                self._quote_event_state[candidate.stock_code] = quote_event_state
             if quote.validity != QuoteValidity.VALID:
                 tick.errors.append(
                     f"quote {candidate.stock_code} 不可交易: {quote.validity.value}"
@@ -1017,7 +1380,7 @@ class WatchLoop:
                 # STALE/INVALID/NOT_TRADABLE 不能进入 bar 或池中位数，
                 # 否则上一笔/未来时间的价格会污染后续信号。
                 continue
-            if quote.pct_chg is not None:
+            if not pipeline_v2 and quote.pct_chg is not None:
                 pool_pcts.append(quote.pct_chg)
             try:
                 update = self.bar_store.update_snapshot(
@@ -1038,6 +1401,16 @@ class WatchLoop:
                     "start_ts": closed_bar.start_ts.isoformat(), "end_ts": closed_bar.end_ts.isoformat(),
                 }, now=current)
             tick.new_closed_bars.extend(bar.to_dict() for bar in update.new_closed)
+
+        if pipeline_v2:
+            try:
+                self._persist_latest_quotes(
+                    quotes, l2_quality, batch_id=f"{run_id}-l2", processed_at=self.now_fn()
+                )
+                if self.store is not None and callable(getattr(self.store, "save_quote_quality", None)):
+                    self.store.save_quote_quality("L2", trade_date, l2_quality.values())
+            except WatchStoreError as exc:
+                tick.errors.append(f"L2_QUOTE_PERSIST_FAILED:{type(exc).__name__}:{exc}")
 
         closed_bars = [bar for update in updates.values() for bar in update.new_closed]
         if self.store is not None:
@@ -1091,11 +1464,19 @@ class WatchLoop:
             1 for quote in quotes.values()
             if getattr(quote, "validity", None) in {QuoteValidity.VALID, QuoteValidity.NOT_TRADABLE}
         )
-        quote_coverage = covered_quote_count / len(self._candidates) if self._candidates else 0.0
+        quote_coverage = (
+            self._latest_l1_batch.coverage
+            if pipeline_v2 and self._latest_l1_batch is not None
+            else covered_quote_count / len(self._candidates) if self._candidates else 0.0
+        )
+        mandatory_codes = (
+            self._active_pool_snapshot.mandatory_codes
+            if pipeline_v2 and self._active_pool_snapshot is not None
+            else {code for code, position in position_map.items() if position.qty > 0}
+        )
         unavailable_position_quotes = sorted(
-            code for code, position in position_map.items()
-            if position.qty > 0
-            and code in candidate_codes
+            code for code in mandatory_codes
+            if code in candidate_codes
             and (
                 code not in quotes
                 or getattr(quotes[code], "validity", None)
@@ -1129,7 +1510,8 @@ class WatchLoop:
              "hard": True, "coverage": round(quote_coverage, 6),
              "minimum": self.config.min_quote_coverage},
             {"name": "position_quotes", "ok": not unavailable_position_quotes,
-             "hard": True, "unavailable_codes": unavailable_position_quotes},
+             "hard": True, "unavailable_codes": unavailable_position_quotes,
+             "scope": "mandatory_l2" if pipeline_v2 else "positions"},
         ]
         readiness["checks"].extend(market_checks)
         readiness["ready"] = all(
@@ -1206,6 +1588,8 @@ class WatchLoop:
                             "validity": quote.validity.value,
                             "authoritative": True,
                         }, now=current)
+                security_rule = self._security_rules.get(candidate.stock_code)
+                quote = apply_rule_price_limits(quote, security_rule)
                 intent = build_watch_intent(
                     candidate,
                     signal,
@@ -1214,6 +1598,7 @@ class WatchLoop:
                     position,
                     self.config,
                     now=current,
+                    security_rule=security_rule,
                 )
                 if candidate.stock_code in frozen_codes:
                     intent.intent_type = IntentType.NOOP
@@ -1244,6 +1629,8 @@ class WatchLoop:
                     pool_median_pct_chg=pool_median_pct,
                     confirmed=True,
                     strict_limit_data=actual_live,
+                    security_rule=security_rule,
+                    require_security_rule=bool(actual_live and pipeline_v2),
                     gate_trace=gate_trace,
                 )
                 events.emit("RISK_GATE", code=candidate.stock_code, name=display_name, cycle=self._cycle, detail={
@@ -1308,6 +1695,12 @@ class WatchLoop:
                                 "reason_codes": checked.reason_codes,
                                 "quote_ts": checked.quote_ts,
                                 "execution_mode": self.execution_mode,
+                                "market_data_level": "L2" if pipeline_v2 else "LEGACY",
+                                "quote_source": getattr(quote, "source", ""),
+                                "security_rule": (
+                                    security_rule.to_dict()
+                                    if security_rule is not None else None
+                                ),
                             },
                             now=current,
                         )
@@ -1497,6 +1890,33 @@ class WatchLoop:
             "buy_signal_count": sum(1 for signal in tick.signals if signal.get("action") == "buy"),
             "sell_signal_count": sum(1 for signal in tick.signals if signal.get("action") == "sell"),
         })
+        if pipeline_v2:
+            universe_material = "\n".join(
+                f"{item.stock_code}|{item.exchange_type}|{item.stock_name}"
+                for item in sorted(self._candidates, key=lambda candidate: candidate.stock_code)
+            )
+            universe_hash = sha256(universe_material.encode("utf-8")).hexdigest()
+            tick.universe = [{
+                "universe_hash": universe_hash,
+                "count": len(self._candidates),
+                "source": self._universe_source,
+            }]
+            tick.metrics.update({
+                "market_pipeline": "L1_L2_V2",
+                "l1_scanned": l1_scanned,
+                "l1_batch": self._latest_l1_batch.to_summary() if self._latest_l1_batch else {},
+                "l2_active_count": len(self._active_pool_snapshot.codes) if self._active_pool_snapshot else 0,
+                "l2_mandatory_count": len(self._active_pool_snapshot.mandatory_codes) if self._active_pool_snapshot else 0,
+                "l2_quote_count": len(quotes),
+                "l2_quality": {
+                    status: sum(1 for row in l2_quality.values() if row.get("quality") == status)
+                    for status in ("VALID", "WARN", "STALE", "INVALID", "MISSING", "NOT_TRADABLE")
+                },
+                "l2_request_latency_ms": self._percentiles(l2_request_ms),
+                "l2_quote_age_sec": self._percentiles(l2_quote_age_sec),
+                "security_rule_count": len(self._security_rules),
+                "provider_health": self.market_data.health().to_dict(),
+            })
         if self.oms is not None and self.store is not None:
             try:
                 local_orders = self.store.list_local_orders(
@@ -1558,7 +1978,11 @@ class WatchLoop:
                 cycle += 1
                 if max_cycles is not None and cycle >= max_cycles:
                     break
-                self.sleep_fn(self.config.query_interval_sec)
+                self.sleep_fn(
+                    self.config.l2_poll_interval_sec
+                    if self._pipeline_v2_enabled()
+                    else self.config.query_interval_sec
+                )
         except KeyboardInterrupt:
             # Ctrl+C：不自动撤单，保留已落盘 tick 后优雅退出。
             pass

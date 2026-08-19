@@ -28,6 +28,7 @@ def build_watch_intent(
     config: PaperConfig,
     *,
     now: datetime,
+    security_rule=None,
 ) -> Intent:
     """只依赖已收盘信号和柜台持仓，不访问策略对象 position。"""
     if signal.action not in {"buy", "sell"}:
@@ -50,6 +51,10 @@ def build_watch_intent(
             "buy",
             config.slippage_bps,
         )
+        tick_size = getattr(security_rule, "tick_size", None) if security_rule is not None else None
+        decimals = getattr(security_rule, "price_decimals", None) if security_rule is not None else None
+        if tick_size and tick_size > 0:
+            planned_limit = round(round(planned_limit / tick_size) * tick_size, decimals or 2)
         # 仓位和可负担数量必须按实际委托限价计算；按最新价取整后再叠加
         # 滑点会让名义金额穿过 max_name_weight，导致正常信号被风控反拒。
         qty = buy_qty(balance, planned_limit, config)
@@ -69,8 +74,11 @@ def build_watch_intent(
         )
 
     available = position.avail_qty if position is not None else 0
-    qty = sell_qty(available)
-    if qty < LOT_SIZE:
+    allow_odd_lot_sell = bool(
+        getattr(security_rule, "odd_lot_sell", False) if security_rule is not None else False
+    )
+    qty = available if allow_odd_lot_sell and 0 < available < LOT_SIZE else sell_qty(available)
+    if qty <= 0:
         return _noop(candidate.stock_code, "NO_SELLABLE", candidate.source)
     return Intent(
         stock_code=candidate.stock_code,

@@ -315,7 +315,10 @@ def cmd_watch_serve(args: argparse.Namespace) -> int:
     """监控面板只读 API：读取 logs/paper/watch/** 产物，不下单不联网。"""
     from .watch.serve import serve
 
-    serve(Path(args.log_base), host=args.host, port=args.port)
+    serve(
+        Path(args.log_base), host=args.host, port=args.port,
+        store_path=Path(args.store_path) if args.store_path else None,
+    )
     return 0
 
 
@@ -406,6 +409,7 @@ def build_parser() -> argparse.ArgumentParser:
     ws.add_argument("--host", default="127.0.0.1")
     ws.add_argument("--port", type=int, default=8790)
     ws.add_argument("--log-base", default="logs", help="与 paper.cli watch 写入目录一致（其下 watch/<date>/）")
+    ws.add_argument("--store-path", default="", help="运行库路径；默认 <log-base>/watch/runtime.sqlite3")
     return parser
 
 

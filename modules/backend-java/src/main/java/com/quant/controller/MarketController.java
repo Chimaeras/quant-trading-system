@@ -48,6 +48,15 @@ public class MarketController {
         return ApiResponse.success(data);
     }
 
+    /** 按交易日生效的证券交易规则批量快照。 */
+    @GetMapping("/security-rules")
+    public ApiResponse<Map<String, Object>> getSecurityRules(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOf,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "1000") int size) {
+        return ApiResponse.success(marketService.getSecurityRules(asOf, page, size));
+    }
+
     /** 获取K线数据 */
     @GetMapping("/kline")
     public ApiResponse<List<Map<String, Object>>> getKline(

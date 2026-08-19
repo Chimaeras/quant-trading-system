@@ -438,8 +438,8 @@ public class HistoricalDataUpdateService {
         String ex = "SZSE";
         if (raw.endsWith(".SH")) ex = "SSE";
         else if (raw.endsWith(".BJ")) ex = "BSE";
+        else if (code.startsWith("4") || code.startsWith("8") || code.startsWith("92")) ex = "BSE";
         else if (code.startsWith("6") || code.startsWith("5") || code.startsWith("9")) ex = "SSE";
-        else if (code.startsWith("8") || code.startsWith("4")) ex = "BSE";
         return new StockTarget(code, ex);
     }
 

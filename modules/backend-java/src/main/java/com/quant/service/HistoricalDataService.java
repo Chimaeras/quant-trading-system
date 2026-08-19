@@ -920,14 +920,15 @@ public class HistoricalDataService {
     private String toEastmoneySecId(String code, String ex) {
         if ("SSE".equals(ex)) return "1." + code;
         if ("BSE".equals(ex)) return "0." + code;
+        if (code.startsWith("4") || code.startsWith("8") || code.startsWith("92")) return "0." + code;
         if (code.startsWith("6") || code.startsWith("5") || code.startsWith("9")) return "1." + code;
         return "0." + code;
     }
 
     private String inferExchangeType(String code) {
         if (code == null || code.length() < 4) return "SZSE";
+        if (code.startsWith("4") || code.startsWith("8") || code.startsWith("92")) return "BSE";
         if (code.startsWith("6") || code.startsWith("5") || code.startsWith("9")) return "SSE";
-        if (code.startsWith("8") || code.startsWith("4")) return "BSE";
         return "SZSE";
     }
 }

@@ -41,7 +41,7 @@ class Quote:
 
     code: str  # 6 位代码
     name: str
-    exchange: str  # SH / SZ
+    exchange: str  # SH / SZ / BJ
     last: float
     pct_chg: float | None = None  # 百分数，如 0.38 表示 +0.38%
     volume: float | None = None  # 股
@@ -134,7 +134,7 @@ class Candidate:
 
     stock_code: str
     stock_name: str
-    exchange_type: str  # SH / SZ
+    exchange_type: str  # SH / SZ / BJ
     score: float | None = None
     rule_score: float | None = None
     probability: float | None = None

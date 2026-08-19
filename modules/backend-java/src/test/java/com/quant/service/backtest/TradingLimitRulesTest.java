@@ -24,6 +24,8 @@ class TradingLimitRulesTest {
                 .isEqualTo(TradingLimitRules.CHINEXT_STAR_LIMIT_PCT);
         assertThat(TradingLimitRules.resolveLimitPct("830001", "BSE", "测试北交所"))
                 .isEqualTo(TradingLimitRules.BSE_LIMIT_PCT);
+        assertThat(TradingLimitRules.resolveLimitPct("920000", null, "新代码北交所"))
+                .isEqualTo(TradingLimitRules.BSE_LIMIT_PCT);
         // 主板 ST/*ST 才适用 5%；注册制板块 ST 仍按板块幅度
         assertThat(TradingLimitRules.resolveLimitPct("000001", "SZSE", "*ST测试"))
                 .isEqualTo(TradingLimitRules.ST_LIMIT_PCT);

@@ -26,8 +26,8 @@ public class MarketService {
     private String inferExchangeType(String stockCode) {
         if (stockCode == null || stockCode.length() < 4) return "SZSE";
         String base = stockCode.split("\\.")[0];
+        if (base.startsWith("4") || base.startsWith("8") || base.startsWith("92")) return "BSE";
         if (base.startsWith("6") || base.startsWith("5") || base.startsWith("9")) return "SSE";
-        if (base.startsWith("8") || base.startsWith("4")) return "BSE";
         return "SZSE";
     }
 

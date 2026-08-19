@@ -24,7 +24,7 @@ public final class TradingLimitRules {
 
         // 注册制板块（创业板 300/301/302、科创板 688/689、北交所）ST 不适用 5%，
         // 涨跌停幅度与普通股一致（20%/30%）；仅主板 ST/*ST 适用 5%。
-        if ("BSE".equals(exchange) || code.startsWith("8") || code.startsWith("4")) {
+        if ("BSE".equals(exchange) || code.startsWith("8") || code.startsWith("4") || code.startsWith("92")) {
             return BSE_LIMIT_PCT;
         }
         if ("SSE".equals(exchange) && isStarStockCode(code)) {

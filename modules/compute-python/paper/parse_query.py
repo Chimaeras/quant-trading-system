@@ -151,10 +151,12 @@ def parse_query(payload: dict, code: str, *, received_at: datetime | None = None
     if last <= 0:
         raise QuoteParseError(f"最新价非正数: {last}")
 
+    market_char = str(tag.get("marketChar", "")).strip().upper()
+    exchange = {".SH": "SH", ".SZ": "SZ", ".BJ": "BJ"}.get(market_char, "SZ")
     quote = Quote(
         code=code,
         name=str(tag.get("fullName", "")),
-        exchange="SH" if str(tag.get("marketChar")) == ".SH" else "SZ",
+        exchange=exchange,
         last=last,
         market_time=parse_market_time(table.get("headName", [])),
         received_at=received,

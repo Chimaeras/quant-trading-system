@@ -6,7 +6,15 @@ from pathlib import Path
 
 import requests
 
-from ..candidates import _infer_exchange, _validate_exchange, _validated_code, dedupe_candidates, load_candidates, load_from_file
+from ..candidates import (
+    _infer_exchange,
+    _normalise_exchange,
+    _validate_exchange,
+    _validated_code,
+    dedupe_candidates,
+    load_candidates,
+    load_from_file,
+)
 from ..models import Candidate
 from ..config import PaperConfig
 
@@ -16,17 +24,12 @@ _MARKET_LIST_PAGE_SIZE = 1000
 
 def _market_exchange(value, code: str) -> str | None:
     """将 Java 主数据的 SSE/SZSE/BSE 映射为 watch 可执行的交易所。"""
-    text = str(value or "").strip().upper()
-    if text in {"SSE", "SH", "上交所"}:
-        return "SH"
-    if text in {"SZSE", "SZ", "深交所"}:
-        return "SZ"
-    if text in {"BSE", "BJ", "北交所"} or code.startswith(("4", "8", "9")):
-        # 当前 broker_client / risk 的证券字段只支持沪深 A 股；北交所
-        # 不应被悄悄映射到深市，明确记录为不支持并跳过。
-        return None
     try:
-        return _infer_exchange(code)
+        expected = _infer_exchange(code)
+        if value is None or str(value).strip() == "":
+            return expected
+        exchange = _normalise_exchange(value)
+        return exchange if exchange == expected else None
     except (TypeError, ValueError):
         return None
 
@@ -39,10 +42,10 @@ def load_full_market_universe(
     max_codes: int = 10000,
     timeout: int = 15,
 ) -> tuple[list[Candidate], list[str]]:
-    """读取 Java `/api/market/stock/list` 的全量沪深股票主数据。
+    """读取 Java `/api/market/stock/list` 的全量沪深北股票主数据。
 
     该接口返回代码和名称，避免使用只有代码的固定 universe 文件；分页拉取
-    直到 total，且对超出上限、北交所和坏记录都留下可审计错误。
+    直到 total，且对超出上限、市场不一致和坏记录都留下可审计错误。
     """
     if not base_url:
         raise ValueError("FULL universe 需要配置 PAPER_T1_BASE/Java API 基址")
@@ -181,7 +184,7 @@ def load_watch_universe(config: PaperConfig, signal_date: str, override=None) ->
     filtered: list[Candidate] = []
     for candidate in candidates[:max_codes]:
         if source == "full_market":
-            # FULL 模式要扫描全量沪深主板/创业板/科创板；板块是否允许
+            # FULL 模式要扫描全量沪深北主板/创业板/科创板；板块是否允许
             # 下单由 risk 闸门决定，不能在 universe 阶段把它们从扫描中删掉。
             filtered.append(candidate)
             continue

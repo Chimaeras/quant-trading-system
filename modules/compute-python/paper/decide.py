@@ -15,6 +15,7 @@ from .models import Balance, Candidate, Intent, IntentType, MxOrder, Quote, Quot
 _WEAK_LIMIT_PCT = 9.8
 # 主板涨停幅度（用于从 last/pct_chg 反推涨停价，来源记录在 limit_up_source）
 _MAIN_BOARD_LIMIT_PCT = 10.0
+_BSE_LIMIT_PCT = 30.0
 
 
 def in_trading_window(now: datetime) -> bool:
@@ -26,7 +27,7 @@ def in_trading_window(now: datetime) -> bool:
 
 
 def round_limit_price(price: float, exchange: str) -> float:
-    """限价小数位：沪 2 位，深 3 位。"""
+    """限价小数位：沪/北 2 位，深 3 位。"""
     return round(price, PRICE_DECIMALS.get(exchange, 2))
 
 
@@ -59,7 +60,9 @@ def affordable_qty(avail_balance: float, last: float, commission_estimate: float
 
 
 def derive_limit_up_price(quote: Quote) -> Quote:
-    """从 last 与 pct_chg 反推主板涨停价：prev_close=last/(1+pct/100)，limit_up=round(prev*1.1, 2)。
+    """从 last 与 pct_chg 反推涨停价：主板按 10%，北交所按 30%。
+
+    prev_close=last/(1+pct/100)，再按对应市场涨跌幅取整到 2 位。
 
     仅当两个输入均可用才推导，并在 limit_up_source 记录计算方式（审计）。
     pct_chg 缺失时保持 None，由风控闸 LIMIT_DATA_UNAVAILABLE 阻断（P0-06）。
@@ -69,10 +72,11 @@ def derive_limit_up_price(quote: Quote) -> Quote:
     if quote.pct_chg <= -100:
         return quote
     prev_close = quote.last / (1 + quote.pct_chg / 100)
-    quote.limit_up_price = round(prev_close * (1 + _MAIN_BOARD_LIMIT_PCT / 100), 2)
+    limit_pct = _BSE_LIMIT_PCT if str(quote.exchange).upper() in {"BJ", "BSE"} else _MAIN_BOARD_LIMIT_PCT
+    quote.limit_up_price = round(prev_close * (1 + limit_pct / 100), 2)
     quote.limit_up_source = (
         f"derived:prev_close=last/(1+pct_chg/100)={prev_close:.4f};"
-        f"limit_up=round(prev*{_MAIN_BOARD_LIMIT_PCT/100+1:.2f},2)"
+        f"limit_up=round(prev*{limit_pct/100+1:.2f},2)"
     )
     return quote
 

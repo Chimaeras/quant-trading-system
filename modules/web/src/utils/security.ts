@@ -6,8 +6,8 @@ const pendingRequests = new Map<string, Promise<string>>()
 /** 根据 A 股代码前缀推断交易所，供名称查询使用。 */
 export function inferExchangeType(stockCode: string): string {
   const code = stockCode.trim().split('.')[0]
+  if (code.startsWith('4') || code.startsWith('8') || code.startsWith('92')) return 'BSE'
   if (code.startsWith('6') || code.startsWith('5') || code.startsWith('9')) return 'SSE'
-  if (code.startsWith('8') || code.startsWith('4')) return 'BSE'
   return 'SZSE'
 }
 

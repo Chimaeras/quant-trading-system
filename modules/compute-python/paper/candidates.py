@@ -21,7 +21,11 @@ class CandidateValidationError(ValueError):
 
 
 def _infer_exchange(code: str) -> str:
-    """按代码首位推断市场（6 沪 / 0、3 深）。"""
+    """按代码前缀推断市场（沪/深/北）。"""
+    code = str(code).strip()
+    # 北交所新代码使用 920xxx，存量代码主要使用 4xxx/8xxx。
+    if code.startswith(("4", "8", "92")):
+        return "BJ"
     return "SH" if code.startswith(("6", "9", "5")) else "SZ"
 
 
@@ -29,15 +33,33 @@ def _validated_code(code) -> str:
     s = str(code).strip()
     if not (len(s) == 6 and s.isdigit()):
         raise CandidateValidationError(f"证券代码必须为 6 位数字: {s!r}")
-    if s[0] not in "0356":
+    if s[0] not in "0345689":
         raise CandidateValidationError(f"证券代码首位无法映射交易所: {s!r}")
     return s
 
 
+def _normalise_exchange(exchange: str) -> str:
+    """将 Java/API 常用交易所名称归一为 watch 内部的 SH/SZ/BJ。"""
+    text = str(exchange or "").strip().upper()
+    aliases = {
+        "SSE": "SH",
+        "SH": "SH",
+        "上交所": "SH",
+        "SZSE": "SZ",
+        "SZ": "SZ",
+        "深交所": "SZ",
+        "BSE": "BJ",
+        "BJ": "BJ",
+        "北交所": "BJ",
+    }
+    try:
+        return aliases[text]
+    except KeyError as exc:
+        raise CandidateValidationError(f"交易所非法: {exchange!r}") from exc
+
+
 def _validate_exchange(exchange: str, code: str) -> str:
-    ex = str(exchange).strip().upper()
-    if ex not in ("SH", "SZ"):
-        raise CandidateValidationError(f"交易所非法: {exchange!r}")
+    ex = _normalise_exchange(exchange)
     expected = _infer_exchange(code)
     if ex != expected:
         raise CandidateValidationError(f"交易所 {ex} 与代码 {code} 应属 {expected} 不符")

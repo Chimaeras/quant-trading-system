@@ -96,6 +96,7 @@ public class RealtimeQuoteService {
     private String toEastmoneySecId(String code, String ex) {
         if (ex != null && ex.equals("SSE")) return "1." + code;
         if (ex != null && ex.equals("BSE")) return "0." + code;
+        if (code.startsWith("4") || code.startsWith("8") || code.startsWith("92")) return "0." + code;
         if (code.startsWith("6") || code.startsWith("5") || code.startsWith("9")) return "1." + code;
         return "0." + code;
     }

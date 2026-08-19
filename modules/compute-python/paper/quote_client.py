@@ -22,7 +22,12 @@ def _eastmoney_market_id(code: str, exchange: str | None = None) -> str:
         return "1"
     if ex in {"SZ", "SZSE"}:
         return "0"
-    return "1" if str(code).startswith(("5", "6", "9")) else "0"
+    if ex in {"BJ", "BSE", "北交所"}:
+        return "0"
+    pure = str(code).strip().upper().split(".", 1)[0]
+    if pure.startswith(("4", "8", "92")):
+        return "0"
+    return "1" if pure.startswith(("5", "6", "9")) else "0"
 
 
 def _float_field(value, *, scale: float = 1.0) -> float | None:

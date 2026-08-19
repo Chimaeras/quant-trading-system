@@ -17,8 +17,8 @@ STAMP_TAX_RATE = 0.0005  # 仅卖出
 SLIPPAGE_RATE = 0.0002
 LOT_SIZE = 100
 
-# 限价小数位：沪市 2 位，深市 3 位
-PRICE_DECIMALS = {"SH": 2, "SZ": 3}
+# 限价小数位：沪市/北交所 2 位，深市 3 位
+PRICE_DECIMALS = {"SH": 2, "SZ": 3, "BJ": 2}
 
 # 妙想 buyability 中文枚举（T1CandidateService 实际产出）
 BUYABILITY_BLOCKED = "大概率买不进"

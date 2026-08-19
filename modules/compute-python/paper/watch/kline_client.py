@@ -44,13 +44,17 @@ def _parse_time(value) -> datetime:
 
 
 def _market_id(code: str, exchange: str | None = None) -> str:
-    """东方财富 secid：沪市为 1，深市为 0。"""
+    """东方财富 secid：沪市为 1，深市/北交所为 0。"""
     ex = str(exchange or "").strip().upper()
     if ex in {"SH", "SSE"}:
         return "1"
     if ex in {"SZ", "SZSE"}:
         return "0"
+    if ex in {"BJ", "BSE", "北交所"}:
+        return "0"
     pure = str(code).strip().upper().split(".", 1)[0]
+    if pure.startswith(("4", "8", "92")):
+        return "0"
     return "1" if pure.startswith(("5", "6", "9")) else "0"
 
 

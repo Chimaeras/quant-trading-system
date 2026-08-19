@@ -264,8 +264,8 @@ public class StockAnalysisService {
         if (ex.endsWith(".SH") || "SSE".equals(ex) || "SH".equals(ex)) return "SSE";
         if (ex.endsWith(".BJ") || "BSE".equals(ex) || "BJ".equals(ex)) return "BSE";
         if (ex.endsWith(".SZ") || "SZ".equals(ex) || "SZSE".equals(ex)) return "SZSE";
+        if (code.startsWith("4") || code.startsWith("8") || code.startsWith("92")) return "BSE";
         if (code.startsWith("6") || code.startsWith("5") || code.startsWith("9")) return "SSE";
-        if (code.startsWith("8") || code.startsWith("4")) return "BSE";
         return "SZSE";
     }
 

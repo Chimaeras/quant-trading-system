@@ -84,7 +84,7 @@ public class WatchlistService {
 
     /**
      * 批量添加自选股：接收「代码,交易所」对列表，逐个幂等添加。
-     * 交易所可省略，省略时按代码前缀推断（6→SSE，0/3→SZSE，4/8→BSE）。
+     * 交易所可省略，省略时按代码前缀推断（6→SSE，0/3→SZSE，4/8/92→BSE）。
      */
     @Transactional
     public Map<String, Object> batchAdd(Long userId, List<String[]> pairs) {
@@ -129,7 +129,7 @@ public class WatchlistService {
         if (stockCode == null || stockCode.isEmpty()) return "SZSE";
         char c = stockCode.charAt(0);
         if (c == '6') return "SSE";
-        if (c == '4' || c == '8') return "BSE";
+        if (c == '4' || c == '8' || stockCode.startsWith("92")) return "BSE";
         return "SZSE";
     }
 

@@ -174,6 +174,7 @@ const navGroups = computed(() => {
     items: [
       { path: "/account/overview", label: "模拟账户" },
       { path: "/reconcile/position", label: "持仓对账" },
+      { path: "/watch/monitor", label: "盘中盯盘监控" },
       { key: "auth-logout", label: "退出登录", action: "logout", visible: () => loggedIn.value },
       { key: "auth-login", path: "/login", label: "登录", visible: () => !loggedIn.value }
     ]

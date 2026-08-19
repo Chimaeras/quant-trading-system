@@ -289,6 +289,14 @@ def _print_watch_tick(tick) -> None:
         print(f"  错误: {error}", file=sys.stderr)
 
 
+def cmd_watch_serve(args: argparse.Namespace) -> int:
+    """监控面板只读 API：读取 logs/paper/watch/** 产物，不下单不联网。"""
+    from .watch.serve import serve
+
+    serve(Path(args.log_base), host=args.host, port=args.port)
+    return 0
+
+
 def cmd_watch_once(args: argparse.Namespace) -> int:
     """只执行一轮盘中已收盘 bar 检查。"""
     config = _watch_config(_load_config(), args)
@@ -367,6 +375,10 @@ def build_parser() -> argparse.ArgumentParser:
     w = sub.add_parser("watch", help="持续盘中盯盘（默认 dry-run）")
     add_watch_args(w)
     w.add_argument("--max-cycles", type=int, default=0, help="测试/短跑用循环次数，0 表示持续运行")
+    ws = sub.add_parser("watch-serve", help="监控面板只读 API（默认 127.0.0.1:8790）")
+    ws.add_argument("--host", default="127.0.0.1")
+    ws.add_argument("--port", type=int, default=8790)
+    ws.add_argument("--log-base", default="logs/paper")
     return parser
 
 
@@ -383,6 +395,7 @@ def main(argv: list[str] | None = None) -> int:
         "reconcile": cmd_reconcile,
         "watch-once": cmd_watch_once,
         "watch": cmd_watch,
+        "watch-serve": cmd_watch_serve,
     }
     try:
         return handlers[args.command](args)

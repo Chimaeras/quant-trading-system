@@ -33,6 +33,8 @@ class WatchSignal:
     strategy: str
     bar_ts: str
     reason_codes: list[str] = field(default_factory=list)
+    # 信号过程值（如 MA5/MA20 末两值），供监控面板展示计算依据
+    detail: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)

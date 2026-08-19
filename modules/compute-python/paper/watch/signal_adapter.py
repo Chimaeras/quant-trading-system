@@ -6,9 +6,20 @@ from dataclasses import dataclass
 from strategies.boll_strategy import BOLLStrategy
 from strategies.ma_cross_strategy import MACrossStrategy
 from strategies.macd_strategy import MACDStrategy
+from utils.indicators import bollinger_bands, macd, sma
 
 from .bar_store import BarStore
 from .models import WatchBar, WatchSignal
+
+
+def _round_or_none(value) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if number != number:  # NaN
+        return None
+    return round(number, 4)
 
 
 @dataclass
@@ -69,14 +80,49 @@ class SignalAdapter:
         state.strategy.position = 1 if position_qty > 0 else 0
         action = state.strategy.on_bar({"close": bar.close}) or "hold"
         state.seeded_count += 1
-        reason = self._reason(action)
         return WatchSignal(
             code=code,
             action=action,
             strategy=self.strategy_name,
             bar_ts=bar.end_ts.isoformat(),
-            reason_codes=reason,
+            reason_codes=self._reason(action),
+            detail=self._indicator_detail(state.strategy),
         )
+
+    def _indicator_detail(self, strategy) -> dict:
+        """信号判定的过程值（末两根指标值），仅供展示，不参与判定。"""
+        try:
+            history = getattr(strategy, "price_history", None)
+            if not history:
+                return {}
+            import pandas as pd
+
+            close = pd.Series(list(history), dtype=float)
+            if self.strategy_name == "MA_CROSS":
+                short = sma(close, self.ma_short)
+                long_ = sma(close, self.ma_long)
+                return {
+                    "ma_short_prev": _round_or_none(short.iloc[-2]),
+                    "ma_short_curr": _round_or_none(short.iloc[-1]),
+                    "ma_long_prev": _round_or_none(long_.iloc[-2]),
+                    "ma_long_curr": _round_or_none(long_.iloc[-1]),
+                }
+            if self.strategy_name == "MACD":
+                _, _, hist = macd(close)
+                return {
+                    "hist_prev": _round_or_none(hist.iloc[-2]),
+                    "hist_curr": _round_or_none(hist.iloc[-1]),
+                }
+            if self.strategy_name == "BOLL":
+                upper, _, lower = bollinger_bands(close, self.boll_period, self.boll_std)
+                return {
+                    "upper": _round_or_none(upper.iloc[-1]),
+                    "lower": _round_or_none(lower.iloc[-1]),
+                    "close": float(close.iloc[-1]),
+                }
+        except Exception:
+            return {}
+        return {}
 
     def _reason(self, action: str) -> list[str]:
         if self.strategy_name == "MA_CROSS":

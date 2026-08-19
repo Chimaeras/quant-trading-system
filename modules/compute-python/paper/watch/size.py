@@ -32,3 +32,26 @@ def sell_qty(available_qty: int) -> int:
 def limit_price(last: float, exchange: str, side: str, slippage_bps: int) -> float:
     factor = 1 + slippage_bps / 10000 if side == "buy" else 1 - slippage_bps / 10000
     return round_limit_price(last * factor, exchange)
+
+
+def sizing_detail(balance: Balance, last: float, config: PaperConfig, side: str, available_qty: int = 0) -> dict:
+    """买卖数量的推导过程，供监控面板展示；纯计算，不参与决策。"""
+    if side == "buy":
+        target = math.floor(balance.avail_balance * config.max_name_weight / last / LOT_SIZE) * LOT_SIZE if last > 0 else 0
+        investable = max(balance.avail_balance - config.min_cash_reserve, 0.0)
+        affordable = math.floor(max(investable - MIN_COMMISSION, 0.0) / last / LOT_SIZE) * LOT_SIZE if last > 0 else 0
+        return {
+            "side": "buy",
+            "avail_balance": balance.avail_balance,
+            "weight": config.max_name_weight,
+            "last": last,
+            "target_qty": target,
+            "investable_after_reserve": round(investable, 2),
+            "affordable_qty": affordable,
+            "final_qty": buy_qty(balance, last, config),
+        }
+    return {
+        "side": "sell",
+        "available_qty": available_qty,
+        "lot_qty": sell_qty(available_qty),
+    }

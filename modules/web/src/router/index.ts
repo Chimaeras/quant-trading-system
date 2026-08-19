@@ -26,7 +26,8 @@ const routes = [
       { path: 'backtest/portfolio', name: 'PortfolioBacktest', component: () => import('@/views/backtest/PortfolioBacktest.vue'), meta: { title: '组合回测' } },
       { path: 'backtest/walk-forward', name: 'WalkForward', component: () => import('@/views/backtest/WalkForward.vue'), meta: { title: '分段稳定性（非样本外）' } },
       { path: 'account/overview', name: 'AccountOverview', component: () => import('@/views/account/AccountView.vue'), meta: { title: '模拟账户' } },
-      { path: 'reconcile/position', name: 'ReconcilePosition', component: () => import('@/views/reconcile/ReconcileView.vue'), meta: { title: '持仓对账' } }
+      { path: 'reconcile/position', name: 'ReconcilePosition', component: () => import('@/views/reconcile/ReconcileView.vue'), meta: { title: '持仓对账' } },
+      { path: 'watch/monitor', name: 'WatchMonitor', component: () => import('@/views/watch/MonitorView.vue'), meta: { title: '盘中盯盘监控' } }
     ]
   },
   { path: '/login', name: 'Login', component: () => import('@/views/auth/Login.vue'), meta: { title: '登录' } }

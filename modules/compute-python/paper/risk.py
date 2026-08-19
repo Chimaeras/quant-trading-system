@@ -123,6 +123,7 @@ def check_watch_intent(
     pool_median_pct_chg: float | None = None,
     confirmed: bool = True,
     strict_limit_data: bool = False,
+    gate_trace: list | None = None,
 ) -> Intent:
     """盘中 watch 风控：买卖共用基础闸，卖出不被 HALT 错误禁止。
 
@@ -131,6 +132,8 @@ def check_watch_intent(
     """
     if intent.intent_type == IntentType.NOOP:
         intent.risk_status = RiskStatus.PASS
+        if gate_trace is not None:
+            gate_trace.append({"gate": "NOOP", "result": "PASS"})
         return intent
 
     def reject(reason: str) -> Intent:
@@ -141,24 +144,46 @@ def check_watch_intent(
             intent.reason_codes.append(reason)
         return intent
 
+    def note(gate: str, passed: bool) -> None:
+        if gate_trace is not None:
+            gate_trace.append({"gate": gate, "result": "PASS" if passed else "REJECT"})
+
     if not confirmed:
+        note("CONFIRM", False)
         return reject("CONFIRM_REQUIRED")
+    note("CONFIRM", True)
     if universe_codes is not None and intent.stock_code not in universe_codes:
+        note("WATCHLIST", False)
         return reject("NOT_IN_WATCHLIST")
+    note("WATCHLIST", True)
     if intent.intent_type not in {IntentType.BUY_LIMIT, IntentType.SELL_LIMIT}:
+        note("INTENT_TYPE", False)
         return reject("UNSUPPORTED_WATCH_INTENT")
+    note("INTENT_TYPE", True)
     if quote is None or quote.validity != QuoteValidity.VALID or quote.last <= 0:
+        note("QUOTE_VALID", False)
         return reject("QUOTE_NOT_VALID")
+    note("QUOTE_VALID", True)
     if intent.limit_price is None or intent.limit_price <= 0:
+        note("PRICE", False)
         return reject("PRICE_INVALID")
+    note("PRICE", True)
     if intent.qty <= 0 or intent.qty % LOT_SIZE != 0:
+        note("LOT_SIZE", False)
         return reject("LOT_SIZE_VIOLATION")
+    note("LOT_SIZE", True)
     if trades_this_day >= config.max_trades_per_day:
+        note("MAX_TRADES_PER_DAY", False)
         return reject("MAX_TRADES_PER_DAY")
+    note("MAX_TRADES_PER_DAY", True)
     if trades_this_cycle >= config.max_trades_per_cycle:
+        note("MAX_TRADES_PER_CYCLE", False)
         return reject("MAX_TRADES_PER_CYCLE")
+    note("MAX_TRADES_PER_CYCLE", True)
     if not cooldown_ok:
+        note("COOLDOWN", False)
         return reject("COOLDOWN")
+    note("COOLDOWN", True)
 
     position = positions.get(intent.stock_code)
     current_qty = int(getattr(position, "qty", 0) or 0)
@@ -168,11 +193,17 @@ def check_watch_intent(
         # HALT 只禁开仓，允许减仓/退出风险。
         available_lot = available_qty - available_qty % LOT_SIZE
         if available_lot < LOT_SIZE:
+            note("SELLABLE", False)
             return reject("NO_SELLABLE")
+        note("SELLABLE", True)
         if intent.qty > available_lot:
+            note("SELL_QTY_CAP", False)
             return reject("SELL_QTY_EXCEEDS_AVAILABLE")
+        note("SELL_QTY_CAP", True)
         if (quote.pct_chg or 0) <= -9.0 and quote.limit_down_price is None:
+            note("NEAR_LIMIT_DOWN", False)
             return reject("NEAR_LIMIT_DOWN")
+        note("NEAR_LIMIT_DOWN", True)
         if any(
             order.code == intent.stock_code
             and order.side == "sell"
@@ -180,36 +211,56 @@ def check_watch_intent(
             and order_remaining_qty(order) > 0
             for order in open_orders
         ):
+            note("DUPLICATE_SELL_ORDER", False)
             return reject("DUPLICATE_SELL_ORDER")
+        note("DUPLICATE_SELL_ORDER", True)
         intent.risk_status = RiskStatus.PASS
         return intent
 
     # BUY_LIMIT 组合级闸。
     if config.halt:
+        note("HALT", False)
         return reject("HALT")
+    note("HALT", True)
     if quote.limit_up_price is None or (
         strict_limit_data and str(quote.limit_up_source).startswith("derived:")
     ):
+        note("LIMIT_DATA", False)
         return reject("LIMIT_DATA_UNAVAILABLE")
+    note("LIMIT_DATA", True)
     if intent.limit_price >= quote.limit_up_price:
+        note("LIMIT_UP_NOT_BUYABLE", False)
         return reject("LIMIT_UP_NOT_BUYABLE")
+    note("LIMIT_UP_NOT_BUYABLE", True)
     if (quote.pct_chg or 0) >= 9.0:
+        note("NEAR_LIMIT_UP", False)
         return reject("NEAR_LIMIT_UP")
+    note("NEAR_LIMIT_UP", True)
 
     gross = intent.qty * intent.limit_price
     total_cost = gross + estimate_commission(gross)
     if total_cost > balance.avail_balance:
+        note("FUNDS", False)
         return reject("INSUFFICIENT_FUNDS")
+    note("FUNDS", True)
     if balance.avail_balance - total_cost < config.min_cash_reserve:
+        note("CASH_RESERVE_FLOOR", False)
         return reject("CASH_RESERVE_FLOOR")
+    note("CASH_RESERVE_FLOOR", True)
 
     position_value = sum(float(getattr(item, "market_value", 0.0) or 0.0) for item in positions.values())
     if balance.total_assets > 0 and (position_value + gross) / balance.total_assets > config.max_total_weight:
+        note("TOTAL_WEIGHT", False)
         return reject("TOTAL_WEIGHT_EXCEEDED")
+    note("TOTAL_WEIGHT", True)
     if position is None and len([item for item in positions.values() if int(getattr(item, "qty", 0) or 0) > 0]) >= config.max_positions:
+        note("MAX_POSITIONS", False)
         return reject("MAX_POSITIONS")
+    note("MAX_POSITIONS", True)
     if config.index_circuit_breaker and pool_median_pct_chg is not None and pool_median_pct_chg <= -3.0:
+        note("INDEX_CIRCUIT_BREAKER", False)
         return reject("INDEX_CIRCUIT_BREAKER")
+    note("INDEX_CIRCUIT_BREAKER", True)
     if any(
         order.code == intent.stock_code
         and order.side == "buy"
@@ -217,7 +268,9 @@ def check_watch_intent(
         and order_remaining_qty(order) > 0
         for order in open_orders
     ):
+        note("DUPLICATE_BUY_ORDER", False)
         return reject("DUPLICATE_BUY_ORDER")
+    note("DUPLICATE_BUY_ORDER", True)
 
     intent.risk_status = RiskStatus.PASS
     return intent

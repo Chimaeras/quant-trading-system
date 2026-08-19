@@ -520,3 +520,82 @@ def test_prepare_errors_reported_once_per_day(tmp_path: Path):
     second = loop.run_once("2026-08-18", candidates_override=[candidate, disabled], now=T0 + timedelta(minutes=10))
     assert any("KLINE_DISABLED" in err for err in first.errors)
     assert not any("KLINE_DISABLED" in err for err in second.errors)
+
+
+def test_event_log_append_read_with_cursor_and_filters(tmp_path: Path):
+    from paper.watch.events import EventLog, read_events
+
+    log = EventLog(tmp_path, "2026-08-19", now_fn=lambda: T0)
+    log.emit("CYCLE", cycle=1, detail={"phase": "start"})
+    log.emit("QUOTE", code="600519", cycle=1, detail={"last": 10.0, "api_key": "mkt_SECRET"})
+    log.emit("SIGNAL", code="600519", cycle=1, detail={"action": "buy"})
+    log.close()
+
+    # 重启续接 seq
+    log2 = EventLog(tmp_path, "2026-08-19", now_fn=lambda: T0)
+    seq = log2.emit("SUBMIT", code="600519", cycle=1, detail={"status": "SUBMITTED"})
+    assert seq == 4
+
+    all_events = read_events(tmp_path, "2026-08-19")
+    assert len(all_events) == 4
+    assert [e["seq"] for e in read_events(tmp_path, "2026-08-19", after_seq=2)] == [3, 4]
+    assert [e["type"] for e in read_events(tmp_path, "2026-08-19", event_type="SIGNAL")] == ["SIGNAL"]
+    assert [e["type"] for e in read_events(tmp_path, "2026-08-19", code="000002")] == []
+    # 敏感键脱敏
+    quote_event = next(e for e in all_events if e["type"] == "QUOTE")
+    assert quote_event["detail"]["api_key"] == "***"
+
+
+def test_dry_run_loop_emits_full_event_chain(tmp_path: Path):
+    from paper.watch.events import read_events
+
+    code = "600519"
+    # 三个快照时点：建 forming → 写入 close=11 → 收盘触发金叉
+    class _SeqQuote:
+        def __init__(self, lasts):
+            self._lasts = list(lasts)
+
+        def snapshot(self, code, name="", *, run_id="adhoc", received_at=None):
+            from paper.mx_result import MxResult
+
+            last = self._lasts.pop(0)
+            return _quote(code=code, last=last, received_at=received_at, market_time=received_at), MxResult(
+                endpoint="/query", ok=True, code="0", message="ok"
+            )
+
+    loop = WatchLoop(
+        _config(),
+        _SeqQuote([10.0, 11.0, 10.5]),
+        _WatchBroker(),
+        log_base=tmp_path,
+        seed_bars={code: _bars(code, [10.0] * 30)},
+        now_fn=lambda: T0,
+    )
+    candidate = Candidate(code, "测试", "SH", source="watchlist")
+    loop.run_once("2026-08-18", candidates_override=[candidate], now=T0 + timedelta(minutes=5))
+    loop.run_once("2026-08-18", candidates_override=[candidate], now=T0 + timedelta(minutes=9, seconds=30))
+    tick = loop.run_once("2026-08-18", candidates_override=[candidate], now=T0 + timedelta(minutes=11))
+
+    events = read_events(tmp_path, "2026-08-18")
+    types = [e["type"] for e in events]
+    for expected in ("CYCLE", "ACCOUNT", "QUOTE", "BAR_CLOSED", "SIGNAL", "SIZING", "RISK_GATE", "SUBMIT"):
+        assert expected in types, f"missing {expected} in {types}"
+
+    signal = next(e for e in events if e["type"] == "SIGNAL")
+    assert signal["detail"]["action"] == "buy"
+    assert "ma_short_curr" in signal["detail"]["detail"]
+
+    sizing = next(e for e in events if e["type"] == "SIZING")
+    # avail*weight/last 取整百，且再扣最低佣金后的可负担上限
+    assert sizing["detail"]["final_qty"] == 1900
+
+    gate = next(e for e in events if e["type"] == "RISK_GATE")
+    assert gate["detail"]["result"] == "PASS"
+    assert any(g["gate"] == "COOLDOWN" and g["result"] == "PASS" for g in gate["detail"]["gates"])
+
+    submit = next(e for e in events if e["type"] == "SUBMIT")
+    assert submit["detail"]["status"] == "DRY_RUN"
+
+    end_cycle = [e for e in events if e["type"] == "CYCLE"][-1]
+    assert end_cycle["detail"]["phase"] == "end"
+    assert end_cycle["detail"]["status"] == tick.status

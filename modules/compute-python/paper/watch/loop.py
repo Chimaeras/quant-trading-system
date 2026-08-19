@@ -18,6 +18,8 @@ from .artifacts import append_daily_summary, write_tick
 from .bar_store import BarStore
 from .cooldown import CooldownBook
 from .decide_watch import build_watch_intent
+from .events import EventLog
+from .size import sizing_detail
 from .models import WatchTick
 from .signal_adapter import SignalAdapter
 from .state import WatchState
@@ -80,6 +82,9 @@ class WatchLoop:
         self._state: WatchState | None = None
         self._cooldown = CooldownBook(config.cooldown_min)
         self._live_halted = False
+        self._events: EventLog | None = None
+        self._events_date = ""
+        self._cycle = 0
 
     @property
     def calendar(self) -> TradingCalendarService:
@@ -94,6 +99,15 @@ class WatchLoop:
 
     def _state_path(self, trade_date: str) -> Path:
         return self.log_base / "watch" / trade_date / "state.json"
+
+    def _event_log(self, trade_date: str) -> EventLog:
+        # 按交易日懒加载事件流水；跨日自动轮转新文件，seq 续接。
+        if self._events is None or self._events_date != trade_date or self._events._handle.closed:
+            if self._events is not None:
+                self._events.close()
+            self._events = EventLog(self.log_base, trade_date, now_fn=self.now_fn)
+            self._events_date = trade_date
+        return self._events
 
     def prepare(self, signal_date: str, candidates_override=None, *, now: datetime | None = None) -> list[str]:
         """加载观察池、恢复状态并预热分钟 K 线。失败的股票当日禁用，不混用日线 fallback。"""
@@ -138,6 +152,11 @@ class WatchLoop:
 
         self._prepared_date = trade_date
         self._prepare_errors_pending = True
+        events = self._event_log(trade_date)
+        for code, reason in self._disabled_codes.items():
+            events.emit("ERROR", code=code, detail={"scope": "KLINE_DISABLED", "message": reason}, now=current)
+        if errors:
+            events.emit("ERROR", detail={"scope": "UNIVERSE", "messages": errors}, now=current)
         return list(self._prepare_errors)
 
     def _account(self, run_id: str):
@@ -262,6 +281,9 @@ class WatchLoop:
         current = now or self.now_fn()
         trade_date = current.strftime("%Y-%m-%d")
         run_id = _run_id(current)
+        self._cycle += 1
+        events = self._event_log(trade_date)
+        events.emit("CYCLE", cycle=self._cycle, detail={"phase": "start", "run_id": run_id, "live_requested": bool(live)}, now=current)
         actual_live = bool(live and confirm and self.config.watch_live and not self._live_halted)
         tick = WatchTick(
             run_id=run_id,
@@ -319,6 +341,13 @@ class WatchLoop:
             tick.status = "BLOCKED"
             return self._finish(tick)
         tick.account = self._account_snapshot(balance, positions, orders)
+        events.emit("ACCOUNT", cycle=self._cycle, detail={
+            "phase": "before",
+            "total_assets": balance.total_assets,
+            "avail_balance": balance.avail_balance,
+            "positions": len(positions),
+            "open_orders": len(orders),
+        }, now=current)
         position_map = {position.code: position for position in positions}
         pool_pcts: list[float] = []
         quotes: dict[str, object] = {}
@@ -335,13 +364,24 @@ class WatchLoop:
                 received_at=current,
             )
             if quote is None:
-                tick.errors.append(f"quote {candidate.stock_code} 失败: {_result_message(result)}")
+                message = _result_message(result)
+                tick.errors.append(f"quote {candidate.stock_code} 失败: {message}")
+                events.emit("QUOTE_FAIL", code=candidate.stock_code, cycle=self._cycle,
+                            detail={"message": message}, now=current)
                 if result is not None and result.stop_run():
                     self._live_halted = True
                     tick.errors.append("STOP_RUN: 行情错误触发停止性错误")
+                    events.emit("ERROR", code=candidate.stock_code, cycle=self._cycle,
+                                detail={"scope": "STOP_RUN", "message": "行情错误触发停止性错误"}, now=current)
                     break
                 continue
             quotes[candidate.stock_code] = quote
+            events.emit("QUOTE", code=candidate.stock_code, cycle=self._cycle, detail={
+                "last": quote.last,
+                "pct_chg": quote.pct_chg,
+                "volume": quote.volume,
+                "validity": quote.validity.value,
+            }, now=current)
             if quote.pct_chg is not None:
                 pool_pcts.append(quote.pct_chg)
             try:
@@ -350,6 +390,12 @@ class WatchLoop:
                 tick.errors.append(f"bar {candidate.stock_code} 失败: {exc}")
                 continue
             updates[candidate.stock_code] = update
+            for closed_bar in update.new_closed:
+                events.emit("BAR_CLOSED", code=candidate.stock_code, cycle=self._cycle, detail={
+                    "open": closed_bar.open, "high": closed_bar.high, "low": closed_bar.low,
+                    "close": closed_bar.close, "volume": closed_bar.volume,
+                    "start_ts": closed_bar.start_ts.isoformat(), "end_ts": closed_bar.end_ts.isoformat(),
+                }, now=current)
             tick.new_closed_bars.extend(bar.to_dict() for bar in update.new_closed)
 
         pool_median_pct = median(pool_pcts) if pool_pcts else None
@@ -377,6 +423,7 @@ class WatchLoop:
                     position.qty if position else 0,
                 )
                 tick.signals.append(signal.to_dict())
+                events.emit("SIGNAL", code=candidate.stock_code, cycle=self._cycle, detail=signal.to_dict(), now=current)
                 intent = build_watch_intent(
                     candidate,
                     signal,
@@ -390,6 +437,12 @@ class WatchLoop:
                     intent.intent_type = IntentType.NOOP
                     intent.risk_reject_reason = "FROZEN_PREVIOUS_UNKNOWN"
                     intent.reason_codes.append("FROZEN_PREVIOUS_UNKNOWN")
+                if intent.intent_type in {IntentType.BUY_LIMIT, IntentType.SELL_LIMIT}:
+                    events.emit("SIZING", code=candidate.stock_code, cycle=self._cycle, detail=sizing_detail(
+                        balance, quote.last, self.config, intent.side,
+                        available_qty=position.avail_qty if position else 0,
+                    ), now=current)
+                gate_trace: list = []
                 checked = check_watch_intent(
                     intent,
                     quote,
@@ -404,13 +457,25 @@ class WatchLoop:
                     pool_median_pct_chg=pool_median_pct,
                     confirmed=True,
                     strict_limit_data=actual_live,
+                    gate_trace=gate_trace,
                 )
+                events.emit("RISK_GATE", code=candidate.stock_code, cycle=self._cycle, detail={
+                    "intent": intent.intent_type.value,
+                    "qty": intent.qty,
+                    "limit_price": intent.limit_price,
+                    "result": "PASS" if checked.risk_status.value == "PASS" and checked.intent_type == intent.intent_type else "REJECT",
+                    "reject_reason": checked.risk_reject_reason or "",
+                    "gates": gate_trace,
+                }, now=current)
                 tick.intents.append(checked.to_dict())
                 if checked.intent_type not in {IntentType.BUY_LIMIT, IntentType.SELL_LIMIT} or checked.risk_status.value != "PASS":
                     continue
                 if not actual_live:
                     checked.reason_codes.append("DRY_RUN_NO_SUBMIT")
                     tick.intents[-1] = checked.to_dict()
+                    events.emit("SUBMIT", code=candidate.stock_code, cycle=self._cycle, detail={
+                        "status": "DRY_RUN", "side": checked.side, "qty": checked.qty, "price": checked.limit_price,
+                    }, now=current)
                     continue
                 if self._live_halted:
                     # 本轮中途触发 STOP_RUN（行情失败或上一笔提交被拒）后，
@@ -420,6 +485,11 @@ class WatchLoop:
                     continue
                 record = self._submit(checked, run_id)
                 tick.submits.append(asdict(record))
+                events.emit("SUBMIT", code=candidate.stock_code, cycle=self._cycle, detail={
+                    "status": record.status, "side": checked.side, "qty": checked.qty,
+                    "price": checked.limit_price, "order_id": record.order_id,
+                    "error_code": record.error_code, "error_message": record.error_message,
+                }, now=current)
                 cycle_submits += 1
                 if self._state is not None:
                     self._state.day_trade_count += 1
@@ -455,11 +525,23 @@ class WatchLoop:
                 tick.status = "BLOCKED"
             else:
                 tick.account["after"] = self._account_snapshot(balance_after, positions_after, orders_after)
+                events.emit("ACCOUNT", cycle=self._cycle, detail={
+                    "phase": "after",
+                    "total_assets": balance_after.total_assets,
+                    "avail_balance": balance_after.avail_balance,
+                    "positions": len(positions_after),
+                    "open_orders": len(orders_after),
+                }, now=self.now_fn())
         if self._live_halted:
             tick.errors.append("LIVE_DISABLED_AFTER_STOP_RUN")
             tick.live = False
         if tick.errors and tick.status == "OK":
             tick.status = "DEGRADED"
+        events.emit("CYCLE", cycle=self._cycle, detail={
+            "phase": "end", "run_id": run_id, "status": tick.status, "live": tick.live,
+            "bars": len(tick.new_closed_bars), "signals": len(tick.signals),
+            "submits": len(tick.submits), "errors": len(tick.errors),
+        }, now=self.now_fn())
         return self._finish(tick)
 
     def run(

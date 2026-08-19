@@ -10,7 +10,7 @@ from .config import PaperConfig
 from .mx_http import MxHttpClient, raw_hash
 from .mx_result import MxErrorKind, MxResult
 from .parse_query import QuoteParseError, apply_freshness, parse_query
-from .models import Quote
+from .models import Quote, QuoteValidity
 
 QUERY_ENDPOINT = "/api/claw/query"
 EASTMONEY_SNAPSHOT_ENDPOINT = "https://push2.eastmoney.com/api/qt/clist/get"
@@ -30,14 +30,28 @@ def _eastmoney_market_id(code: str, exchange: str | None = None) -> str:
     return "1" if pure.startswith(("5", "6", "9")) else "0"
 
 
-def _float_field(value, *, scale: float = 1.0) -> float | None:
+def _float_field(value, *, scale: float = 1.0, allow_negative: bool = False) -> float | None:
     try:
         number = float(value)
     except (TypeError, ValueError):
         return None
-    if number != number or number < 0:
+    if number != number or (number < 0 and not allow_negative):
         return None
     return number * scale
+
+
+def _market_timestamp(value) -> datetime | None:
+    """解析东方财富 f124 秒级时间戳；缺失时不以本地接收时间冒充行情时间。"""
+    try:
+        timestamp = int(float(value))
+    except (TypeError, ValueError):
+        return None
+    if timestamp <= 0:
+        return None
+    try:
+        return datetime.fromtimestamp(timestamp)
+    except (OSError, OverflowError, ValueError):
+        return None
 
 
 def build_tool_query(stock_name: str, stock_code: str) -> str:
@@ -95,17 +109,19 @@ class QuoteClient:
         current = received_at or datetime.now()
         result_by_code: dict[str, tuple[Quote | None, MxResult]] = {}
         candidate_by_code = {str(item.stock_code): item for item in candidates}
-        codes = list(candidate_by_code)
-        if not codes:
+        if not candidate_by_code:
             return result_by_code
 
-        fields = "f2,f3,f5,f6,f12,f13,f14,f15,f16,f17,f18"
-        for offset in range(0, len(codes), 1000):
-            chunk = codes[offset:offset + 1000]
-            secids = ",".join(
-                f"{_eastmoney_market_id(candidate_by_code[code].stock_code, candidate_by_code[code].exchange_type)}.{code}"
-                for code in chunk
-            )
+        # clist/get 是市场列表分页接口，不保证按 secids 参数过滤。必须对
+        # 沪深北 A 股市场做确定性分页后再与本地主数据求交，不能按候选代码
+        # 分块反复请求第 1 页，否则会静默漏掉排序靠后的证券。
+        fields = "f2,f3,f5,f6,f12,f13,f14,f15,f16,f17,f18,f124"
+        page_size = 1000
+        page = 1
+        total: int | None = None
+        seen_page_fingerprints: set[tuple[str, ...]] = set()
+        terminal_error: MxResult | None = None
+        while len(result_by_code) < len(candidate_by_code):
             payload = None
             last_exc: Exception | None = None
             for attempt in range(max(1, self._config.max_retry)):
@@ -113,16 +129,17 @@ class QuoteClient:
                     response = requests.get(
                         EASTMONEY_SNAPSHOT_ENDPOINT,
                         params={
-                            "pn": "1",
-                            "pz": str(len(chunk)),
+                            "pn": str(page),
+                            "pz": str(page_size),
                             "po": "1",
                             "np": "1",
                             "fltt": "2",
                             "invt": "2",
-                            "fid": "f3",
+                            # 代码排序使分页在同一轮请求期间更稳定；涨跌幅排序
+                            # 会随行情变化造成跨页重复/遗漏。
+                            "fid": "f12",
                             "fs": "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:1+t:80",
                             "fields": fields,
-                            "secids": secids,
                         },
                         headers={"User-Agent": "quant-trading-system/1.0"},
                         timeout=20,
@@ -135,7 +152,7 @@ class QuoteClient:
                     if attempt < max(1, self._config.max_retry) - 1:
                         time.sleep(0.5 * (attempt + 1))
             if not isinstance(payload, dict):
-                result = MxResult(
+                terminal_error = MxResult(
                     endpoint=EASTMONEY_SNAPSHOT_ENDPOINT,
                     ok=False,
                     code="HTTP_ERROR" if last_exc else "PARSE_ERROR",
@@ -145,9 +162,7 @@ class QuoteClient:
                     ),
                     kind=MxErrorKind.HTTP_ERROR if last_exc else MxErrorKind.PARSE_ERROR,
                 )
-                for code in chunk:
-                    result_by_code[code] = (None, result)
-                continue
+                break
 
             data = payload.get("data")
             raw_diff = data.get("diff") if isinstance(data, dict) else None
@@ -157,8 +172,13 @@ class QuoteClient:
                 rows = raw_diff
             else:
                 rows = []
+            if total is None and isinstance(data, dict):
+                try:
+                    total = max(int(data.get("total", 0) or 0), 0)
+                except (TypeError, ValueError):
+                    total = 0
             if not rows:
-                result = MxResult(
+                terminal_error = MxResult(
                     endpoint=EASTMONEY_SNAPSHOT_ENDPOINT,
                     ok=False,
                     code="PARSE_ERROR",
@@ -166,12 +186,10 @@ class QuoteClient:
                     kind=MxErrorKind.PARSE_ERROR,
                     raw=payload,
                 )
-                for code in chunk:
-                    result_by_code[code] = (None, result)
-                continue
+                break
 
             save_raw = getattr(self._http, "save_raw", None)
-            raw_path = save_raw(run_id, "eastmoney_snapshot_batch", payload) if callable(save_raw) else ""
+            raw_path = save_raw(run_id, f"eastmoney_snapshot_batch_p{page}", payload) if callable(save_raw) else ""
             result = MxResult(
                 endpoint=EASTMONEY_SNAPSHOT_ENDPOINT,
                 ok=True,
@@ -182,49 +200,76 @@ class QuoteClient:
                 raw=payload,
                 raw_path=raw_path,
             )
-            returned: set[str] = set()
+            page_codes: list[str] = []
             for row in rows:
                 if not isinstance(row, dict):
                     continue
                 code = str(row.get("f12", "")).strip().zfill(6)
+                page_codes.append(code)
                 if code not in candidate_by_code:
                     continue
                 candidate = candidate_by_code[code]
                 last = _float_field(row.get("f2"))
-                pct = _float_field(row.get("f3"))
+                pct = _float_field(row.get("f3"), allow_negative=True)
                 volume = _float_field(row.get("f5"), scale=100.0)
                 amount = _float_field(row.get("f6"))
                 name = str(row.get("f14", "")).strip() or candidate.stock_name
+                market_time = _market_timestamp(row.get("f124"))
                 if last is None or last <= 0:
                     quote = Quote(
                         code=code, name=name, exchange=candidate.exchange_type,
                         last=0.0, pct_chg=pct, volume=volume, amount=amount,
-                        market_time=current, received_at=current,
+                        market_time=market_time, received_at=current,
                         source="eastmoney_batch", validity=QuoteValidity.INVALID,
                         error="LAST_PRICE_UNAVAILABLE",
                     )
                 else:
                     validity = QuoteValidity.NOT_TRADABLE if not volume else QuoteValidity.VALID
+                    error = ""
+                    if market_time is None:
+                        validity = QuoteValidity.INVALID
+                        error = "MARKET_TIME_UNAVAILABLE"
                     quote = Quote(
                         code=code, name=name, exchange=candidate.exchange_type,
                         last=last, pct_chg=pct, volume=volume, amount=amount,
-                        market_time=current, received_at=current,
-                        source="eastmoney_batch", validity=validity,
+                        market_time=market_time, received_at=current,
+                        source="eastmoney_batch", validity=validity, error=error,
                     )
+                    if quote.validity == QuoteValidity.VALID:
+                        apply_freshness(
+                            quote,
+                            self._config.quote_stale_sec,
+                            self._config.clock_skew_sec,
+                        )
                 result_by_code[code] = (quote, result)
-                returned.add(code)
-            for code in chunk:
-                if code not in returned:
-                    result_by_code[code] = (
-                        None,
-                        MxResult(
-                            endpoint=EASTMONEY_SNAPSHOT_ENDPOINT,
-                            ok=False,
-                            code="MISSING",
-                            message=f"批量行情未返回 {code}",
-                            kind=MxErrorKind.BIZ_ERROR,
-                            raw=payload,
-                            raw_path=raw_path,
-                        ),
-                    )
+            fingerprint = tuple(page_codes)
+            if fingerprint in seen_page_fingerprints:
+                terminal_error = MxResult(
+                    endpoint=EASTMONEY_SNAPSHOT_ENDPOINT,
+                    ok=False,
+                    code="PAGINATION_REPEATED",
+                    message=f"批量行情第 {page} 页与前页重复，停止以避免静默漏数",
+                    kind=MxErrorKind.PARSE_ERROR,
+                    raw=payload,
+                    raw_path=raw_path,
+                )
+                break
+            seen_page_fingerprints.add(fingerprint)
+            if len(rows) < page_size or (total and page * page_size >= total):
+                break
+            page += 1
+
+        for code in candidate_by_code:
+            if code in result_by_code:
+                continue
+            result_by_code[code] = (
+                None,
+                terminal_error or MxResult(
+                    endpoint=EASTMONEY_SNAPSHOT_ENDPOINT,
+                    ok=False,
+                    code="MISSING",
+                    message=f"全市场分页完成后仍未返回 {code}",
+                    kind=MxErrorKind.BIZ_ERROR,
+                ),
+            )
         return result_by_code

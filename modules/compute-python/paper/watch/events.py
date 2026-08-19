@@ -2,7 +2,7 @@
 
 每行一个 JSON 事件（已脱敏），格式：
 {"seq": 1, "ts": "09:35:02", "date": "2026-08-19", "cycle": 18,
- "type": "QUOTE|BAR_CLOSED|SIGNAL|SIZING|RISK_GATE|SUBMIT|ACCOUNT|CYCLE|ERROR",
+ "type": "QUOTE|BAR_CLOSED|SIGNAL|SIZING|RISK_GATE|ORDER|SUBMIT|FILL|CANCEL|ACCOUNT|READINESS|CYCLE|ERROR",
 "code": "600519", "name": "贵州茅台", "detail": {...}}
 """
 from __future__ import annotations
@@ -15,7 +15,8 @@ from ..mx_http import sanitize_payload
 
 EVENT_TYPES = {
     "QUOTE", "QUOTE_FAIL", "BAR_CLOSED", "SIGNAL", "SIZING",
-    "RISK_GATE", "SUBMIT", "ACCOUNT", "CYCLE", "ERROR",
+    "RISK_GATE", "ORDER", "SUBMIT", "FILL", "CANCEL", "ACCOUNT",
+    "READINESS", "CYCLE", "ERROR",
 }
 
 

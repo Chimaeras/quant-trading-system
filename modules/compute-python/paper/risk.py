@@ -262,12 +262,47 @@ def check_watch_intent(
         return reject("CASH_RESERVE_FLOOR")
     note("CASH_RESERVE_FLOOR", True)
 
-    position_value = sum(float(getattr(item, "market_value", 0.0) or 0.0) for item in positions.values())
-    if balance.total_assets > 0 and (position_value + gross) / balance.total_assets > config.max_total_weight:
+    position_value = max(
+        float(getattr(balance, "market_value", 0.0) or 0.0),
+        sum(float(getattr(item, "market_value", 0.0) or 0.0) for item in positions.values()),
+    )
+    active_buy_orders = [
+        order for order in open_orders
+        if order.side == "buy"
+        and order.status in ACTIVE_ORDER_STATUSES
+        and order_remaining_qty(order) > 0
+    ]
+    if any(order.price is None or order.price <= 0 for order in active_buy_orders):
+        note("OPEN_BUY_EXPOSURE", False)
+        return reject("OPEN_BUY_EXPOSURE_UNKNOWN")
+    pending_buy_value = sum(
+        order_remaining_qty(order) * float(order.price)
+        for order in active_buy_orders
+    )
+    note("OPEN_BUY_EXPOSURE", True)
+    if balance.total_assets > 0 and (position_value + pending_buy_value + gross) / balance.total_assets > config.max_total_weight:
         note("TOTAL_WEIGHT", False)
         return reject("TOTAL_WEIGHT_EXCEEDED")
     note("TOTAL_WEIGHT", True)
-    if position is None and len([item for item in positions.values() if int(getattr(item, "qty", 0) or 0) > 0]) >= config.max_positions:
+    current_name_value = float(getattr(position, "market_value", 0.0) or 0.0)
+    pending_name_value = sum(
+        order_remaining_qty(order) * float(order.price)
+        for order in active_buy_orders
+        if order.code == intent.stock_code
+    )
+    if (
+        balance.total_assets > 0
+        and (current_name_value + pending_name_value + gross) / balance.total_assets > config.max_name_weight
+    ):
+        note("NAME_WEIGHT", False)
+        return reject("NAME_WEIGHT_EXCEEDED")
+    note("NAME_WEIGHT", True)
+    occupied_codes = {
+        str(code) for code, item in positions.items()
+        if int(getattr(item, "qty", 0) or 0) > 0
+    }
+    occupied_codes.update(order.code for order in active_buy_orders)
+    if intent.stock_code not in occupied_codes and len(occupied_codes) >= config.max_positions:
         note("MAX_POSITIONS", False)
         return reject("MAX_POSITIONS")
     note("MAX_POSITIONS", True)

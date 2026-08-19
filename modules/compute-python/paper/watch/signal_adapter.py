@@ -1,6 +1,8 @@
 """把现有 strategies 包装为持仓外置的 watch 信号适配器。"""
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 
 from strategies.boll_strategy import BOLLStrategy
@@ -66,6 +68,18 @@ class SignalAdapter:
         if self.strategy_name == "MACD":
             return 26 + 2 * 9
         return self.boll_period
+
+    def parameter_hash(self) -> str:
+        """策略进度的稳定版本键；参数变化后不会误复用旧进度。"""
+        payload = {
+            "strategy": self.strategy_name,
+            "ma_short": self.ma_short,
+            "ma_long": self.ma_long,
+            "boll_period": self.boll_period,
+            "boll_std": self.boll_std,
+        }
+        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()[:16]
 
     def seed(self, code: str, bars: list[WatchBar]) -> None:
         state = _StrategyState(self._new_strategy(), 0)

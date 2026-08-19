@@ -246,16 +246,32 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
 
 
 def _watch_loop(config: PaperConfig, args: argparse.Namespace):
+    from .watch.internal_broker import InternalPaperBroker
     from .watch.kline_client import KlineClient
     from .watch.loop import WatchLoop
+    from .watch.store import SqliteWatchStore, WatchStoreError
 
     http, quote_client, broker = _build_clients(config)
+    store_path = Path(config.watch_store_path) if config.watch_store_path else LOG_BASE / "watch" / "runtime.sqlite3"
+    store = None
+    store_error = ""
+    try:
+        store = SqliteWatchStore(store_path)
+    except WatchStoreError as exc:
+        # dry-run 仍可退回原 JSON/内存模式观察；live 会由 readiness/lease
+        # 明确阻断，不在构造阶段留下难以理解的裸栈。
+        store_error = f"{type(exc).__name__}:{exc}"
+    if config.watch_execution_mode == "INTERNAL_PAPER" and store is not None:
+        broker = InternalPaperBroker(store, config)
     return WatchLoop(
         config,
         quote_client,
         broker,
         kline_client=KlineClient(http, config),
         log_base=LOG_BASE,
+        store=store,
+        require_persistence=True,
+        store_init_error=store_error,
     )
 
 
@@ -280,7 +296,8 @@ def _print_watch_tick(tick) -> None:
     }
     print(
         f"[paper][模拟][watch] {tick.finished_at} status={tick.status} "
-        f"live={tick.live} bars={len(tick.new_closed_bars)} "
+        f"mode={tick.metrics.get('execution_mode', 'SHADOW')} live={tick.live} "
+        f"bars={len(tick.new_closed_bars)} "
         f"signals={len(tick.signals)} intents={len(tick.intents)} submits={len(tick.submits)}"
     )
     for intent in tick.intents:

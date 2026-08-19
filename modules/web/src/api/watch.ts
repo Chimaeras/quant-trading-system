@@ -39,7 +39,10 @@ export interface WatchTickSummary {
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`/pyapi${path}`)
+  const token = localStorage.getItem('quant_token')
+  const res = await fetch(`/pyapi${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined
+  })
   if (!res.ok) {
     throw new Error(`watch-serve ${res.status}: ${path}`)
   }

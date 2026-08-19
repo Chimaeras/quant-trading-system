@@ -167,6 +167,71 @@ def test_live_buy_accepts_official_limit_price():
     assert out.risk_status == RiskStatus.PASS
 
 
+def test_watch_risk_counts_active_buy_commitments_in_total_weight_and_positions():
+    balance = Balance(total_assets=100000, avail_balance=70000, market_value=10000)
+    active = MxOrder(
+        order_id="pending-1", code="000001", side="buy", price=20.0,
+        qty=1000, filled_qty=0, status="2",
+    )
+    intent = Intent("600519", IntentType.BUY_LIMIT, side="buy", qty=1000, limit_price=10.0)
+    out = check_watch_intent(
+        intent,
+        _quote(last=10),
+        balance,
+        {},
+        [active],
+        _config(max_total_weight=0.35, max_name_weight=0.20),
+    )
+    # 现持仓 1 万 + 活动买单 2 万 + 新单 1 万 = 40%，必须被 35% 上限拦截。
+    assert out.risk_reject_reason == "TOTAL_WEIGHT_EXCEEDED"
+
+    position_limited = Intent("600519", IntentType.BUY_LIMIT, side="buy", qty=100, limit_price=10.0)
+    out2 = check_watch_intent(
+        position_limited,
+        _quote(last=10),
+        Balance(total_assets=100000, avail_balance=80000),
+        {},
+        [active],
+        _config(max_total_weight=1.0, max_positions=1),
+    )
+    assert out2.risk_reject_reason == "MAX_POSITIONS"
+
+
+def test_watch_risk_fails_closed_when_active_buy_exposure_price_is_unknown():
+    active = MxOrder(
+        order_id="pending-1", code="000001", side="buy", price=None,
+        qty=1000, filled_qty=0, status="2",
+    )
+    intent = Intent("600519", IntentType.BUY_LIMIT, side="buy", qty=100, limit_price=10.0)
+    out = check_watch_intent(
+        intent,
+        _quote(last=10),
+        Balance(total_assets=100000, avail_balance=80000),
+        {},
+        [active],
+        _config(),
+    )
+    assert out.risk_reject_reason == "OPEN_BUY_EXPOSURE_UNKNOWN"
+
+
+def test_watch_buy_sizes_with_order_limit_price_so_name_weight_does_not_self_reject():
+    from paper.watch.decide_watch import build_watch_intent
+    from paper.watch.models import WatchSignal
+
+    config = _config(max_name_weight=0.20, slippage_bps=20)
+    balance = Balance(total_assets=100000, avail_balance=100000)
+    candidate = Candidate("600519", "测试", "SH", source="watchlist")
+    signal = WatchSignal("600519", "buy", "MA_CROSS", T0.isoformat(), ["MA_GOLDEN", "BAR_CLOSED"])
+    quote = _quote(last=10.0)
+
+    intent = build_watch_intent(candidate, signal, quote, balance, None, config, now=T0)
+    checked = check_watch_intent(intent, quote, balance, {}, [], config)
+
+    assert intent.limit_price == 10.02
+    assert intent.qty == 1900
+    assert checked.risk_status == RiskStatus.PASS
+
+
 class _WatchBroker:
     def __init__(self):
         self.trade_calls = []
@@ -462,6 +527,7 @@ def test_live_halt_mid_cycle_blocks_remaining_submits(tmp_path: Path):
     assert len(broker.trade_calls) == 1
     assert broker.trade_calls[0][0][0] == code_a
     assert loop._live_halted is True
+    assert loop._state.day_trade_count == 0  # 明确拒单不计入已受理交易数
     assert tick.live is False
     assert any(record["status"] == "REJECTED" for record in tick.submits)
     assert any(reason == "LIVE_HALTED_NO_SUBMIT" for intent in tick.intents for reason in intent["reason_codes"])
@@ -663,6 +729,114 @@ def test_close_releases_event_log_handle(tmp_path: Path):
     loop.close()
     import shutil
     shutil.rmtree(tmp_path)
+
+
+def test_corrupted_watch_state_blocks_live_but_reports_recovery_error(tmp_path: Path):
+    state_path = tmp_path / "watch" / "2026-08-18" / "state.json"
+    state_path.parent.mkdir(parents=True)
+    state_path.write_text('{"trade_date":"2026-08-18","day_trade_count":', encoding="utf-8")
+    broker = _WatchBroker()
+    loop = WatchLoop(
+        _config(watch_live=True),
+        _WatchQuote(),
+        broker,
+        log_base=tmp_path,
+        seed_bars={},
+        calendar=TradingCalendarService(source="test"),
+    )
+    tick = loop.run_once(
+        "2026-08-18",
+        live=True,
+        confirm=True,
+        candidates_override=[],
+        now=T0 + timedelta(minutes=5),
+    )
+
+    assert tick.status == "BLOCKED"
+    assert tick.live is False
+    assert broker.trade_calls == []
+    assert any(error.startswith("STATE_RECOVERY_FAILED") for error in tick.errors)
+    assert "STATE_RECOVERY_BLOCKED:交易状态无法可靠恢复，live 禁止继续" in tick.errors
+
+
+def test_watch_state_save_is_atomic_and_round_trips(tmp_path: Path):
+    from paper.watch.state import WatchState
+
+    path = tmp_path / "watch" / "2026-08-18" / "state.json"
+    state = WatchState(trade_date="2026-08-18", day_trade_count=3)
+    cooldown = CooldownBook(15)
+    cooldown.record("600519", "buy", T0)
+    state.save(path, cooldown)
+    restored, restored_cooldown = WatchState.load(path, "2026-08-18", 15)
+
+    assert restored.day_trade_count == 3
+    assert restored.recovery_error == ""
+    assert not list(path.parent.glob(".state.json.*.tmp"))
+    assert not restored_cooldown.can_trade("600519", "sell", T0 + timedelta(minutes=1))
+
+
+def test_unknown_submit_is_not_released_when_reconcile_state_cannot_persist(tmp_path: Path):
+    from paper.watch.state import WatchState
+
+    loop = WatchLoop(_config(), _WatchQuote(), _WatchBroker(), log_base=tmp_path, seed_bars={})
+    pending = {
+        "stock_code": "600519", "side": "buy", "qty": 100,
+        "price": 10.0, "run_id": "old",
+    }
+    loop._state = WatchState(trade_date="2026-08-18", unknown_submits=[pending])
+    loop._unknown_halt = True
+    loop._live_halted = True
+    loop._state.save = lambda *args, **kwargs: (_ for _ in ()).throw(OSError("disk full"))
+    order = MxOrder("o-1", "600519", "buy", 10.0, 100, 0, "2")
+
+    messages = loop._reconcile_unknown_submits([order], "2026-08-18")
+
+    assert loop._state.unknown_submits == [pending]
+    assert loop._live_halted is True
+    assert "STATE_PERSIST_FAILED:OSError" in messages
+
+
+def test_live_blocks_when_quote_coverage_is_below_threshold(tmp_path: Path):
+    from paper.mx_result import MxResult
+
+    code_ok, code_missing = "600519", "000001"
+
+    class _PartialQuote:
+        def snapshot(self, code, name="", *, run_id="adhoc", received_at=None):
+            if code == code_ok:
+                return _quote(code=code, received_at=received_at, market_time=received_at), MxResult(
+                    endpoint="/query", ok=True, code="0", message="ok"
+                )
+            return None, MxResult(endpoint="/query", ok=False, code="MISSING", message="missing")
+
+    broker = _ResultBroker([])
+    loop = WatchLoop(
+        _config(watch_live=True, min_quote_coverage=0.75),
+        _PartialQuote(),
+        broker,
+        log_base=tmp_path,
+        seed_bars={
+            code_ok: _bars(code_ok, [10.0] * 30),
+            code_missing: _bars(code_missing, [10.0] * 30),
+        },
+        calendar=TradingCalendarService(source="test"),
+    )
+    tick = loop.run_once(
+        "2026-08-18",
+        live=True,
+        confirm=True,
+        candidates_override=[
+            Candidate(code_ok, "测试A", "SH", source="watchlist"),
+            Candidate(code_missing, "测试B", "SZ", source="watchlist"),
+        ],
+        now=T0 + timedelta(minutes=5),
+    )
+
+    assert tick.status == "BLOCKED"
+    assert tick.live is False
+    assert broker.trade_calls == []
+    assert any(error.startswith("QUOTE_COVERAGE_BLOCKED:50.00%<75.00%") for error in tick.errors)
+    assert tick.metrics["quote_coverage"] == 0.5
 
 
 def test_serve_rejects_bad_query_params(tmp_path: Path):

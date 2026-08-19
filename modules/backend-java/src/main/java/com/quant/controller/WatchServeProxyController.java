@@ -3,10 +3,9 @@ package com.quant.controller;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -30,7 +29,7 @@ public class WatchServeProxyController {
         this.restClient = RestClient.builder().requestFactory(factory).build();
     }
 
-    @RequestMapping("/pyapi/**")
+    @GetMapping("/pyapi/**")
     public ResponseEntity<byte[]> proxy(HttpServletRequest request) {
         String uri = request.getRequestURI();
         String prefix = "/pyapi";
@@ -42,7 +41,7 @@ public class WatchServeProxyController {
         String target = watchServeBase + path + (query == null || query.isBlank() ? "" : "?" + query);
 
         try {
-            return restClient.method(HttpMethod.valueOf(request.getMethod()))
+            return restClient.get()
                     .uri(target)
                     .retrieve()
                     .toEntity(byte[].class);

@@ -230,7 +230,7 @@ const autoRefresh = ref(true)
 const typeFilter = ref('')
 const codeFilter = ref('')
 const tradesOnly = ref(false)
-const typeOptions = ['CYCLE', 'QUOTE', 'QUOTE_FAIL', 'BAR_CLOSED', 'SIGNAL', 'SIZING', 'RISK_GATE', 'SUBMIT', 'ACCOUNT', 'ERROR']
+const typeOptions = ['CYCLE', 'READINESS', 'QUOTE', 'QUOTE_FAIL', 'BAR_CLOSED', 'SIGNAL', 'SIZING', 'RISK_GATE', 'ORDER', 'SUBMIT', 'FILL', 'CANCEL', 'ACCOUNT', 'ERROR']
 
 const detailVisible = ref(false)
 const detailCode = ref('')
@@ -278,7 +278,7 @@ const filteredEvents = computed(() => {
   let list = events.value.map((e) => ({ ...e, name: eventName(e) }))
   if (typeFilter.value) list = list.filter((e) => e.type === typeFilter.value)
   if (codeFilter.value) list = list.filter((e) => e.code === codeFilter.value)
-  if (tradesOnly.value) list = list.filter((e) => ['SIGNAL', 'SIZING', 'RISK_GATE', 'SUBMIT'].includes(e.type))
+  if (tradesOnly.value) list = list.filter((e) => ['SIGNAL', 'SIZING', 'RISK_GATE', 'ORDER', 'SUBMIT', 'FILL', 'CANCEL'].includes(e.type))
   return [...list].reverse()
 })
 
@@ -317,8 +317,18 @@ function eventSummary(row: WatchEvent): string {
       return d.result === 'PASS' ? `${d.intent} 通过全部闸门` : `${d.intent} 被拦：${d.reject_reason}`
     case 'SUBMIT':
       return `${d.side} ${d.qty} 股 @ ${d.price?.toFixed(2)}`
+    case 'ORDER':
+      return `${d.phase || '状态更新'}：${d.status || ''} ${d.client_order_id || ''}`
+    case 'FILL':
+      return `${d.side} 成交 ${d.qty} 股 @ ${Number(d.price).toFixed(3)}，费用 ${Number(d.total_fee || 0).toFixed(2)}，${d.status}`
+    case 'CANCEL':
+      return `${d.ok ? '撤单请求成功' : '撤单结果未知'}：${d.client_order_id || d.broker_order_id || ''} ${d.status || ''}`
     case 'ACCOUNT':
       return `${d.phase}：总资产 ${d.total_assets} 可用 ${d.avail_balance} 持仓 ${d.positions} 委托 ${d.open_orders}`
+    case 'READINESS': {
+      const warmup = (d.checks || []).find((item: any) => item.name === 'strategy_warmup')
+      return `${d.ready ? '已就绪' : '未就绪'}，策略预热 ${warmup?.ready ?? 0}/${warmup?.total ?? 0}`
+    }
     case 'CYCLE':
       return d.phase === 'start' ? `轮次开始（${d.live_requested ? '请求 live' : 'dry-run'}）` : `状态 ${d.status}，bar ${d.bars} 信号 ${d.signals} 提交 ${d.submits} 错误 ${d.errors}`
     case 'ERROR':
@@ -349,8 +359,8 @@ function eventSummaryClass(row: WatchEvent): string {
 type WatchTagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
 function typeTagType(type: string): WatchTagType {
   const map: Record<string, WatchTagType> = {
-    SIGNAL: 'warning', SUBMIT: 'danger', RISK_GATE: 'primary', SIZING: 'primary',
-    BAR_CLOSED: 'info', QUOTE: 'info', QUOTE_FAIL: 'danger', ACCOUNT: 'success', CYCLE: 'info', ERROR: 'danger'
+    SIGNAL: 'warning', ORDER: 'primary', SUBMIT: 'danger', FILL: 'success', CANCEL: 'warning', RISK_GATE: 'primary', SIZING: 'primary',
+    BAR_CLOSED: 'info', QUOTE: 'info', QUOTE_FAIL: 'danger', ACCOUNT: 'success', READINESS: 'success', CYCLE: 'info', ERROR: 'danger'
   }
   return map[type] ?? 'info'
 }

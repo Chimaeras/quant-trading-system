@@ -56,6 +56,22 @@ class PaperConfig:
     # FULL：默认扫描 Java 股票主数据中的全部沪深 A 股；T1 保留为兼容模式。
     watch_universe_mode: str = "FULL"
     max_watch_universe_codes: int = 10000
+    # live 最低行情覆盖率；低于阈值时市场中位数和持仓监控均不再可信。
+    min_quote_coverage: float = 0.95
+    # 可恢复运行库与 live 单实例租约。
+    watch_store_path: str = ""
+    lease_ttl_sec: int = 180
+    min_strategy_ready_coverage: float = 0.95
+    min_store_free_mb: int = 256
+    # SHADOW 只产生日志；INTERNAL_PAPER 使用本地撮合；EXTERNAL_PAPER 调妙想模拟盘。
+    watch_execution_mode: str = "SHADOW"
+    paper_session_id: str = "default"
+    internal_initial_cash: float = 1_000_000.0
+    internal_fill_participation: float = 0.10
+    internal_matching_model: str = "NEXT_BAR"
+    buy_order_ttl_sec: int = 600
+    sell_order_ttl_sec: int = 300
+    auto_cancel_expired: bool = True
     cooldown_min: int = 15
     watch_live: bool = False
     max_trades_per_day: int = 20
@@ -99,6 +115,26 @@ class PaperConfig:
             raise ValueError("watch_universe_mode 必须是 FULL/T1")
         if not (1 <= self.max_watch_universe_codes <= 10000):
             raise ValueError("max_watch_universe_codes 必须在 [1,10000]")
+        if not (0 < self.min_quote_coverage <= 1):
+            raise ValueError("min_quote_coverage 必须在 (0,1] 内")
+        if self.lease_ttl_sec <= self.query_interval_sec:
+            raise ValueError("lease_ttl_sec 必须大于 query_interval_sec")
+        if not (0 < self.min_strategy_ready_coverage <= 1):
+            raise ValueError("min_strategy_ready_coverage 必须在 (0,1] 内")
+        if self.min_store_free_mb < 0:
+            raise ValueError("min_store_free_mb 不能为负")
+        if self.watch_execution_mode not in {"SHADOW", "INTERNAL_PAPER", "EXTERNAL_PAPER"}:
+            raise ValueError("watch_execution_mode 必须是 SHADOW/INTERNAL_PAPER/EXTERNAL_PAPER")
+        if not self.paper_session_id.strip():
+            raise ValueError("paper_session_id 不能为空")
+        if self.internal_initial_cash <= 0:
+            raise ValueError("internal_initial_cash 必须大于 0")
+        if not (0 < self.internal_fill_participation <= 1):
+            raise ValueError("internal_fill_participation 必须在 (0,1] 内")
+        if self.internal_matching_model != "NEXT_BAR":
+            raise ValueError("当前 internal_matching_model 仅支持 NEXT_BAR")
+        if self.buy_order_ttl_sec <= 0 or self.sell_order_ttl_sec <= 0:
+            raise ValueError("买卖订单 TTL 必须大于 0")
         if self.cooldown_min < 0:
             raise ValueError("cooldown_min 不能为负")
         if self.max_trades_per_day <= 0:
@@ -154,6 +190,19 @@ class PaperConfig:
             watchlist_file=e.get("PAPER_WATCHLIST_FILE", ""),
             watch_universe_mode=e.get("PAPER_WATCH_UNIVERSE_MODE", "FULL").strip().upper(),
             max_watch_universe_codes=int(e.get("PAPER_MAX_WATCH_UNIVERSE_CODES", "10000")),
+            min_quote_coverage=float(e.get("PAPER_MIN_QUOTE_COVERAGE", "0.95")),
+            watch_store_path=e.get("PAPER_WATCH_STORE_PATH", ""),
+            lease_ttl_sec=int(e.get("PAPER_LEASE_TTL_SEC", "180")),
+            min_strategy_ready_coverage=float(e.get("PAPER_MIN_STRATEGY_READY_COVERAGE", "0.95")),
+            min_store_free_mb=int(e.get("PAPER_MIN_STORE_FREE_MB", "256")),
+            watch_execution_mode=e.get("PAPER_WATCH_EXECUTION_MODE", "SHADOW").strip().upper(),
+            paper_session_id=e.get("PAPER_SESSION_ID", "default").strip(),
+            internal_initial_cash=float(e.get("PAPER_INTERNAL_INITIAL_CASH", "1000000")),
+            internal_fill_participation=float(e.get("PAPER_INTERNAL_FILL_PARTICIPATION", "0.10")),
+            internal_matching_model=e.get("PAPER_INTERNAL_MATCHING_MODEL", "NEXT_BAR").strip().upper(),
+            buy_order_ttl_sec=int(e.get("PAPER_BUY_ORDER_TTL_SEC", "600")),
+            sell_order_ttl_sec=int(e.get("PAPER_SELL_ORDER_TTL_SEC", "300")),
+            auto_cancel_expired=e.get("PAPER_AUTO_CANCEL_EXPIRED", "1") == "1",
             cooldown_min=int(e.get("PAPER_COOLDOWN_MIN", "15")),
             watch_live=e.get("PAPER_WATCH_LIVE", "0") == "1",
             max_trades_per_day=int(e.get("PAPER_MAX_TRADES_PER_DAY", "20")),
@@ -193,6 +242,19 @@ class PaperConfig:
             "watchlist_file": self.watchlist_file,
             "watch_universe_mode": self.watch_universe_mode,
             "max_watch_universe_codes": self.max_watch_universe_codes,
+            "min_quote_coverage": self.min_quote_coverage,
+            "watch_store_path": self.watch_store_path,
+            "lease_ttl_sec": self.lease_ttl_sec,
+            "min_strategy_ready_coverage": self.min_strategy_ready_coverage,
+            "min_store_free_mb": self.min_store_free_mb,
+            "watch_execution_mode": self.watch_execution_mode,
+            "paper_session_id": self.paper_session_id,
+            "internal_initial_cash": self.internal_initial_cash,
+            "internal_fill_participation": self.internal_fill_participation,
+            "internal_matching_model": self.internal_matching_model,
+            "buy_order_ttl_sec": self.buy_order_ttl_sec,
+            "sell_order_ttl_sec": self.sell_order_ttl_sec,
+            "auto_cancel_expired": self.auto_cancel_expired,
             "cooldown_min": self.cooldown_min,
             "watch_live": self.watch_live,
             "max_trades_per_day": self.max_trades_per_day,

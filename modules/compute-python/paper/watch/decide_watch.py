@@ -44,7 +44,15 @@ def build_watch_intent(
     if signal.action == "buy":
         if position is not None and position.qty > 0:
             return _noop(candidate.stock_code, "ALREADY_POSITION_NO_ADD", candidate.source)
-        qty = buy_qty(balance, quote.last, config)
+        planned_limit = limit_price(
+            quote.last,
+            candidate.exchange_type,
+            "buy",
+            config.slippage_bps,
+        )
+        # 仓位和可负担数量必须按实际委托限价计算；按最新价取整后再叠加
+        # 滑点会让名义金额穿过 max_name_weight，导致正常信号被风控反拒。
+        qty = buy_qty(balance, planned_limit, config)
         if qty < LOT_SIZE:
             return _noop(candidate.stock_code, "QTY_TOO_SMALL", candidate.source)
         quote = derive_limit_up_price(quote)
@@ -54,7 +62,7 @@ def build_watch_intent(
             side="buy",
             qty=qty,
             price_type="limit",
-            limit_price=limit_price(quote.last, candidate.exchange_type, "buy", config.slippage_bps),
+            limit_price=planned_limit,
             reason_codes=reason_codes,
             quote_ts=quote_ts,
             candidate_source="watch",

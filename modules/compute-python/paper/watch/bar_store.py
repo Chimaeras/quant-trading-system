@@ -72,6 +72,37 @@ class BarStore:
     def forming(self, code: str) -> WatchBar | None:
         return self._forming.get(code)
 
+    def restore_forming(
+        self,
+        code: str,
+        bar: WatchBar,
+        *,
+        last_cumulative_volume: float,
+        discard_on_close: bool = False,
+    ) -> None:
+        """恢复同一交易日的 forming bar 与累计成交量游标。"""
+        if bar.code != code or bar.closed or bar.period_min != self.period_min:
+            raise ValueError(f"{code} forming bar 周期/状态/代码不合法")
+        if bar.close <= 0 or bar.open <= 0 or bar.high < bar.low:
+            raise ValueError(f"{code} forming bar 价格不合法")
+        self._forming[code] = replace(bar, closed=False)
+        self._last_volume[code] = max(float(last_cumulative_volume or 0.0), 0.0)
+        if discard_on_close:
+            self._discard_next_closed.add(code)
+        else:
+            self._discard_next_closed.discard(code)
+
+    def checkpoint(self, code: str) -> dict | None:
+        """导出可原样恢复的 forming bar 断点。"""
+        bar = self._forming.get(code)
+        if bar is None:
+            return None
+        return {
+            "bar": replace(bar),
+            "last_cumulative_volume": self._last_volume.get(code, 0.0),
+            "discard_on_close": code in self._discard_next_closed,
+        }
+
     def update_snapshot(self, code: str, quote: Quote, now: datetime | None = None) -> BarUpdate:
         """写入快照；桶切换时恰好提交上一根 closed bar。"""
         if quote.last <= 0:

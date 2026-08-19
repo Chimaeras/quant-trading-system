@@ -46,7 +46,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
         // （账户、持仓、订单、自选、数据导入/回填、选股运行与模板、研究写操作、回测、
         //  预测、因子、对账等）默认受保护，新增接口无需再手动加白名单。
         registry.addInterceptor(authInterceptor)
-                .addPathPatterns("/api/**")
+                // /pyapi/** 会返回 Paper Live 账户、委托和交易动作，同样属于
+                // 敏感数据；鉴权开启时不得绕过 /api/** 的 deny-by-default。
+                .addPathPatterns("/api/**", "/pyapi/**")
                 .excludePathPatterns(
                         // 登录/注册
                         "/api/auth/**",

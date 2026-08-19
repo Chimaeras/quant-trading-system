@@ -81,6 +81,10 @@ class MxHttpClient:
         )
         return str(path)
 
+    def save_raw(self, run_id: str, endpoint: str, payload: dict) -> str:
+        """供同一 PaperRun 的辅助只读数据源复用脱敏原文落盘能力。"""
+        return self._save_raw(run_id, endpoint, payload)
+
     def post(
         self,
         endpoint: str,

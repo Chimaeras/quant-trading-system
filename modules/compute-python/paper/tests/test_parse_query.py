@@ -48,6 +48,17 @@ class TestRealCapture:
         with pytest.raises(QuoteParseError, match="不对齐"):
             parse_query(_query_payload(), "000001")
 
+    def test_parse_official_limit_prices_when_query_returns_them(self):
+        payload = _query_payload()
+        table = payload["data"]["data"]["searchDataResultDTO"]["dataTableDTOList"][0]
+        table["nameMap"].update({"ZT": "涨停价", "DT": "跌停价格"})
+        table["rawTable"].update({"ZT": ["1427.79"], "DT": ["1168.19"]})
+        quote = parse_query(payload, "600519")
+        assert quote.limit_up_price == pytest.approx(1427.79)
+        assert quote.limit_down_price == pytest.approx(1168.19)
+        assert quote.limit_up_source == "mx_query:limit_up_price"
+        assert quote.limit_down_source == "mx_query:limit_down_price"
+
 
 class TestPctFormats:
     """涨跌幅三种格式：0.38 / 0.0038 / 0.38%。"""

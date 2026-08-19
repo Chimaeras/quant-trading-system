@@ -110,7 +110,8 @@ def cmd_quote(args: argparse.Namespace) -> int:
         print(
             f"[paper][模拟] {quote.name}({quote.code}.{quote.exchange}) "
             f"最新价 {quote.last}  涨跌幅 {quote.pct_chg}%  成交量 {quote.volume:.0f}股  "
-            f"量比 {quote.volume_ratio}  行情时间 {quote.market_time}  "
+            f"量比 {quote.volume_ratio}  涨停价 {quote.limit_up_price}  跌停价 {quote.limit_down_price}  "
+            f"行情时间 {quote.market_time}  "
             f"有效性 {quote.validity.value}(新鲜度 {freshness})"
         )
     return exit_code

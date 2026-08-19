@@ -50,6 +50,8 @@ class PaperConfig:
     # 盘中自动盯盘配置（watch V1）
     watch_strategy: str = "MA_CROSS"
     bar_period_min: int = 5
+    # 分钟 K 线来源：eastmoney 为官方公开历史 K 线接口；mx_query 保留兼容旧问句。
+    kline_source: str = "eastmoney"
     watchlist_file: str = ""
     cooldown_min: int = 15
     watch_live: bool = False
@@ -88,6 +90,8 @@ class PaperConfig:
             raise ValueError(f"watch_strategy 非法: {self.watch_strategy}")
         if self.bar_period_min <= 0 or 60 % self.bar_period_min != 0:
             raise ValueError("bar_period_min 必须是正数且能整除 60")
+        if self.kline_source not in {"eastmoney", "mx_query", "auto"}:
+            raise ValueError("kline_source 必须是 eastmoney/mx_query/auto")
         if self.cooldown_min < 0:
             raise ValueError("cooldown_min 不能为负")
         if self.max_trades_per_day <= 0:
@@ -139,6 +143,7 @@ class PaperConfig:
             clock_skew_sec=int(e.get("PAPER_CLOCK_SKEW_SEC", "30")),
             watch_strategy=e.get("PAPER_WATCH_STRATEGY", "MA_CROSS").strip().upper(),
             bar_period_min=int(e.get("PAPER_BAR_PERIOD_MIN", "5")),
+            kline_source=e.get("PAPER_KLINE_SOURCE", "eastmoney").strip().lower(),
             watchlist_file=e.get("PAPER_WATCHLIST_FILE", ""),
             cooldown_min=int(e.get("PAPER_COOLDOWN_MIN", "15")),
             watch_live=e.get("PAPER_WATCH_LIVE", "0") == "1",
@@ -175,6 +180,7 @@ class PaperConfig:
             "clock_skew_sec": self.clock_skew_sec,
             "watch_strategy": self.watch_strategy,
             "bar_period_min": self.bar_period_min,
+            "kline_source": self.kline_source,
             "watchlist_file": self.watchlist_file,
             "cooldown_min": self.cooldown_min,
             "watch_live": self.watch_live,

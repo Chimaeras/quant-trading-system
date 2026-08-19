@@ -9,7 +9,7 @@ from paper.models import Balance, Candidate, Intent, IntentType, MxOrder, Positi
 from paper.risk import check_watch_intent
 from paper.watch.bar_store import BarStore
 from paper.watch.cooldown import CooldownBook
-from paper.watch.kline_client import parse_kline_payload
+from paper.watch.kline_client import _parse_eastmoney_klines, parse_kline_payload
 from paper.trading_calendar import TradingCalendarService
 from paper.watch.loop import WatchLoop
 from paper.watch.models import WatchBar
@@ -152,6 +152,21 @@ def test_live_buy_rejects_derived_limit_price():
     assert out.risk_reject_reason == "LIMIT_DATA_UNAVAILABLE"
 
 
+def test_live_buy_accepts_official_limit_price():
+    quote = _quote(limit_up_source="mx_query:limit_up_price")
+    intent = Intent("600519", IntentType.BUY_LIMIT, side="buy", qty=100, limit_price=100.2)
+    out = check_watch_intent(
+        intent,
+        quote,
+        Balance(total_assets=100000, avail_balance=100000),
+        {},
+        [],
+        _config(),
+        strict_limit_data=True,
+    )
+    assert out.risk_status == RiskStatus.PASS
+
+
 class _WatchBroker:
     def __init__(self):
         self.trade_calls = []
@@ -286,6 +301,45 @@ def test_kline_parser_rejects_daily_table_without_minute_granularity():
         assert "分钟" in str(exc)
     else:
         raise AssertionError("无分钟粒度的日线表必须被拒绝")
+
+
+def test_kline_parser_accepts_nested_field_minute_granularity():
+    payload = {
+        "data": {
+            "data": {
+                "searchDataResultDTO": {
+                    "dataTableDTOList": [{
+                        "field": {"dateGranularity": "MIN"},
+                        "nameMap": {"o": "开盘价", "h": "最高价", "l": "最低价", "c": "收盘价"},
+                        "headName": ["2026-08-18 09:30"],
+                        "rawTable": {"o": ["10"], "h": ["10.1"], "l": ["9.9"], "c": ["10.0"]},
+                    }],
+                }
+            }
+        }
+    }
+    bars = parse_kline_payload(payload, "600519", 5, datetime(2026, 8, 18, 9, 40))
+    assert len(bars) == 1
+    assert bars[0].close == 10.0
+
+
+def test_eastmoney_kline_parser_uses_raw_ohlcv_and_skips_forming_bar():
+    payload = {
+        "rc": 0,
+        "data": {
+            "klines": [
+                "2026-08-18 09:30,10,10.2,10.3,9.9,12,0,0,0,0,0",
+                "2026-08-18 09:35,10.2,10.1,10.4,10.0,8,0,0,0,0,0",
+                "2026-08-18 09:40,10.1,10.3,10.5,10.1,9,0,0,0,0,0",
+            ]
+        },
+    }
+    bars = _parse_eastmoney_klines(payload, "600519", 5, datetime(2026, 8, 18, 9, 45))
+    assert len(bars) == 3
+    assert bars[0].volume == 1200
+    assert bars[-1].source == "eastmoney_kline"
+    forming = _parse_eastmoney_klines(payload, "600519", 5, datetime(2026, 8, 18, 9, 44))
+    assert len(forming) == 2
 
 
 def test_kline_parser_rejects_mismatched_code():

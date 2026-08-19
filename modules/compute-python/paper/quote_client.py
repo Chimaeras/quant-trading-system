@@ -14,7 +14,10 @@ QUERY_ENDPOINT = "/api/claw/query"
 
 def build_tool_query(stock_name: str, stock_code: str) -> str:
     """固定问句模板，禁止 LLM 自由发挥。"""
-    return f"{stock_name}({stock_code}) 最新价 涨跌幅 成交量 量比"
+    return (
+        f"{stock_name}({stock_code}) 最新价 涨跌幅 成交量 量比 "
+        f"涨停价 跌停价"
+    )
 
 
 class QuoteClient:

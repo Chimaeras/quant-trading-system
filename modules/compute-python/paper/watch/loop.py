@@ -122,6 +122,7 @@ class WatchLoop:
                         max(required + 10, 80),
                         run_id=f"watch-prep-{trade_date}",
                         as_of=current,
+                        exchange=candidate.exchange_type,
                     )
                     if bars is None:
                         raise ValueError(_result_message(result))

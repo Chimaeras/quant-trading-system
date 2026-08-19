@@ -57,6 +57,17 @@ def parse_volume(raw: str) -> float:
     return float(s) * multiplier
 
 
+def parse_price(raw: str) -> float:
+    """归一化价格字段，支持带元后缀和千分位。"""
+    s = str(raw).strip().replace(",", "").replace("元", "").replace("￥", "")
+    if not s or s in ("--", "-", "nan", "None"):
+        raise QuoteParseError(f"价格无法解析: {raw!r}")
+    value = float(s)
+    if value <= 0:
+        raise QuoteParseError(f"价格必须为正数: {raw!r}")
+    return value
+
+
 def parse_market_time(head: list) -> datetime | None:
     """headName 首元素为行情时间，如 '2026-08-18 16:30' 或 '2026-08-18(日)'。"""
     if not head:
@@ -73,14 +84,20 @@ def parse_market_time(head: list) -> datetime | None:
     return None
 
 
-def _pick_indicator(table: dict, name_map: dict, code_map: dict, field_name: str) -> str | None:
+def _pick_indicator(
+    table: dict,
+    name_map: dict,
+    code_map: dict,
+    field_name: str | tuple[str, ...],
+) -> str | None:
     """按中文名取该指标列最后一个非空值。
 
     优先 rawTable（数值形），回退 table（展示形）。code_map 是 rawTable 的编码集。
     """
-    codes = [c for c, name in name_map.items() if name == field_name and c in code_map]
+    names = (field_name,) if isinstance(field_name, str) else field_name
+    codes = [c for c, name in name_map.items() if name in names and c in code_map]
     if not codes:
-        codes = [c for c, name in name_map.items() if name == field_name and c in table]
+        codes = [c for c, name in name_map.items() if name in names and c in table]
         source = table
     else:
         source = code_map
@@ -162,6 +179,33 @@ def parse_query(payload: dict, code: str, *, received_at: datetime | None = None
         except (ValueError, QuoteParseError):
             # 非核心指标解析失败不致命，保持 None
             continue
+
+    # 涨跌停价是买卖风控字段：只接受接口明确返回的价格，不用涨跌幅推导替代。
+    limit_up_raw = _pick_indicator(
+        table,
+        name_map,
+        raw_table,
+        ("涨停价", "涨停价格", "涨停"),
+    )
+    if limit_up_raw is not None:
+        try:
+            quote.limit_up_price = parse_price(limit_up_raw)
+            quote.limit_up_source = "mx_query:limit_up_price"
+        except QuoteParseError:
+            quote.limit_up_source = "mx_query:limit_up_price:PARSE_ERROR"
+
+    limit_down_raw = _pick_indicator(
+        table,
+        name_map,
+        raw_table,
+        ("跌停价", "跌停价格", "跌停"),
+    )
+    if limit_down_raw is not None:
+        try:
+            quote.limit_down_price = parse_price(limit_down_raw)
+            quote.limit_down_source = "mx_query:limit_down_price"
+        except QuoteParseError:
+            quote.limit_down_source = "mx_query:limit_down_price:PARSE_ERROR"
 
     # 成交量为 0 视为不可交易
     if quote.volume == 0:

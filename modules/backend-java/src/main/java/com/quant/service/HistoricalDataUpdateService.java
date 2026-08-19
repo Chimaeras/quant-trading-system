@@ -5,6 +5,7 @@ import com.quant.exception.BusinessException;
 import com.quant.entity.DataUpdateTaskItem;
 import com.quant.repository.DataUpdateTaskItemRepository;
 import com.quant.repository.DataUpdateTaskRepository;
+import com.quant.repository.StockInfoRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Page;
@@ -35,6 +36,7 @@ public class HistoricalDataUpdateService {
     private final HistoricalDataService historicalDataService;
     private final DataUpdateTaskRepository dataUpdateTaskRepository;
     private final DataUpdateTaskItemRepository dataUpdateTaskItemRepository;
+    private final StockInfoRepository stockInfoRepository;
     private final ThreadPoolTaskExecutor dataUpdateTaskExecutor;
     private final Map<String, Future<?>> taskFutures = new ConcurrentHashMap<>();
     private final Set<String> cancelRequestedTaskIds = ConcurrentHashMap.newKeySet();
@@ -44,10 +46,12 @@ public class HistoricalDataUpdateService {
             HistoricalDataService historicalDataService,
             DataUpdateTaskRepository dataUpdateTaskRepository,
             DataUpdateTaskItemRepository dataUpdateTaskItemRepository,
+            StockInfoRepository stockInfoRepository,
             @Qualifier("dataUpdateExecutor") ThreadPoolTaskExecutor dataUpdateTaskExecutor) {
         this.historicalDataService = historicalDataService;
         this.dataUpdateTaskRepository = dataUpdateTaskRepository;
         this.dataUpdateTaskItemRepository = dataUpdateTaskItemRepository;
+        this.stockInfoRepository = stockInfoRepository;
         this.dataUpdateTaskExecutor = dataUpdateTaskExecutor;
     }
 
@@ -136,10 +140,23 @@ public class HistoricalDataUpdateService {
         int s = Math.min(500, Math.max(1, size));
         Pageable pageable = PageRequest.of(p - 1, s, Sort.by(Sort.Direction.DESC, "id"));
         Page<DataUpdateTaskItem> items = dataUpdateTaskItemRepository.findByTaskId(taskId, pageable);
+        List<String> keys = items.getContent().stream()
+                .map(i -> i.getStockCode() + "|" + i.getExchangeType())
+                .distinct()
+                .toList();
+        Map<String, String> stockNames = new HashMap<>();
+        if (!keys.isEmpty()) {
+            stockNames.putAll(stockInfoRepository.findByStockKeyIn(keys).stream()
+                    .collect(java.util.stream.Collectors.toMap(
+                            s0 -> s0.getStockCode() + "|" + s0.getExchangeType(),
+                            s0 -> s0.getStockName() == null ? "" : s0.getStockName(),
+                            (a, b) -> a)));
+        }
         List<Map<String, Object>> itemMaps = new ArrayList<>();
         for (DataUpdateTaskItem i : items.getContent()) {
             itemMaps.add(Map.of(
                     "stock_code", i.getStockCode(),
+                    "stock_name", stockNames.getOrDefault(i.getStockCode() + "|" + i.getExchangeType(), ""),
                     "exchange_type", i.getExchangeType(),
                     "status", i.getStatus(),
                     "inserted", i.getInsertedCount(),

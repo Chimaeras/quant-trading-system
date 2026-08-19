@@ -2,6 +2,7 @@ package com.quant.service;
 
 import com.quant.repository.DataUpdateTaskItemRepository;
 import com.quant.repository.DataUpdateTaskRepository;
+import com.quant.repository.StockInfoRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
@@ -26,6 +27,7 @@ class HistoricalDataUpdateServiceStartupRecoveryTest {
                 mock(HistoricalDataService.class),
                 taskRepo,
                 itemRepo,
+                mock(StockInfoRepository.class),
                 mock(ThreadPoolTaskExecutor.class)
         );
 
@@ -43,6 +45,7 @@ class HistoricalDataUpdateServiceStartupRecoveryTest {
                 mock(HistoricalDataService.class),
                 taskRepo,
                 mock(DataUpdateTaskItemRepository.class),
+                mock(StockInfoRepository.class),
                 mock(ThreadPoolTaskExecutor.class)
         );
 
@@ -61,6 +64,7 @@ class HistoricalDataUpdateServiceStartupRecoveryTest {
                 mock(HistoricalDataService.class),
                 taskRepo,
                 mock(DataUpdateTaskItemRepository.class),
+                mock(StockInfoRepository.class),
                 mock(ThreadPoolTaskExecutor.class)
         );
 

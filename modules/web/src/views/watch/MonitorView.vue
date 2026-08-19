@@ -5,7 +5,7 @@
       <div class="status-row">
         <div class="status-item">
           <span class="label">交易日</span>
-          <el-select v-model="selectedDate" :options="days" style="width: 140px" size="small" @change="onDateChange">
+          <el-select v-model="selectedDate" style="width: 140px" size="small" @change="onDateChange">
             <el-option v-for="d in days" :key="d" :label="d" :value="d" />
           </el-select>
         </div>
@@ -215,6 +215,7 @@ import {
   fetchState,
   type WatchEvent
 } from '@/api/watch'
+import { resolveSecurityName } from '@/utils/security'
 
 const MAX_EVENTS = 3000
 const REFRESH_MS = 3000
@@ -234,6 +235,7 @@ const typeOptions = ['CYCLE', 'QUOTE', 'QUOTE_FAIL', 'BAR_CLOSED', 'SIGNAL', 'SI
 const detailVisible = ref(false)
 const detailCode = ref('')
 const detailName = ref('')
+const securityNames = ref<Record<string, string>>({})
 const chartRef = ref<HTMLElement | null>(null)
 let chart: echarts.ECharts | null = null
 let timer: number | null = null
@@ -261,19 +263,19 @@ const universeRows = computed(() => {
     if (e.type === 'QUOTE' && e.code) {
       rows.set(e.code, {
         code: e.code,
-        name: e.name || String((e.detail as any).stock_name || ''),
+        name: eventName(e),
         last: (e.detail as any).last,
         pct: (e.detail as any).pct_chg
       })
     } else if (e.type === 'ERROR' && e.code && (e.detail as any).scope === 'KLINE_DISABLED' && !rows.has(e.code)) {
-      rows.set(e.code, { code: e.code, name: e.name, disabled: String((e.detail as any).message || 'KLINE_DISABLED') })
+      rows.set(e.code, { code: e.code, name: eventName(e), disabled: String((e.detail as any).message || 'KLINE_DISABLED') })
     }
   }
   return [...rows.values()]
 })
 
 const filteredEvents = computed(() => {
-  let list = events.value
+  let list = events.value.map((e) => ({ ...e, name: eventName(e) }))
   if (typeFilter.value) list = list.filter((e) => e.type === typeFilter.value)
   if (codeFilter.value) list = list.filter((e) => e.code === codeFilter.value)
   if (tradesOnly.value) list = list.filter((e) => ['SIGNAL', 'SIZING', 'RISK_GATE', 'SUBMIT'].includes(e.type))
@@ -281,7 +283,7 @@ const filteredEvents = computed(() => {
 })
 
 const submitEvents = computed(() =>
-  events.value.filter((e) => e.type === 'SUBMIT').map((e) => ({ ...e, code: e.code })).reverse()
+  events.value.filter((e) => e.type === 'SUBMIT').map((e) => ({ ...e, name: eventName(e), code: e.code })).reverse()
 )
 
 const accountBefore = computed<Record<string, any>>(() => {
@@ -325,6 +327,17 @@ function eventSummary(row: WatchEvent): string {
       return JSON.stringify(d)
   }
 }
+function eventName(event: WatchEvent): string {
+  return event.name?.trim() || String((event.detail as any).stock_name || '').trim() || securityNames.value[event.code] || ''
+}
+async function ensureSecurityNames(list: WatchEvent[]) {
+  const codes = [...new Set(list.map((e) => e.code).filter(Boolean))]
+  const missing = codes.filter((code) => !securityNames.value[code] && !list.some((e) => e.code === code && eventName(e)))
+  if (!missing.length) return
+  const resolved = await Promise.all(missing.map(async (code) => [code, await resolveSecurityName(code)] as const))
+  const found = Object.fromEntries(resolved.filter(([, name]) => name))
+  if (Object.keys(found).length) securityNames.value = { ...securityNames.value, ...found }
+}
 function eventSummaryClass(row: WatchEvent): string {
   if (row.type === 'SIGNAL' && (row.detail as any).action === 'buy') return 'up'
   if (row.type === 'SIGNAL' && (row.detail as any).action === 'sell') return 'down'
@@ -333,14 +346,15 @@ function eventSummaryClass(row: WatchEvent): string {
   if (row.type === 'QUOTE' && Number((row.detail as any).pct_chg) > 0) return 'up'
   return ''
 }
-function typeTagType(type: string): string {
-  const map: Record<string, string> = {
+type WatchTagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
+function typeTagType(type: string): WatchTagType {
+  const map: Record<string, WatchTagType> = {
     SIGNAL: 'warning', SUBMIT: 'danger', RISK_GATE: 'primary', SIZING: 'primary',
-    BAR_CLOSED: 'info', QUOTE: 'info', QUOTE_FAIL: 'danger', ACCOUNT: 'success', CYCLE: '', ERROR: 'danger'
+    BAR_CLOSED: 'info', QUOTE: 'info', QUOTE_FAIL: 'danger', ACCOUNT: 'success', CYCLE: 'info', ERROR: 'danger'
   }
   return map[type] ?? 'info'
 }
-function submitTagType(status: string): string {
+function submitTagType(status: string): WatchTagType {
   if (status === 'SUBMITTED') return 'success'
   if (status === 'REJECTED') return 'danger'
   if (status === 'DRY_RUN') return 'info'
@@ -372,11 +386,13 @@ async function refresh(full = false) {
       events.value = all
       cursor = all.length ? all[all.length - 1].seq : 0
       state.value = st
+      void ensureSecurityNames(all)
     } else {
       const { events: inc } = await fetchEvents(selectedDate.value, cursor, { limit: MAX_EVENTS })
       if (inc.length) {
         events.value = [...events.value, ...inc].slice(-MAX_EVENTS)
         cursor = inc[inc.length - 1].seq
+        void ensureSecurityNames(inc)
       }
       state.value = await fetchState(selectedDate.value)
     }
@@ -403,8 +419,19 @@ async function initialLoad() {
 
 function openDetail(row: { code: string; name?: string }) {
   detailCode.value = row.code
-  detailName.value = row.name || ''
+  detailName.value = row.name || securityNames.value[row.code] || ''
   detailVisible.value = true
+  if (!detailName.value) {
+    void resolveSecurityName(row.code).then((name) => {
+      if (name) {
+        securityNames.value = { ...securityNames.value, [row.code]: name }
+        if (detailCode.value === row.code) {
+          detailName.value = name
+          renderChart()
+        }
+      }
+    })
+  }
   nextTick(() => renderChart())
 }
 
@@ -451,7 +478,7 @@ function renderChart() {
     ]
   }, true)
   if (quotes.length) {
-    chart.setOption({ title: { text: `${detailCode.value}（快照 ${quotes.length} 次）`, left: 4, top: 2, textStyle: { fontSize: 12 } } })
+    chart.setOption({ title: { text: `${detailName.value || '--'}（${detailCode.value}，快照 ${quotes.length} 次）`, left: 4, top: 2, textStyle: { fontSize: 12 } } })
   }
 }
 

@@ -67,9 +67,19 @@
       title="演练会话：tradeDate 为必填仿真交易日；同会话内按交易日顺序演练，T+1 依据交易日历（含节假日）。"
     />
     <el-form inline>
-      <el-form-item label="代码"><el-input v-model="order.symbol" style="width: 100px" /></el-form-item>
+      <el-form-item label="代码">
+        <el-input
+          v-model="order.symbol"
+          style="width: 100px"
+          @input="orderStockName = ''"
+          @blur="loadOrderStockName"
+        />
+      </el-form-item>
+      <el-form-item label="名称">
+        <span class="security-name">{{ orderStockName || '--' }}</span>
+      </el-form-item>
       <el-form-item label="交易所">
-        <el-select v-model="order.exchangeType" style="width: 90px">
+        <el-select v-model="order.exchangeType" style="width: 90px" @change="loadOrderStockName">
           <el-option label="SZSE" value="SZSE" /><el-option label="SSE" value="SSE" />
         </el-select>
       </el-form-item>
@@ -129,7 +139,9 @@
     <div class="section-title">持仓列表</div>
     <el-table v-loading="loading" :data="positions" stripe>
       <el-table-column prop="symbol" label="代码" width="100" />
-      <el-table-column prop="name" label="名称" min-width="120" />
+      <el-table-column label="名称" min-width="120">
+        <template #default="{ row }">{{ row.name || '--' }}</template>
+      </el-table-column>
       <el-table-column prop="volume" label="持仓" width="90" />
       <el-table-column label="可卖" width="100">
         <template #default="{ row }">
@@ -159,7 +171,9 @@
     <el-table v-loading="ordersLoading" :data="orders" stripe size="small" max-height="320">
       <el-table-column prop="tradeTime" label="成交时间" min-width="160" />
       <el-table-column prop="stockCode" label="代码" width="90" />
-      <el-table-column prop="stockName" label="名称" min-width="100" />
+      <el-table-column label="名称" min-width="100">
+        <template #default="{ row }">{{ row.stockName || '--' }}</template>
+      </el-table-column>
       <el-table-column label="方向" width="80">
         <template #default="{ row }">
           <span :class="row.action === 'buy' ? 'text-success' : 'text-danger'">{{ row.action === 'buy' ? '买入' : '卖出' }}</span>
@@ -196,6 +210,7 @@ import {
 import { errorText } from '@/api/request'
 import { useToast } from '@/composables/useToast'
 import dayjs from 'dayjs'
+import { resolveSecurityName } from '@/utils/security'
 
 const toast = useToast()
 const loading = ref(false)
@@ -225,6 +240,7 @@ const order = reactive({
   price: undefined as number | undefined,
   tradeDate: dayjs().format('YYYY-MM-DD')
 })
+const orderStockName = ref('')
 
 const orderResultRows = computed(() => {
   const o = lastOrder.value
@@ -273,6 +289,10 @@ function frozenVolume(row: PositionRow) {
   const total = Number(row.volume ?? 0)
   const available = Number(row.availableVolume ?? row.volume ?? 0)
   return Math.max(0, total - available)
+}
+
+async function loadOrderStockName() {
+  orderStockName.value = await resolveSecurityName(order.symbol, order.exchangeType)
 }
 
 function sessionTagType(s: SimulationSession): 'success' | 'info' {
@@ -427,6 +447,7 @@ async function place() {
 }
 
 onMounted(() => {
+  loadOrderStockName()
   loadAll()
   loadSessions()
 })
@@ -436,6 +457,7 @@ onMounted(() => {
 .header-row { display: flex; justify-content: space-between; align-items: center; }
 .header-meta { display: flex; align-items: center; gap: 8px; }
 .section-title { margin: 12px 0 8px; font-weight: 600; }
+.security-name { color: var(--text-secondary); min-width: 72px; display: inline-block; }
 .session-banner {
   display: flex; justify-content: space-between; align-items: center; gap: 8px;
   background: var(--accent-soft); border: 1px solid var(--glass-border-strong);

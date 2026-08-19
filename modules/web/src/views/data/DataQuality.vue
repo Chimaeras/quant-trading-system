@@ -352,10 +352,13 @@
     <el-dialog v-model="rawDialogVisible" title="回填不复权行情 + 推算复权因子" width="460px">
       <el-form label-width="90px">
         <el-form-item label="股票代码">
-          <el-input v-model="rawForm.stockCode" placeholder="如 000001" />
+          <el-input v-model="rawForm.stockCode" placeholder="如 000001" @input="rawStockName = ''" @blur="loadRawStockName" />
+        </el-form-item>
+        <el-form-item label="股票名称">
+          <span class="security-name">{{ rawStockName || '--' }}</span>
         </el-form-item>
         <el-form-item label="交易所">
-          <el-select v-model="rawForm.exchange" style="width: 100%">
+          <el-select v-model="rawForm.exchange" style="width: 100%" @change="loadRawStockName">
             <el-option label="深交所 SZSE" value="SZSE" />
             <el-option label="上交所 SSE" value="SSE" />
             <el-option label="北交所 BSE" value="BSE" />
@@ -435,6 +438,7 @@ import { dataApi } from '@/api/data'
 import type { QualityReport } from '@/api/data'
 import { errorText } from '@/api/request'
 import { useToast } from '@/composables/useToast'
+import { resolveSecurityName } from '@/utils/security'
 
 const router = useRouter()
 
@@ -461,8 +465,13 @@ const rawForm = reactive({
   startDate: dayjs().subtract(6, 'month').format('YYYY-MM-DD'),
   endDate: dayjs().format('YYYY-MM-DD')
 })
+const rawStockName = ref('')
 
 const smInitLoading = ref(false)
+
+async function loadRawStockName() {
+  rawStockName.value = await resolveSecurityName(rawForm.stockCode, rawForm.exchange)
+}
 
 const calendarDialogVisible = ref(false)
 const calendarLoading = ref(false)
@@ -708,6 +717,7 @@ onMounted(() => { load(); loadSnapshots() })
 </script>
 
 <style scoped>
+.security-name { color: var(--text-secondary); min-width: 72px; display: inline-block; }
 .quality-page {
   max-width: 1200px;
   margin: 0 auto;

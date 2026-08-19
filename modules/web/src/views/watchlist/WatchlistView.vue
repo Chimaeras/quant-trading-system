@@ -21,6 +21,7 @@
             value-key="stock_code"
             clearable
             style="width: 260px"
+            @input="selectedStockName = ''"
             @select="onStockPicked"
           >
             <template #default="{ item }">
@@ -31,6 +32,9 @@
               </div>
             </template>
           </el-autocomplete>
+        </el-form-item>
+        <el-form-item label="名称">
+          <span class="selected-stock-name">{{ selectedStockName || '--' }}</span>
         </el-form-item>
         <el-form-item label="交易所">
           <el-select v-model="form.exchangeType" style="width: 100px">
@@ -201,6 +205,7 @@ const form = reactive({
   exchangeType: 'SZSE',
   note: ''
 })
+const selectedStockName = ref('')
 
 function formatTime(value: string): string {
   if (!value) return '—'
@@ -256,6 +261,7 @@ function queryStock(keyword: string, cb: (suggestions: Record<string, any>[]) =>
 function onStockPicked(item: Record<string, any>) {
   const st = item as unknown as StockListItem
   form.stockCode = st.stock_code
+  selectedStockName.value = st.stock_name || ''
   if (st.exchange_type) {
     form.exchangeType = st.exchange_type
   }
@@ -271,6 +277,7 @@ async function addItem() {
     await addWatchlist(form.stockCode.trim(), form.exchangeType, form.note.trim() || undefined)
     toast.success('已加入自选')
     form.stockCode = ''
+    selectedStockName.value = ''
     form.note = ''
     await loadList()
   } catch (e: unknown) {
@@ -413,6 +420,11 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   line-height: 1.4;
+}
+.selected-stock-name {
+  color: var(--text-secondary);
+  min-width: 72px;
+  display: inline-block;
 }
 .stock-sugg-code {
   font-family: var(--font-mono, monospace);

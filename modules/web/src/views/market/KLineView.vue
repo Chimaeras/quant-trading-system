@@ -1,7 +1,7 @@
 <template>
   <el-card shadow="hover">
     <template #header>
-      <span>{{ route.query.name || route.query.code || 'K线图' }}</span>
+      <span>{{ securityTitle }}</span>
       <el-date-picker v-model="dateRange" type="daterange" range-separator="至" start-placeholder="开始" end-placeholder="结束" size="small" style="float: right" @change="loadData" />
       <el-button v-if="route.query.code" size="small" style="margin-right: 8px" :loading="realtimeLoading" @click="loadRealtime">获取实时</el-button>
     </template>
@@ -20,7 +20,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import dayjs from 'dayjs'
 import { echarts, CHART_THEME, CHART_C1 } from '@/utils/echartsTheme'
@@ -28,6 +28,7 @@ import { dataApi } from '@/api/data'
 import { marketApi } from '@/api/market'
 import type { KLineItem } from '@/api/market'
 import { useToast } from '@/composables/useToast'
+import { resolveSecurityName } from '@/utils/security'
 
 const route = useRoute()
 const toast = useToast()
@@ -36,6 +37,12 @@ const dateRange = ref<[Date, Date] | null>(null)
 const realtime = ref<{ close_price?: number; change_pct?: number } | null>(null)
 const realtimeLoading = ref(false)
 const dataSource = ref<'backend' | 'local'>('backend')
+const securityName = ref('')
+const securityCode = computed(() => String(route.query.code || '').trim())
+const securityTitle = computed(() => {
+  if (!securityCode.value) return 'K线图'
+  return `${securityName.value || '--'}（${securityCode.value}）`
+})
 let chart: echarts.ECharts | null = null
 
 /** 窗口尺寸变化时自适应，避免 canvas 残留旧尺寸 */
@@ -50,11 +57,25 @@ async function loadRealtime() {
   try {
     const d = await marketApi.getRealtimeQuote(code, route.query.exchange as string)
     realtime.value = d && (d.close_price != null || d.change_pct != null) ? d : null
+    if (d?.stock_name && d.stock_name !== code) securityName.value = d.stock_name
   } catch {
     realtime.value = null
     toast.warning('实时行情拉取失败')
   } finally {
     realtimeLoading.value = false
+  }
+}
+
+async function loadSecurityName() {
+  const code = securityCode.value
+  if (!code) {
+    securityName.value = ''
+    return
+  }
+  const routeName = String(route.query.name || '').trim()
+  securityName.value = routeName && routeName !== code ? routeName : ''
+  if (!securityName.value) {
+    securityName.value = await resolveSecurityName(code, route.query.exchange as string)
   }
 }
 
@@ -102,6 +123,7 @@ const loadData = async () => {
 onMounted(() => {
   if (!dateRange.value) dateRange.value = [new Date(Date.now() - 250 * 24 * 3600 * 1000), new Date()]
   loadData()
+  loadSecurityName()
   if (route.query.code) loadRealtime()
   window.addEventListener('resize', handleResize)
 })
@@ -113,7 +135,8 @@ onBeforeUnmount(() => {
   chart = null
 })
 
-watch(() => route.query.code, (code) => {
+watch(() => [route.query.code, route.query.name, route.query.exchange], ([code]) => {
+  loadSecurityName()
   loadData()
   if (code) loadRealtime()
 })

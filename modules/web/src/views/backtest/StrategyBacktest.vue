@@ -14,10 +14,19 @@
         </el-select>
       </el-form-item>
       <el-form-item label="股票代码">
-        <el-input v-model="form.stockCode" placeholder="000001" style="width: 120px" />
+        <el-input
+          v-model="form.stockCode"
+          placeholder="000001"
+          style="width: 120px"
+          @input="stockName = ''"
+          @blur="loadStockName"
+        />
+      </el-form-item>
+      <el-form-item label="股票名称">
+        <span class="security-name">{{ stockName || '--' }}</span>
       </el-form-item>
       <el-form-item label="交易所">
-        <el-select v-model="form.exchangeType" style="width: 100px">
+        <el-select v-model="form.exchangeType" style="width: 100px" @change="loadStockName">
           <el-option label="SZSE" value="SZSE" />
           <el-option label="SSE" value="SSE" />
         </el-select>
@@ -98,10 +107,12 @@ import dayjs from 'dayjs'
 import { echarts, CHART_THEME } from '@/utils/echartsTheme'
 import { backtestApi, type StrategyBacktestResponse } from '@/api/backtest'
 import { errorText } from '@/api/request'
+import { resolveSecurityName } from '@/utils/security'
 
 const running = ref(false)
 const errorMsg = ref('')
 const result = ref<StrategyBacktestResponse | null>(null)
+const stockName = ref('')
 const strategies = ref<string[]>(['MA_CROSS', 'BOLL', 'MACD'])
 const chartRef = ref<HTMLElement | null>(null)
 let chart: echarts.ECharts | null = null
@@ -155,6 +166,10 @@ function formatAssumptionValue(value: unknown) {
   return String(value)
 }
 
+async function loadStockName() {
+  stockName.value = await resolveSecurityName(form.stockCode, form.exchangeType)
+}
+
 async function run() {
   errorMsg.value = ''
   if (!form.stockCode?.trim()) {
@@ -200,6 +215,7 @@ function renderChart() {
 }
 
 onMounted(async () => {
+  loadStockName()
   try {
     strategies.value = await backtestApi.getStrategyTypes()
   } catch {
@@ -215,6 +231,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .capability-tag { margin-left: 8px; vertical-align: middle; }
 .meta { display: flex; gap: 16px; flex-wrap: wrap; margin: 12px 0; color: var(--text-secondary); font-size: 13px; }
+.security-name { color: var(--text-secondary); min-width: 72px; display: inline-block; }
 .chart-box { height: 280px; margin-bottom: 16px; }
 .section-title { margin: 12px 0 8px; font-weight: 600; }
 .run-alert { margin-bottom: 12px; }

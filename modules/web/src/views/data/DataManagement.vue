@@ -103,10 +103,13 @@
             </el-select>
           </el-form-item>
           <el-form-item label="股票代码" v-if="taskForm.mode === 'SINGLE'">
-            <el-input v-model="taskForm.stockCode" placeholder="000001" style="width: 120px" clearable />
+            <el-input v-model="taskForm.stockCode" placeholder="000001" style="width: 120px" clearable @input="taskStockName = ''" @blur="loadTaskStockName" />
+          </el-form-item>
+          <el-form-item label="股票名称" v-if="taskForm.mode === 'SINGLE'">
+            <span class="security-name">{{ taskStockName || '--' }}</span>
           </el-form-item>
           <el-form-item label="交易所" v-if="taskForm.mode === 'SINGLE'">
-            <el-select v-model="taskForm.exchange" placeholder="自动识别" style="width: 100px" clearable>
+            <el-select v-model="taskForm.exchange" placeholder="自动识别" style="width: 100px" clearable @change="loadTaskStockName">
               <el-option label="自动" value="" />
               <el-option label="SSE" value="SSE" />
               <el-option label="SZSE" value="SZSE" />
@@ -214,7 +217,8 @@
               <el-descriptions-item label="任务项总数">{{ taskDetail.items_total ?? '-' }}</el-descriptions-item>
             </el-descriptions>
             <el-table :data="taskDetail?.items || []" size="small" stripe border class="task-detail-table" v-loading="detailLoading">
-              <el-table-column prop="stock_code" label="股票" min-width="90" />
+              <el-table-column prop="stock_code" label="股票代码" min-width="90" />
+              <el-table-column prop="stock_name" label="股票名称" min-width="110" />
               <el-table-column prop="exchange_type" label="交易所" min-width="80" />
               <el-table-column prop="status" label="状态" min-width="80" />
               <el-table-column label="结果" min-width="170">
@@ -322,6 +326,7 @@ import { dataApi, type HotStockItem, type HotStocksResponse } from '@/api/data'
 import { errorText } from '@/api/request'
 import { applyTradingDayPreset, type PresetKey } from '@/utils/tradingDays'
 import { useToast } from '@/composables/useToast'
+import { resolveSecurityName } from '@/utils/security'
 
 const dataStore = useDataStore()
 const toast = useToast()
@@ -332,6 +337,7 @@ const taskLoading = ref(false)
 const taskSubmitting = ref(false)
 const stoppingTaskId = ref('')
 const tasks = ref<any[]>([])
+const taskStockName = ref('')
 const detailVisible = ref(false)
 const taskDetail = ref<any>(null)
 const detailLoading = ref(false)
@@ -449,6 +455,10 @@ function formatAmount(value: unknown): string {
   if (n >= 100000000) return `${(n / 100000000).toFixed(2)}亿`
   if (n >= 10000) return `${(n / 10000).toFixed(1)}万`
   return n.toFixed(0)
+}
+
+async function loadTaskStockName() {
+  taskStockName.value = await resolveSecurityName(taskForm.stockCode, taskForm.exchange)
 }
 
 function hotLevelType(score: unknown): 'danger' | 'warning' | 'success' | 'info' {
@@ -694,6 +704,7 @@ onMounted(async () => {
   color: var(--down);
 }
 .update-form { margin-bottom: 8px; }
+.security-name { color: var(--text-secondary); min-width: 72px; display: inline-block; }
 .task-hint {
   margin: 0 0 12px;
   font-size: 12px;

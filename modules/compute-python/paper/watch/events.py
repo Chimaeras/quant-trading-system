@@ -48,7 +48,11 @@ def read_events(
                 continue
             if not isinstance(event, dict):
                 continue
-            if int(event.get("seq", 0)) <= after_seq:
+            try:
+                seq = int(event.get("seq", 0))
+            except (TypeError, ValueError):
+                continue
+            if seq <= after_seq:
                 continue
             if code and str(event.get("code", "")) != code:
                 continue

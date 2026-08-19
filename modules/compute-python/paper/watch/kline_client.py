@@ -277,6 +277,14 @@ class KlineClient:
                 message=f"东方财富 K 线请求失败: {type(exc).__name__}",
                 kind=MxErrorKind.HTTP_ERROR,
             )
+        if not isinstance(payload, dict):
+            return None, MxResult(
+                endpoint=EASTMONEY_KLINE_ENDPOINT,
+                ok=False,
+                code="PARSE_ERROR",
+                message=f"东方财富 K 线响应不是 JSON 对象: {type(payload).__name__}",
+                kind=MxErrorKind.PARSE_ERROR,
+            )
         if str(payload.get("rc")) == "0":
             result = MxResult(
                 endpoint=EASTMONEY_KLINE_ENDPOINT,

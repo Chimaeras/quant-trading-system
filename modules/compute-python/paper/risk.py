@@ -200,6 +200,13 @@ def check_watch_intent(
             note("SELL_QTY_CAP", False)
             return reject("SELL_QTY_EXCEEDS_AVAILABLE")
         note("SELL_QTY_CAP", True)
+        # 已知跌停价时，跌停价及以下的卖单大概率无法成交；继续提交只会
+        # 制造无意义委托，且可能掩盖“当前不可卖”的状态。未知跌停价仍由
+        # 下面的近跌停保护和行情有效性闸门兜底。
+        if quote.limit_down_price is not None and intent.limit_price <= quote.limit_down_price:
+            note("LIMIT_DOWN_NOT_SELLABLE", False)
+            return reject("LIMIT_DOWN_NOT_SELLABLE")
+        note("LIMIT_DOWN_NOT_SELLABLE", True)
         if (quote.pct_chg or 0) <= -9.0 and quote.limit_down_price is None:
             note("NEAR_LIMIT_DOWN", False)
             return reject("NEAR_LIMIT_DOWN")

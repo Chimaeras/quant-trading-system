@@ -47,6 +47,10 @@ class SignalAdapter:
         self.boll_std = boll_std
         self._states: dict[str, _StrategyState] = {}
 
+    def reset(self) -> None:
+        """清空上一交易日的策略状态，避免跨日重复使用价格序列。"""
+        self._states.clear()
+
     def _new_strategy(self):
         if self.strategy_name == "MA_CROSS":
             return MACrossStrategy(self.ma_short, self.ma_long)

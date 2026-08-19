@@ -11,7 +11,8 @@ from statistics import median
 from ..broker_client import ACTIVE_ORDER_STATUSES, order_remaining_qty
 from ..config import PaperConfig
 from ..decide import in_trading_window
-from ..models import Candidate, IntentType, MxOrder, Position, SubmitRecord
+from ..models import Candidate, IntentType, MxOrder, Position, QuoteValidity, SubmitRecord
+from ..mx_result import MxErrorKind
 from ..risk import check_watch_intent
 from ..trading_calendar import TradingCalendarService, load_calendar_from_file
 from .artifacts import append_daily_summary, write_tick
@@ -82,6 +83,7 @@ class WatchLoop:
         self._state: WatchState | None = None
         self._cooldown = CooldownBook(config.cooldown_min)
         self._live_halted = False
+        self._unknown_halt = False
         self._events: EventLog | None = None
         self._events_date = ""
         self._cycle = 0
@@ -113,6 +115,11 @@ class WatchLoop:
         """加载观察池、恢复状态并预热分钟 K 线。失败的股票当日禁用，不混用日线 fallback。"""
         current = now or self.now_fn()
         trade_date = current.strftime("%Y-%m-%d")
+        if self._prepared_date != trade_date:
+            # forming bar 和策略价格序列都属于交易日内状态，不能把前一日
+            # 的最后快照或 position-dependent strategy state 带到新的一天。
+            self.bar_store.reset()
+            self.adapter.reset()
         candidates, source, errors = load_watch_universe(self.config, signal_date, candidates_override)
         self._candidates = candidates
         self._universe_source = source
@@ -121,6 +128,12 @@ class WatchLoop:
         self._state, self._cooldown = WatchState.load(
             self._state_path(trade_date), trade_date, self.config.cooldown_min
         )
+        if self._state.unknown_submits:
+            self._live_halted = True
+            self._unknown_halt = True
+            self._prepare_errors.append(
+                f"UNKNOWN_SUBMIT_BLOCKED:{len(self._state.unknown_submits)} 条提交状态待对账"
+            )
 
         required = self.adapter.required_bars()
         for candidate in candidates:
@@ -142,7 +155,13 @@ class WatchLoop:
                         raise ValueError(_result_message(result))
                 else:
                     raise ValueError("未提供 KlineClient 或 seed_bars")
-                self.bar_store.seed(code, bars)
+                self.bar_store.seed(
+                    code,
+                    bars,
+                    # 外部分钟 K 线只提供已收盘历史，首次实时快照所在桶
+                    # 往往是半根；测试/离线 seed_bars 则保留原有语义。
+                    discard_first_forming=code not in self._seed_bars,
+                )
                 self.adapter.seed(code, self.bar_store.history(code))
                 if not self.adapter.ready(code):
                     self._prepare_errors.append(f"{code}:WARMUP不足({len(bars)}/{required})")
@@ -208,6 +227,67 @@ class WatchLoop:
                     return str(data[key])
         return ""
 
+    def _reconcile_unknown_submits(self, orders: list[MxOrder], trade_date: str) -> list[str]:
+        """只用可核验的活动委托解除 unknown；没有匹配时继续冻结。"""
+        if self._state is None or not self._state.unknown_submits:
+            return []
+        remaining: list[dict] = []
+        messages: list[str] = []
+        used_order_ids: set[str] = set()
+        for pending in self._state.unknown_submits:
+            code = str(pending.get("stock_code", ""))
+            side = str(pending.get("side", ""))
+            try:
+                qty = int(pending.get("qty", 0) or 0)
+            except (TypeError, ValueError):
+                # 损坏的 unknown 记录也必须保持冻结，不能因为对账代码
+                # 自身异常而把 live 放行。
+                remaining.append(pending)
+                continue
+            try:
+                expected_price = float(pending.get("price"))
+            except (TypeError, ValueError):
+                expected_price = None
+            match = None
+            for order in orders:
+                if order.order_id in used_order_ids:
+                    continue
+                if (
+                    order.code != code
+                    or order.side != side
+                    or order.qty != qty
+                    or order.status not in ACTIVE_ORDER_STATUSES
+                    or order_remaining_qty(order) <= 0
+                ):
+                    continue
+                if expected_price is None or order.price is None:
+                    continue
+                if abs(float(order.price) - expected_price) > 0.02:
+                    continue
+                match = order
+                break
+            if match is None:
+                remaining.append(pending)
+                continue
+            used_order_ids.add(match.order_id)
+            if match.order_id not in self._state.open_order_ids:
+                self._state.open_order_ids.append(match.order_id)
+            messages.append(
+                f"UNKNOWN_SUBMIT_RECONCILED:{code}/{side}/{qty} -> {match.order_id}"
+            )
+        changed = len(remaining) != len(self._state.unknown_submits)
+        self._state.unknown_submits = remaining
+        if changed:
+            self._state.save(self._state_path(trade_date), self._cooldown)
+        if remaining:
+            self._live_halted = True
+        elif self._unknown_halt:
+            # 只有本次 halt 来自已核验的 unknown 提交时才解除；其他停止性
+            # 错误仍由调用方维持 fail-closed 状态。
+            self._unknown_halt = False
+            self._live_halted = False
+        return messages
+
     def _submit(self, intent, run_id: str) -> SubmitRecord:
         try:
             result = self.broker.trade(
@@ -247,6 +327,15 @@ class WatchLoop:
             fail_status, fail_code = "UNKNOWN_SUBMIT", "NO_RESPONSE"
         elif result.ok and not order_id:
             fail_status, fail_code = "UNKNOWN_SUBMIT", "NO_ORDER_ID"
+        elif (
+            getattr(result, "kind", None) in {MxErrorKind.HTTP_ERROR, MxErrorKind.PARSE_ERROR}
+            or str(getattr(getattr(result, "kind", None), "value", getattr(result, "kind", "")))
+            in {MxErrorKind.HTTP_ERROR.value, MxErrorKind.PARSE_ERROR.value}
+        ):
+            # trade 禁止自动重试；网络/解析异常无法证明服务端未受理，
+            # 必须按 unknown 处理并在 orders 对账前冻结，不能误当拒单再下。
+            fail_status = "UNKNOWN_SUBMIT"
+            fail_code = getattr(getattr(result, "kind", None), "value", str(getattr(result, "kind", "")))
         else:
             fail_status, fail_code = "REJECTED", str(getattr(result, "code", ""))
         return SubmitRecord(
@@ -337,7 +426,15 @@ class WatchLoop:
         if not in_trading_window(current):
             tick.status = "SLEEPING"
             return self._finish(tick)
-        if not self.calendar.is_trading_day(current):
+        try:
+            is_trading_day = self.calendar.is_trading_day(current)
+        except (OSError, TypeError, ValueError) as exc:
+            tick.errors.append(f"TRADING_CALENDAR_ERROR:{type(exc).__name__}:{exc}")
+            if live:
+                self._live_halted = True
+            tick.status = "BLOCKED"
+            return self._finish(tick)
+        if not is_trading_day:
             tick.errors.append(f"NOT_TRADING_DAY:{trade_date}")
             tick.status = "SLEEPING"
             return self._finish(tick)
@@ -349,12 +446,25 @@ class WatchLoop:
         balance, positions, orders, account_error, account_stop = self._account(run_id)
         if account_error:
             tick.errors.append(account_error)
-            if account_stop:
+            if live:
                 self._live_halted = True
-                tick.errors.append("STOP_RUN: 账户查询返回停止性错误，后续切换 dry-run")
+                tick.live = False
+                tick.errors.append(
+                    "STOP_RUN: 账户查询失败，状态未知，后续切换 dry-run"
+                    + ("（停止性错误）" if account_stop else "")
+                )
             tick.status = "BLOCKED"
             return self._finish(tick)
         tick.account = self._account_snapshot(balance, positions, orders)
+        for message in self._reconcile_unknown_submits(orders, trade_date):
+            tick.errors.append(message)
+            events.emit("ACCOUNT", cycle=self._cycle, detail={
+                "phase": "reconcile_unknown", "message": message,
+            }, now=current)
+        if self._state is not None and self._state.unknown_submits:
+            tick.errors.append(
+                f"UNKNOWN_SUBMIT_PENDING:{len(self._state.unknown_submits)} 条提交待人工/柜台对账"
+            )
         events.emit("ACCOUNT", cycle=self._cycle, detail={
             "phase": "before",
             "total_assets": balance.total_assets,
@@ -396,10 +506,24 @@ class WatchLoop:
                 "volume": quote.volume,
                 "validity": quote.validity.value,
             }, now=current)
+            if quote.validity != QuoteValidity.VALID:
+                tick.errors.append(
+                    f"quote {candidate.stock_code} 不可交易: {quote.validity.value}"
+                    + (f" ({quote.error})" if quote.error else "")
+                )
+                # STALE/INVALID/NOT_TRADABLE 不能进入 bar 或池中位数，
+                # 否则上一笔/未来时间的价格会污染后续信号。
+                continue
             if quote.pct_chg is not None:
                 pool_pcts.append(quote.pct_chg)
             try:
-                update = self.bar_store.update_snapshot(candidate.stock_code, quote, current)
+                update = self.bar_store.update_snapshot(
+                    candidate.stock_code,
+                    quote,
+                    # 以交易所行情时间分桶，避免网络延迟把上一桶的快照
+                    # 错放进本地接收时刻对应的新桶。
+                    quote.market_time or quote.received_at or current,
+                )
             except ValueError as exc:
                 tick.errors.append(f"bar {candidate.stock_code} 失败: {exc}")
                 continue
@@ -513,6 +637,18 @@ class WatchLoop:
                 if record.order_id:
                     if self._state is not None:
                         self._state.open_order_ids.append(record.order_id)
+                if record.status == "UNKNOWN_SUBMIT" and self._state is not None:
+                    self._live_halted = True
+                    self._unknown_halt = True
+                    self._state.unknown_submits.append({
+                        "stock_code": record.stock_code,
+                        "side": record.side,
+                        "qty": record.qty,
+                        "price": record.price,
+                        "run_id": run_id,
+                        "submitted_at": current.isoformat(),
+                        "error_code": record.error_code,
+                    })
                 if self._state is not None:
                     self._state.save(self._state_path(trade_date), self._cooldown)
                 if record.status != "SUBMITTED":
@@ -536,8 +672,9 @@ class WatchLoop:
             balance_after, positions_after, orders_after, post_error, post_stop = self._account(run_id)
             if post_error:
                 tick.errors.append("POST_QUERY_FAILED:" + post_error)
-                if post_stop:
-                    self._live_halted = True
+                # 已经发过单而对账失败时，无论是网络、解析还是业务错误，
+                # 都无法确认账户状态；后续必须停实盘，等待人工/柜台核对。
+                self._live_halted = True
                 tick.status = "BLOCKED"
             else:
                 tick.account["after"] = self._account_snapshot(balance_after, positions_after, orders_after)
@@ -574,12 +711,16 @@ class WatchLoop:
         cycle = 0
         try:
             while max_cycles is None or cycle < max_cycles:
-                ticks.append(self.run_once(
+                tick = self.run_once(
                     signal_date,
                     live=live,
                     confirm=confirm,
                     candidates_override=candidates_override,
-                ))
+                )
+                # 长时间运行时不把所有 tick 永久堆在内存中；短跑模式仍
+                # 返回完整结果供 CLI/调用方使用。
+                if max_cycles is not None:
+                    ticks.append(tick)
                 cycle += 1
                 if max_cycles is not None and cycle >= max_cycles:
                     break

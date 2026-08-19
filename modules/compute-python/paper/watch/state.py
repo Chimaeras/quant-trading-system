@@ -15,6 +15,9 @@ class WatchState:
     day_trade_count: int = 0
     cooldowns: dict = field(default_factory=dict)
     open_order_ids: list[str] = field(default_factory=list)
+    # trade 请求超时/无响应时无法确认是否已受理；该记录必须跨进程保留，
+    # 在对账前禁止再次下单，避免重启后重复委托。
+    unknown_submits: list[dict] = field(default_factory=list)
     updated_at: str = ""
 
     def to_dict(self) -> dict:
@@ -23,6 +26,7 @@ class WatchState:
             "day_trade_count": self.day_trade_count,
             "cooldowns": self.cooldowns,
             "open_order_ids": self.open_order_ids,
+            "unknown_submits": self.unknown_submits,
             "updated_at": self.updated_at or datetime.now().isoformat(),
         }
 
@@ -39,6 +43,8 @@ class WatchState:
             return state, CooldownBook(cooldown_min=cooldown_min)
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("state.json 顶层必须是对象")
             if data.get("trade_date") != trade_date:
                 state = cls(trade_date=trade_date)
                 return state, CooldownBook(cooldown_min=cooldown_min)
@@ -47,6 +53,10 @@ class WatchState:
                 day_trade_count=max(int(data.get("day_trade_count", 0)), 0),
                 cooldowns=data.get("cooldowns", {}) if isinstance(data.get("cooldowns", {}), dict) else {},
                 open_order_ids=[str(value) for value in data.get("open_order_ids", [])],
+                unknown_submits=[
+                    item for item in data.get("unknown_submits", [])
+                    if isinstance(item, dict)
+                ],
                 updated_at=str(data.get("updated_at", "")),
             )
             return state, CooldownBook.from_dict(state.cooldowns, cooldown_min)

@@ -312,12 +312,14 @@ def _print_watch_tick(tick) -> None:
 
 
 def cmd_watch_serve(args: argparse.Namespace) -> int:
-    """监控面板只读 API：读取 logs/paper/watch/** 产物，不下单不联网。"""
+    """监控面板 API：交易数据只读，可维护本地观察池，不下单不联网。"""
     from .watch.serve import serve
 
+    config = _load_config()
     serve(
         Path(args.log_base), host=args.host, port=args.port,
         store_path=Path(args.store_path) if args.store_path else None,
+        max_pool_size=config.max_observe_codes,
     )
     return 0
 
@@ -405,7 +407,7 @@ def build_parser() -> argparse.ArgumentParser:
     w = sub.add_parser("watch", help="持续盘中盯盘（默认 dry-run）")
     add_watch_args(w)
     w.add_argument("--max-cycles", type=int, default=0, help="测试/短跑用循环次数，0 表示持续运行")
-    ws = sub.add_parser("watch-serve", help="监控面板只读 API（默认 127.0.0.1:8790）")
+    ws = sub.add_parser("watch-serve", help="监控面板与观察池 API（默认 127.0.0.1:8790）")
     ws.add_argument("--host", default="127.0.0.1")
     ws.add_argument("--port", type=int, default=8790)
     ws.add_argument("--log-base", default="logs", help="与 paper.cli watch 写入目录一致（其下 watch/<date>/）")

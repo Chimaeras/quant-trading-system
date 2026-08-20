@@ -159,6 +159,9 @@
 | POST | `/watchlist/batch-add` | 🔒 | — | ✍ | prod | 批量导入 |
 | GET | `/watchlist/alerts` | 🔒 | — | — | prod | 异动扫描 |
 | GET | `/watchlist/signal-coverage` | 🔒 | — | — | prod | 自选股信号覆盖 |
+| GET | `/pyapi/api/watch/pool` | 🔒 | — | — | prod | 盘中盯盘观察池（热门股默认项 + 人工项） |
+| POST | `/pyapi/api/watch/pool` | 🔒 | — | ✍ | prod | 按 6 位证券代码幂等加入盯盘观察池 |
+| DELETE | `/pyapi/api/watch/pool/{code}` | 🔒 | — | ✍ | prod | 移除人工观察标的 |
 | GET | `/reconcile/position` | 🔒 | — | — | prod | 持仓与选股信号对账 |
 
 ### 1.6 回测 · Scoring / Strategy / Stability / Turnover / WalkForward / Portfolio

@@ -3,16 +3,19 @@ package com.quant.controller;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
-import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 /**
  * 将前端 /pyapi/** 反向代理到本地 watch-serve（默认 127.0.0.1:8790）。
- * 与 Vite 开发代理语义对齐，使 Spring Boot 同端口托管的监控页可访问盯盘只读 API。
+ * 与 Vite 开发代理语义对齐，使 Spring Boot 同端口托管的监控页可访问盯盘 API。
  */
 @RestController
 public class WatchServeProxyController {
@@ -29,8 +32,12 @@ public class WatchServeProxyController {
         this.restClient = RestClient.builder().requestFactory(factory).build();
     }
 
-    @GetMapping("/pyapi/**")
-    public ResponseEntity<byte[]> proxy(HttpServletRequest request) {
+    @RequestMapping(value = "/pyapi/**", method = {
+            RequestMethod.GET, RequestMethod.POST, RequestMethod.DELETE, RequestMethod.OPTIONS
+    })
+    public ResponseEntity<byte[]> proxy(
+            HttpServletRequest request,
+            @RequestBody(required = false) byte[] requestBody) {
         String uri = request.getRequestURI();
         String prefix = "/pyapi";
         String path = uri.startsWith(prefix) ? uri.substring(prefix.length()) : uri;
@@ -41,9 +48,19 @@ public class WatchServeProxyController {
         String target = watchServeBase + path + (query == null || query.isBlank() ? "" : "?" + query);
 
         try {
-            return restClient.get()
-                    .uri(target)
-                    .retrieve()
+            RestClient.RequestBodySpec spec = restClient
+                    .method(HttpMethod.valueOf(request.getMethod()))
+                    .uri(target);
+            if (request.getContentType() != null) {
+                spec.header(HttpHeaders.CONTENT_TYPE, request.getContentType());
+            }
+            if (requestBody != null && requestBody.length > 0) {
+                spec.body(requestBody);
+            }
+            return spec.retrieve()
+                    .onStatus(status -> status.isError(), (upstreamRequest, upstreamResponse) -> {
+                        // 观察池参数错误等 4xx 应原样透传给页面，不能伪装成代理 502。
+                    })
                     .toEntity(byte[].class);
         } catch (RestClientException ex) {
             HttpHeaders headers = new HttpHeaders();

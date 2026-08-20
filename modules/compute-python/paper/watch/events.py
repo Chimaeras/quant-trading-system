@@ -33,14 +33,22 @@ def read_events(
     code: str = "",
     event_type: str = "",
     limit: int = 2000,
+    latest: bool = False,
 ) -> list[dict]:
     """按游标增量读取事件；损坏行跳过，不让面板因单行脏数据 500。"""
     path = events_path(log_base, trade_date)
     if not path.exists():
         return []
     out: list[dict] = []
-    with path.open("r", encoding="utf-8") as handle:
-        for line in handle:
+    lines = (
+        _tail_lines(path, limit) if latest and after_seq <= 0
+        else _lines_after_seq(path, after_seq) if after_seq > 0
+        else None
+    )
+    handle = path.open("r", encoding="utf-8") if lines is None else None
+    try:
+        source = handle if handle is not None else lines
+        for line in source:
             line = line.strip()
             if not line:
                 continue
@@ -63,7 +71,80 @@ def read_events(
             out.append(event)
             if len(out) >= limit:
                 break
+    finally:
+        if handle is not None:
+            handle.close()
     return out
+
+
+def _event_seq(raw: bytes) -> int | None:
+    try:
+        event = json.loads(raw.decode("utf-8"))
+        return int(event.get("seq", 0)) if isinstance(event, dict) else None
+    except (UnicodeDecodeError, ValueError, TypeError):
+        return None
+
+
+def _lines_after_seq(path: Path, after_seq: int, *, block_size: int = 64 * 1024) -> list[str]:
+    """从文件尾部回溯到游标，正常轮询只读取本轮新增字节。"""
+    selected_reversed: list[bytes] = []
+    with path.open("rb") as handle:
+        handle.seek(0, 2)
+        position = handle.tell()
+        carry = b""
+        boundary_found = False
+        while position > 0 and not boundary_found:
+            size = min(block_size, position)
+            position -= size
+            handle.seek(position)
+            data = handle.read(size) + carry
+            parts = data.split(b"\n")
+            if position > 0:
+                carry = parts[0]
+                complete = parts[1:]
+            else:
+                carry = b""
+                complete = parts
+            for raw in reversed(complete):
+                if not raw.strip():
+                    continue
+                seq = _event_seq(raw)
+                if seq is not None and seq <= after_seq:
+                    boundary_found = True
+                    break
+                selected_reversed.append(raw)
+    return [raw.decode("utf-8", errors="replace") for raw in reversed(selected_reversed)]
+
+
+def _tail_lines(path: Path, lines: int, *, block_size: int = 64 * 1024) -> list[str]:
+    if lines <= 0 or not path.exists():
+        return []
+    selected_reversed: list[bytes] = []
+    with path.open("rb") as handle:
+        handle.seek(0, 2)
+        position = handle.tell()
+        carry = b""
+        while position > 0 and len(selected_reversed) < lines:
+            size = min(block_size, position)
+            position -= size
+            handle.seek(position)
+            data = handle.read(size) + carry
+            parts = data.split(b"\n")
+            if position > 0:
+                carry = parts[0]
+                complete = parts[1:]
+            else:
+                carry = b""
+                complete = parts
+            for raw in reversed(complete):
+                if raw.strip():
+                    selected_reversed.append(raw)
+                    if len(selected_reversed) >= lines:
+                        break
+    return [
+        raw.decode("utf-8", errors="replace").strip()
+        for raw in reversed(selected_reversed)
+    ]
 
 
 class EventLog:

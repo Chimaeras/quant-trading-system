@@ -13,7 +13,19 @@ from .parse_query import QuoteParseError, apply_freshness, parse_query
 from .models import Quote, QuoteValidity
 
 QUERY_ENDPOINT = "/api/claw/query"
+# 全市场列表分页（易被截断/混入非目标代码）；L1 粗筛改走 ulist 按本地股票池 secids 批量拉取。
 EASTMONEY_SNAPSHOT_ENDPOINT = "https://push2.eastmoney.com/api/qt/clist/get"
+EASTMONEY_ULIST_ENDPOINT = "https://push2.eastmoney.com/api/qt/ulist.np/get"
+_EASTMONEY_ULIST_BATCH = 80
+_EASTMONEY_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Referer": "https://quote.eastmoney.com/",
+}
+_EASTMONEY_PROXIES = {"http": None, "https": None}
 
 
 def _eastmoney_market_id(code: str, exchange: str | None = None) -> str:
@@ -101,11 +113,12 @@ class QuoteClient:
         run_id: str = "adhoc",
         received_at: datetime | None = None,
     ) -> dict[str, tuple[Quote | None, MxResult]]:
-        """批量读取全市场快照，避免全量模式逐只消耗妙想 query 配额。
+        """按本地股票池批量读取快照，避免全量模式逐只消耗妙想 query 配额。
 
-        东方财富批量接口只负责快速筛选所需的价格、涨跌幅、成交量和名称；
-        它不作为下单限价依据。产生买卖信号后，WatchLoop 会再调用妙想
-        `/query` 获取涨跌停价等权威执行字段。
+        使用东方财富 ulist.np + secids 分批拉取：覆盖率对齐本地主数据，
+        不再依赖 clist 市场列表分页（实测 pz=1000 常被截成 100 且易提前停页）。
+        该快照负责监控轮询和 L1/L2 粗筛；只有外部 live 真正产生买卖
+        意图时，WatchLoop 才会补查妙想 /query。
         """
         current = received_at or datetime.now()
         result_by_code: dict[str, tuple[Quote | None, MxResult]] = {}
@@ -113,39 +126,36 @@ class QuoteClient:
         if not candidate_by_code:
             return result_by_code
 
-        # clist/get 是市场列表分页接口，不保证按 secids 参数过滤。必须对
-        # 沪深北 A 股市场做确定性分页后再与本地主数据求交，不能按候选代码
-        # 分块反复请求第 1 页，否则会静默漏掉排序靠后的证券。
         fields = "f2,f3,f5,f6,f12,f13,f14,f15,f16,f17,f18,f124"
-        page_size = 1000
-        page = 1
-        total: int | None = None
-        seen_page_fingerprints: set[tuple[str, ...]] = set()
-        seen_market_codes: set[str] = set()
+        ordered = list(candidate_by_code.items())
+        batch_count = 0
         duplicate_codes: set[str] = set()
+        seen_codes: set[str] = set()
         terminal_error: MxResult | None = None
-        while len(result_by_code) < len(candidate_by_code):
+
+        for offset in range(0, len(ordered), _EASTMONEY_ULIST_BATCH):
+            chunk = ordered[offset: offset + _EASTMONEY_ULIST_BATCH]
+            secids = ",".join(
+                f"{_eastmoney_market_id(code, getattr(candidate, 'exchange_type', None))}."
+                f"{str(code).zfill(6)}"
+                for code, candidate in chunk
+            )
             payload = None
             last_exc: Exception | None = None
             for attempt in range(max(1, self._config.max_retry)):
                 try:
                     response = requests.get(
-                        EASTMONEY_SNAPSHOT_ENDPOINT,
+                        EASTMONEY_ULIST_ENDPOINT,
                         params={
-                            "pn": str(page),
-                            "pz": str(page_size),
-                            "po": "1",
-                            "np": "1",
                             "fltt": "2",
-                            "invt": "2",
-                            # 代码排序使分页在同一轮请求期间更稳定；涨跌幅排序
-                            # 会随行情变化造成跨页重复/遗漏。
-                            "fid": "f12",
-                            "fs": "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:1+t:80",
+                            "np": "1",
+                            "ut": "bd1d9ddb04089700cf9c27f6f7426281",
+                            "secids": secids,
                             "fields": fields,
                         },
-                        headers={"User-Agent": "quant-trading-system/1.0"},
+                        headers=_EASTMONEY_HEADERS,
                         timeout=20,
+                        proxies=_EASTMONEY_PROXIES,
                     )
                     response.raise_for_status()
                     payload = response.json()
@@ -154,9 +164,10 @@ class QuoteClient:
                     last_exc = exc
                     if attempt < max(1, self._config.max_retry) - 1:
                         time.sleep(0.5 * (attempt + 1))
+            batch_count += 1
             if not isinstance(payload, dict):
                 terminal_error = MxResult(
-                    endpoint=EASTMONEY_SNAPSHOT_ENDPOINT,
+                    endpoint=EASTMONEY_ULIST_ENDPOINT,
                     ok=False,
                     code="HTTP_ERROR" if last_exc else "PARSE_ERROR",
                     message=(
@@ -165,7 +176,8 @@ class QuoteClient:
                     ),
                     kind=MxErrorKind.HTTP_ERROR if last_exc else MxErrorKind.PARSE_ERROR,
                 )
-                break
+                # 单批失败不中断其余批次，尽量保住已有覆盖率。
+                continue
 
             data = payload.get("data")
             raw_diff = data.get("diff") if isinstance(data, dict) else None
@@ -175,26 +187,24 @@ class QuoteClient:
                 rows = raw_diff
             else:
                 rows = []
-            if total is None and isinstance(data, dict):
-                try:
-                    total = max(int(data.get("total", 0) or 0), 0)
-                except (TypeError, ValueError):
-                    total = 0
-            if not rows:
+            if not rows and str(payload.get("rc")) != "0":
                 terminal_error = MxResult(
-                    endpoint=EASTMONEY_SNAPSHOT_ENDPOINT,
+                    endpoint=EASTMONEY_ULIST_ENDPOINT,
                     ok=False,
-                    code="PARSE_ERROR",
-                    message="批量行情响应缺少 data.diff",
-                    kind=MxErrorKind.PARSE_ERROR,
+                    code=str(payload.get("rc", "PARSE_ERROR")),
+                    message=f"批量行情业务失败 rc={payload.get('rc')}",
+                    kind=MxErrorKind.BIZ_ERROR,
                     raw=payload,
                 )
-                break
+                continue
 
             save_raw = getattr(self._http, "save_raw", None)
-            raw_path = save_raw(run_id, f"eastmoney_snapshot_batch_p{page}", payload) if callable(save_raw) else ""
+            raw_path = (
+                save_raw(run_id, f"eastmoney_ulist_batch_{batch_count}", payload)
+                if callable(save_raw) else ""
+            )
             result = MxResult(
-                endpoint=EASTMONEY_SNAPSHOT_ENDPOINT,
+                endpoint=EASTMONEY_ULIST_ENDPOINT,
                 ok=True,
                 code="0",
                 message="ok",
@@ -203,15 +213,18 @@ class QuoteClient:
                 raw=payload,
                 raw_path=raw_path,
             )
-            page_codes: list[str] = []
+            # 每批使用「本批到达时间」，避免整轮扫描耗时数分钟后，
+            # 后半批 market_time 相对扫描起点被误判为 FUTURE_TIMESTAMP。
+            batch_received_at = datetime.now()
+            if current is not None and batch_received_at < current:
+                batch_received_at = current
             for row in rows:
                 if not isinstance(row, dict):
                     continue
                 code = str(row.get("f12", "")).strip().zfill(6)
-                page_codes.append(code)
-                if code in seen_market_codes:
+                if code in seen_codes:
                     duplicate_codes.add(code)
-                seen_market_codes.add(code)
+                seen_codes.add(code)
                 if code not in candidate_by_code:
                     continue
                 candidate = candidate_by_code[code]
@@ -225,7 +238,7 @@ class QuoteClient:
                     quote = Quote(
                         code=code, name=name, exchange=candidate.exchange_type,
                         last=0.0, pct_chg=pct, volume=volume, amount=amount,
-                        market_time=market_time, received_at=current,
+                        market_time=market_time, received_at=batch_received_at,
                         source="eastmoney_batch", validity=QuoteValidity.INVALID,
                         error="LAST_PRICE_UNAVAILABLE",
                     )
@@ -238,7 +251,7 @@ class QuoteClient:
                     quote = Quote(
                         code=code, name=name, exchange=candidate.exchange_type,
                         last=last, pct_chg=pct, volume=volume, amount=amount,
-                        market_time=market_time, received_at=current,
+                        market_time=market_time, received_at=batch_received_at,
                         source="eastmoney_batch", validity=validity, error=error,
                     )
                     if quote.validity == QuoteValidity.VALID:
@@ -248,22 +261,9 @@ class QuoteClient:
                             self._config.clock_skew_sec,
                         )
                 result_by_code[code] = (quote, result)
-            fingerprint = tuple(page_codes)
-            if fingerprint in seen_page_fingerprints:
-                terminal_error = MxResult(
-                    endpoint=EASTMONEY_SNAPSHOT_ENDPOINT,
-                    ok=False,
-                    code="PAGINATION_REPEATED",
-                    message=f"批量行情第 {page} 页与前页重复，停止以避免静默漏数",
-                    kind=MxErrorKind.PARSE_ERROR,
-                    raw=payload,
-                    raw_path=raw_path,
-                )
-                break
-            seen_page_fingerprints.add(fingerprint)
-            if len(rows) < page_size or (total and page * page_size >= total):
-                break
-            page += 1
+
+            if offset + _EASTMONEY_ULIST_BATCH < len(ordered):
+                time.sleep(0.05)
 
         for code in candidate_by_code:
             if code in result_by_code:
@@ -271,20 +271,21 @@ class QuoteClient:
             result_by_code[code] = (
                 None,
                 terminal_error or MxResult(
-                    endpoint=EASTMONEY_SNAPSHOT_ENDPOINT,
+                    endpoint=EASTMONEY_ULIST_ENDPOINT,
                     ok=False,
                     code="MISSING",
-                    message=f"全市场分页完成后仍未返回 {code}",
+                    message=f"secids 分批完成后仍未返回 {code}",
                     kind=MxErrorKind.BIZ_ERROR,
                 ),
             )
         self.last_batch_meta = {
-            "page_count": page,
-            "market_total": total,
-            "seen_market_count": len(seen_market_codes),
+            "page_count": batch_count,
+            "market_total": len(seen_codes),
+            "seen_market_count": len(seen_codes),
             "duplicate_codes": sorted(duplicate_codes),
             "requested_count": len(candidate_by_code),
             "returned_count": sum(1 for quote, _ in result_by_code.values() if quote is not None),
             "terminal_error": getattr(terminal_error, "code", "") if terminal_error else "",
+            "transport": "ulist_secids",
         }
         return result_by_code

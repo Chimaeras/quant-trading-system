@@ -35,9 +35,15 @@ export default defineConfig({
         changeOrigin: true
       },
       '/pyapi': {
-        target: 'http://127.0.0.1:8790',
+        // 观察池包含写操作，开发环境也统一经过 Java 鉴权代理，
+        // 不允许浏览器绕过后端直接访问本地 watch-serve。
+        target: 'http://localhost:8080',
         changeOrigin: true,
-        rewrite: (path: string) => path.replace(/^\/pyapi/, '')
+        configure(proxy) {
+          // 浏览器面对的是 5173 同源请求；转发到 8080 后移除原始 Origin，
+          // 避免 Spring 把这次服务端代理误判为未配置的跨域访问。
+          proxy.on('proxyReq', (proxyReq) => proxyReq.removeHeader('origin'))
+        }
       }
     }
   },

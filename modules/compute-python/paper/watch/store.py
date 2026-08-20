@@ -19,7 +19,7 @@ from typing import Iterable, Protocol
 from .models import WatchBar
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 LEASE_NAME = "paper-watch-live"
 
 
@@ -61,6 +61,11 @@ class WatchStore(Protocol):
     def load_security_rules(self, trade_date: str) -> list[dict]: ...
     def save_universe_snapshot(self, trade_date: str, source: str,
                                universe_hash: str, rows: Iterable[dict]) -> None: ...
+    def sync_default_watch_pool(self, rows: Iterable[dict], *, max_size: int = 50) -> None: ...
+    def list_watch_pool(self, *, limit: int = 500) -> list[dict]: ...
+    def upsert_watch_pool_member(self, row: dict) -> dict: ...
+    def remove_watch_pool_member(self, code: str) -> bool: ...
+    def watch_pool_revision(self) -> str: ...
     def create_local_order(self, order: dict) -> tuple[dict, bool]: ...
     def get_local_order(self, client_order_id: str) -> dict | None: ...
     def list_local_orders(self, *, statuses: Iterable[str] | None = None,
@@ -292,6 +297,19 @@ class SqliteWatchStore:
                     captured_at TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS watch_pool_member (
+                    code TEXT PRIMARY KEY,
+                    name TEXT NOT NULL DEFAULT '',
+                    exchange TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    manual INTEGER NOT NULL DEFAULT 0,
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_watch_pool_source_time
+                    ON watch_pool_member(manual DESC, source, updated_at DESC);
+
                 CREATE TABLE IF NOT EXISTS local_order (
                     client_order_id TEXT PRIMARY KEY,
                     idempotency_key TEXT NOT NULL UNIQUE,
@@ -381,6 +399,18 @@ class SqliteWatchStore:
                 );
                 """
             )
+            columns = {
+                str(row[1]) for row in self._conn.execute("PRAGMA table_info(watch_pool_member)").fetchall()
+            }
+            if "sort_order" not in columns:
+                try:
+                    self._conn.execute(
+                        "ALTER TABLE watch_pool_member ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0"
+                    )
+                except sqlite3.OperationalError as exc:
+                    # watch 与 watch-serve 同时首次启动时，另一进程可能已完成该列迁移。
+                    if "duplicate column" not in str(exc).lower():
+                        raise
             row = self._conn.execute("SELECT version FROM schema_meta WHERE id=1").fetchone()
             if row is not None and int(row["version"]) > SCHEMA_VERSION:
                 raise WatchStoreError(
@@ -1026,6 +1056,106 @@ class SqliteWatchStore:
                 )
         except (TypeError, ValueError, sqlite3.Error) as exc:
             raise WatchStoreError(f"保存证券池版本失败: {type(exc).__name__}:{exc}") from exc
+
+    # ---------------------------- watch pool ----------------------------
+
+    def sync_default_watch_pool(self, rows: Iterable[dict], *, max_size: int = 50) -> None:
+        """刷新启动默认热门股；人工加入的成员始终保留。"""
+        values = list(rows)
+        now = datetime.now().isoformat()
+        try:
+            with self._transaction():
+                self._conn.execute("DELETE FROM watch_pool_member WHERE manual=0")
+                manual_codes = {
+                    str(row[0]) for row in self._conn.execute(
+                        "SELECT code FROM watch_pool_member WHERE manual=1"
+                    ).fetchall()
+                }
+                manual_count = len(manual_codes)
+                capacity = max(0, int(max_size) - manual_count)
+                defaults = [
+                    row for row in values
+                    if str(row.get("code", "")).strip() not in manual_codes
+                ][:capacity]
+                self._conn.executemany(
+                    """
+                    INSERT INTO watch_pool_member(
+                        code, name, exchange, source, manual, sort_order, created_at, updated_at
+                    ) VALUES(?, ?, ?, 'hot_stocks', 0, ?, ?, ?)
+                    ON CONFLICT(code) DO NOTHING
+                    """,
+                    [(
+                        str(row.get("code", "")).strip(),
+                        str(row.get("name", "")).strip(),
+                        str(row.get("exchange", "")).strip(),
+                        index, now, now,
+                    ) for index, row in enumerate(defaults) if row.get("code") and row.get("exchange")],
+                )
+        except (TypeError, ValueError, sqlite3.Error) as exc:
+            raise WatchStoreError(f"刷新默认观察池失败: {type(exc).__name__}:{exc}") from exc
+
+    def list_watch_pool(self, *, limit: int = 500) -> list[dict]:
+        try:
+            rows = self._conn.execute(
+                """
+                SELECT code, name, exchange, source, manual, sort_order, created_at, updated_at
+                FROM watch_pool_member
+                ORDER BY manual DESC,
+                    CASE WHEN manual=1 THEN updated_at END DESC,
+                    sort_order ASC, code
+                LIMIT ?
+                """,
+                (max(1, min(int(limit), 10000)),),
+            ).fetchall()
+            return [dict(row) for row in rows]
+        except (TypeError, ValueError, sqlite3.Error) as exc:
+            raise WatchStoreError(f"读取观察池失败: {type(exc).__name__}:{exc}") from exc
+
+    def upsert_watch_pool_member(self, row: dict) -> dict:
+        code = str(row.get("code", "")).strip()
+        name = str(row.get("name", "")).strip() or code
+        exchange = str(row.get("exchange", "")).strip()
+        if not code or not exchange:
+            raise WatchStoreError("人工观察池成员缺少 code/exchange")
+        now = datetime.now().isoformat()
+        try:
+            with self._transaction():
+                self._conn.execute(
+                    """
+                    INSERT INTO watch_pool_member(
+                        code, name, exchange, source, manual, sort_order, created_at, updated_at
+                    ) VALUES(?, ?, ?, 'manual', 1, 0, ?, ?)
+                    ON CONFLICT(code) DO UPDATE SET
+                        name=excluded.name, exchange=excluded.exchange,
+                        source='manual', manual=1, updated_at=excluded.updated_at
+                    """,
+                    (code, name, exchange, now, now),
+                )
+            saved = self._conn.execute(
+                "SELECT * FROM watch_pool_member WHERE code=?", (code,)
+            ).fetchone()
+            return dict(saved) if saved is not None else {}
+        except sqlite3.Error as exc:
+            raise WatchStoreError(f"保存人工观察标的失败: {type(exc).__name__}:{exc}") from exc
+
+    def remove_watch_pool_member(self, code: str) -> bool:
+        try:
+            with self._transaction():
+                cursor = self._conn.execute(
+                    "DELETE FROM watch_pool_member WHERE code=?", (str(code).strip(),)
+                )
+            return cursor.rowcount > 0
+        except sqlite3.Error as exc:
+            raise WatchStoreError(f"移除观察标的失败: {type(exc).__name__}:{exc}") from exc
+
+    def watch_pool_revision(self) -> str:
+        try:
+            row = self._conn.execute(
+                "SELECT COUNT(*) AS n, COALESCE(MAX(updated_at), '') AS ts FROM watch_pool_member"
+            ).fetchone()
+            return f"{int(row['n'])}:{row['ts']}" if row is not None else "0:"
+        except sqlite3.Error as exc:
+            raise WatchStoreError(f"读取观察池版本失败: {type(exc).__name__}:{exc}") from exc
 
     # ---------------------------- OMS / fills ----------------------------
 

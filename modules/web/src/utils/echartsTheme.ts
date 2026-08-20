@@ -120,3 +120,6 @@ export const CHART_C5 = '#ff6b7a'
 export const CHART_C6 = '#38bdf8'
 export const CHART_UP = '#f23645'
 export const CHART_DOWN = '#089981'
+
+// 图表模块首次被某个懒加载页面引入时再注册，避免应用入口提前加载整套 ECharts。
+registerEChartsTheme()

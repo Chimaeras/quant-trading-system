@@ -4,10 +4,7 @@ import { createPinia } from 'pinia'
 // ElementPlusResolver 自动注册，无需 app.use(ElementPlus) 与全量 CSS 导入
 import App from './App.vue'
 import router from './router'
-import { registerEChartsTheme } from './utils/echartsTheme'
 import './style.css'
-
-registerEChartsTheme()
 
 const app = createApp(App)
 const pinia = createPinia()

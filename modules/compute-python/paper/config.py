@@ -46,16 +46,19 @@ class PaperConfig:
     java_token: str = ""
     max_retry: int = 3
     query_interval_sec: int = 60
-    max_observe_codes: int = 10
+    max_observe_codes: int = 50
     clock_skew_sec: int = 30  # 允许的行情时钟偏差（P1-02/P2-02）
     # 盘中自动盯盘配置（watch V1）
     watch_strategy: str = "MA_CROSS"
     bar_period_min: int = 5
     # 分钟 K 线来源：eastmoney 为官方公开历史 K 线接口；mx_query 保留兼容旧问句。
     kline_source: str = "eastmoney"
+    # 启动预热失败的标的不要永久禁用；到期后用公开 K 线接口重试。
+    kline_retry_sec: int = 60
     watchlist_file: str = ""
-    # FULL：默认扫描 Java 股票主数据中的全部沪深 A 股；T1 保留为兼容模式。
-    watch_universe_mode: str = "FULL"
+    # WATCHLIST：启动时用 Java 数据管理的热门股票填充，并合并本地人工观察标的。
+    # FULL/T1 保留为显式兼容模式，避免默认全市场扫描造成超时。
+    watch_universe_mode: str = "WATCHLIST"
     max_watch_universe_codes: int = 10000
     # live 最低行情覆盖率；低于阈值时市场中位数和持仓监控均不再可信。
     min_quote_coverage: float = 0.95
@@ -76,6 +79,8 @@ class PaperConfig:
     # SHADOW 只产生日志；INTERNAL_PAPER 使用本地撮合；EXTERNAL_PAPER 调妙想模拟盘。
     watch_execution_mode: str = "SHADOW"
     paper_session_id: str = "default"
+    # INTERNAL_PAPER 的初始资金；SHADOW 也用它作为本地研判资金基线，
+    # 避免 dry-run 为展示账户数据调用妙想。
     internal_initial_cash: float = 1_000_000.0
     internal_fill_participation: float = 0.10
     internal_matching_model: str = "NEXT_BAR"
@@ -121,8 +126,10 @@ class PaperConfig:
             raise ValueError("bar_period_min 必须是正数且能整除 60")
         if self.kline_source not in {"eastmoney", "mx_query", "auto"}:
             raise ValueError("kline_source 必须是 eastmoney/mx_query/auto")
-        if self.watch_universe_mode not in {"FULL", "T1"}:
-            raise ValueError("watch_universe_mode 必须是 FULL/T1")
+        if self.kline_retry_sec <= 0:
+            raise ValueError("kline_retry_sec 必须大于 0")
+        if self.watch_universe_mode not in {"WATCHLIST", "FULL", "T1"}:
+            raise ValueError("watch_universe_mode 必须是 WATCHLIST/FULL/T1")
         if not (1 <= self.max_watch_universe_codes <= 10000):
             raise ValueError("max_watch_universe_codes 必须在 [1,10000]")
         if not (0 < self.min_quote_coverage <= 1):
@@ -204,13 +211,14 @@ class PaperConfig:
             java_token=e.get("JAVA_TOKEN", ""),
             max_retry=int(e.get("PAPER_MAX_RETRY", "3")),
             query_interval_sec=int(e.get("PAPER_QUERY_INTERVAL_SEC", "60")),
-            max_observe_codes=int(e.get("PAPER_MAX_OBSERVE_CODES", "10")),
+            max_observe_codes=int(e.get("PAPER_MAX_OBSERVE_CODES", "50")),
             clock_skew_sec=int(e.get("PAPER_CLOCK_SKEW_SEC", "30")),
             watch_strategy=e.get("PAPER_WATCH_STRATEGY", "MA_CROSS").strip().upper(),
             bar_period_min=int(e.get("PAPER_BAR_PERIOD_MIN", "5")),
             kline_source=e.get("PAPER_KLINE_SOURCE", "eastmoney").strip().lower(),
+            kline_retry_sec=int(e.get("PAPER_KLINE_RETRY_SEC", "60")),
             watchlist_file=e.get("PAPER_WATCHLIST_FILE", ""),
-            watch_universe_mode=e.get("PAPER_WATCH_UNIVERSE_MODE", "FULL").strip().upper(),
+            watch_universe_mode=e.get("PAPER_WATCH_UNIVERSE_MODE", "WATCHLIST").strip().upper(),
             max_watch_universe_codes=int(e.get("PAPER_MAX_WATCH_UNIVERSE_CODES", "10000")),
             min_quote_coverage=float(e.get("PAPER_MIN_QUOTE_COVERAGE", "0.95")),
             market_pipeline_v2=e.get("PAPER_MARKET_PIPELINE_V2", "1") == "1",
@@ -269,6 +277,7 @@ class PaperConfig:
             "watch_strategy": self.watch_strategy,
             "bar_period_min": self.bar_period_min,
             "kline_source": self.kline_source,
+            "kline_retry_sec": self.kline_retry_sec,
             "watchlist_file": self.watchlist_file,
             "watch_universe_mode": self.watch_universe_mode,
             "max_watch_universe_codes": self.max_watch_universe_codes,

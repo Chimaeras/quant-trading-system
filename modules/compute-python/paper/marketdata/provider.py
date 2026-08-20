@@ -89,6 +89,6 @@ class LegacyMarketDataRouter:
             ok=bool(caps),
             capabilities=caps,
             checked_at=datetime.now(),
-            message="公开 HTTP 全市场扫描 + 妙想执行级查询；不声明盘口 SLA",
+            message="公开 HTTP 批量轮询；仅外部 live 下单前补查妙想执行级行情；不声明盘口 SLA",
             recommended_interval_sec=60,
         )

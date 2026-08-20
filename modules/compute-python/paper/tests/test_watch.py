@@ -12,8 +12,9 @@ from paper.watch.cooldown import CooldownBook
 from paper.watch.kline_client import _parse_eastmoney_klines, parse_kline_payload
 from paper.trading_calendar import TradingCalendarService
 from paper.watch.loop import WatchLoop
-from paper.watch.models import WatchBar
+from paper.watch.models import WatchBar, WatchTick
 from paper.watch.signal_adapter import SignalAdapter
+from paper.watch.store import SqliteWatchStore
 
 
 T0 = datetime(2026, 8, 18, 9, 30)
@@ -236,14 +237,18 @@ class _WatchBroker:
     def __init__(self):
         self.trade_calls = []
         self.balance_value = Balance(total_assets=100000, avail_balance=100000)
+        self.account_calls = {"balance": 0, "positions": 0, "orders": 0}
 
     def balance(self, run_id="adhoc"):
+        self.account_calls["balance"] += 1
         return self.balance_value, None
 
     def positions(self, run_id="adhoc"):
+        self.account_calls["positions"] += 1
         return [], None
 
     def orders(self, run_id="adhoc"):
+        self.account_calls["orders"] += 1
         return [], None
 
     def trade(self, *args, **kwargs):
@@ -264,6 +269,62 @@ class _WatchQuote:
         )
 
 
+class _BatchWatchQuote(_WatchQuote):
+    """公开批量行情 stub；snapshot 代表妙想 query，不能被常规轮询调用。"""
+
+    def __init__(self):
+        super().__init__()
+        self.batch_calls = 0
+
+    def snapshot_many(self, candidates, *, run_id="adhoc", received_at=None):
+        from paper.mx_result import MxResult
+
+        self.batch_calls += 1
+        return {
+            candidate.stock_code: (
+                _quote(
+                    code=candidate.stock_code,
+                    source="eastmoney_batch",
+                    received_at=received_at,
+                    market_time=received_at,
+                ),
+                MxResult(endpoint="eastmoney/ulist", ok=True, code="0", message="ok"),
+            )
+            for candidate in candidates
+        }
+
+
+class _FailingBatchWatchQuote(_BatchWatchQuote):
+    def snapshot_many(self, candidates, *, run_id="adhoc", received_at=None):
+        self.batch_calls += 1
+        raise RuntimeError("public batch unavailable")
+
+
+class _RetryKline:
+    def __init__(self):
+        self.calls = 0
+
+    def fetch_history(self, code, name, period_min, limit, **kwargs):
+        from paper.mx_result import MxErrorKind, MxResult
+
+        self.calls += 1
+        if self.calls == 1:
+            return None, MxResult(
+                endpoint="eastmoney/kline",
+                ok=False,
+                code="HTTP_ERROR",
+                message="temporary network failure",
+                kind=MxErrorKind.HTTP_ERROR,
+            )
+        return _bars(code, [10.0] * 30), MxResult(
+            endpoint="eastmoney/kline",
+            ok=True,
+            code="0",
+            message="ok",
+            kind=MxErrorKind.OK,
+        )
+
+
 def test_watch_loop_dry_run_has_no_trade_and_persists_tick(tmp_path: Path):
     code = "600519"
     closes = [10.0] * 25 + [10.0 + i * 0.3 for i in range(10)]
@@ -279,8 +340,198 @@ def test_watch_loop_dry_run_has_no_trade_and_persists_tick(tmp_path: Path):
     candidate = Candidate(code, "测试", "SH", source="watchlist")
     first = loop.run_once("2026-08-18", candidates_override=[candidate], now=T0 + timedelta(minutes=5))
     assert broker.trade_calls == []
+    assert broker.account_calls == {"balance": 0, "positions": 0, "orders": 0}
     assert first.status in {"OK", "DEGRADED"}
     assert list((tmp_path / "watch" / "2026-08-18").rglob("tick.json"))
+
+
+def test_watch_loop_uses_public_batch_for_watchlist_and_shadow_account(tmp_path: Path):
+    code = "600519"
+    quote = _BatchWatchQuote()
+    broker = _WatchBroker()
+    loop = WatchLoop(
+        _config(),
+        quote,
+        broker,
+        log_base=tmp_path,
+        seed_bars={code: _bars(code, [10.0] * 30)},
+        now_fn=lambda: T0 + timedelta(minutes=5),
+    )
+    tick = loop.run_once(
+        "2026-08-18",
+        candidates_override=[Candidate(code, "测试", "SH", source="watchlist")],
+        now=T0 + timedelta(minutes=5),
+    )
+
+    assert tick.status in {"OK", "DEGRADED"}
+    assert quote.batch_calls == 1
+    assert quote.calls == 0
+    assert broker.account_calls == {"balance": 0, "positions": 0, "orders": 0}
+
+
+def test_account_positions_and_active_orders_are_forced_into_universe(tmp_path: Path):
+    loop = WatchLoop(
+        _config(), _WatchQuote(), _WatchBroker(), log_base=tmp_path, seed_bars={}
+    )
+    loop._candidates = [Candidate("600519", "测试", "SH", source="watchlist")]
+    tick = WatchTick("run", "2026-08-18", T0.isoformat(), T0.isoformat(), False)
+    positions = [Position("000001", "平安银行", 100, 100, 10, 11, 1100, 100)]
+    orders = [MxOrder("o-1", "920000", "buy", 12.0, 100, 0, "2")]
+
+    added = loop._ensure_account_candidates(
+        positions, orders, "2026-08-18", T0, "2026-08-18", tick
+    )
+
+    assert added == {"000001", "920000"}
+    candidates = {item.stock_code: item for item in loop._candidates}
+    assert candidates["000001"].stock_name == "平安银行"
+    assert candidates["000001"].exchange_type == "SZ"
+    assert candidates["920000"].exchange_type == "BJ"
+    assert all(candidates[code].source == "mandatory_account" for code in added)
+    assert any(error.startswith("ACCOUNT_SECURITIES_FORCED_INTO_UNIVERSE:") for error in tick.errors)
+
+
+def test_empty_watch_pool_still_monitors_external_account_positions(tmp_path: Path):
+    class _PositionBroker(_WatchBroker):
+        def positions(self, run_id="adhoc"):
+            self.account_calls["positions"] += 1
+            return [
+                Position("000001", "平安银行", 100, 100, 10, 11, 1100, 100)
+            ], None
+
+    quote = _BatchWatchQuote()
+    loop = WatchLoop(
+        _config(watch_execution_mode="EXTERNAL_PAPER"),
+        quote,
+        _PositionBroker(),
+        log_base=tmp_path,
+        seed_bars={},
+        calendar=TradingCalendarService(source="test"),
+    )
+    tick = loop.run_once(
+        "2026-08-18", candidates_override=[], now=T0 + timedelta(minutes=5)
+    )
+
+    assert tick.status != "NO_UNIVERSE"
+    assert quote.batch_calls == 1
+    assert [item["stock_code"] for item in tick.universe] == ["000001"]
+    assert any(
+        error == "ACCOUNT_SECURITIES_FORCED_INTO_UNIVERSE:000001"
+        for error in tick.errors
+    )
+
+
+def test_execution_quote_uses_execution_sla_instead_of_polling_staleness(tmp_path: Path):
+    loop = WatchLoop(
+        _config(execution_quote_stale_sec=10, quote_stale_sec=120),
+        _WatchQuote(), _WatchBroker(), log_base=tmp_path, seed_bars={},
+    )
+    stale = _quote(market_time=T0, received_at=T0, validity=QuoteValidity.VALID)
+    checked = loop._enforce_execution_freshness(stale, T0 + timedelta(seconds=11))
+    assert checked.validity == QuoteValidity.STALE
+    assert checked.error.startswith("EXECUTION_QUOTE_STALE:11.0s>10s")
+
+    recovered = _quote(
+        market_time=T0 + timedelta(seconds=20), received_at=T0,
+        validity=QuoteValidity.INVALID, error="FUTURE_TIMESTAMP",
+    )
+    checked = loop._enforce_execution_freshness(
+        recovered, T0 + timedelta(seconds=21)
+    )
+    assert checked.validity == QuoteValidity.VALID
+    assert checked.error == ""
+
+
+def test_watchlist_batch_persists_latest_quotes_and_market_event(tmp_path: Path):
+    from paper.watch.events import read_events
+
+    code = "600519"
+    store = SqliteWatchStore(tmp_path / "runtime.sqlite3")
+    loop = WatchLoop(
+        _config(),
+        _BatchWatchQuote(),
+        _WatchBroker(),
+        log_base=tmp_path,
+        seed_bars={code: _bars(code, [10.0] * 30)},
+        store=store,
+        now_fn=lambda: T0 + timedelta(minutes=5),
+    )
+    loop.run_once(
+        "2026-08-18",
+        candidates_override=[Candidate(code, "测试", "SH", source="watchlist")],
+        now=T0 + timedelta(minutes=5),
+    )
+
+    row = store.list_latest_quotes(trade_date="2026-08-18")[0]
+    assert row["code"] == code
+    assert row["source"] == "eastmoney_batch"
+    assert row["quality"] == "VALID"
+    events = read_events(tmp_path, "2026-08-18")
+    assert any(
+        event["type"] == "MARKET_DATA"
+        and event["detail"]["phase"] == "WATCHLIST_BATCH"
+        for event in events
+    )
+    store.close()
+
+
+def test_public_batch_failure_does_not_fallback_to_mx_snapshot(tmp_path: Path):
+    quote = _FailingBatchWatchQuote()
+    loop = WatchLoop(
+        _config(),
+        quote,
+        _WatchBroker(),
+        log_base=tmp_path,
+        seed_bars={"600519": _bars("600519", [10.0] * 30)},
+        now_fn=lambda: T0 + timedelta(minutes=5),
+    )
+    tick = loop.run_once(
+        "2026-08-18",
+        candidates_override=[Candidate("600519", "测试", "SH", source="watchlist")],
+        now=T0 + timedelta(minutes=5),
+    )
+
+    assert quote.batch_calls == 1
+    assert quote.calls == 0
+    assert any("PUBLIC_QUOTE_BATCH_FAILED" in error for error in tick.errors)
+
+
+def test_disabled_kline_is_retried_and_recovered(tmp_path: Path):
+    from paper.watch.events import read_events
+
+    kline = _RetryKline()
+    code = "600519"
+    loop = WatchLoop(
+        _config(kline_retry_sec=60),
+        _BatchWatchQuote(),
+        _WatchBroker(),
+        kline_client=kline,
+        log_base=tmp_path,
+        now_fn=lambda: T0 + timedelta(minutes=5),
+    )
+    candidate = Candidate(code, "测试", "SH", source="watchlist")
+    first = loop.run_once(
+        "2026-08-18",
+        candidates_override=[candidate],
+        now=T0 + timedelta(minutes=5),
+    )
+    assert any("KLINE_DISABLED" in error for error in first.errors)
+    assert code in loop._disabled_codes
+
+    loop.run_once(
+        "2026-08-18",
+        candidates_override=[candidate],
+        now=T0 + timedelta(minutes=7),
+    )
+    assert code not in loop._disabled_codes
+    assert kline.calls == 2
+    events = read_events(tmp_path, "2026-08-18")
+    assert any(
+        event["type"] == "ERROR"
+        and event["detail"].get("scope") == "KLINE_RETRY"
+        and event["detail"].get("status") == "RECOVERED"
+        for event in events
+    )
 
 
 def test_watch_live_requires_cli_confirm_and_environment_switch(tmp_path: Path):
@@ -653,7 +904,9 @@ def test_dry_run_loop_emits_full_event_chain(tmp_path: Path):
 
     sizing = next(e for e in events if e["type"] == "SIZING")
     # avail*weight/last 取整百，且再扣最低佣金后的可负担上限
-    assert sizing["detail"]["final_qty"] == 1900
+    # SHADOW 不再查询外部账户，使用 config.internal_initial_cash（默认 100 万）
+    # 作为本地研判资金基线。
+    assert sizing["detail"]["final_qty"] == 19000
 
     gate = next(e for e in events if e["type"] == "RISK_GATE")
     assert gate["detail"]["result"] == "PASS"
@@ -665,6 +918,117 @@ def test_dry_run_loop_emits_full_event_chain(tmp_path: Path):
     end_cycle = [e for e in events if e["type"] == "CYCLE"][-1]
     assert end_cycle["detail"]["phase"] == "end"
     assert end_cycle["detail"]["status"] == tick.status
+
+
+def test_internal_paper_fill_updates_account_and_position(tmp_path: Path):
+    from paper.watch.internal_broker import InternalPaperBroker
+    from paper.watch.oms import OmsService, OrderStatus
+
+    config = _config(
+        watch_execution_mode="INTERNAL_PAPER",
+        paper_session_id="test-internal",
+        internal_initial_cash=10_000,
+        internal_fill_participation=0.10,
+    )
+    store = SqliteWatchStore(tmp_path / "runtime.sqlite3")
+    broker = InternalPaperBroker(store, config, now_fn=lambda: T0)
+    oms = OmsService(store, session_id=config.paper_session_id, channel="INTERNAL_PAPER")
+    order, created = oms.create(
+        run_id="run-1",
+        strategy="MA_CROSS",
+        signal_bar_ts=T0.isoformat(),
+        code="600519",
+        side="buy",
+        qty=100,
+        limit_price=10.0,
+        ttl_sec=600,
+        now=T0,
+    )
+    assert created is True
+    order = oms.transition(order.client_order_id, OrderStatus.SUBMITTING)
+    accepted = broker.submit_local_order(order)
+    assert accepted.ok is True
+
+    before, _ = broker.balance()
+    assert before.avail_balance < config.internal_initial_cash
+
+    fills = broker.process_bars([
+        WatchBar(
+            code="600519",
+            period_min=5,
+            open=9.9,
+            high=10.1,
+            low=9.8,
+            close=9.95,
+            volume=1000,
+            start_ts=T0,
+            end_ts=T0 + timedelta(minutes=5),
+            closed=True,
+        )
+    ], now=T0 + timedelta(minutes=5))
+    assert len(fills) == 1
+    after, _ = broker.balance()
+    assert after.avail_balance < config.internal_initial_cash
+    positions, _ = broker.positions()
+    assert positions[0].code == "600519"
+    assert positions[0].qty == 100
+    store.close()
+
+
+def test_internal_paper_live_does_not_require_external_calendar(tmp_path: Path):
+    loop = WatchLoop(
+        _config(watch_live=True, watch_execution_mode="INTERNAL_PAPER"),
+        _WatchQuote(),
+        _WatchBroker(),
+        log_base=tmp_path,
+        seed_bars={},
+    )
+    tick = loop.run_once(
+        "2026-08-20",
+        live=True,
+        confirm=True,
+        candidates_override=[],
+        now=T0 + timedelta(minutes=5),
+    )
+    assert tick.status == "NO_UNIVERSE"
+    assert "TRADING_CALENDAR_REQUIRED: live 必须注入交易日历文件或服务" not in tick.errors
+
+
+def test_internal_paper_retries_stale_lease_on_next_cycle(tmp_path: Path):
+    store = SqliteWatchStore(tmp_path / "runtime.sqlite3")
+    loop = WatchLoop(
+        _config(watch_live=True, watch_execution_mode="INTERNAL_PAPER"),
+        _BatchWatchQuote(),
+        _WatchBroker(),
+        log_base=tmp_path,
+        seed_bars={"600519": _bars("600519", [10.0] * 30)},
+        store=store,
+        require_persistence=True,
+    )
+    lease_results = [
+        (False, {"reason": "stale lease"}),
+        (True, {"mode": "test"}),
+    ]
+    loop._ensure_live_lease = lambda **kwargs: lease_results.pop(0)
+    candidate = Candidate("600519", "测试", "SH", source="watchlist")
+    first = loop.run_once(
+        "2026-08-20",
+        live=True,
+        confirm=True,
+        candidates_override=[candidate],
+        now=T0 + timedelta(minutes=5),
+    )
+    second = loop.run_once(
+        "2026-08-20",
+        live=True,
+        confirm=True,
+        candidates_override=[candidate],
+        now=T0 + timedelta(minutes=10),
+    )
+    assert first.status == "BLOCKED"
+    assert loop._live_halted is False
+    assert second.status in {"OK", "DEGRADED"}
+    store.close()
 
 
 def test_blocked_cycle_still_emits_cycle_end(tmp_path: Path):
@@ -729,6 +1093,21 @@ def test_close_releases_event_log_handle(tmp_path: Path):
     loop.close()
     import shutil
     shutil.rmtree(tmp_path)
+
+
+def test_incremental_event_read_scans_from_cursor_across_large_blocks(tmp_path: Path):
+    from paper.watch.events import EventLog, read_events
+
+    log = EventLog(tmp_path, "2026-08-18", now_fn=lambda: T0)
+    padding = "x" * 400
+    for index in range(700):
+        log.emit("ERROR", detail={"scope": "TEST", "message": f"{index}:{padding}"})
+    log.close()
+
+    events = read_events(tmp_path, "2026-08-18", after_seq=650, limit=20)
+    assert [event["seq"] for event in events] == list(range(651, 671))
+    latest = read_events(tmp_path, "2026-08-18", limit=20, latest=True)
+    assert [event["seq"] for event in latest] == list(range(681, 701))
 
 
 def test_corrupted_watch_state_blocks_live_but_reports_recovery_error(tmp_path: Path):
@@ -837,6 +1216,90 @@ def test_live_blocks_when_quote_coverage_is_below_threshold(tmp_path: Path):
     assert broker.trade_calls == []
     assert any(error.startswith("QUOTE_COVERAGE_BLOCKED:50.00%<75.00%") for error in tick.errors)
     assert tick.metrics["quote_coverage"] == 0.5
+
+
+def test_internal_paper_keeps_valid_symbols_when_pool_coverage_is_below_threshold(tmp_path: Path):
+    from paper.mx_result import MxResult
+
+    code_ok, code_missing = "600519", "000001"
+
+    class _PartialQuote:
+        def snapshot(self, code, name="", *, run_id="adhoc", received_at=None):
+            if code == code_ok:
+                return _quote(code=code, received_at=received_at, market_time=received_at), MxResult(
+                    endpoint="/query", ok=True, code="0", message="ok"
+                )
+            return None, MxResult(endpoint="/query", ok=False, code="MISSING", message="missing")
+
+    store = SqliteWatchStore(tmp_path / "runtime.sqlite3")
+    loop = WatchLoop(
+        _config(
+            watch_live=True,
+            watch_execution_mode="INTERNAL_PAPER",
+            min_quote_coverage=0.75,
+        ),
+        _PartialQuote(),
+        _ResultBroker([]),
+        log_base=tmp_path,
+        seed_bars={
+            code_ok: _bars(code_ok, [10.0] * 30),
+            code_missing: _bars(code_missing, [10.0] * 30),
+        },
+        calendar=TradingCalendarService(source="test"),
+        store=store,
+        require_persistence=True,
+    )
+    tick = loop.run_once(
+        "2026-08-18",
+        live=True,
+        confirm=True,
+        candidates_override=[
+            Candidate(code_ok, "测试A", "SH", source="watchlist"),
+            Candidate(code_missing, "测试B", "SZ", source="watchlist"),
+        ],
+        now=T0 + timedelta(minutes=5),
+    )
+
+    assert tick.live is True
+    assert not any(error.startswith("QUOTE_COVERAGE_BLOCKED:") for error in tick.errors)
+    assert tick.metrics["quote_coverage"] == 0.5
+    store.close()
+
+
+def test_internal_paper_analyzes_ready_symbols_during_partial_warmup(tmp_path: Path):
+    code_ready, code_cold = "600519", "000001"
+    store = SqliteWatchStore(tmp_path / "runtime.sqlite3")
+    loop = WatchLoop(
+        _config(watch_live=True, watch_execution_mode="INTERNAL_PAPER"),
+        _BatchWatchQuote(),
+        _ResultBroker([]),
+        log_base=tmp_path,
+        seed_bars={code_ready: _bars(code_ready, [10.0] * 30),
+                   code_cold: _bars(code_cold, [10.0] * 2)},
+        calendar=TradingCalendarService(source="test"),
+        store=store,
+        require_persistence=True,
+    )
+    tick = loop.run_once(
+        "2026-08-18",
+        live=True,
+        confirm=True,
+        candidates_override=[
+            Candidate(code_ready, "测试A", "SH", source="watchlist"),
+            Candidate(code_cold, "测试B", "SZ", source="watchlist"),
+        ],
+        now=T0 + timedelta(minutes=5),
+    )
+
+    assert tick.live is True
+    assert tick.status in {"OK", "DEGRADED"}
+    warmup = next(
+        item for item in tick.metrics["readiness"]["checks"]
+        if item["name"] == "strategy_warmup"
+    )
+    assert warmup["ready"] == 1
+    assert warmup["hard"] is False
+    store.close()
 
 
 def test_serve_rejects_bad_query_params(tmp_path: Path):

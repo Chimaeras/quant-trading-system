@@ -5,7 +5,7 @@ import secrets
 import time
 import requests
 from dataclasses import asdict, replace
-from datetime import datetime
+from datetime import datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
 from statistics import median
@@ -13,7 +13,7 @@ from statistics import median
 from ..broker_client import ACTIVE_ORDER_STATUSES, order_remaining_qty
 from ..config import PaperConfig
 from ..decide import in_trading_window
-from ..models import Candidate, IntentType, MxOrder, Position, QuoteValidity, SubmitRecord
+from ..models import Balance, Candidate, IntentType, MxOrder, Position, QuoteValidity, SubmitRecord
 from ..marketdata import (
     ActivePoolManager,
     LegacyMarketDataRouter,
@@ -49,6 +49,15 @@ def _result_message(result) -> str:
     if result is None:
         return "无响应结果"
     return f"code={getattr(result, 'code', '?')} kind={getattr(getattr(result, 'kind', None), 'value', '?')} msg={getattr(result, 'message', '')}"
+
+
+def _exchange_for_code(code: str) -> str:
+    pure = str(code).strip().zfill(6)
+    if pure.startswith(("4", "8", "92")):
+        return "BJ"
+    if pure.startswith(("5", "6", "9")):
+        return "SH"
+    return "SZ"
 
 
 class WatchLoop:
@@ -106,9 +115,11 @@ class WatchLoop:
         self._prepared_date = ""
         self._candidates: list[Candidate] = []
         self._universe_source = ""
+        self._watch_pool_revision = ""
         self._prepare_errors: list[str] = []
         self._prepare_errors_pending = False
         self._disabled_codes: dict[str, str] = {}
+        self._disabled_retry_at: dict[str, datetime] = {}
         self._state: WatchState | None = None
         self._cooldown = CooldownBook(config.cooldown_min)
         self._live_halted = False
@@ -241,11 +252,21 @@ class WatchLoop:
             self._l1_quality_engine.reset()
             self._l2_quality_engine.reset()
             self._active_pool.reset()
-        candidates, source, errors = load_watch_universe(self.config, signal_date, candidates_override)
+        candidates, source, errors = load_watch_universe(
+            self.config, signal_date, candidates_override, store=self.store
+        )
         self._candidates = candidates
         self._universe_source = source
         self._prepare_errors = list(errors)
+        if self.store is not None and callable(getattr(self.store, "watch_pool_revision", None)):
+            try:
+                self._watch_pool_revision = self.store.watch_pool_revision()
+            except WatchStoreError as exc:
+                self._prepare_errors.append(
+                    f"WATCH_POOL_REVISION_FAILED:{type(exc).__name__}:{exc}"
+                )
         self._disabled_codes = {}
+        self._disabled_retry_at = {}
         if self.store is not None and callable(getattr(self.store, "save_universe_snapshot", None)):
             universe_rows = [
                 {
@@ -363,6 +384,9 @@ class WatchLoop:
                     self._prepare_errors.append(f"{code}:WARMUP不足({len(bars)}/{required})")
             except (OSError, TypeError, ValueError) as exc:
                 self._disabled_codes[code] = str(exc)
+                self._disabled_retry_at[code] = current + timedelta(
+                    seconds=self.config.kline_retry_sec
+                )
                 self._prepare_errors.append(f"{code}:KLINE_DISABLED:{exc}")
 
         if source == "full_market":
@@ -471,29 +495,108 @@ class WatchLoop:
             except (OSError, TypeError, ValueError) as exc:
                 tick.errors.append(f"{code}:L2_KLINE_DISABLED:{exc}")
 
+    def _retry_disabled_klines(self, current: datetime, trade_date: str) -> None:
+        """按退避时间重试启动阶段失败的公开 K 线预热。"""
+        if self.kline_client is None or not self._disabled_codes:
+            return
+        candidate_map = {candidate.stock_code: candidate for candidate in self._candidates}
+        required = self.adapter.required_bars()
+        events = self._event_log(trade_date)
+        for code in sorted(list(self._disabled_codes)):
+            retry_at = self._disabled_retry_at.get(code)
+            if retry_at is not None and current < retry_at:
+                continue
+            candidate = candidate_map.get(code)
+            if candidate is None:
+                continue
+            try:
+                bars, result = self.kline_client.fetch_history(
+                    code,
+                    candidate.stock_name,
+                    self.config.bar_period_min,
+                    max(required + 10, 80),
+                    run_id=f"watch-kline-retry-{trade_date}",
+                    as_of=current,
+                    exchange=candidate.exchange_type,
+                )
+                if bars is None:
+                    raise ValueError(_result_message(result))
+                self.bar_store.seed(code, bars, discard_first_forming=True)
+                self.adapter.seed(code, self.bar_store.history(code))
+                self._disabled_codes.pop(code, None)
+                self._disabled_retry_at.pop(code, None)
+                events.emit("ERROR", code=code, name=candidate.stock_name, cycle=self._cycle,
+                            detail={
+                                "scope": "KLINE_RETRY",
+                                "status": "RECOVERED",
+                                "bars": len(bars),
+                            }, now=current)
+            except (OSError, TypeError, ValueError) as exc:
+                next_retry = current + timedelta(seconds=self.config.kline_retry_sec)
+                self._disabled_retry_at[code] = next_retry
+                events.emit("ERROR", code=code, name=candidate.stock_name, cycle=self._cycle,
+                            detail={
+                                "scope": "KLINE_RETRY",
+                                "status": "FAILED",
+                                "retry_at": next_retry.isoformat(),
+                                "message": str(exc),
+                            }, now=current)
+
     def _persist_latest_quotes(self, quotes: dict, quality: dict[str, dict], *,
-                               batch_id: str, processed_at: datetime) -> None:
+                               batch_id: str, processed_at: datetime,
+                               candidates: list[Candidate] | None = None,
+                               results: dict[str, tuple[object | None, object | None]] | None = None) -> None:
         if self.store is None or not callable(getattr(self.store, "upsert_latest_quotes", None)):
             return
         rows = []
-        for code, quote in quotes.items():
+        candidate_map = {candidate.stock_code: candidate for candidate in (candidates or [])}
+        codes = list(candidate_map) if candidates is not None else list(quotes)
+        for code in codes:
+            quote = quotes.get(code)
+            result = results.get(code, (None, None))[1] if results is not None else None
             q = quality.get(code, {})
+            candidate = candidate_map.get(code)
+            validity = getattr(getattr(quote, "validity", None), "value", "MISSING")
+            quality_value = q.get("quality") or validity
+            reason = q.get("reason") or getattr(quote, "error", "") or (
+                _result_message(result) if quote is None else ""
+            )
             rows.append({
                 "trade_date": processed_at.strftime("%Y-%m-%d"),
-                "code": code, "name": getattr(quote, "name", ""),
-                "exchange": getattr(quote, "exchange", ""), "last": getattr(quote, "last", 0.0),
+                "code": code, "name": getattr(quote, "name", "") or getattr(candidate, "stock_name", ""),
+                "exchange": getattr(quote, "exchange", "") or getattr(candidate, "exchange_type", ""),
+                "last": getattr(quote, "last", 0.0),
                 "pct_chg": getattr(quote, "pct_chg", None), "volume": getattr(quote, "volume", None),
-                "amount": getattr(quote, "amount", None), "source": getattr(quote, "source", ""),
+                "amount": getattr(quote, "amount", None),
+                "source": getattr(quote, "source", "") or (
+                    "eastmoney_batch" if result is not None and "eastmoney" in str(getattr(result, "endpoint", ""))
+                    else "missing"
+                ),
                 "market_time": quote.market_time.isoformat() if getattr(quote, "market_time", None) else "",
                 "received_at": quote.received_at.isoformat() if getattr(quote, "received_at", None) else "",
                 "processed_at": processed_at.isoformat(),
-                "validity": getattr(getattr(quote, "validity", None), "value", "INVALID"),
-                "quality": q.get("quality", "INVALID"), "quality_reason": q.get("reason", ""),
+                "validity": validity,
+                "quality": quality_value, "quality_reason": reason,
                 "batch_id": batch_id, "freshness_seconds": getattr(quote, "freshness_seconds", None),
             })
         self.store.upsert_latest_quotes(rows)
 
+    def _shadow_account(self):
+        """返回本地影子账户，SHADOW 模式不得因为展示/研判消耗妙想配额。"""
+        cash = max(float(self.config.internal_initial_cash), 0.0)
+        return Balance(
+            total_assets=cash,
+            avail_balance=cash,
+            acc_name="Local Shadow",
+            acc_id="shadow",
+            raw={"channel": "SHADOW", "source": "local_config"},
+        ), [], [], "", False
+
     def _account(self, run_id: str):
+        # SHADOW 只做本地行情研判和审计；账户/持仓/委托不应触发妙想请求。
+        # INTERNAL_PAPER 自带本地 broker，也不会访问妙想。
+        if self.execution_mode == "SHADOW":
+            return self._shadow_account()
         balance, b_result = self.broker.balance(run_id)
         if balance is None or (b_result is not None and not b_result.ok):
             return None, None, None, f"balance 查询失败: {_result_message(b_result)}", bool(b_result and b_result.stop_run())
@@ -575,8 +678,8 @@ class WatchLoop:
         ))
 
     def _warmup_positions(self, positions: list[Position], current: datetime, trade_date: str, tick: WatchTick) -> None:
-        """全市场模式只为已有持仓定向预热，避免卖出信号永远等待 20 根 bar。"""
-        if self._universe_source != "full_market" or self.kline_client is None:
+        """为已有持仓定向预热，避免卖出信号永远等待 20 根 bar。"""
+        if self.kline_client is None:
             return
         candidate_map = {candidate.stock_code: candidate for candidate in self._candidates}
         required = self.adapter.required_bars()
@@ -604,6 +707,75 @@ class WatchLoop:
                     tick.errors.append(f"{position.code}:{candidate.stock_name}:WARMUP不足({len(bars)}/{required})")
             except (OSError, TypeError, ValueError) as exc:
                 tick.errors.append(f"{position.code}:{candidate.stock_name}:POSITION_KLINE_DISABLED:{exc}")
+
+    def _ensure_account_candidates(
+        self,
+        positions: list[Position],
+        orders: list[MxOrder],
+        signal_date: str,
+        current: datetime,
+        trade_date: str,
+        tick: WatchTick,
+    ) -> set[str]:
+        """持仓和活动委托是强制监控对象，不能因观察池修改而失联。"""
+        position_by_code = {
+            str(position.code): position
+            for position in positions
+            if int(getattr(position, "qty", 0) or 0) > 0
+        }
+        mandatory_codes = set(position_by_code)
+        mandatory_codes.update(
+            str(order.code)
+            for order in orders
+            if order.status in ACTIVE_ORDER_STATUSES and order_remaining_qty(order) > 0
+        )
+        mandatory_codes.update(self._unknown_order_codes())
+        candidate_codes = {candidate.stock_code for candidate in self._candidates}
+        added = sorted(code for code in mandatory_codes if code and code not in candidate_codes)
+        if not added:
+            return set()
+
+        for code in added:
+            position = position_by_code.get(code)
+            self._candidates.append(Candidate(
+                stock_code=code,
+                stock_name=str(getattr(position, "name", "") or code),
+                exchange_type=_exchange_for_code(code),
+                signal_date=signal_date or trade_date,
+                source="mandatory_account",
+            ))
+        tick.errors.append("ACCOUNT_SECURITIES_FORCED_INTO_UNIVERSE:" + ",".join(added))
+        self._warmup_codes(set(added), current, trade_date, tick)
+        return set(added)
+
+    def _enforce_execution_freshness(self, quote, checked_at: datetime):
+        """外部提交前按执行级 SLA 重算年龄，不复用常规轮询的 120 秒阈值。"""
+        if quote is None:
+            return None
+        quote.received_at = checked_at
+        if quote.market_time is None:
+            quote.validity = QuoteValidity.INVALID
+            quote.error = "MARKET_TIME_UNAVAILABLE"
+            quote.freshness_seconds = None
+            return quote
+        age = (checked_at - quote.market_time).total_seconds()
+        if age < -self.config.clock_skew_sec:
+            quote.validity = QuoteValidity.INVALID
+            quote.error = "FUTURE_TIMESTAMP"
+            quote.freshness_seconds = None
+            return quote
+        quote.freshness_seconds = max(age, 0.0)
+        if age > self.config.execution_quote_stale_sec:
+            quote.validity = QuoteValidity.STALE
+            quote.error = (
+                f"EXECUTION_QUOTE_STALE:{age:.1f}s>"
+                f"{self.config.execution_quote_stale_sec}s"
+            )
+        elif quote.validity in {QuoteValidity.VALID, QuoteValidity.STALE} or quote.error == "FUTURE_TIMESTAMP":
+            quote.validity = QuoteValidity.VALID
+            if quote.error.startswith(("FUTURE_TIMESTAMP", "EXECUTION_QUOTE_STALE")):
+                quote.error = ""
+        return quote
 
     @staticmethod
     def _order_id(result) -> str:
@@ -929,7 +1101,14 @@ class WatchLoop:
             tick.errors.append("LIVE_CONFIRM_REQUIRED: --live、--confirm 与 PAPER_WATCH_LIVE=1 必须同时满足")
             tick.status = "BLOCKED"
             return self._finish(tick)
-        if live and not self._calendar_explicit and not self.config.trading_calendar_file:
+        # INTERNAL_PAPER 是本地模拟，不会触达外部交易柜台，可以使用本地
+        # weekday fallback；EXTERNAL_PAPER 仍必须注入正式交易日历。
+        if (
+            live
+            and self.execution_mode == "EXTERNAL_PAPER"
+            and not self._calendar_explicit
+            and not self.config.trading_calendar_file
+        ):
             tick.errors.append("TRADING_CALENDAR_REQUIRED: live 必须注入交易日历文件或服务")
             tick.status = "BLOCKED"
             return self._finish(tick)
@@ -941,6 +1120,24 @@ class WatchLoop:
                 tick.errors.append(f"UNIVERSE_PREPARE_FAILED:{type(exc).__name__}:{exc}")
                 tick.status = "BLOCKED"
                 return self._finish(tick)
+        elif (
+            candidates_override is None
+            and not self.config.watchlist_file
+            and not self.config.candidate_file
+            and self.config.watch_universe_mode == "WATCHLIST"
+            and self.store is not None
+            and callable(getattr(self.store, "watch_pool_revision", None))
+        ):
+            # watch-serve 与盯盘循环共享 SQLite。页面人工增删后，下一轮
+            # 重新加载并预热观察池，无需重启长循环。
+            try:
+                revision = self.store.watch_pool_revision()
+                if revision != self._watch_pool_revision:
+                    self.prepare(signal_date or trade_date, None, now=current)
+            except WatchStoreError as exc:
+                tick.errors.append(
+                    f"WATCH_POOL_REFRESH_FAILED:{type(exc).__name__}:{exc}"
+                )
         if self._pipeline_v2_enabled():
             universe_material = "\n".join(
                 f"{item.stock_code}|{item.exchange_type}|{item.stock_name}"
@@ -988,7 +1185,9 @@ class WatchLoop:
             tick.live = False
             tick.status = "BLOCKED"
             return self._finish(tick)
-        if not self._candidates:
+        # 真实/内部账户即使人工观察池为空，也必须继续查询账户；已有持仓和
+        # 活动委托会在账户快照后被强制并入候选。SHADOW 没有外部账户可补充。
+        if not self._candidates and self.execution_mode == "SHADOW":
             tick.status = "NO_UNIVERSE"
             return self._finish(tick)
         if not in_trading_window(current):
@@ -1011,7 +1210,10 @@ class WatchLoop:
         if actual_live and self.require_persistence:
             lease_ok, lease_detail = self._ensure_live_lease()
             if not lease_ok:
-                self._live_halted = True
+                # 本地 INTERNAL_PAPER 遇到旧进程遗留租约时只阻断当前轮，
+                # 下一轮继续尝试；外部模拟盘仍保持 fail-closed。
+                if self.execution_mode != "INTERNAL_PAPER":
+                    self._live_halted = True
                 tick.live = False
                 tick.errors.append("LIVE_LEASE_BLOCKED:已有活动实例或运行库不可用")
                 events.emit("ERROR", cycle=self._cycle, detail={
@@ -1077,6 +1279,34 @@ class WatchLoop:
             if actual_live:
                 tick.status = "BLOCKED"
                 return self._finish(tick)
+        forced_account_codes = self._ensure_account_candidates(
+            positions, orders, signal_date, current, trade_date, tick
+        )
+        if forced_account_codes:
+            if self._pipeline_v2_enabled():
+                universe_material = "\n".join(
+                    f"{item.stock_code}|{item.exchange_type}|{item.stock_name}"
+                    for item in sorted(
+                        self._candidates, key=lambda candidate: candidate.stock_code
+                    )
+                )
+                tick.universe = [{
+                    "universe_hash": sha256(universe_material.encode("utf-8")).hexdigest(),
+                    "count": len(self._candidates),
+                    "source": self._universe_source,
+                    "forced_account_codes": sorted(forced_account_codes),
+                }]
+            else:
+                tick.universe = [asdict(candidate) for candidate in self._candidates]
+        if forced_account_codes and self._pipeline_v2_enabled():
+            # FULL 模式的规则快照在 prepare 阶段获取。临时强制加入但没有规则
+            # 的持仓仍会被后续 security-rule 闸门 fail-closed；行情监控不能缺席。
+            self._prepare_errors.append(
+                "ACCOUNT_SECURITIES_OUTSIDE_MASTER:" + ",".join(sorted(forced_account_codes))
+            )
+        if not self._candidates:
+            tick.status = "NO_UNIVERSE"
+            return self._finish(tick)
         self._warmup_positions(positions, current, trade_date, tick)
         for message in self._reconcile_unknown_submits(orders, trade_date):
             tick.errors.append(message)
@@ -1099,21 +1329,10 @@ class WatchLoop:
         }, now=current)
         position_map = {position.code: position for position in positions}
         candidate_codes = {candidate.stock_code for candidate in self._candidates}
-        if self._universe_source == "full_market":
-            unmonitored_positions = sorted(
-                position.code for position in positions
-                if position.qty > 0 and position.code not in candidate_codes
-            )
-            if unmonitored_positions:
-                tick.errors.append(
-                    "POSITION_OUTSIDE_FULL_UNIVERSE:" + ",".join(unmonitored_positions)
-                )
-                if live:
-                    self._live_halted = True
-                    tick.live = False
-                    tick.status = "BLOCKED"
-                    return self._finish(tick)
 
+        # 观察池中的 K 线预热失败可能只是公开接口瞬时网络错误；到期后
+        # 重试，成功后本轮继续走行情、bar 和策略链路。
+        self._retry_disabled_klines(current, trade_date)
         pipeline_v2 = self._pipeline_v2_enabled()
         l1_scanned = False
         if pipeline_v2 and self._l1_due(current):
@@ -1121,8 +1340,10 @@ class WatchLoop:
                 l1_batch = self.market_data.snapshot_all(
                     self._candidates, run_id=run_id, received_at=current
                 )
+                # 质量评估用「评估时刻」而非轮次起点，否则长耗时 L1 扫描后半段
+                # 会被 FUTURE_MARKET_TIME 误杀。
                 self._latest_l1_quality = self._l1_quality_engine.assess_batch(
-                    l1_batch, now=current
+                    l1_batch, now=self.now_fn()
                 )
                 self._latest_l1_quotes = dict(l1_batch.quotes)
                 self._latest_l1_batch = l1_batch
@@ -1217,6 +1438,15 @@ class WatchLoop:
             min_strategy_ready_coverage=self.config.min_strategy_ready_coverage,
             min_store_free_mb=self.config.min_store_free_mb,
         )
+        if self.execution_mode == "INTERNAL_PAPER":
+            # 本地撮合可以安全地只处理已经预热完成的标的；未达到 warmup
+            # 的标的会在候选循环中跳过，并由 K 线重试逐步补齐，不能因此
+            # 把整个内部模拟账户停成 dry-run。外部模拟盘仍保持全量门禁。
+            for check in readiness["checks"]:
+                if check.get("name") == "strategy_warmup":
+                    check["hard"] = False
+                    check["scope"] = "ready_symbols_only"
+                    break
         readiness["lease"] = lease_detail
         readiness["checks"].extend([
             {"name": "trading_calendar", "ok": True, "hard": True,
@@ -1266,31 +1496,48 @@ class WatchLoop:
         l2_request_ms: list[int] = []
         l2_quote_age_sec: list[float] = []
 
+        # 监控轮询统一优先走东方财富公开批量快照：
+        # - WATCHLIST/T1：批量覆盖整个观察池；
+        # - FULL：批量覆盖当前 L2 活跃池。
+        # 只有自定义行情客户端不提供 snapshot_many 时，才回退到旧的
+        # 单标的 snapshot/snapshot_execution 路径。妙想查询不再作为常规轮询源。
         batch_quotes = None
-        if (
-            not pipeline_v2
-            and self._universe_source == "full_market"
-            and hasattr(self.quote_client, "snapshot_many")
-        ):
+        quote_results: dict[str, tuple[object | None, object | None]] = {}
+        batch_started_monotonic = time.monotonic()
+        if hasattr(self.quote_client, "snapshot_many"):
+            # 已提供批量客户端时，失败也必须保持批量失败结果，不能落入
+            # 旧的逐只 snapshot 路径（那条路径会调用妙想 /query）。
+            batch_quotes = {}
+            batch_candidates = self._candidates
+            if pipeline_v2 and self._active_pool_snapshot is not None:
+                active_codes = self._active_pool_snapshot.codes
+                batch_candidates = [
+                    candidate for candidate in self._candidates
+                    if candidate.stock_code in active_codes
+                ]
             try:
-                batch_quotes = self.quote_client.snapshot_many(
-                    self._candidates,
+                batch_result = self.quote_client.snapshot_many(
+                    batch_candidates,
                     run_id=run_id,
                     received_at=current,
                 )
+                batch_quotes = batch_result if isinstance(batch_result, dict) else {}
+                quote_results.update(batch_quotes)
             except Exception as exc:
-                tick.errors.append(f"FULL_QUOTE_BATCH_FAILED:{type(exc).__name__}:{exc}")
+                tick.errors.append(f"PUBLIC_QUOTE_BATCH_FAILED:{type(exc).__name__}:{exc}")
 
         # 先完成本轮所有行情和 bar 聚合，再计算观察池中位数风控。
         for candidate in self._candidates:
             if candidate.stock_code in self._disabled_codes:
                 continue
-            if pipeline_v2:
-                if (
-                    self._active_pool_snapshot is None
-                    or candidate.stock_code not in self._active_pool_snapshot.codes
-                ):
-                    continue
+            if pipeline_v2 and (
+                self._active_pool_snapshot is None
+                or candidate.stock_code not in self._active_pool_snapshot.codes
+            ):
+                continue
+            if batch_quotes is not None:
+                quote, result = batch_quotes.get(candidate.stock_code, (None, None))
+            elif pipeline_v2:
                 request_at = self.now_fn()
                 request_started = time.monotonic()
                 try:
@@ -1309,8 +1556,6 @@ class WatchLoop:
                 l2_request_ms.append(
                     max(int((time.monotonic() - request_started) * 1000), 0)
                 )
-            elif batch_quotes is not None:
-                quote, result = batch_quotes.get(candidate.stock_code, (None, None))
             else:
                 quote, result = self.quote_client.snapshot(
                     candidate.stock_code,
@@ -1318,6 +1563,7 @@ class WatchLoop:
                     run_id=run_id,
                     received_at=current,
                 )
+            quote_results[candidate.stock_code] = (quote, result)
             if quote is None:
                 message = _result_message(result)
                 tick.errors.append(f"quote {candidate.stock_code} 失败: {message}")
@@ -1402,6 +1648,71 @@ class WatchLoop:
                 }, now=current)
             tick.new_closed_bars.extend(bar.to_dict() for bar in update.new_closed)
 
+        if not pipeline_v2:
+            processed_at = self.now_fn()
+            try:
+                self._persist_latest_quotes(
+                    {code: quote for code, (quote, _) in quote_results.items() if quote is not None},
+                    {},
+                    batch_id=f"{run_id}-watch",
+                    processed_at=processed_at,
+                    candidates=self._candidates,
+                    results=quote_results,
+                )
+                requested_count = len(self._candidates)
+                returned_count = sum(
+                    1 for quote, _ in quote_results.values() if quote is not None
+                )
+                covered_count = sum(
+                    1 for quote, _ in quote_results.values()
+                    if quote is not None and getattr(quote, "validity", None)
+                    in {QuoteValidity.VALID, QuoteValidity.NOT_TRADABLE}
+                )
+                batch_meta = getattr(self.quote_client, "last_batch_meta", {}) or {}
+                batch_summary = {
+                    "batch_id": f"{run_id}-watch",
+                    "provider": "eastmoney_ulist"
+                    if batch_quotes is not None else "legacy_single_snapshot",
+                    "trade_date": trade_date,
+                    "started_at": current.isoformat(),
+                    "received_at": processed_at.isoformat(),
+                    "finished_at": processed_at.isoformat(),
+                    "requested_count": requested_count,
+                    "returned_count": returned_count,
+                    "covered_count": covered_count,
+                    "missing_count": max(requested_count - returned_count, 0),
+                    "duplicate_count": int(batch_meta.get("duplicate_codes") and len(batch_meta["duplicate_codes"]) or 0),
+                    "page_count": int(batch_meta.get("page_count", 0) or 0),
+                    "coverage": round(covered_count / requested_count, 6)
+                    if requested_count else 0.0,
+                    "elapsed_ms": max(int((time.monotonic() - batch_started_monotonic) * 1000), 0),
+                    "status": "OK" if covered_count == requested_count else "DEGRADED",
+                }
+                quality_rows = []
+                for candidate in self._candidates:
+                    quote, result = quote_results.get(candidate.stock_code, (None, None))
+                    quality_rows.append({
+                        "code": candidate.stock_code,
+                        "quality": getattr(
+                            getattr(quote, "validity", None), "value", "MISSING"
+                        ),
+                        "reason": getattr(quote, "error", "") or (
+                            _result_message(result) if quote is None else ""
+                        ),
+                        "last_market_time": getattr(getattr(quote, "market_time", None), "isoformat", lambda: "")(),
+                        "last_received_at": getattr(getattr(quote, "received_at", None), "isoformat", lambda: "")(),
+                        "last_price": getattr(quote, "last", None),
+                        "last_volume": getattr(quote, "volume", None),
+                    })
+                if self.store is not None and callable(getattr(self.store, "save_market_data_batch", None)):
+                    self.store.save_market_data_batch(batch_summary, quality_rows)
+                events.emit("MARKET_DATA", cycle=self._cycle, detail={
+                    "phase": "WATCHLIST_BATCH" if batch_quotes is not None else "WATCHLIST_POLL",
+                    **batch_summary,
+                }, now=current)
+            except WatchStoreError as exc:
+                tick.errors.append(f"WATCH_QUOTE_PERSIST_FAILED:{type(exc).__name__}:{exc}")
+
         if pipeline_v2:
             try:
                 self._persist_latest_quotes(
@@ -1451,6 +1762,14 @@ class WatchLoop:
                         run_id=run_id, phase="after_match", trade_date=trade_date,
                         balance=balance, positions=positions, orders=orders, captured_at=current,
                     )
+                    events.emit("ACCOUNT", cycle=self._cycle, detail={
+                        "phase": "after_match",
+                        "total_assets": balance.total_assets,
+                        "avail_balance": balance.avail_balance,
+                        "positions": len(positions),
+                        "open_orders": len(orders),
+                        "fill_count": len(fills),
+                    }, now=current)
                     position_map = {position.code: position for position in positions}
                     projected_balance = replace(balance)
             except (OSError, TypeError, ValueError, WatchStoreError) as exc:
@@ -1483,7 +1802,11 @@ class WatchLoop:
                 not in {QuoteValidity.VALID, QuoteValidity.NOT_TRADABLE}
             )
         )
-        if actual_live and quote_coverage < self.config.min_quote_coverage:
+        # 本地 INTERNAL_PAPER 不需要把整个观察池的覆盖率当成柜台发单前置条件；
+        # 缺行情的标的会在上面的逐标的循环中被跳过，其他有效标的仍可本地撮合。
+        # EXTERNAL_PAPER 仍保持全局覆盖率 fail-closed，避免把不完整行情送到妙想。
+        quote_coverage_hard = self.execution_mode != "INTERNAL_PAPER"
+        if actual_live and quote_coverage_hard and quote_coverage < self.config.min_quote_coverage:
             self._live_halted = True
             tick.live = False
             tick.status = "BLOCKED"
@@ -1507,7 +1830,7 @@ class WatchLoop:
             }, now=current)
         market_checks = [
             {"name": "quote_coverage", "ok": quote_coverage >= self.config.min_quote_coverage,
-             "hard": True, "coverage": round(quote_coverage, 6),
+             "hard": quote_coverage_hard, "coverage": round(quote_coverage, 6),
              "minimum": self.config.min_quote_coverage},
             {"name": "position_quotes", "ok": not unavailable_position_quotes,
              "hard": True, "unavailable_codes": unavailable_position_quotes,
@@ -1553,18 +1876,23 @@ class WatchLoop:
                 if not ready_before:
                     continue
                 if (
-                    self._universe_source == "full_market"
+                    actual_live
+                    and self.execution_mode == "EXTERNAL_PAPER"
                     and getattr(quote, "source", "") == "eastmoney_batch"
                     and signal.action in {"buy", "sell"}
                 ):
-                    # 批量行情用于全市场扫描；真正产生意图后，再用妙想
-                    # 查询涨跌停价、行情时间等执行级字段，避免把批量源
-                    # 的近似数据直接交给下单风控。
+                    # 公开批量行情只负责轮询和本地信号。只有外部模拟盘
+                    # live 且真正产生买卖信号时，才补查一次妙想执行级字段，
+                    # 避免把常规行情轮询配额消耗在妙想 query 上。
+                    execution_request_at = self.now_fn()
                     authoritative, auth_result = self.quote_client.snapshot(
                         candidate.stock_code,
                         candidate.stock_name,
                         run_id=run_id,
-                        received_at=current,
+                        received_at=execution_request_at,
+                    )
+                    authoritative = self._enforce_execution_freshness(
+                        authoritative, self.now_fn()
                     )
                     if authoritative is None or authoritative.validity != QuoteValidity.VALID:
                         quote.validity = QuoteValidity.INVALID
@@ -1628,9 +1956,17 @@ class WatchLoop:
                     universe_codes={item.stock_code for item in self._candidates},
                     pool_median_pct_chg=pool_median_pct,
                     confirmed=True,
-                    strict_limit_data=actual_live,
+                    # 内部 Paper 不触达柜台，可以基于公开行情完成本地
+                    # 撮合；只有外部妙想模拟盘要求权威涨跌停字段。
+                    strict_limit_data=bool(
+                        actual_live and self.execution_mode == "EXTERNAL_PAPER"
+                    ),
                     security_rule=security_rule,
-                    require_security_rule=bool(actual_live and pipeline_v2),
+                    require_security_rule=bool(
+                        actual_live
+                        and self.execution_mode == "EXTERNAL_PAPER"
+                        and pipeline_v2
+                    ),
                     gate_trace=gate_trace,
                 )
                 events.emit("RISK_GATE", code=candidate.stock_code, name=display_name, cycle=self._cycle, detail={

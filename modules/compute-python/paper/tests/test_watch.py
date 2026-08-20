@@ -9,7 +9,7 @@ from paper.models import Balance, Candidate, Intent, IntentType, MxOrder, Positi
 from paper.risk import check_watch_intent
 from paper.watch.bar_store import BarStore
 from paper.watch.cooldown import CooldownBook
-from paper.watch.kline_client import _parse_eastmoney_klines, parse_kline_payload
+from paper.watch.kline_client import KlineClient, _parse_eastmoney_klines, parse_kline_payload
 from paper.trading_calendar import TradingCalendarService
 from paper.watch.loop import WatchLoop
 from paper.watch.models import WatchBar, WatchTick
@@ -656,6 +656,44 @@ def test_eastmoney_kline_parser_uses_raw_ohlcv_and_skips_forming_bar():
     assert bars[-1].source == "eastmoney_kline"
     forming = _parse_eastmoney_klines(payload, "600519", 5, datetime(2026, 8, 18, 9, 44))
     assert len(forming) == 2
+
+
+def test_eastmoney_kline_request_bypasses_system_proxy(monkeypatch):
+    calls = []
+
+    class _Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "rc": 0,
+                "data": {
+                    "code": "600519",
+                    "klines": [
+                        "2026-08-18 09:30,10,10.2,10.3,9.9,12,0,0,0,0,0",
+                    ],
+                },
+            }
+
+    def fake_get(url, **kwargs):
+        calls.append((url, kwargs))
+        return _Response()
+
+    monkeypatch.setattr("paper.watch.kline_client.requests.get", fake_get)
+    client = KlineClient(None, _config(max_retry=1))
+    bars, result = client.fetch_history(
+        "600519",
+        "贵州茅台",
+        5,
+        80,
+        as_of=datetime(2026, 8, 18, 9, 40),
+        exchange="SH",
+    )
+
+    assert result.ok is True
+    assert bars
+    assert calls[0][1]["proxies"] == {"http": None, "https": None}
 
 
 def test_kline_parser_rejects_mismatched_code():

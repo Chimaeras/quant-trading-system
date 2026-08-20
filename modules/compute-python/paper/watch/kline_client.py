@@ -14,6 +14,7 @@ from .models import WatchBar
 
 EASTMONEY_KLINE_ENDPOINT = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
 _SUPPORTED_PERIODS = {1, 5, 15, 30, 60}
+_EASTMONEY_PROXIES = {"http": None, "https": None}
 
 
 def _number(value, *, volume: bool = False) -> float:
@@ -262,6 +263,7 @@ class KlineClient:
                     params=params,
                     headers={"User-Agent": "quant-trading-system/1.0"},
                     timeout=20,
+                    proxies=_EASTMONEY_PROXIES,
                 )
                 response.raise_for_status()
                 payload = response.json()

@@ -37,7 +37,7 @@
         </template>
       </div>
     </nav>
-    <main class="page-main">
+    <main class="page-main" :class="{ 'page-main-watch': route.name === 'WatchMonitor' }">
       <router-view />
     </main>
   </div>
@@ -342,5 +342,10 @@ onMounted(loadReadiness)
   min-height: 0;
   overflow: auto;
   border-radius: var(--r-md);
+}
+
+/* 盯盘页内部负责桌面端和窄屏端的唯一纵向滚动，避免 page-main 与页面本身互相抢滚动。 */
+.page-main-watch {
+  overflow: hidden;
 }
 </style>

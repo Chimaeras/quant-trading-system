@@ -49,7 +49,7 @@
       </div>
     </el-card>
 
-    <div class="main-grid">
+    <div ref="mainGridRef" class="main-grid" :style="mainGridStyle">
       <!-- ② 观察池 -->
       <el-card shadow="never" class="panel universe-panel">
         <template #header>
@@ -113,6 +113,18 @@
         </div>
       </el-card>
 
+      <div
+        class="column-resizer"
+        :class="{ active: resizingTarget === 'universe' }"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="调整观察池宽度"
+        title="拖动调整观察池宽度，双击恢复默认"
+        tabindex="0"
+        @pointerdown="startColumnResize('universe', $event)"
+        @dblclick="resetColumnWidths"
+      />
+
       <!-- ③ 分析过程流 -->
       <el-card shadow="never" class="panel events-panel">
         <template #header>
@@ -167,6 +179,18 @@
           </el-table>
         </div>
       </el-card>
+
+      <div
+        class="column-resizer"
+        :class="{ active: resizingTarget === 'right' }"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="调整右侧栏宽度"
+        title="拖动调整右侧栏宽度，双击恢复默认"
+        tabindex="0"
+        @pointerdown="startColumnResize('right', $event)"
+        @dblclick="resetColumnWidths"
+      />
 
       <div class="right-column">
         <!-- ④ 交易动作 -->
@@ -296,6 +320,35 @@ const POOL_REFRESH_TICKS = 6
 const NAME_LOOKUP_RETRY_MS = 5 * 60 * 1000
 /** 行情类事件默认折叠，减少过程流噪音与 DOM 压力 */
 const NOISE_TYPES = new Set(['QUOTE', 'QUOTE_FAIL', 'QUOTE_QUALITY'])
+const LAYOUT_STORAGE_KEY = 'quant-watch-monitor-layout'
+const DEFAULT_UNIVERSE_WIDTH = 280
+const DEFAULT_RIGHT_WIDTH = 360
+const MIN_UNIVERSE_WIDTH = 220
+const MAX_UNIVERSE_WIDTH = 480
+const MIN_RIGHT_WIDTH = 280
+const MAX_RIGHT_WIDTH = 520
+const MIN_EVENTS_WIDTH = 360
+const GRID_GAP_PX = 12
+const RESIZER_WIDTH_PX = 8
+
+type ColumnResizeTarget = 'universe' | 'right'
+type ColumnLayout = { universeWidth?: number; rightWidth?: number }
+
+function readColumnLayout(): ColumnLayout {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = window.localStorage.getItem(LAYOUT_STORAGE_KEY)
+    return raw ? JSON.parse(raw) as ColumnLayout : {}
+  } catch {
+    return {}
+  }
+}
+
+function clampWidth(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), Math.max(min, max))
+}
+
+const savedColumnLayout = readColumnLayout()
 
 const days = shallowRef<string[]>([])
 const selectedDate = ref('')
@@ -322,6 +375,20 @@ const detailName = ref('')
 const securityNames = shallowRef<Record<string, string>>({})
 const nameLookupAt = new Map<string, number>()
 const chartRef = ref<HTMLElement | null>(null)
+const mainGridRef = ref<HTMLElement | null>(null)
+const universeWidth = ref(clampWidth(Number(savedColumnLayout.universeWidth) || DEFAULT_UNIVERSE_WIDTH, MIN_UNIVERSE_WIDTH, MAX_UNIVERSE_WIDTH))
+const rightWidth = ref(clampWidth(Number(savedColumnLayout.rightWidth) || DEFAULT_RIGHT_WIDTH, MIN_RIGHT_WIDTH, MAX_RIGHT_WIDTH))
+const resizingTarget = ref<ColumnResizeTarget | null>(null)
+const mainGridStyle = computed(() => ({
+  '--universe-width': `${universeWidth.value}px`,
+  '--right-width': `${rightWidth.value}px`
+}))
+let resizeState: {
+  target: ColumnResizeTarget
+  startX: number
+  startUniverseWidth: number
+  startRightWidth: number
+} | null = null
 type ChartRuntime = typeof import('@/utils/echartsTheme')
 type ChartInstance = ReturnType<ChartRuntime['echarts']['init']>
 let chartRuntimePromise: Promise<ChartRuntime> | null = null
@@ -600,6 +667,81 @@ function signalDetailText(row: WatchEvent): string {
   return Object.entries(d).map(([k, v]) => `${k}=${v}`).join('，') || '—'
 }
 
+function persistColumnWidths() {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify({
+      universeWidth: universeWidth.value,
+      rightWidth: rightWidth.value
+    }))
+  } catch {
+    // 布局偏好保存失败不应影响盯盘功能。
+  }
+}
+
+function resizeLimits() {
+  const gridWidth = mainGridRef.value?.clientWidth || window.innerWidth
+  // 5 条 grid 轨道之间有 4 个 gap，两个分隔条各占 8px。
+  const flexibleWidth = Math.max(0, gridWidth - GRID_GAP_PX * 4 - RESIZER_WIDTH_PX * 2)
+  return {
+    maxUniverse: Math.max(MIN_UNIVERSE_WIDTH, Math.min(MAX_UNIVERSE_WIDTH, flexibleWidth - MIN_EVENTS_WIDTH - rightWidth.value)),
+    maxRight: Math.max(MIN_RIGHT_WIDTH, Math.min(MAX_RIGHT_WIDTH, flexibleWidth - MIN_EVENTS_WIDTH - universeWidth.value))
+  }
+}
+
+function startColumnResize(target: ColumnResizeTarget, event: PointerEvent) {
+  if (event.button !== 0) return
+  resizeState = {
+    target,
+    startX: event.clientX,
+    startUniverseWidth: universeWidth.value,
+    startRightWidth: rightWidth.value
+  }
+  resizingTarget.value = target
+  document.body.classList.add('watch-column-resizing')
+  window.addEventListener('pointermove', handleColumnResize)
+  window.addEventListener('pointerup', stopColumnResize)
+  window.addEventListener('pointercancel', stopColumnResize)
+  event.preventDefault()
+}
+
+function handleColumnResize(event: PointerEvent) {
+  if (!resizeState) return
+  const delta = event.clientX - resizeState.startX
+  const limits = resizeLimits()
+  if (resizeState.target === 'universe') {
+    universeWidth.value = clampWidth(
+      resizeState.startUniverseWidth + delta,
+      MIN_UNIVERSE_WIDTH,
+      limits.maxUniverse
+    )
+  } else {
+    // 右侧分隔条向右移动时，右栏宽度相应变窄。
+    rightWidth.value = clampWidth(
+      resizeState.startRightWidth - delta,
+      MIN_RIGHT_WIDTH,
+      limits.maxRight
+    )
+  }
+}
+
+function stopColumnResize() {
+  if (!resizeState) return
+  resizeState = null
+  resizingTarget.value = null
+  document.body.classList.remove('watch-column-resizing')
+  window.removeEventListener('pointermove', handleColumnResize)
+  window.removeEventListener('pointerup', stopColumnResize)
+  window.removeEventListener('pointercancel', stopColumnResize)
+  persistColumnWidths()
+}
+
+function resetColumnWidths() {
+  universeWidth.value = DEFAULT_UNIVERSE_WIDTH
+  rightWidth.value = DEFAULT_RIGHT_WIDTH
+  persistColumnWidths()
+}
+
 function onDateChange() {
   refreshEpoch += 1
   events.value = []
@@ -809,6 +951,7 @@ onMounted(async () => {
 })
 onBeforeUnmount(() => {
   disposed = true
+  stopColumnResize()
   document.removeEventListener('visibilitychange', onVisibilityChange)
   if (timer) window.clearTimeout(timer)
   chart?.dispose()
@@ -821,6 +964,7 @@ onBeforeUnmount(() => {
   height: 100%;
   width: 100%;
   max-width: 100%;
+  max-height: 100%;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -873,12 +1017,48 @@ onBeforeUnmount(() => {
   max-width: 100%;
   min-width: 0;
   display: grid;
-  /* 轨道允许收缩；表格的最小可读宽度由 table-host 内部横向滚动承接。 */
-  grid-template-columns: minmax(0, 420px) minmax(0, 1fr) minmax(0, 430px);
+  /* 默认把空间让给中间分析流；两条分隔条负责调整左右栏宽度。 */
+  grid-template-columns: var(--universe-width, 280px) 8px minmax(0, 1fr) 8px var(--right-width, 360px);
   grid-template-rows: minmax(0, 1fr);
   gap: var(--sp-3);
   overflow: hidden;
   overscroll-behavior: contain;
+}
+
+.column-resizer {
+  position: relative;
+  z-index: 2;
+  width: 8px;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.column-resizer::after {
+  content: '';
+  position: absolute;
+  inset: 0 3px;
+  border-radius: var(--r-pill);
+  background: var(--glass-border-strong);
+  opacity: 0.35;
+  transition: opacity var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+
+.column-resizer:hover::after,
+.column-resizer:focus-visible::after,
+.column-resizer.active::after {
+  background: var(--accent-1);
+  opacity: 1;
+}
+
+:global(body.watch-column-resizing),
+:global(body.watch-column-resizing *) {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 .right-column {
@@ -1078,9 +1258,10 @@ onBeforeUnmount(() => {
 /* 三列布局在窄屏下会让中间事件流失去可读宽度，改为纵向堆叠。 */
 @media (max-width: 1100px) {
   .watch-monitor {
-    height: auto;
+    height: 100%;
+    max-height: 100%;
     min-width: 0;
-    min-height: 100%;
+    min-height: 0;
   }
 
   .status-row {
@@ -1094,10 +1275,15 @@ onBeforeUnmount(() => {
   }
 
   .main-grid {
+    flex: 0 0 auto;
     display: flex;
     flex-direction: column;
     min-width: 0;
-    overflow: hidden;
+    overflow: visible;
+  }
+
+  .column-resizer {
+    display: none;
   }
 
   .universe-panel,

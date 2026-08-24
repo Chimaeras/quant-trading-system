@@ -1,6 +1,7 @@
 """盘中 watch 调度器：行情 → 已收盘 bar → 信号 → 风控 → dry-run/模拟盘。"""
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import secrets
 import time
 import requests
@@ -241,7 +242,7 @@ class WatchLoop:
         return self._events
 
     def prepare(self, signal_date: str, candidates_override=None, *, now: datetime | None = None) -> list[str]:
-        """加载观察池、恢复状态并预热分钟 K 线。失败的股票当日禁用，不混用日线 fallback。"""
+        """加载观察池、恢复状态并分批预热分钟 K 线，不混用日线 fallback。"""
         current = now or self.now_fn()
         trade_date = current.strftime("%Y-%m-%d")
         if self._prepared_date != trade_date:
@@ -333,35 +334,93 @@ class WatchLoop:
                 self._prepare_errors.append(
                     f"WATCH_STORE_LOAD_FAILED:{type(exc).__name__}:{exc}"
                 )
+        prepared_bars: dict[str, list] = {}
+        fetch_candidates: list[Candidate] = []
+
+        # 先读取本地 seed/store；只有真正需要网络的标的进入并发队列，
+        # 避免重启时 100 只观察标的逐只等待 K 线超时。
         for candidate in candidates:
             code = candidate.stock_code
             try:
                 if code in self._seed_bars:
-                    bars = list(self._seed_bars[code])
+                    prepared_bars[code] = list(self._seed_bars[code])
                 elif code in persisted_bars and (
                     source == "full_market" or len(persisted_bars[code]) >= required
                 ):
-                    bars = list(persisted_bars[code])
+                    prepared_bars[code] = list(persisted_bars[code])
                 elif source == "full_market" and code in forming_checkpoints:
-                    bars = list(persisted_bars.get(code, []))
+                    prepared_bars[code] = list(persisted_bars.get(code, []))
                 elif source == "full_market":
                     # 全市场不能在启动阶段逐股请求历史 K 线；从本地历史或
                     # 实时 closed bar 渐进达到 warmup。
                     continue
                 elif self.kline_client is not None:
-                    bars, result = self.kline_client.fetch_history(
-                        code,
-                        candidate.stock_name,
-                        self.config.bar_period_min,
-                        max(required + 10, 80),
-                        run_id=f"watch-prep-{trade_date}",
-                        as_of=current,
-                        exchange=candidate.exchange_type,
-                    )
-                    if bars is None:
-                        raise ValueError(_result_message(result))
+                    fetch_candidates.append(candidate)
                 else:
                     raise ValueError("未提供 KlineClient 或 seed_bars")
+            except (OSError, TypeError, ValueError) as exc:
+                self._disabled_codes[code] = str(exc)
+                self._disabled_retry_at[code] = current + timedelta(
+                    seconds=self.config.kline_retry_sec
+                )
+                self._prepare_errors.append(f"{code}:KLINE_DISABLED:{exc}")
+
+        def fetch_prepare(candidate: Candidate):
+            try:
+                bars, result = self.kline_client.fetch_history(
+                    candidate.stock_code,
+                    candidate.stock_name,
+                    self.config.bar_period_min,
+                    max(required + 10, 80),
+                    run_id=f"watch-prep-{trade_date}",
+                    as_of=current,
+                    exchange=candidate.exchange_type,
+                )
+                return candidate, bars, result, None
+            except Exception as exc:  # noqa: BLE001 - 单只失败不得拖垮启动
+                return candidate, None, None, exc
+
+        deferred_candidates = fetch_candidates[self.config.kline_retry_batch_size:]
+        fetch_candidates = fetch_candidates[:self.config.kline_retry_batch_size]
+        if deferred_candidates:
+            deferred_retry_at = current + timedelta(seconds=self.config.kline_retry_sec)
+            for candidate in deferred_candidates:
+                self._disabled_codes[candidate.stock_code] = "STARTUP_KLINE_DEFERRED"
+                self._disabled_retry_at[candidate.stock_code] = deferred_retry_at
+            self._prepare_errors.append(
+                f"STARTUP_KLINE_DEFERRED:{len(deferred_candidates)} 条将在后续轮次分批预热"
+            )
+
+        if fetch_candidates:
+            worker_count = min(self.config.kline_retry_workers, len(fetch_candidates))
+            with ThreadPoolExecutor(
+                max_workers=worker_count,
+                thread_name_prefix="watch-kline-prep",
+            ) as executor:
+                fetched = list(executor.map(fetch_prepare, fetch_candidates))
+            for candidate, bars, result, fetch_error in fetched:
+                code = candidate.stock_code
+                try:
+                    if fetch_error is not None:
+                        raise fetch_error
+                    if bars is None:
+                        raise ValueError(_result_message(result))
+                    prepared_bars[code] = list(bars)
+                except Exception as exc:  # noqa: BLE001 - 单只失败继续预热
+                    self._disabled_codes[code] = str(exc)
+                    self._disabled_retry_at[code] = current + timedelta(
+                        seconds=self.config.kline_retry_sec
+                    )
+                    self._prepare_errors.append(f"{code}:KLINE_DISABLED:{exc}")
+
+        # 网络请求完成后再统一写入 bar_store/strategy adapter，避免共享状态
+        # 在工作线程中并发修改；写入阶段本身只包含本地内存操作。
+        for candidate in candidates:
+            code = candidate.stock_code
+            if code not in prepared_bars:
+                continue
+            bars = prepared_bars[code]
+            try:
                 self.bar_store.seed(
                     code,
                     bars,
@@ -478,7 +537,14 @@ class WatchLoop:
         required = self.adapter.required_bars()
         for code in sorted(codes):
             candidate = candidate_map.get(code)
-            if candidate is None or self.adapter.ready(code) or self.bar_store.history(code):
+            if candidate is None or self.adapter.ready(code):
+                continue
+            history = self.bar_store.history(code)
+            # FULL 模式启动阶段不拉全市场历史 K；活跃池标的一旦出现 1～2 根
+            # 实时 closed bar，旧逻辑会因 history 非空而永久跳过补拉，导致
+            # strategy_warmup 长期 0/N。历史不足时必须用公开分钟 K 补齐。
+            if len(history) >= required:
+                self.adapter.seed(code, history)
                 continue
             try:
                 bars, result = self.kline_client.fetch_history(
@@ -496,12 +562,13 @@ class WatchLoop:
                 tick.errors.append(f"{code}:L2_KLINE_DISABLED:{exc}")
 
     def _retry_disabled_klines(self, current: datetime, trade_date: str) -> None:
-        """按退避时间重试启动阶段失败的公开 K 线预热。"""
+        """按退避时间有界并发重试公开 K 线预热，不阻塞整轮行情。"""
         if self.kline_client is None or not self._disabled_codes:
             return
         candidate_map = {candidate.stock_code: candidate for candidate in self._candidates}
         required = self.adapter.required_bars()
         events = self._event_log(trade_date)
+        due_items: list[tuple[str, Candidate]] = []
         for code in sorted(list(self._disabled_codes)):
             retry_at = self._disabled_retry_at.get(code)
             if retry_at is not None and current < retry_at:
@@ -509,6 +576,14 @@ class WatchLoop:
             candidate = candidate_map.get(code)
             if candidate is None:
                 continue
+            due_items.append((code, candidate))
+            if len(due_items) >= self.config.kline_retry_batch_size:
+                break
+        if not due_items:
+            return
+
+        def fetch(item: tuple[str, Candidate]):
+            code, candidate = item
             try:
                 bars, result = self.kline_client.fetch_history(
                     code,
@@ -519,6 +594,22 @@ class WatchLoop:
                     as_of=current,
                     exchange=candidate.exchange_type,
                 )
+                return code, candidate, bars, result, None
+            except Exception as exc:  # noqa: BLE001 - 单只失败不得拖垮整轮
+                return code, candidate, None, None, exc
+
+        worker_count = min(self.config.kline_retry_workers, len(due_items))
+        with ThreadPoolExecutor(
+            max_workers=worker_count,
+            thread_name_prefix="watch-kline",
+        ) as executor:
+            results = list(executor.map(fetch, due_items))
+
+        # 只在主线程写 bar_store/strategy adapter/event log，避免共享状态并发写入。
+        for code, candidate, bars, result, fetch_error in results:
+            try:
+                if fetch_error is not None:
+                    raise fetch_error
                 if bars is None:
                     raise ValueError(_result_message(result))
                 self.bar_store.seed(code, bars, discard_first_forming=True)
@@ -531,7 +622,7 @@ class WatchLoop:
                                 "status": "RECOVERED",
                                 "bars": len(bars),
                             }, now=current)
-            except (OSError, TypeError, ValueError) as exc:
+            except Exception as exc:  # noqa: BLE001 - 单只失败继续处理其他标的
                 next_retry = current + timedelta(seconds=self.config.kline_retry_sec)
                 self._disabled_retry_at[code] = next_retry
                 events.emit("ERROR", code=code, name=candidate.stock_name, cycle=self._cycle,
@@ -617,9 +708,13 @@ class WatchLoop:
             "positions": [
                 {
                     "code": position.code,
+                    "name": position.name,
                     "qty": position.qty,
                     "avail_qty": position.avail_qty,
+                    "cost": position.cost,
+                    "last": position.last,
                     "market_value": position.market_value,
+                    "profit": position.profit,
                 }
                 for position in positions
             ],
@@ -628,12 +723,30 @@ class WatchLoop:
                     "order_id": order.order_id,
                     "code": order.code,
                     "side": order.side,
+                    "price": order.price,
                     "qty": order.qty,
                     "filled_qty": order.filled_qty,
                     "status": order.status,
+                    "ts": order.ts,
                 }
                 for order in orders
             ],
+        }
+
+    @classmethod
+    def _account_event_detail(cls, balance, positions, orders, *, phase: str, **extra) -> dict:
+        """账户事件保留汇总字段，同时携带当前持仓和在途委托明细供监控面板展示。"""
+        snapshot = cls._account_snapshot(balance, positions, orders)
+        return {
+            "phase": phase,
+            "total_assets": snapshot["total_assets"],
+            "avail_balance": snapshot["avail_balance"],
+            "market_value": snapshot["market_value"],
+            "positions": len(snapshot["positions"]),
+            "open_orders": len(snapshot["orders"]),
+            "position_details": snapshot["positions"],
+            "order_details": snapshot["orders"],
+            **extra,
         }
 
     def _persist_account_snapshot(
@@ -687,7 +800,9 @@ class WatchLoop:
             candidate = candidate_map.get(position.code)
             if candidate is None or self.adapter.ready(position.code):
                 continue
-            if self.bar_store.history(position.code):
+            history = self.bar_store.history(position.code)
+            if len(history) >= required:
+                self.adapter.seed(position.code, history)
                 continue
             try:
                 bars, result = self.kline_client.fetch_history(
@@ -1321,11 +1436,7 @@ class WatchLoop:
         if oms_unknown_count:
             tick.errors.append(f"OMS_UNKNOWN_PENDING:{oms_unknown_count} 条本地订单待柜台核验")
         events.emit("ACCOUNT", cycle=self._cycle, detail={
-            "phase": "before",
-            "total_assets": balance.total_assets,
-            "avail_balance": balance.avail_balance,
-            "positions": len(positions),
-            "open_orders": len(orders),
+            **self._account_event_detail(balance, positions, orders, phase="before"),
         }, now=current)
         position_map = {position.code: position for position in positions}
         candidate_codes = {candidate.stock_code for candidate in self._candidates}
@@ -1381,8 +1492,11 @@ class WatchLoop:
                     if self._l2_quality_engine.is_disabled(item.stock_code)
                 },
             )
+            # 必须对整个活跃池补预热，而不能只处理 promoted：
+            # FULL 启动不拉全市场 K 线，池内旧成员若只有少量实时 bar，
+            # 仅暖新晋标的会让 strategy_warmup 长期停在 0~1/N。
             self._warmup_codes(
-                self._active_pool_snapshot.promoted,
+                set(self._active_pool_snapshot.codes),
                 current, trade_date, tick,
             )
             if self.store is not None and callable(getattr(self.store, "save_active_pool", None)):
@@ -1763,12 +1877,10 @@ class WatchLoop:
                         balance=balance, positions=positions, orders=orders, captured_at=current,
                     )
                     events.emit("ACCOUNT", cycle=self._cycle, detail={
-                        "phase": "after_match",
-                        "total_assets": balance.total_assets,
-                        "avail_balance": balance.avail_balance,
-                        "positions": len(positions),
-                        "open_orders": len(orders),
-                        "fill_count": len(fills),
+                        **self._account_event_detail(
+                            balance, positions, orders,
+                            phase="after_match", fill_count=len(fills),
+                        ),
                     }, now=current)
                     position_map = {position.code: position for position in positions}
                     projected_balance = replace(balance)
@@ -1806,8 +1918,12 @@ class WatchLoop:
         # 缺行情的标的会在上面的逐标的循环中被跳过，其他有效标的仍可本地撮合。
         # EXTERNAL_PAPER 仍保持全局覆盖率 fail-closed，避免把不完整行情送到妙想。
         quote_coverage_hard = self.execution_mode != "INTERNAL_PAPER"
+        # 同理：个别持仓缺行情不应永久掐断内部 Paper 的 live。
+        # 缺行情持仓本身无法定价/下单（上方循环会跳过），其余标的应继续本地撮合。
+        position_quotes_hard = self.execution_mode != "INTERNAL_PAPER"
         if actual_live and quote_coverage_hard and quote_coverage < self.config.min_quote_coverage:
             self._live_halted = True
+            actual_live = False
             tick.live = False
             tick.status = "BLOCKED"
             tick.errors.append(
@@ -1818,22 +1934,33 @@ class WatchLoop:
                 "message": tick.errors[-1],
             }, now=current)
         if actual_live and unavailable_position_quotes:
-            self._live_halted = True
-            tick.live = False
-            tick.status = "BLOCKED"
-            tick.errors.append(
-                "POSITION_QUOTE_UNAVAILABLE:" + ",".join(unavailable_position_quotes)
-            )
+            if position_quotes_hard:
+                self._live_halted = True
+                actual_live = False
+                tick.live = False
+                tick.status = "BLOCKED"
+                tick.errors.append(
+                    "POSITION_QUOTE_UNAVAILABLE:" + ",".join(unavailable_position_quotes)
+                )
+            else:
+                # INTERNAL_PAPER：本轮降级提示，但保持 live，允许有行情的标的继续撮合。
+                tick.errors.append(
+                    "POSITION_QUOTE_DEGRADED:" + ",".join(unavailable_position_quotes)
+                )
+                if tick.status == "OK":
+                    tick.status = "DEGRADED"
             events.emit("ERROR", cycle=self._cycle, detail={
                 "scope": "POSITION_QUOTE",
                 "message": tick.errors[-1],
+                "hard": position_quotes_hard,
+                "unavailable_codes": unavailable_position_quotes,
             }, now=current)
         market_checks = [
             {"name": "quote_coverage", "ok": quote_coverage >= self.config.min_quote_coverage,
              "hard": quote_coverage_hard, "coverage": round(quote_coverage, 6),
              "minimum": self.config.min_quote_coverage},
             {"name": "position_quotes", "ok": not unavailable_position_quotes,
-             "hard": True, "unavailable_codes": unavailable_position_quotes,
+             "hard": position_quotes_hard, "unavailable_codes": unavailable_position_quotes,
              "scope": "mandatory_l2" if pipeline_v2 else "positions"},
         ]
         readiness["checks"].extend(market_checks)
@@ -2202,11 +2329,9 @@ class WatchLoop:
                     tick.status = "BLOCKED"
                     tick.errors.append(f"ACCOUNT_SNAPSHOT_PERSIST_FAILED:{type(exc).__name__}:{exc}")
                 events.emit("ACCOUNT", cycle=self._cycle, detail={
-                    "phase": "after",
-                    "total_assets": balance_after.total_assets,
-                    "avail_balance": balance_after.avail_balance,
-                    "positions": len(positions_after),
-                    "open_orders": len(orders_after),
+                    **self._account_event_detail(
+                        balance_after, positions_after, orders_after, phase="after",
+                    ),
                 }, now=self.now_fn())
         if self._live_halted:
             tick.errors.append("LIVE_DISABLED_AFTER_STOP_RUN")

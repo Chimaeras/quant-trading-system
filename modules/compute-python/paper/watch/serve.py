@@ -272,7 +272,7 @@ def _market_snapshot(store_path: Path, trade_date: str, *, limit: int = 10000) -
         }
 
 
-def make_handler(log_base: Path, store_path: Path | None = None, *, max_pool_size: int = 50):
+def make_handler(log_base: Path, store_path: Path | None = None, *, max_pool_size: int = 100):
     runtime_store = store_path or (log_base / "watch" / "runtime.sqlite3")
     class WatchServeHandler(BaseHTTPRequestHandler):
         # 静默默认访问日志，避免刷屏；错误照常返回 4xx/5xx
@@ -385,7 +385,7 @@ def make_handler(log_base: Path, store_path: Path | None = None, *, max_pool_siz
 
 
 def serve(log_base: Path, host: str = "127.0.0.1", port: int = 8790,
-          store_path: Path | None = None, *, max_pool_size: int = 50) -> None:
+          store_path: Path | None = None, *, max_pool_size: int = 100) -> None:
     from .store import SqliteWatchStore
 
     if str(host).strip().lower() not in {"127.0.0.1", "localhost", "::1"}:

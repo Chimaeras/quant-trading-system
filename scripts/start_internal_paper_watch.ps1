@@ -2,7 +2,10 @@
 param(
     [string]$SignalDate = (Get-Date -Format 'yyyy-MM-dd'),
     [string]$SessionId = 'analysis-paper',
-    [int]$MaxCycles = 0
+    [int]$MaxCycles = 0,
+    [ValidateSet('INTERNAL_PAPER', 'EXTERNAL_PAPER')]
+    [string]$ExecutionMode = 'INTERNAL_PAPER',
+    [string]$TradingCalendarFile = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -28,16 +31,33 @@ if (-not $env:MX_APIKEY) {
     throw '未找到 MX_APIKEY；真实行情分析需要通过环境变量注入 API Key。'
 }
 
-# 真实行情/策略分析 + 本地模拟账户撮合；绝不调用外部交易柜台。
-$env:PAPER_WATCH_EXECUTION_MODE = 'INTERNAL_PAPER'
+# 真实行情/策略分析：常规扫描走公开批量行情；只有 EXTERNAL_PAPER
+# 且信号通过风控后才会调用妙想 mockTrading/trade。
+$env:PAPER_WATCH_EXECUTION_MODE = $ExecutionMode
 $env:PAPER_WATCH_LIVE = '1'
 $env:PAPER_WATCH_UNIVERSE_MODE = 'WATCHLIST'
-$env:PAPER_MAX_OBSERVE_CODES = '50'
+$env:PAPER_MAX_OBSERVE_CODES = '100'
+# 0 表示关闭最大持仓只数限制；资金、总仓位、单票权重等风控仍然生效。
+$env:PAPER_MAX_POSITIONS = '0'
+$env:PAPER_KLINE_SOURCE = 'auto'
+$env:PAPER_KLINE_RETRY_WORKERS = '8'
+$env:PAPER_KLINE_RETRY_BATCH_SIZE = '24'
+$env:PAPER_KLINE_REQUEST_TIMEOUT_SEC = '8'
+$env:PAPER_KLINE_MAX_RETRY = '2'
+$env:PAPER_QUOTE_BATCH_WORKERS = '2'
+$env:PAPER_QUOTE_REQUEST_TIMEOUT_SEC = '8'
+$env:PAPER_QUOTE_BATCH_MAX_RETRY = '2'
 $env:PAPER_SESSION_ID = $SessionId
 $env:PAPER_INTERNAL_INITIAL_CASH = '1000000'
 $env:PAPER_INTERNAL_MATCHING_MODEL = 'NEXT_BAR'
 $env:PAPER_WATCH_STORE_PATH = $storePath
 $env:PAPER_AUTO_CANCEL_EXPIRED = '1'
+if ($TradingCalendarFile) {
+    $env:PAPER_TRADING_CALENDAR_FILE = (Resolve-Path $TradingCalendarFile).Path
+}
+if ($ExecutionMode -eq 'EXTERNAL_PAPER' -and -not $env:PAPER_TRADING_CALENDAR_FILE) {
+    throw 'EXTERNAL_PAPER 必须通过 -TradingCalendarFile 或 PAPER_TRADING_CALENDAR_FILE 注入正式交易日历。'
+}
 
 $python = (Get-Command python.exe -ErrorAction Stop).Source
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'

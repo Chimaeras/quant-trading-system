@@ -127,18 +127,19 @@ class InternalPaperBroker:
         return [self._position_model(row) for row in positions.values()], _ok("internal/positions")
 
     def orders(self, run_id: str = "adhoc") -> tuple[list[MxOrder], MxResult]:
-        rows = self.store.list_local_orders(channel="INTERNAL_PAPER", session_id=self.session_id)
+        # 账户快照中的 orders 表示在途委托；终态订单不应继续进入风控或监控面板。
+        rows = self.oms.active()
         orders = [
             MxOrder(
-                order_id=str(row["client_order_id"]),
-                code=str(row["code"]),
-                side=str(row["side"]),
-                price=float(row["limit_price"]) if row.get("limit_price") is not None else None,
-                qty=int(row["qty"]),
-                filled_qty=int(row.get("filled_qty", 0)),
-                status=self._mx_status(str(row["status"])),
-                ts=str(row["created_at"]),
-                raw={"clientOrderId": row["client_order_id"], "localStatus": row["status"]},
+                order_id=str(row.client_order_id),
+                code=str(row.code),
+                side=str(row.side),
+                price=row.limit_price,
+                qty=int(row.qty),
+                filled_qty=int(row.filled_qty),
+                status=self._mx_status(str(row.status)),
+                ts=str(row.created_at),
+                raw={"clientOrderId": row.client_order_id, "localStatus": row.status},
             )
             for row in rows
         ]

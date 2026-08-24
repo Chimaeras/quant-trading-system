@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 from paper.config import PaperConfig
 from paper.models import Candidate, QuoteValidity
-from paper.quote_client import EASTMONEY_ULIST_ENDPOINT, QuoteClient
+from paper.quote_client import EASTMONEY_ULIST_ENDPOINT, QuoteClient, _EASTMONEY_ULIST_BATCH
 
 
 NOW = datetime(2026, 8, 19, 10, 0, 0)
@@ -47,20 +47,26 @@ def _client(**config):
     return QuoteClient(_Http(), PaperConfig(api_key="test", **config))
 
 
-def test_snapshot_many_keeps_negative_pct_and_provider_time(monkeypatch):
-    calls = []
-
-    def fake_get(url, *, params, headers, timeout, proxies=None):
-        calls.append({"url": url, **params})
-        return _Response(_payload([_row("600519", pct=-3.25)]))
+def _patch_eastmoney(monkeypatch, fake_get):
+    monkeypatch.setattr("paper.quote_client.eastmoney_get", fake_get)
+    monkeypatch.setattr("paper.quote_client.time.sleep", lambda *_args, **_kwargs: None)
 
     class _Now(datetime):
         @classmethod
         def now(cls, tz=None):
             return NOW
 
-    monkeypatch.setattr("paper.quote_client.requests.get", fake_get)
     monkeypatch.setattr("paper.quote_client.datetime", _Now)
+
+
+def test_snapshot_many_keeps_negative_pct_and_provider_time(monkeypatch):
+    calls = []
+
+    def fake_get(url, *, params=None, headers=None, timeout=None, proxies=None, **kwargs):
+        calls.append({"url": url, **(params or {})})
+        return _Response(_payload([_row("600519", pct=-3.25)]))
+
+    _patch_eastmoney(monkeypatch, fake_get)
     candidate = Candidate("600519", "贵州茅台", "SH")
     quote, result = _client().snapshot_many([candidate], received_at=NOW)["600519"]
 
@@ -76,29 +82,28 @@ def test_snapshot_many_keeps_negative_pct_and_provider_time(monkeypatch):
 def test_snapshot_many_batches_secids_across_requests(monkeypatch):
     requested_secids = []
 
-    def fake_get(url, *, params, headers, timeout, proxies=None):
+    def fake_get(url, *, params=None, headers=None, timeout=None, proxies=None, **kwargs):
         requested_secids.append(params["secids"])
         codes = [part.split(".", 1)[1] for part in params["secids"].split(",")]
         return _Response(_payload([_row(code) for code in codes]))
 
-    class _Now(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return NOW
-
-    monkeypatch.setattr("paper.quote_client.requests.get", fake_get)
-    monkeypatch.setattr("paper.quote_client.datetime", _Now)
+    _patch_eastmoney(monkeypatch, fake_get)
     candidates = [
         Candidate(f"{index:06d}", f"股票{index:06d}", "SZ" if index < 100 else "SH")
         for index in range(150)
     ]
     # 让第 2 批包含目标代码，验证不会只扫第一批。
     candidates.append(Candidate("600519", "贵州茅台", "SH"))
-    out = _client().snapshot_many(candidates, received_at=NOW)
+    client = _client()
+    out = client.snapshot_many(candidates, received_at=NOW)
 
-    assert len(requested_secids) == 2  # 80 + 71
+    expected_pages = (len(candidates) + _EASTMONEY_ULIST_BATCH - 1) // _EASTMONEY_ULIST_BATCH
+    assert len(requested_secids) == expected_pages
     assert out["600519"][0].code == "600519"
     assert out["000001"][0].validity == QuoteValidity.VALID
+    assert client.last_batch_meta["backfill_rounds"] == 0
+    assert client.last_batch_meta["missing_after_primary"] == 0
+    assert client.last_batch_meta["primary_batch_size"] == _EASTMONEY_ULIST_BATCH
 
 
 def test_snapshot_many_continues_after_one_batch_http_error(monkeypatch):
@@ -106,32 +111,75 @@ def test_snapshot_many_continues_after_one_batch_http_error(monkeypatch):
 
     calls = {"n": 0}
 
-    def fake_get(url, *, params, headers, timeout, proxies=None):
+    def fake_get(url, *, params=None, headers=None, timeout=None, proxies=None, **kwargs):
         calls["n"] += 1
+        # 主扫描第一批失败；后续（含补拉）成功。串行 workers=1 保证可复现。
         if calls["n"] == 1:
             raise req.ConnectionError("boom")
         codes = [part.split(".", 1)[1] for part in params["secids"].split(",")]
         return _Response(_payload([_row(code) for code in codes]))
 
-    class _Now(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return NOW
-
-    monkeypatch.setattr("paper.quote_client.requests.get", fake_get)
-    monkeypatch.setattr("paper.quote_client.datetime", _Now)
+    _patch_eastmoney(monkeypatch, fake_get)
     candidates = [
         Candidate(f"{index:06d}", f"股票{index:06d}", "SZ")
         for index in range(100)
     ]
+    client = _client(max_retry=1, quote_batch_workers=1)
+    out = client.snapshot_many(candidates, received_at=NOW)
+
+    assert out["000000"][0].code == "000000"
+    assert out["000080"][0].code == "000080"
+    assert client.last_batch_meta["missing_after_primary"] == _EASTMONEY_ULIST_BATCH
+    assert client.last_batch_meta["backfill_recovered"] == _EASTMONEY_ULIST_BATCH
+    assert client.last_batch_meta["backfill_rounds"] >= 1
+    assert client.last_batch_meta["transport"] == "ulist_secids"
+
+
+def test_snapshot_many_backfill_recovers_partial_batch_omissions(monkeypatch):
+    """东财成功响应但漏返回部分 secids 时，补拉应补齐。"""
+    calls = {"n": 0}
+
+    def fake_get(url, *, params=None, headers=None, timeout=None, proxies=None, **kwargs):
+        calls["n"] += 1
+        codes = [part.split(".", 1)[1] for part in params["secids"].split(",")]
+        # 第一次请求故意丢掉后半段，模拟静默漏票。
+        if calls["n"] == 1:
+            codes = codes[: max(1, len(codes) // 2)]
+        return _Response(_payload([_row(code) for code in codes]))
+
+    _patch_eastmoney(monkeypatch, fake_get)
+    candidates = [
+        Candidate(f"{index:06d}", f"股票{index:06d}", "SZ")
+        for index in range(40)
+    ]
+    client = _client(max_retry=1, quote_batch_workers=1)
+    out = client.snapshot_many(candidates, received_at=NOW)
+
+    assert all(out[code][0] is not None for code in (c.stock_code for c in candidates))
+    assert client.last_batch_meta["missing_after_primary"] == 20
+    assert client.last_batch_meta["backfill_recovered"] == 20
+    assert client.last_batch_meta["returned_count"] == 40
+
+
+def test_snapshot_many_backfill_gives_up_after_persistent_failures(monkeypatch):
+    import requests as req
+
+    def fake_get(url, *, params=None, headers=None, timeout=None, proxies=None, **kwargs):
+        raise req.ConnectionError("always-down")
+
+    _patch_eastmoney(monkeypatch, fake_get)
+    candidates = [Candidate("600519", "贵州茅台", "SH")]
     client = _client(max_retry=1)
     out = client.snapshot_many(candidates, received_at=NOW)
 
-    # 第一批 80 只失败，第二批 20 只成功。
-    assert out["000000"][0] is None
-    assert out["000080"][0].code == "000080"
-    assert client.last_batch_meta["page_count"] == 2
-    assert client.last_batch_meta["transport"] == "ulist_secids"
+    assert out["600519"][0] is None
+    assert out["600519"][1].code == "HTTP_ERROR"
+    assert client.last_batch_meta["returned_count"] == 0
+    # 主批次全部连接失败时直接结束本轮，避免供应商整体不可用时重复
+    # 拆分补拉把监控再拖慢几十秒；下一轮会重新尝试主批次。
+    assert client.last_batch_meta["backfill_rounds"] == 0
+    assert client.last_batch_meta["backfill_skipped_primary_outage"] is True
+    assert client.last_batch_meta["cache_fill_count"] == 0
 
 
 def test_snapshot_many_marks_stale_and_missing_market_time(monkeypatch):
@@ -140,16 +188,10 @@ def test_snapshot_many_marks_stale_and_missing_market_time(monkeypatch):
         {**_row("000001"), "f124": "-"},
     ]
 
-    class _Now(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return NOW
+    def fake_get(url, *, params=None, headers=None, timeout=None, proxies=None, **kwargs):
+        return _Response(_payload(rows))
 
-    monkeypatch.setattr(
-        "paper.quote_client.requests.get",
-        lambda *args, **kwargs: _Response(_payload(rows)),
-    )
-    monkeypatch.setattr("paper.quote_client.datetime", _Now)
+    _patch_eastmoney(monkeypatch, fake_get)
     candidates = [
         Candidate("600519", "贵州茅台", "SH"),
         Candidate("000001", "平安银行", "SZ"),
@@ -166,7 +208,7 @@ def test_snapshot_many_batch_received_at_avoids_future_false_positive(monkeypatc
     scan_start = NOW
     later_market = NOW + timedelta(minutes=3)
 
-    def fake_get(url, *, params, headers, timeout, proxies=None):
+    def fake_get(url, *, params=None, headers=None, timeout=None, proxies=None, **kwargs):
         return _Response(_payload([_row("600519", timestamp=later_market)]))
 
     class _FrozenDatetime(datetime):
@@ -178,8 +220,9 @@ def test_snapshot_many_batch_received_at_avoids_future_false_positive(monkeypatc
             # 第一次（批到达）返回扫描后 3 分钟，模拟长耗时拉取。
             return later_market if cls._calls >= 1 else scan_start
 
-    monkeypatch.setattr("paper.quote_client.requests.get", fake_get)
+    monkeypatch.setattr("paper.quote_client.eastmoney_get", fake_get)
     monkeypatch.setattr("paper.quote_client.datetime", _FrozenDatetime)
+    monkeypatch.setattr("paper.quote_client.time.sleep", lambda *_args, **_kwargs: None)
     quote, _ = _client().snapshot_many(
         [Candidate("600519", "贵州茅台", "SH")],
         received_at=scan_start,
@@ -188,3 +231,33 @@ def test_snapshot_many_batch_received_at_avoids_future_false_positive(monkeypatc
     assert quote.validity == QuoteValidity.VALID
     assert quote.error != "FUTURE_TIMESTAMP"
     assert quote.received_at == later_market
+
+
+def test_snapshot_many_reuses_last_good_cache_when_batch_outage(monkeypatch):
+    """整批连接失败时，freshness 窗口内复用上一轮 VALID 快照。"""
+    import requests as req
+
+    calls = {"n": 0}
+
+    def fake_get(url, *, params=None, headers=None, timeout=None, proxies=None, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return _Response(_payload([_row("600519", pct=-1.2)]))
+        raise req.ConnectionError("outage")
+
+    _patch_eastmoney(monkeypatch, fake_get)
+    client = _client(max_retry=1, quote_stale_sec=300)
+    candidate = [Candidate("600519", "贵州茅台", "SH")]
+
+    first = client.snapshot_many(candidate, received_at=NOW)["600519"]
+    assert first[0].validity == QuoteValidity.VALID
+    assert client.last_batch_meta["cache_fill_count"] == 0
+
+    second = client.snapshot_many(candidate, received_at=NOW + timedelta(seconds=30))["600519"]
+    quote, result = second
+    assert quote is not None
+    assert quote.validity == QuoteValidity.VALID
+    assert quote.source.endswith("+cache")
+    assert result.code == "CACHED"
+    assert client.last_batch_meta["cache_fill_count"] == 1
+    assert client.last_batch_meta["returned_count"] == 1

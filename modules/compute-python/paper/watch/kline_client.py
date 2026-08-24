@@ -7,6 +7,7 @@ import time
 import requests
 
 from ..config import PaperConfig
+from ..eastmoney_http import EASTMONEY_HEADERS, eastmoney_get
 from ..mx_result import MxErrorKind, MxResult
 from ..quote_client import QUERY_ENDPOINT
 from .models import WatchBar
@@ -212,9 +213,10 @@ def parse_kline_payload(payload: dict, code: str, period_min: int, as_of: dateti
 class KlineClient:
     """启动预热客户端。
 
-    妙想 query 的自然语言问句在实测中会把“5 分钟”降级为 DAY；默认使用
-    东方财富官方公开 K 线接口获取分钟历史，仍由妙想 query 提供实时快照、
-    账户和模拟交易。设置 PAPER_KLINE_SOURCE=mx_query 可保留旧路径。
+    妙想 query 的自然语言问句在实测中可能把“5 分钟”降级为 DAY；因此
+    auto/eastmoney 模式只接受东方财富官方分钟 K 线，失败后交给上层按退避
+    重试，不把普通行情表误当成分钟 OHLC。设置 PAPER_KLINE_SOURCE=mx_query
+    时才显式使用旧的妙想 K 线路径。
     """
 
     def __init__(self, http, config: PaperConfig):
@@ -256,13 +258,14 @@ class KlineClient:
         }
         response = None
         last_exc: Exception | None = None
-        for attempt in range(max(1, self._config.max_retry)):
+        attempts = max(1, self._config.kline_max_retry)
+        for attempt in range(attempts):
             try:
-                response = requests.get(
+                response = eastmoney_get(
                     EASTMONEY_KLINE_ENDPOINT,
                     params=params,
-                    headers={"User-Agent": "quant-trading-system/1.0"},
-                    timeout=20,
+                    headers=EASTMONEY_HEADERS,
+                    timeout=self._config.kline_request_timeout_sec,
                     proxies=_EASTMONEY_PROXIES,
                 )
                 response.raise_for_status()
@@ -270,7 +273,7 @@ class KlineClient:
                 break
             except (requests.RequestException, ValueError) as exc:
                 last_exc = exc
-                if attempt < max(1, self._config.max_retry) - 1:
+                if attempt < attempts - 1:
                     time.sleep(0.5 * (attempt + 1))
         else:
             payload = None
@@ -331,7 +334,11 @@ class KlineClient:
         current = as_of or datetime.now()
         source = self._config.kline_source
         if source in {"eastmoney", "auto"}:
-            bars, result = self._fetch_eastmoney(
+            # auto 只表示使用东方财富分钟 K 线，并不把妙想普通行情查询
+            # 当成分钟 K 线兜底。/query 经常返回当前行情或日线表，继续交给
+            # parse_kline_payload 会制造“没有 OHLC 分钟表”的假错误，且可能
+            # 把非分钟数据污染策略预热。
+            return self._fetch_eastmoney(
                 code,
                 period_min,
                 limit,
@@ -339,8 +346,6 @@ class KlineClient:
                 as_of=current,
                 run_id=run_id,
             )
-            if bars is not None or source == "eastmoney":
-                return bars, result
         query = f"{name or code}({code}) 近 {limit} 根 {period_min}分钟 开盘价 最高价 最低价 收盘价 成交量"
         result = self._http.post(
             QUERY_ENDPOINT,

@@ -85,8 +85,12 @@ python -m paper.cli watch --live --confirm
 ```text
 PAPER_WATCH_EXECUTION_MODE=EXTERNAL_PAPER
 PAPER_WATCH_LIVE=1
+PAPER_TRADING_CALENDAR_FILE=path/to/trading-calendar.json
 python -m paper.cli watch --live --confirm
 ```
+
+外部 live 模式必须注入正式交易日历；未注入时会在发单前阻断，禁止用周一至周五近似值触达模拟柜台。推荐使用
+`scripts/start_external_paper_watch.ps1 -TradingCalendarFile <path>` 启动。常规观察池分析走公开批量行情，只有买卖信号通过风控后才会调用 `mockTrading/trade`。
 
 其他参数：`PAPER_INTERNAL_INITIAL_CASH`、`PAPER_INTERNAL_FILL_PARTICIPATION`、
 `PAPER_INTERNAL_MATCHING_MODEL=NEXT_BAR`、`PAPER_BUY_ORDER_TTL_SEC`、

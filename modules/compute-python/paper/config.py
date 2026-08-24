@@ -45,16 +45,26 @@ class PaperConfig:
     t1_base: str = "http://localhost:8080"
     java_token: str = ""
     max_retry: int = 3
+    # 东方财富批量行情请求使用小并发和短超时；失败批次仍会补拉，不阻塞整轮。
+    quote_batch_workers: int = 2
+    quote_request_timeout_sec: int = 8
+    quote_batch_max_retry: int = 2
     query_interval_sec: int = 60
-    max_observe_codes: int = 50
+    # 观察池默认最多 100 只；FULL 模式仍由 max_watch_universe_codes 控制。
+    max_observe_codes: int = 100
     clock_skew_sec: int = 30  # 允许的行情时钟偏差（P1-02/P2-02）
     # 盘中自动盯盘配置（watch V1）
     watch_strategy: str = "MA_CROSS"
     bar_period_min: int = 5
     # 分钟 K 线来源：eastmoney 为官方公开历史 K 线接口；mx_query 保留兼容旧问句。
-    kline_source: str = "eastmoney"
+    kline_source: str = "auto"
     # 启动预热失败的标的不要永久禁用；到期后用公开 K 线接口重试。
     kline_retry_sec: int = 60
+    # K 线预热失败时采用有界并发，避免逐只网络超时阻塞整轮行情。
+    kline_retry_workers: int = 8
+    kline_retry_batch_size: int = 24
+    kline_request_timeout_sec: int = 8
+    kline_max_retry: int = 2
     watchlist_file: str = ""
     # WATCHLIST：启动时用 Java 数据管理的热门股票填充，并合并本地人工观察标的。
     # FULL/T1 保留为显式兼容模式，避免默认全市场扫描造成超时。
@@ -96,7 +106,8 @@ class PaperConfig:
     boll_period: int = 20
     boll_std: float = 2.0
     max_total_weight: float = 0.80
-    max_positions: int = 5
+    # 0 表示不限制持仓标的数量；资金、总仓位和单票权重风控仍生效。
+    max_positions: int = 0
     min_cash_reserve: float = 5000.0
     index_circuit_breaker: bool = True
     trading_calendar_file: str = ""
@@ -114,10 +125,16 @@ class PaperConfig:
             raise ValueError(f"slippage_bps 不能为负，当前 {self.slippage_bps}")
         if self.max_retry < 0:
             raise ValueError(f"max_retry 不能为负，当前 {self.max_retry}")
+        if not (1 <= self.quote_batch_workers <= 8):
+            raise ValueError("quote_batch_workers 必须在 [1,8]")
+        if self.quote_request_timeout_sec <= 0:
+            raise ValueError("quote_request_timeout_sec 必须大于 0")
+        if self.quote_batch_max_retry <= 0:
+            raise ValueError("quote_batch_max_retry 必须大于 0")
         if self.query_interval_sec <= 0:
             raise ValueError(f"query_interval_sec 必须大于 0，当前 {self.query_interval_sec}")
-        if not (1 <= self.max_observe_codes <= 50):
-            raise ValueError(f"max_observe_codes 必须在 [1,50]，当前 {self.max_observe_codes}")
+        if not (1 <= self.max_observe_codes <= 100):
+            raise ValueError(f"max_observe_codes 必须在 [1,100]，当前 {self.max_observe_codes}")
         if self.clock_skew_sec < 0:
             raise ValueError(f"clock_skew_sec 不能为负，当前 {self.clock_skew_sec}")
         if self.watch_strategy not in {"MA_CROSS", "MACD", "BOLL"}:
@@ -128,6 +145,14 @@ class PaperConfig:
             raise ValueError("kline_source 必须是 eastmoney/mx_query/auto")
         if self.kline_retry_sec <= 0:
             raise ValueError("kline_retry_sec 必须大于 0")
+        if not (1 <= self.kline_retry_workers <= 32):
+            raise ValueError("kline_retry_workers 必须在 [1,32]")
+        if not (1 <= self.kline_retry_batch_size <= 100):
+            raise ValueError("kline_retry_batch_size 必须在 [1,100]")
+        if self.kline_request_timeout_sec <= 0:
+            raise ValueError("kline_request_timeout_sec 必须大于 0")
+        if self.kline_max_retry <= 0:
+            raise ValueError("kline_max_retry 必须大于 0")
         if self.watch_universe_mode not in {"WATCHLIST", "FULL", "T1"}:
             raise ValueError("watch_universe_mode 必须是 WATCHLIST/FULL/T1")
         if not (1 <= self.max_watch_universe_codes <= 10000):
@@ -176,8 +201,8 @@ class PaperConfig:
             raise ValueError("boll_period/boll_std 非法")
         if not (0 < self.max_total_weight <= 1):
             raise ValueError("max_total_weight 必须在 (0,1] 内")
-        if self.max_positions <= 0:
-            raise ValueError("max_positions 必须大于 0")
+        if self.max_positions < 0:
+            raise ValueError("max_positions 不能为负；0 表示不限制持仓数量")
         if self.min_cash_reserve < 0:
             raise ValueError("min_cash_reserve 不能为负")
         if not self.api_key or not self.api_key.strip():
@@ -210,13 +235,20 @@ class PaperConfig:
             t1_base=e.get("PAPER_T1_BASE", "http://localhost:8080"),
             java_token=e.get("JAVA_TOKEN", ""),
             max_retry=int(e.get("PAPER_MAX_RETRY", "3")),
+            quote_batch_workers=int(e.get("PAPER_QUOTE_BATCH_WORKERS", "2")),
+            quote_request_timeout_sec=int(e.get("PAPER_QUOTE_REQUEST_TIMEOUT_SEC", "8")),
+            quote_batch_max_retry=int(e.get("PAPER_QUOTE_BATCH_MAX_RETRY", "2")),
             query_interval_sec=int(e.get("PAPER_QUERY_INTERVAL_SEC", "60")),
-            max_observe_codes=int(e.get("PAPER_MAX_OBSERVE_CODES", "50")),
+            max_observe_codes=int(e.get("PAPER_MAX_OBSERVE_CODES", "100")),
             clock_skew_sec=int(e.get("PAPER_CLOCK_SKEW_SEC", "30")),
             watch_strategy=e.get("PAPER_WATCH_STRATEGY", "MA_CROSS").strip().upper(),
             bar_period_min=int(e.get("PAPER_BAR_PERIOD_MIN", "5")),
-            kline_source=e.get("PAPER_KLINE_SOURCE", "eastmoney").strip().lower(),
+            kline_source=e.get("PAPER_KLINE_SOURCE", "auto").strip().lower(),
             kline_retry_sec=int(e.get("PAPER_KLINE_RETRY_SEC", "60")),
+            kline_retry_workers=int(e.get("PAPER_KLINE_RETRY_WORKERS", "8")),
+            kline_retry_batch_size=int(e.get("PAPER_KLINE_RETRY_BATCH_SIZE", "24")),
+            kline_request_timeout_sec=int(e.get("PAPER_KLINE_REQUEST_TIMEOUT_SEC", "8")),
+            kline_max_retry=int(e.get("PAPER_KLINE_MAX_RETRY", "2")),
             watchlist_file=e.get("PAPER_WATCHLIST_FILE", ""),
             watch_universe_mode=e.get("PAPER_WATCH_UNIVERSE_MODE", "WATCHLIST").strip().upper(),
             max_watch_universe_codes=int(e.get("PAPER_MAX_WATCH_UNIVERSE_CODES", "10000")),
@@ -250,7 +282,7 @@ class PaperConfig:
             boll_period=int(e.get("PAPER_BOLL_PERIOD", "20")),
             boll_std=float(e.get("PAPER_BOLL_STD", "2")),
             max_total_weight=float(e.get("PAPER_MAX_TOTAL_WEIGHT", "0.8")),
-            max_positions=int(e.get("PAPER_MAX_POSITIONS", "5")),
+            max_positions=int(e.get("PAPER_MAX_POSITIONS", "0")),
             min_cash_reserve=float(e.get("PAPER_MIN_CASH_RESERVE", "5000")),
             index_circuit_breaker=e.get("PAPER_INDEX_CIRCUIT_BREAKER", "1") == "1",
             trading_calendar_file=e.get("PAPER_TRADING_CALENDAR_FILE", ""),
@@ -271,6 +303,9 @@ class PaperConfig:
             "quote_stale_sec": self.quote_stale_sec,
             "slippage_bps": self.slippage_bps,
             "max_retry": self.max_retry,
+            "quote_batch_workers": self.quote_batch_workers,
+            "quote_request_timeout_sec": self.quote_request_timeout_sec,
+            "quote_batch_max_retry": self.quote_batch_max_retry,
             "query_interval_sec": self.query_interval_sec,
             "max_observe_codes": self.max_observe_codes,
             "clock_skew_sec": self.clock_skew_sec,
@@ -278,6 +313,10 @@ class PaperConfig:
             "bar_period_min": self.bar_period_min,
             "kline_source": self.kline_source,
             "kline_retry_sec": self.kline_retry_sec,
+            "kline_retry_workers": self.kline_retry_workers,
+            "kline_retry_batch_size": self.kline_retry_batch_size,
+            "kline_request_timeout_sec": self.kline_request_timeout_sec,
+            "kline_max_retry": self.kline_max_retry,
             "watchlist_file": self.watchlist_file,
             "watch_universe_mode": self.watch_universe_mode,
             "max_watch_universe_codes": self.max_watch_universe_codes,

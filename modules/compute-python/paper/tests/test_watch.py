@@ -4,6 +4,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import requests
+
 from paper.config import PaperConfig
 from paper.models import Balance, Candidate, Intent, IntentType, MxOrder, Position, Quote, QuoteValidity, RiskStatus
 from paper.risk import check_watch_intent
@@ -198,6 +200,25 @@ def test_watch_risk_counts_active_buy_commitments_in_total_weight_and_positions(
     assert out2.risk_reject_reason == "MAX_POSITIONS"
 
 
+def test_watch_risk_allows_unlimited_positions_when_max_positions_is_zero():
+    positions = {
+        code: Position(code, "测试", 100, 100, 10, 10, 1000, 0)
+        for code in ("000001", "000002", "000003", "000004", "000005")
+    }
+    intent = Intent("600519", IntentType.BUY_LIMIT, side="buy", qty=1000, limit_price=10.0)
+    out = check_watch_intent(
+        intent,
+        _quote(last=10),
+        Balance(total_assets=100000, avail_balance=80000, market_value=5000),
+        positions,
+        [],
+        _config(max_total_weight=1.0, max_positions=0),
+    )
+
+    assert out.risk_status == RiskStatus.PASS
+    assert "MAX_POSITIONS" not in out.reason_codes
+
+
 def test_watch_risk_fails_closed_when_active_buy_exposure_price_is_unknown():
     active = MxOrder(
         order_id="pending-1", code="000001", side="buy", price=None,
@@ -369,6 +390,60 @@ def test_watch_loop_uses_public_batch_for_watchlist_and_shadow_account(tmp_path:
     assert broker.account_calls == {"balance": 0, "positions": 0, "orders": 0}
 
 
+def test_external_live_does_not_trade_or_query_mx_without_signal(tmp_path: Path):
+    code = "600519"
+    quote = _BatchWatchQuote()
+    broker = _WatchBroker()
+    loop = WatchLoop(
+        _config(watch_live=True, watch_execution_mode="EXTERNAL_PAPER"),
+        quote,
+        broker,
+        log_base=tmp_path,
+        seed_bars={code: _bars(code, [10.0] * 30)},
+        now_fn=lambda: T0 + timedelta(minutes=5),
+        calendar=TradingCalendarService(source="test"),
+    )
+    tick = loop.run_once(
+        "2026-08-18",
+        live=True,
+        confirm=True,
+        candidates_override=[Candidate(code, "测试", "SH", source="watchlist")],
+        now=T0 + timedelta(minutes=5),
+    )
+
+    assert tick.status in {"OK", "DEGRADED"}
+    assert quote.batch_calls == 1
+    # snapshot 是妙想 /query 的测试替身；无买卖信号时不得调用。
+    assert quote.calls == 0
+    assert broker.trade_calls == []
+
+
+def test_external_live_without_calendar_blocks_before_market_calls(tmp_path: Path):
+    code = "600519"
+    quote = _BatchWatchQuote()
+    broker = _WatchBroker()
+    loop = WatchLoop(
+        _config(watch_live=True, watch_execution_mode="EXTERNAL_PAPER"),
+        quote,
+        broker,
+        log_base=tmp_path,
+        seed_bars={code: _bars(code, [10.0] * 30)},
+    )
+    tick = loop.run_once(
+        "2026-08-21",
+        live=True,
+        confirm=True,
+        candidates_override=[Candidate(code, "测试", "SH", source="watchlist")],
+        now=T0 + timedelta(minutes=5),
+    )
+
+    assert tick.status == "BLOCKED"
+    assert "TRADING_CALENDAR_REQUIRED: live 必须注入交易日历文件或服务" in tick.errors
+    assert quote.batch_calls == 0
+    assert quote.calls == 0
+    assert broker.trade_calls == []
+
+
 def test_account_positions_and_active_orders_are_forced_into_universe(tmp_path: Path):
     loop = WatchLoop(
         _config(), _WatchQuote(), _WatchBroker(), log_base=tmp_path, seed_bars={}
@@ -534,6 +609,99 @@ def test_disabled_kline_is_retried_and_recovered(tmp_path: Path):
     )
 
 
+def test_disabled_kline_retries_use_bounded_concurrency(tmp_path: Path):
+    import threading
+    import time as time_module
+
+    class _ConcurrentRetryKline:
+        def __init__(self):
+            self.calls = 0
+            self.active = 0
+            self.max_active = 0
+            self.lock = threading.Lock()
+
+        def fetch_history(self, code, name, period_min, limit, **kwargs):
+            with self.lock:
+                self.calls += 1
+                self.active += 1
+                self.max_active = max(self.max_active, self.active)
+            time_module.sleep(0.05)
+            with self.lock:
+                self.active -= 1
+            return _bars(code, [10.0] * 30), None
+
+    kline = _ConcurrentRetryKline()
+    candidates = [
+        Candidate(f"6005{index:02d}", f"测试{index}", "SH", source="watchlist")
+        for index in range(4)
+    ]
+    loop = WatchLoop(
+        _config(kline_retry_workers=4, kline_retry_batch_size=4),
+        _BatchWatchQuote(),
+        _WatchBroker(),
+        kline_client=kline,
+        log_base=tmp_path,
+        now_fn=lambda: T0 + timedelta(minutes=5),
+    )
+    loop._candidates = candidates
+    loop._disabled_codes = {candidate.stock_code: "test" for candidate in candidates}
+    loop._disabled_retry_at = {}
+
+    loop._retry_disabled_klines(T0 + timedelta(minutes=5), "2026-08-18")
+    loop.close()
+
+    assert kline.calls == 4
+    assert kline.max_active >= 2
+    assert not loop._disabled_codes
+
+
+def test_prepare_kline_fetches_use_bounded_concurrency(tmp_path: Path):
+    import threading
+    import time as time_module
+
+    class _ConcurrentPrepareKline:
+        def __init__(self):
+            self.calls = 0
+            self.active = 0
+            self.max_active = 0
+            self.lock = threading.Lock()
+
+        def fetch_history(self, code, name, period_min, limit, **kwargs):
+            with self.lock:
+                self.calls += 1
+                self.active += 1
+                self.max_active = max(self.max_active, self.active)
+            time_module.sleep(0.05)
+            with self.lock:
+                self.active -= 1
+            return _bars(code, [10.0] * 30), None
+
+    kline = _ConcurrentPrepareKline()
+    candidates = [
+        Candidate(f"6006{index:02d}", f"测试{index}", "SH", source="watchlist")
+        for index in range(4)
+    ]
+    loop = WatchLoop(
+        _config(kline_retry_workers=4, kline_retry_batch_size=2),
+        _BatchWatchQuote(),
+        _WatchBroker(),
+        kline_client=kline,
+        log_base=tmp_path,
+        now_fn=lambda: T0 + timedelta(minutes=5),
+    )
+    errors = loop.prepare(
+        "2026-08-18",
+        candidates_override=candidates,
+        now=T0 + timedelta(minutes=5),
+    )
+    loop.close()
+
+    assert kline.calls == 2
+    assert kline.max_active >= 2
+    assert len(loop._disabled_codes) == 2
+    assert not any("KLINE_DISABLED" in error for error in errors)
+
+
 def test_watch_live_requires_cli_confirm_and_environment_switch(tmp_path: Path):
     broker = _WatchBroker()
     loop = WatchLoop(
@@ -680,7 +848,7 @@ def test_eastmoney_kline_request_bypasses_system_proxy(monkeypatch):
         calls.append((url, kwargs))
         return _Response()
 
-    monkeypatch.setattr("paper.watch.kline_client.requests.get", fake_get)
+    monkeypatch.setattr("paper.watch.kline_client.eastmoney_get", fake_get)
     client = KlineClient(None, _config(max_retry=1))
     bars, result = client.fetch_history(
         "600519",
@@ -694,6 +862,37 @@ def test_eastmoney_kline_request_bypasses_system_proxy(monkeypatch):
     assert result.ok is True
     assert bars
     assert calls[0][1]["proxies"] == {"http": None, "https": None}
+
+
+def test_auto_kline_does_not_fallback_to_non_minute_mx_query(monkeypatch):
+    class _Http:
+        def __init__(self):
+            self.post_calls = 0
+
+        def post(self, *args, **kwargs):
+            self.post_calls += 1
+            raise AssertionError("auto 分钟 K 线失败后不应调用 MX 普通查询")
+
+    def fake_get(*args, **kwargs):
+        raise requests.ConnectionError("eastmoney unavailable")
+
+    monkeypatch.setattr("paper.watch.kline_client.eastmoney_get", fake_get)
+    http = _Http()
+    client = KlineClient(http, _config(kline_source="auto", max_retry=1))
+
+    bars, result = client.fetch_history(
+        "600519",
+        "贵州茅台",
+        5,
+        80,
+        as_of=datetime(2026, 8, 18, 9, 40),
+        exchange="SH",
+    )
+
+    assert bars is None
+    assert result.code == "HTTP_ERROR"
+    assert "东方财富 K 线请求失败" in result.message
+    assert http.post_calls == 0
 
 
 def test_kline_parser_rejects_mismatched_code():
@@ -895,6 +1094,9 @@ def test_event_log_append_read_with_cursor_and_filters(tmp_path: Path):
     assert len(all_events) == 4
     assert [e["seq"] for e in read_events(tmp_path, "2026-08-19", after_seq=2)] == [3, 4]
     assert [e["type"] for e in read_events(tmp_path, "2026-08-19", event_type="SIGNAL")] == ["SIGNAL"]
+    assert [e["type"] for e in read_events(
+        tmp_path, "2026-08-19", event_type="SIGNAL,SUBMIT", latest=True, limit=2
+    )] == ["SIGNAL", "SUBMIT"]
     assert [e["type"] for e in read_events(tmp_path, "2026-08-19", code="000002")] == []
     # 敏感键脱敏
     quote_event = next(e for e in all_events if e["type"] == "QUOTE")
@@ -1093,9 +1295,9 @@ def test_risk_gate_event_keeps_original_intent_type(tmp_path: Path):
     from paper.watch.events import read_events
 
     code = "600519"
-    # 限制 max_positions=0，让买入意图确定被拒
+    # 用总仓位上限制造拒单，验证 RISK_GATE 仍保留原始 BUY_LIMIT 意图。
     loop = WatchLoop(
-        _config(max_positions=0),
+        _config(max_total_weight=0.01, max_positions=0),
         _WatchQuote(),
         _WatchBroker(),
         log_base=tmp_path,
@@ -1304,6 +1506,82 @@ def test_internal_paper_keeps_valid_symbols_when_pool_coverage_is_below_threshol
     store.close()
 
 
+def test_internal_paper_keeps_live_when_one_position_quote_missing(tmp_path: Path):
+    """INTERNAL_PAPER：个别持仓缺行情只降级，不得永久掐断 live。"""
+    from paper.mx_result import MxResult
+
+    code_ok, code_pos = "600519", "603887"
+
+    class _QuoteMissingPosition:
+        def snapshot(self, code, name="", *, run_id="adhoc", received_at=None):
+            raise AssertionError("常规轮询不得调用妙想 snapshot")
+
+        def snapshot_many(self, candidates, *, run_id="adhoc", received_at=None):
+            out = {}
+            for candidate in candidates:
+                if candidate.stock_code == code_pos:
+                    out[candidate.stock_code] = (
+                        None,
+                        MxResult(endpoint="eastmoney/ulist", ok=False, code="MISSING", message="missing"),
+                    )
+                else:
+                    out[candidate.stock_code] = (
+                        _quote(
+                            code=candidate.stock_code,
+                            source="eastmoney_batch",
+                            received_at=received_at,
+                            market_time=received_at,
+                        ),
+                        MxResult(endpoint="eastmoney/ulist", ok=True, code="0", message="ok"),
+                    )
+            return out
+
+    class _BrokerWithPosition(_ResultBroker):
+        def positions(self, run_id="adhoc"):
+            self.account_calls["positions"] += 1
+            return [
+                Position(code_pos, "持仓票", 1000, 1000, 10.0, 10.0, 10000.0, 0.0),
+            ], None
+
+    store = SqliteWatchStore(tmp_path / "runtime.sqlite3")
+    loop = WatchLoop(
+        _config(watch_live=True, watch_execution_mode="INTERNAL_PAPER"),
+        _QuoteMissingPosition(),
+        _BrokerWithPosition([]),
+        log_base=tmp_path,
+        seed_bars={
+            code_ok: _bars(code_ok, [10.0] * 30),
+            code_pos: _bars(code_pos, [10.0] * 30),
+        },
+        calendar=TradingCalendarService(source="test"),
+        store=store,
+        require_persistence=True,
+    )
+    tick = loop.run_once(
+        "2026-08-18",
+        live=True,
+        confirm=True,
+        candidates_override=[
+            Candidate(code_ok, "测试A", "SH", source="watchlist"),
+            Candidate(code_pos, "持仓票", "SH", source="watchlist"),
+        ],
+        now=T0 + timedelta(minutes=5),
+    )
+
+    assert tick.live is True
+    assert loop._live_halted is False
+    assert not any(error.startswith("POSITION_QUOTE_UNAVAILABLE:") for error in tick.errors)
+    assert any(error.startswith("POSITION_QUOTE_DEGRADED:") for error in tick.errors)
+    position_check = next(
+        item for item in tick.metrics["readiness"]["checks"]
+        if item["name"] == "position_quotes"
+    )
+    assert position_check["hard"] is False
+    assert position_check["ok"] is False
+    assert code_pos in position_check["unavailable_codes"]
+    store.close()
+
+
 def test_internal_paper_analyzes_ready_symbols_during_partial_warmup(tmp_path: Path):
     code_ready, code_cold = "600519", "000001"
     store = SqliteWatchStore(tmp_path / "runtime.sqlite3")
@@ -1338,6 +1616,53 @@ def test_internal_paper_analyzes_ready_symbols_during_partial_warmup(tmp_path: P
     assert warmup["ready"] == 1
     assert warmup["hard"] is False
     store.close()
+
+
+class _WarmupKlineClient:
+    def __init__(self, bars_by_code: dict[str, list[WatchBar]]):
+        self.bars_by_code = bars_by_code
+        self.calls: list[str] = []
+
+    def fetch_history(self, code, name, period_min, limit, **kwargs):
+        self.calls.append(code)
+        bars = self.bars_by_code.get(code)
+        if bars is None:
+            return None, type("R", (), {"message": "missing", "code": "MISSING", "ok": False})()
+        return list(bars), type("R", (), {"message": "ok", "code": "0", "ok": True})()
+
+
+def test_active_pool_warmup_backfills_kline_even_when_short_history_exists(tmp_path: Path):
+    """活跃池已有少量实时 bar 时，仍须补拉历史 K，否则 FULL 模式 warmup 永久为 0。"""
+    code = "600519"
+    short = _bars(code, [10.0, 10.1])
+    full = _bars(code, [10.0 + i * 0.01 for i in range(30)])
+    kline = _WarmupKlineClient({code: full})
+    loop = WatchLoop(
+        _config(watch_execution_mode="SHADOW"),
+        _BatchWatchQuote(),
+        _ResultBroker([]),
+        kline_client=kline,
+        log_base=tmp_path,
+        calendar=TradingCalendarService(source="test"),
+    )
+    loop._candidates = [Candidate(code, "贵州茅台", "SH", source="full_market")]
+    loop.bar_store.seed(code, short, discard_first_forming=False)
+    assert loop.adapter.ready(code) is False
+    assert len(loop.bar_store.history(code)) == 2
+
+    tick = WatchTick(
+        run_id="test-warmup",
+        trade_date="2026-08-18",
+        started_at=T0.isoformat(),
+        finished_at=T0.isoformat(),
+        live=False,
+    )
+    loop._warmup_codes({code}, T0, "2026-08-18", tick)
+
+    assert kline.calls == [code]
+    assert loop.adapter.ready(code) is True
+    assert len(loop.bar_store.history(code)) >= loop.adapter.required_bars()
+    assert tick.errors == []
 
 
 def test_serve_rejects_bad_query_params(tmp_path: Path):

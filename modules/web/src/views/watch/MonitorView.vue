@@ -37,6 +37,14 @@
           <span class="label">L2活跃池</span>
           <span class="value">{{ marketSnapshot?.active_pool?.length ?? 0 }}</span>
         </div>
+        <div class="status-item">
+          <span class="label">策略扫描</span>
+          <span class="value">{{ strategyScanCount }}</span>
+        </div>
+        <div class="status-item">
+          <span class="label">行情覆盖</span>
+          <span class="value">{{ poolQuoteCoverage }}</span>
+        </div>
         <div class="status-item grow">
           <el-alert v-if="!serviceUp" type="warning" :closable="false" show-icon
             title="watch-serve 未启动：请在 compute-python 下运行 python -m paper.cli watch-serve" />
@@ -49,7 +57,7 @@
       </div>
     </el-card>
 
-    <div ref="mainGridRef" class="main-grid" :style="mainGridStyle">
+    <div class="main-grid">
       <!-- ② 观察池 -->
       <el-card shadow="never" class="panel universe-panel">
         <template #header>
@@ -66,13 +74,13 @@
           </div>
         </template>
         <div class="table-host">
-          <el-table class="watch-table pool-table" :data="universeRows" size="small" height="100%" @row-click="openDetail" highlight-current-row>
+          <el-table class="watch-table pool-table" :data="universeRows" size="small" @row-click="openDetail" highlight-current-row>
           <el-table-column prop="code" label="代码" min-width="84">
             <template #default="{ row }">
               <el-link type="primary" :underline="false">{{ row.code }}</el-link>
             </template>
           </el-table-column>
-          <el-table-column prop="name" label="名称" min-width="160">
+          <el-table-column prop="name" label="名称" min-width="120" show-overflow-tooltip>
             <template #default="{ row }">
               <span class="pool-name" :title="row.name || ''">{{ row.name || '—' }}</span>
             </template>
@@ -113,18 +121,6 @@
         </div>
       </el-card>
 
-      <div
-        class="column-resizer"
-        :class="{ active: resizingTarget === 'universe' }"
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="调整观察池宽度"
-        title="拖动调整观察池宽度，双击恢复默认"
-        tabindex="0"
-        @pointerdown="startColumnResize('universe', $event)"
-        @dblclick="resetColumnWidths"
-      />
-
       <!-- ③ 分析过程流 -->
       <el-card shadow="never" class="panel events-panel">
         <template #header>
@@ -144,14 +140,14 @@
           </div>
         </template>
         <div class="table-host">
-          <el-table class="watch-table events-table" :data="filteredEvents" size="small" height="100%" border :row-key="(r: any) => r.seq">
+          <el-table class="watch-table events-table" :data="filteredEvents" size="small" border :row-key="(r: any) => r.seq">
           <el-table-column prop="ts" label="时间" min-width="106">
             <template #default="{ row }">{{ row.ts.slice(11) }}</template>
           </el-table-column>
           <el-table-column prop="seq" label="#" min-width="64" sortable />
           <el-table-column label="类型" min-width="100">
             <template #default="{ row }">
-              <el-tag :type="typeTagType(row.type)" size="small">{{ row.type }}</el-tag>
+              <el-tag :type="typeTagType(row.type, row.detail)" size="small">{{ row.type }}</el-tag>
             </template>
           </el-table-column>
           <el-table-column prop="code" label="代码" min-width="84" />
@@ -180,36 +176,31 @@
         </div>
       </el-card>
 
-      <div
-        class="column-resizer"
-        :class="{ active: resizingTarget === 'right' }"
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="调整右侧栏宽度"
-        title="拖动调整右侧栏宽度，双击恢复默认"
-        tabindex="0"
-        @pointerdown="startColumnResize('right', $event)"
-        @dblclick="resetColumnWidths"
-      />
-
       <div class="right-column">
         <!-- ④ 交易动作 -->
         <el-card shadow="never" class="panel submits-panel">
           <template #header>
             <div class="panel-header">
               <div class="panel-title">
-                <span>交易动作（{{ submitEvents.length }}）</span>
-                <span class="panel-hint">横向滚动查看数量、价格和结果</span>
+                <span>交易动作（{{ tradeActionRows.length }}）</span>
+                <span class="panel-hint">委托价、实际成交价和成交结果</span>
               </div>
             </div>
           </template>
           <div class="table-host">
-            <el-table class="watch-table submits-table" :data="submitEvents" size="small" height="100%">
+            <el-table class="watch-table submits-table" :data="tradeActionRows" size="small">
             <el-table-column prop="ts" label="时间" min-width="100">
               <template #default="{ row }">{{ row.ts.slice(11) }}</template>
             </el-table-column>
             <el-table-column prop="code" label="代码" min-width="84" />
             <el-table-column prop="name" label="名称" min-width="112" show-overflow-tooltip />
+            <el-table-column label="动作" min-width="68">
+              <template #default="{ row }">
+                <el-tag :type="row.type === 'FILL' ? 'success' : 'primary'" size="small">
+                  {{ row.type === 'FILL' ? '成交' : '委托' }}
+                </el-tag>
+              </template>
+            </el-table-column>
             <el-table-column label="方向" min-width="60">
               <template #default="{ row }">
                 <span :class="(row.detail as any).side === 'buy' ? 'up' : 'down'">
@@ -217,12 +208,14 @@
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="数量/价格" min-width="132">
-              <template #default="{ row }">
-                {{ (row.detail as any).qty }} 股 @ {{ (row.detail as any).price?.toFixed(2) }}
-              </template>
+            <el-table-column prop="qty" label="数量" min-width="78" align="right" />
+            <el-table-column label="委托价" min-width="88" align="right">
+              <template #default="{ row }">{{ fmtPrice(row.orderPrice) }}</template>
             </el-table-column>
-            <el-table-column label="结果" min-width="130">
+            <el-table-column label="成交价" min-width="88" align="right">
+              <template #default="{ row }">{{ fmtPrice(row.fillPrice) }}</template>
+            </el-table-column>
+            <el-table-column label="结果" min-width="120">
               <template #default="{ row }">
                 <el-tag :type="submitTagType((row.detail as any).status)" size="small">
                   {{ (row.detail as any).status }}
@@ -247,26 +240,89 @@
               </div>
             </div>
           </template>
-          <div class="account-grid">
-            <div class="account-item">
-              <span class="label">总资产</span>
-              <span class="value">{{ fmtMoney(currentAccount.total_assets) }}</span>
+          <div class="account-content">
+            <div class="account-grid">
+              <div class="account-item">
+                <span class="label">总资产</span>
+                <span class="value">{{ fmtMoney(currentAccount.total_assets) }}</span>
+              </div>
+              <div class="account-item">
+                <span class="label">可用资金</span>
+                <span class="value">{{ fmtMoney(currentAccount.avail_balance) }}</span>
+              </div>
+              <div class="account-item">
+                <span class="label">持仓市值</span>
+                <span class="value">{{ fmtMoney(currentAccount.market_value) }}</span>
+              </div>
+              <div class="account-item">
+                <span class="label">持仓数 / 在途委托</span>
+                <span class="value">{{ accountPositionCount }} / {{ accountOrderCount }}</span>
+              </div>
             </div>
-            <div class="account-item">
-              <span class="label">可用资金</span>
-              <span class="value">{{ fmtMoney(currentAccount.avail_balance) }}</span>
+
+            <section class="account-section">
+              <div class="account-section-header">
+                <span>当前持仓</span>
+                <span class="panel-hint">{{ accountPositionCount }} 条</span>
+              </div>
+              <el-table v-if="accountPositionRows.length" :data="accountPositionRows" size="small" border class="account-detail-table">
+                <el-table-column prop="code" label="代码" width="78" />
+                <el-table-column label="名称" min-width="100" show-overflow-tooltip>
+                  <template #default="{ row }">{{ accountSecurityName(row) }}</template>
+                </el-table-column>
+                <el-table-column prop="qty" label="持仓" width="72" align="right" />
+                <el-table-column prop="avail_qty" label="可卖" width="72" align="right" />
+                <el-table-column label="成本价" width="88" align="right">
+                  <template #default="{ row }">{{ fmtPrice(row.cost) }}</template>
+                </el-table-column>
+                <el-table-column label="当前价" width="88" align="right">
+                  <template #default="{ row }">{{ fmtPrice(row.last) }}</template>
+                </el-table-column>
+                <el-table-column label="市值" width="100" align="right">
+                  <template #default="{ row }">{{ fmtMoney(row.market_value) }}</template>
+                </el-table-column>
+                <el-table-column label="浮动盈亏" width="104" align="right">
+                  <template #default="{ row }">
+                    <span :class="numberClass(row.profit)">{{ formatSignedMoney(row.profit) }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="盈亏率" width="88" align="right">
+                  <template #default="{ row }">
+                    <span :class="numberClass(row.profit)">{{ formatSignedPercent(positionProfitPct(row)) }}</span>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <div v-else class="account-empty">暂无持仓明细</div>
+            </section>
+
+            <section class="account-section">
+              <div class="account-section-header">
+                <span>在途委托</span>
+                <span class="panel-hint">{{ accountOrderCount }} 条</span>
+              </div>
+              <el-table v-if="accountOrders.length" :data="accountOrders" size="small" border class="account-detail-table orders-detail-table">
+                <el-table-column label="时间" width="72">
+                  <template #default="{ row }">{{ compactTimestamp(row.ts) }}</template>
+                </el-table-column>
+                <el-table-column prop="code" label="代码" width="78" />
+                <el-table-column label="方向" width="56" align="center">
+                  <template #default="{ row }">
+                    <span :class="accountSideClass(row.side)">{{ accountSideText(row.side) }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="数量/价格" min-width="112" align="right">
+                  <template #default="{ row }">{{ row.qty ?? '—' }} / {{ row.price != null ? Number(row.price).toFixed(2) : '—' }}</template>
+                </el-table-column>
+                <el-table-column prop="filled_qty" label="已成" width="60" align="right" />
+                <el-table-column prop="status" label="状态" min-width="90" show-overflow-tooltip />
+                <el-table-column prop="order_id" label="委托号" min-width="120" show-overflow-tooltip />
+              </el-table>
+              <div v-else class="account-empty">暂无在途委托</div>
+            </section>
+
+            <div v-if="latestAccountEvent && Object.keys(accountBefore).length" class="account-after" :class="accountDeltaClass">
+              相对轮次开始：可用资金 {{ formatSignedMoney(accountDelta.avail_balance) }}，持仓数 {{ formatSignedNumber(accountDelta.positions) }}
             </div>
-            <div class="account-item">
-              <span class="label">持仓数</span>
-              <span class="value">{{ currentAccount.positions ?? '—' }}</span>
-            </div>
-            <div class="account-item">
-              <span class="label">在途委托</span>
-              <span class="value">{{ currentAccount.open_orders ?? '—' }}</span>
-            </div>
-          </div>
-          <div v-if="latestAccountEvent && Object.keys(accountBefore).length" class="account-after" :class="accountDeltaClass">
-            相对轮次开始：可用资金 {{ formatSignedMoney(accountDelta.avail_balance) }}，持仓数 {{ formatSignedNumber(accountDelta.positions) }}
           </div>
         </el-card>
       </div>
@@ -302,11 +358,13 @@ import {
   fetchEvents,
   fetchMarket,
   fetchState,
+  fetchTicks,
   fetchWatchPool,
   removeWatchPoolMember,
   type WatchEvent,
   type WatchMarketSnapshot,
-  type WatchPoolResponse
+  type WatchPoolResponse,
+  type WatchTickSummary
 } from '@/api/watch'
 import { inferExchangeType, resolveSecurityName } from '@/utils/security'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -317,46 +375,21 @@ const DISPLAY_EVENTS = 80
 const DISPLAY_SUBMITS = 100
 const REFRESH_MS = 5000
 const POOL_REFRESH_TICKS = 6
+const MARKET_QUOTE_LIMIT = 200
 const NAME_LOOKUP_RETRY_MS = 5 * 60 * 1000
 /** 行情类事件默认折叠，减少过程流噪音与 DOM 压力 */
 const NOISE_TYPES = new Set(['QUOTE', 'QUOTE_FAIL', 'QUOTE_QUALITY'])
-const LAYOUT_STORAGE_KEY = 'quant-watch-monitor-layout'
-const DEFAULT_UNIVERSE_WIDTH = 280
-const DEFAULT_RIGHT_WIDTH = 360
-const MIN_UNIVERSE_WIDTH = 220
-const MAX_UNIVERSE_WIDTH = 480
-const MIN_RIGHT_WIDTH = 280
-const MAX_RIGHT_WIDTH = 520
-const MIN_EVENTS_WIDTH = 360
-const GRID_GAP_PX = 12
-const RESIZER_WIDTH_PX = 8
-
-type ColumnResizeTarget = 'universe' | 'right'
-type ColumnLayout = { universeWidth?: number; rightWidth?: number }
-
-function readColumnLayout(): ColumnLayout {
-  if (typeof window === 'undefined') return {}
-  try {
-    const raw = window.localStorage.getItem(LAYOUT_STORAGE_KEY)
-    return raw ? JSON.parse(raw) as ColumnLayout : {}
-  } catch {
-    return {}
-  }
-}
-
-function clampWidth(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), Math.max(min, max))
-}
-
-const savedColumnLayout = readColumnLayout()
+const TRADE_EVENT_QUERY = 'SUBMIT,FILL'
 
 const days = shallowRef<string[]>([])
 const selectedDate = ref('')
 // 接口数据按快照整体替换；使用 shallowRef 避免 Vue 深度代理大型事件 detail。
 const events = shallowRef<WatchEvent[]>([])
+const tradeEvents = shallowRef<WatchEvent[]>([])
 const state = shallowRef<Awaited<ReturnType<typeof fetchState>> | null>(null)
 const marketSnapshot = shallowRef<WatchMarketSnapshot | null>(null)
 const watchPool = shallowRef<WatchPoolResponse | null>(null)
+const ticks = shallowRef<WatchTickSummary[]>([])
 const serviceUp = ref(true)
 const autoRefresh = ref(true)
 const addCode = ref('')
@@ -375,20 +408,6 @@ const detailName = ref('')
 const securityNames = shallowRef<Record<string, string>>({})
 const nameLookupAt = new Map<string, number>()
 const chartRef = ref<HTMLElement | null>(null)
-const mainGridRef = ref<HTMLElement | null>(null)
-const universeWidth = ref(clampWidth(Number(savedColumnLayout.universeWidth) || DEFAULT_UNIVERSE_WIDTH, MIN_UNIVERSE_WIDTH, MAX_UNIVERSE_WIDTH))
-const rightWidth = ref(clampWidth(Number(savedColumnLayout.rightWidth) || DEFAULT_RIGHT_WIDTH, MIN_RIGHT_WIDTH, MAX_RIGHT_WIDTH))
-const resizingTarget = ref<ColumnResizeTarget | null>(null)
-const mainGridStyle = computed(() => ({
-  '--universe-width': `${universeWidth.value}px`,
-  '--right-width': `${rightWidth.value}px`
-}))
-let resizeState: {
-  target: ColumnResizeTarget
-  startX: number
-  startUniverseWidth: number
-  startRightWidth: number
-} | null = null
 type ChartRuntime = typeof import('@/utils/echartsTheme')
 type ChartInstance = ReturnType<ChartRuntime['echarts']['init']>
 let chartRuntimePromise: Promise<ChartRuntime> | null = null
@@ -421,6 +440,22 @@ const maxTrades = 20
 const l1Coverage = computed(() => {
   const value = Number(marketSnapshot.value?.batch?.coverage)
   return Number.isFinite(value) ? `${(value * 100).toFixed(2)}%` : '—'
+})
+const strategyScanCount = computed(() => {
+  const total = Number(watchPool.value?.total || 0)
+  if (!total) return '—'
+  return `${total} 只`
+})
+const poolQuoteCoverage = computed(() => {
+  const items = watchPool.value?.items || []
+  if (!items.length) return '—'
+  const poolCodes = new Set(items.map((item) => String(item.code)))
+  const covered = (marketSnapshot.value?.quotes || []).filter((quote) => {
+    if (!poolCodes.has(String(quote.code))) return false
+    const quality = String(quote.quality || quote.validity || '').toUpperCase()
+    return !['INVALID', 'STALE', 'MISSING'].includes(quality)
+  }).length
+  return `${covered}/${items.length}`
 })
 const poolSecurityNames = computed<Record<string, string>>(() =>
   Object.fromEntries((watchPool.value?.items || []).map((item) => [item.code, item.name]))
@@ -469,26 +504,74 @@ const universeRows = computed(() => {
 })
 
 const TRADE_TYPES = new Set(['SIGNAL', 'SIZING', 'RISK_GATE', 'ORDER', 'SUBMIT', 'FILL', 'CANCEL'])
+function isBuyOrSellSignal(event: WatchEvent): boolean {
+  if (event.type !== 'SIGNAL') return true
+  const action = String((event.detail as any).action || '').trim().toLowerCase()
+  return action === 'buy' || action === 'sell'
+}
+
 const filteredEvents = computed(() => {
   const result: Array<WatchEvent & { name: string }> = []
   for (let i = events.value.length - 1; i >= 0 && result.length < DISPLAY_EVENTS; i -= 1) {
     const event = events.value[i]
+    if (isSupersededKlineEvent(event)) continue
     if (hideNoise.value && NOISE_TYPES.has(event.type)) continue
     if (typeFilter.value && event.type !== typeFilter.value) continue
     if (codeFilter.value && event.code !== codeFilter.value) continue
-    if (tradesOnly.value && !TRADE_TYPES.has(event.type)) continue
+    if (tradesOnly.value && (!TRADE_TYPES.has(event.type) || !isBuyOrSellSignal(event))) continue
     result.push({ ...event, name: eventName(event) })
   }
   return result
 })
 
-const submitEvents = computed(() => {
-  const result: Array<WatchEvent & { name: string }> = []
-  for (let i = events.value.length - 1; i >= 0 && result.length < DISPLAY_SUBMITS; i -= 1) {
-    const event = events.value[i]
-    if (event.type === 'SUBMIT') result.push({ ...event, name: eventName(event) })
+const latestKlineEvents = computed(() => {
+  const latest = new Map<string, WatchEvent>()
+  for (const event of events.value) {
+    if (event.type !== 'ERROR' || !event.code) continue
+    const scope = String((event.detail as any).scope || '')
+    if (!scope.startsWith('KLINE')) continue
+    const previous = latest.get(event.code)
+    if (!previous || event.seq > previous.seq) latest.set(event.code, event)
   }
-  return result
+  return latest
+})
+
+function isSupersededKlineEvent(event: WatchEvent): boolean {
+  if (event.type !== 'ERROR' || !event.code) return false
+  const scope = String((event.detail as any).scope || '')
+  if (!scope.startsWith('KLINE')) return false
+  const latest = latestKlineEvents.value.get(event.code)
+  return Boolean(latest && latest.seq !== event.seq)
+}
+
+const tradeActionRows = computed(() => {
+  const orderPrices = new Map<string, number>()
+  for (const event of tradeEvents.value) {
+    if (event.type !== 'SUBMIT') continue
+    const detail = event.detail as any
+    const orderId = String(detail.order_id || '')
+    const price = Number(detail.price)
+    if (orderId && Number.isFinite(price)) orderPrices.set(orderId, price)
+  }
+  return tradeEvents.value
+    .filter((event) => event.type === 'SUBMIT' || event.type === 'FILL')
+    .sort((left, right) => right.seq - left.seq)
+    .slice(0, DISPLAY_SUBMITS)
+    .map((event) => {
+      const detail = event.detail as any
+      const orderId = String(detail.order_id || detail.client_order_id || '')
+      const orderPrice = event.type === 'SUBMIT'
+        ? Number(detail.price)
+        : orderPrices.get(orderId)
+      return {
+        ...event,
+        name: eventName(event),
+        qty: Number(detail.qty ?? detail.filled_qty ?? 0),
+        orderPrice: Number.isFinite(orderPrice) ? orderPrice : undefined,
+        fillPrice: event.type === 'FILL' && Number.isFinite(Number(detail.price))
+          ? Number(detail.price) : undefined,
+      }
+    })
 })
 
 const accountEvents = computed(() => events.value.filter((e) => e.type === 'ACCOUNT'))
@@ -496,9 +579,64 @@ const latestAccountEvent = computed<WatchEvent | null>(() => {
   const list = accountEvents.value
   return list.length ? list[list.length - 1] : null
 })
-const currentAccount = computed<Record<string, any>>(() =>
-  latestAccountEvent.value ? (latestAccountEvent.value.detail as any) : {}
-)
+const latestAccountTick = computed<WatchTickSummary | null>(() => {
+  let latest: WatchTickSummary | null = null
+  for (const tick of ticks.value) {
+    if (!tick.account || !Object.keys(tick.account).length) continue
+    if (!latest || String(tick.finished_at) > String(latest.finished_at)) latest = tick
+  }
+  return latest
+})
+const latestTickAccount = computed<Record<string, any>>(() => {
+  const account = latestAccountTick.value?.account as Record<string, any> | undefined
+  if (!account) return {}
+  for (const phase of ['after', 'after_match', 'before']) {
+    const snapshot = account[phase]
+    if (snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot)) {
+      return { ...snapshot, phase }
+    }
+  }
+  return account
+})
+const currentAccount = computed<Record<string, any>>(() => ({
+  ...((latestAccountEvent.value?.detail as any) || {}),
+  ...latestTickAccount.value
+}))
+const accountPositions = computed<Record<string, any>[]>(() => {
+  const details = currentAccount.value.position_details ?? currentAccount.value.positions
+  return Array.isArray(details) ? details : []
+})
+const accountPositionRows = computed<Record<string, any>[]>(() => {
+  const quotes = new Map(
+    (marketSnapshot.value?.quotes || [])
+      .filter((quote: any) => {
+        const quality = String(quote.quality || quote.validity || '')
+        return !['INVALID', 'STALE', 'MISSING'].includes(quality)
+          && Number.isFinite(Number(quote.last))
+          && Number(quote.last) > 0
+      })
+      .map((quote: any) => [String(quote.code), Number(quote.last)])
+  )
+  return accountPositions.value.map((row) => {
+    const qty = Number(row.qty)
+    const cost = Number(row.cost)
+    const current = quotes.get(String(row.code)) ?? Number(row.last)
+    const hasCurrent = Number.isFinite(current)
+    const hasPositionMath = hasCurrent && Number.isFinite(qty) && Number.isFinite(cost)
+    return {
+      ...row,
+      last: hasCurrent ? current : row.last,
+      market_value: hasPositionMath ? current * qty : row.market_value,
+      profit: hasPositionMath ? (current - cost) * qty : row.profit,
+    }
+  })
+})
+const accountOrders = computed<Record<string, any>[]>(() => {
+  const details = currentAccount.value.order_details ?? currentAccount.value.orders
+  return Array.isArray(details) ? details : []
+})
+const accountPositionCount = computed(() => accountDetailCount(currentAccount.value.position_details ?? currentAccount.value.positions))
+const accountOrderCount = computed(() => accountDetailCount(currentAccount.value.order_details ?? currentAccount.value.orders))
 const accountBefore = computed<Record<string, any>>(() => {
   const list = accountEvents.value.filter((e) => (e.detail as any).phase === 'before')
   return list.length ? (list[list.length - 1].detail as any) : {}
@@ -517,7 +655,7 @@ const accountPhaseType = computed<WatchTagType>(() => {
 })
 const accountDelta = computed(() => ({
   avail_balance: Number(currentAccount.value.avail_balance ?? 0) - Number(accountBefore.value.avail_balance ?? 0),
-  positions: Number(currentAccount.value.positions ?? 0) - Number(accountBefore.value.positions ?? 0)
+  positions: accountPositionCount.value - accountDetailCount(accountBefore.value.position_details ?? accountBefore.value.positions)
 }))
 const accountDeltaClass = computed(() => {
   if (accountDelta.value.avail_balance > 0) return 'positive'
@@ -567,6 +705,9 @@ function eventSummary(row: WatchEvent): string {
       return d.phase === 'start' ? `轮次开始（${d.live_requested ? '请求 live' : 'dry-run'}）` : `状态 ${d.status}，bar ${d.bars} 信号 ${d.signals} 提交 ${d.submits} 错误 ${d.errors}`
     case 'ERROR': {
       const scope = String(d.scope || 'ERROR')
+      if (scope.startsWith('KLINE') && d.status === 'RECOVERED') {
+        return `${scope}: 已恢复（${d.bars ?? 0} 根）`
+      }
       const messages = Array.isArray(d.messages) ? d.messages.map(String) : []
       if (messages.length > 2) {
         return `${scope}: ${messages.slice(0, 2).join('; ')} …共 ${messages.length} 条`
@@ -631,7 +772,12 @@ function eventSummaryClass(row: WatchEvent): string {
   return ''
 }
 type WatchTagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
-function typeTagType(type: string): WatchTagType {
+function typeTagType(type: string, detail: Record<string, unknown> = {}): WatchTagType {
+  if (
+    type === 'ERROR'
+    && String(detail.scope || '').startsWith('KLINE')
+    && detail.status === 'RECOVERED'
+  ) return 'success'
   const map: Record<string, WatchTagType> = {
     SIGNAL: 'warning', ORDER: 'primary', SUBMIT: 'danger', FILL: 'success', CANCEL: 'warning', RISK_GATE: 'primary', SIZING: 'primary',
     MARKET_DATA: 'primary', ACTIVE_POOL: 'success', QUOTE_QUALITY: 'warning',
@@ -640,14 +786,49 @@ function typeTagType(type: string): WatchTagType {
   return map[type] ?? 'info'
 }
 function submitTagType(status: string): WatchTagType {
-  if (status === 'SUBMITTED') return 'success'
-  if (status === 'REJECTED') return 'danger'
+  if (status === 'SUBMITTED' || status === 'FILLED') return 'success'
+  if (status === 'REJECTED' || status === 'UNKNOWN_SUBMIT') return 'danger'
   if (status === 'DRY_RUN') return 'info'
   return 'warning'
+}
+function fmtPrice(value: unknown): string {
+  if (value === undefined || value === null || value === '' || !Number.isFinite(Number(value))) return '—'
+  return Number(value).toFixed(4).replace(/0+$/, '').replace(/\.$/, '')
 }
 function fmtMoney(value: unknown): string {
   if (value === undefined || value === null) return '—'
   return Number(value).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+function accountDetailCount(value: unknown): number {
+  if (Array.isArray(value)) return value.length
+  const count = Number(value)
+  return Number.isFinite(count) ? count : 0
+}
+function accountSecurityName(row: Record<string, any>): string {
+  const code = String(row.code || '')
+  return String(
+    row.name
+    || securityNames.value[code]
+    || poolSecurityNames.value[code]
+    || universeRows.value.find((item) => item.code === code)?.name
+    || code
+    || '—'
+  )
+}
+function compactTimestamp(value: unknown): string {
+  const text = String(value || '')
+  if (!text) return '—'
+  return text.includes('T') ? text.slice(11, 19) : text.slice(-8)
+}
+function accountSideText(value: unknown): string {
+  const side = String(value || '').toLowerCase()
+  if (side === 'buy' || side === 'b' || side === '买') return '买'
+  if (side === 'sell' || side === 's' || side === '卖') return '卖'
+  return String(value || '—')
+}
+function accountSideClass(value: unknown): string {
+  const side = accountSideText(value)
+  return side === '买' ? 'up' : side === '卖' ? 'down' : ''
 }
 function formatSignedMoney(value: unknown): string {
   if (value === undefined || value === null || !Number.isFinite(Number(value))) return '—'
@@ -659,92 +840,33 @@ function formatSignedNumber(value: unknown): string {
   const amount = Number(value)
   return `${amount >= 0 ? '+' : ''}${amount}`
 }
+function formatSignedPercent(value: unknown): string {
+  if (value === undefined || value === null || !Number.isFinite(Number(value))) return '—'
+  const amount = Number(value)
+  return `${amount >= 0 ? '+' : ''}${amount.toFixed(2)}%`
+}
+function numberClass(value: unknown): string {
+  const amount = Number(value)
+  return Number.isFinite(amount) && amount > 0 ? 'up' : Number.isFinite(amount) && amount < 0 ? 'down' : ''
+}
+function positionProfitPct(row: Record<string, any>): number | null {
+  const cost = Number(row.cost)
+  const last = Number(row.last)
+  if (!Number.isFinite(cost) || cost <= 0 || !Number.isFinite(last)) return null
+  return (last / cost - 1) * 100
+}
 function codeSignals(code: string): WatchEvent[] {
-  return events.value.filter((e) => e.code === code && e.type === 'SIGNAL' && (e.detail as any).action !== 'hold')
+  return events.value.filter((e) => e.code === code && e.type === 'SIGNAL' && isBuyOrSellSignal(e))
 }
 function signalDetailText(row: WatchEvent): string {
   const d = (row.detail as any).detail || {}
   return Object.entries(d).map(([k, v]) => `${k}=${v}`).join('，') || '—'
 }
 
-function persistColumnWidths() {
-  if (typeof window === 'undefined') return
-  try {
-    window.localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify({
-      universeWidth: universeWidth.value,
-      rightWidth: rightWidth.value
-    }))
-  } catch {
-    // 布局偏好保存失败不应影响盯盘功能。
-  }
-}
-
-function resizeLimits() {
-  const gridWidth = mainGridRef.value?.clientWidth || window.innerWidth
-  // 5 条 grid 轨道之间有 4 个 gap，两个分隔条各占 8px。
-  const flexibleWidth = Math.max(0, gridWidth - GRID_GAP_PX * 4 - RESIZER_WIDTH_PX * 2)
-  return {
-    maxUniverse: Math.max(MIN_UNIVERSE_WIDTH, Math.min(MAX_UNIVERSE_WIDTH, flexibleWidth - MIN_EVENTS_WIDTH - rightWidth.value)),
-    maxRight: Math.max(MIN_RIGHT_WIDTH, Math.min(MAX_RIGHT_WIDTH, flexibleWidth - MIN_EVENTS_WIDTH - universeWidth.value))
-  }
-}
-
-function startColumnResize(target: ColumnResizeTarget, event: PointerEvent) {
-  if (event.button !== 0) return
-  resizeState = {
-    target,
-    startX: event.clientX,
-    startUniverseWidth: universeWidth.value,
-    startRightWidth: rightWidth.value
-  }
-  resizingTarget.value = target
-  document.body.classList.add('watch-column-resizing')
-  window.addEventListener('pointermove', handleColumnResize)
-  window.addEventListener('pointerup', stopColumnResize)
-  window.addEventListener('pointercancel', stopColumnResize)
-  event.preventDefault()
-}
-
-function handleColumnResize(event: PointerEvent) {
-  if (!resizeState) return
-  const delta = event.clientX - resizeState.startX
-  const limits = resizeLimits()
-  if (resizeState.target === 'universe') {
-    universeWidth.value = clampWidth(
-      resizeState.startUniverseWidth + delta,
-      MIN_UNIVERSE_WIDTH,
-      limits.maxUniverse
-    )
-  } else {
-    // 右侧分隔条向右移动时，右栏宽度相应变窄。
-    rightWidth.value = clampWidth(
-      resizeState.startRightWidth - delta,
-      MIN_RIGHT_WIDTH,
-      limits.maxRight
-    )
-  }
-}
-
-function stopColumnResize() {
-  if (!resizeState) return
-  resizeState = null
-  resizingTarget.value = null
-  document.body.classList.remove('watch-column-resizing')
-  window.removeEventListener('pointermove', handleColumnResize)
-  window.removeEventListener('pointerup', stopColumnResize)
-  window.removeEventListener('pointercancel', stopColumnResize)
-  persistColumnWidths()
-}
-
-function resetColumnWidths() {
-  universeWidth.value = DEFAULT_UNIVERSE_WIDTH
-  rightWidth.value = DEFAULT_RIGHT_WIDTH
-  persistColumnWidths()
-}
-
 function onDateChange() {
   refreshEpoch += 1
   events.value = []
+  tradeEvents.value = []
   cursor = 0
   void refresh(true)
 }
@@ -759,33 +881,40 @@ async function refresh(full = false) {
   try {
     refreshTick += 1
     if (full) {
-      const [{ events: all }, st, market, pool] = await Promise.all([
+      const [{ events: all }, { events: trades }, st, market, pool, tickData] = await Promise.all([
         fetchEvents(requestDate, 0, { limit: MAX_EVENTS, latest: true }),
+        fetchEvents(requestDate, 0, { type: TRADE_EVENT_QUERY, limit: DISPLAY_SUBMITS, latest: true }),
         fetchState(requestDate),
-        fetchMarket(requestDate, 80),
-        fetchWatchPool()
+        fetchMarket(requestDate, MARKET_QUOTE_LIMIT),
+        fetchWatchPool(),
+        fetchTicks(requestDate).catch(() => ({ date: requestDate, ticks: ticks.value }))
       ])
       if (
         disposed || requestEpoch !== refreshEpoch || requestDate !== selectedDate.value
         || requestId < lastAppliedRefresh
       ) return
       events.value = all
+      tradeEvents.value = trades
       eventsChanged = true
       cursor = all.length ? all[all.length - 1].seq : 0
       state.value = st
       marketSnapshot.value = market
       watchPool.value = pool
+      ticks.value = tickData.ticks
       lastAppliedRefresh = requestId
       void ensureSecurityNames(all)
     } else {
       const refreshSnapshot = refreshTick % 2 === 0
       const refreshPool = refreshTick % POOL_REFRESH_TICKS === 0
       // 事件与快照并发拉取，避免代理耗时串联；观察池低频刷新即可。
-      const [{ events: inc }, st, market, pool] = await Promise.all([
+      const [{ events: inc }, st, market, pool, tickData] = await Promise.all([
         fetchEvents(requestDate, requestCursor, { limit: 200 }),
         refreshSnapshot ? fetchState(requestDate) : Promise.resolve(state.value),
-        refreshSnapshot ? fetchMarket(requestDate, 80) : Promise.resolve(marketSnapshot.value),
-        refreshPool ? fetchWatchPool() : Promise.resolve(watchPool.value)
+        refreshSnapshot ? fetchMarket(requestDate, MARKET_QUOTE_LIMIT) : Promise.resolve(marketSnapshot.value),
+        refreshPool ? fetchWatchPool() : Promise.resolve(watchPool.value),
+        refreshSnapshot
+          ? fetchTicks(requestDate).catch(() => ({ date: requestDate, ticks: ticks.value }))
+          : Promise.resolve({ date: requestDate, ticks: ticks.value })
       ])
       if (
         disposed || requestEpoch !== refreshEpoch || requestDate !== selectedDate.value
@@ -793,6 +922,11 @@ async function refresh(full = false) {
       ) return
       if (inc.length) {
         events.value = [...events.value, ...inc].slice(-MAX_EVENTS)
+        const tradeInc = inc.filter((event) => event.type === 'SUBMIT' || event.type === 'FILL')
+        if (tradeInc.length) {
+          const bySeq = new Map([...tradeEvents.value, ...tradeInc].map((event) => [event.seq, event]))
+          tradeEvents.value = [...bySeq.values()].sort((left, right) => left.seq - right.seq).slice(-DISPLAY_SUBMITS)
+        }
         eventsChanged = true
         cursor = inc[inc.length - 1].seq
         void ensureSecurityNames(inc)
@@ -800,6 +934,7 @@ async function refresh(full = false) {
       state.value = st
       marketSnapshot.value = market
       watchPool.value = pool
+      if (tickData) ticks.value = tickData.ticks
       lastAppliedRefresh = requestId
     }
     serviceUp.value = true
@@ -951,7 +1086,6 @@ onMounted(async () => {
 })
 onBeforeUnmount(() => {
   disposed = true
-  stopColumnResize()
   document.removeEventListener('visibilitychange', onVisibilityChange)
   if (timer) window.clearTimeout(timer)
   chart?.dispose()
@@ -964,7 +1098,6 @@ onBeforeUnmount(() => {
   height: 100%;
   width: 100%;
   max-width: 100%;
-  max-height: 100%;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -1017,53 +1150,18 @@ onBeforeUnmount(() => {
   max-width: 100%;
   min-width: 0;
   display: grid;
-  /* 默认把空间让给中间分析流；两条分隔条负责调整左右栏宽度。 */
-  grid-template-columns: var(--universe-width, 280px) 8px minmax(0, 1fr) 8px var(--right-width, 360px);
+  /* 轨道允许收缩；表格的最小可读宽度由 table-host 内部横向滚动承接。 */
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr) minmax(0, 430px);
   grid-template-rows: minmax(0, 1fr);
   gap: var(--sp-3);
   overflow: hidden;
   overscroll-behavior: contain;
 }
 
-.column-resizer {
-  position: relative;
-  z-index: 2;
-  width: 8px;
-  height: 100%;
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: col-resize;
-  touch-action: none;
-}
-
-.column-resizer::after {
-  content: '';
-  position: absolute;
-  inset: 0 3px;
-  border-radius: var(--r-pill);
-  background: var(--glass-border-strong);
-  opacity: 0.35;
-  transition: opacity var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
-}
-
-.column-resizer:hover::after,
-.column-resizer:focus-visible::after,
-.column-resizer.active::after {
-  background: var(--accent-1);
-  opacity: 1;
-}
-
-:global(body.watch-column-resizing),
-:global(body.watch-column-resizing *) {
-  cursor: col-resize !important;
-  user-select: none !important;
-}
-
 .right-column {
   display: grid;
-  grid-template-rows: 1fr auto;
+  /* 交易动作只保留紧凑的可滚动区域，把主要空间让给账户明细。 */
+  grid-template-rows: minmax(180px, 2fr) minmax(300px, 5fr);
   gap: var(--sp-3);
   min-height: 0;
   min-width: 0;
@@ -1078,6 +1176,8 @@ onBeforeUnmount(() => {
 }
 
 .panel :deep(.el-card__body) {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   padding: var(--sp-2);
@@ -1121,11 +1221,15 @@ onBeforeUnmount(() => {
 }
 
 .table-host {
-  flex: 1;
+  /* 让外层成为唯一滚动容器，避免 el-table 的 height=100% 把纵向滚动截留在内部，
+     进而把横向滚动条推到有限高度之外。 */
+  flex: 1 1 auto;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   min-height: 0;
+  display: block;
+  scrollbar-width: thin;
   overflow-x: auto;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1133,13 +1237,13 @@ onBeforeUnmount(() => {
 }
 
 .watch-table {
-  min-height: 100%;
+  min-height: max-content;
 }
 
 /* 给表格保留真实内容宽度，字段不再被强行压扁；窄屏通过 table-host 横向滚动查看。 */
-.pool-table { min-width: 860px; }
+.pool-table { min-width: 700px; }
 .events-table { min-width: 930px; }
-.submits-table { min-width: 700px; }
+.submits-table { min-width: 820px; }
 
 .table-host::-webkit-scrollbar {
   width: 10px;
@@ -1210,6 +1314,47 @@ onBeforeUnmount(() => {
   gap: var(--sp-3);
 }
 
+.account-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.account-section {
+  margin-top: var(--sp-3);
+  min-width: 0;
+}
+
+.account-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-1);
+  color: var(--text-secondary);
+  font-size: var(--fz-xs);
+  font-weight: 600;
+}
+
+.account-detail-table {
+  min-width: 820px;
+}
+
+.orders-detail-table {
+  min-width: 620px;
+}
+
+.account-empty {
+  padding: var(--sp-3) 0;
+  color: var(--text-dim);
+  font-size: var(--fz-xs);
+  text-align: center;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: var(--r-sm);
+}
+
 .account-item .label {
   display: block;
   color: var(--text-secondary, #909399);
@@ -1258,10 +1403,9 @@ onBeforeUnmount(() => {
 /* 三列布局在窄屏下会让中间事件流失去可读宽度，改为纵向堆叠。 */
 @media (max-width: 1100px) {
   .watch-monitor {
-    height: 100%;
-    max-height: 100%;
+    height: auto;
     min-width: 0;
-    min-height: 0;
+    min-height: 100%;
   }
 
   .status-row {
@@ -1275,15 +1419,10 @@ onBeforeUnmount(() => {
   }
 
   .main-grid {
-    flex: 0 0 auto;
     display: flex;
     flex-direction: column;
     min-width: 0;
-    overflow: visible;
-  }
-
-  .column-resizer {
-    display: none;
+    overflow: hidden;
   }
 
   .universe-panel,
@@ -1294,15 +1433,15 @@ onBeforeUnmount(() => {
   .right-column {
     display: flex;
     flex-direction: column;
-    min-height: 600px;
+    min-height: 680px;
   }
 
   .submits-panel {
-    min-height: 420px;
+    min-height: 260px;
   }
 
   .account-panel {
-    min-height: 180px;
+    min-height: 420px;
   }
 
   .filters {

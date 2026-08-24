@@ -118,7 +118,7 @@ def load_hot_stock_universe(
     signal_date: str,
     token: str = "",
     *,
-    max_codes: int = 50,
+    max_codes: int = 100,
     timeout: int = 15,
 ) -> list[Candidate]:
     """读取数据管理的热门股票榜，作为盯盘启动默认观察池。"""

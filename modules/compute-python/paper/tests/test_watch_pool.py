@@ -38,7 +38,7 @@ def _hot_response(*codes: tuple[str, str, str]) -> dict:
 def test_watchlist_is_default_mode_and_uses_hot_stocks(monkeypatch):
     config = PaperConfig(api_key="test")
     assert config.watch_universe_mode == "WATCHLIST"
-    assert config.max_observe_codes == 50
+    assert config.max_observe_codes == 100
 
     monkeypatch.setattr(
         "paper.watch.universe.requests.get",
@@ -105,11 +105,11 @@ def test_manual_addition_evicts_lowest_ranked_hot_stock_at_capacity(tmp_path):
     store.sync_default_watch_pool([
         {"code": f"{index:06d}", "name": f"热门{index}", "exchange": "SZ"}
         for index in range(50)
-    ])
+    ], max_size=50)
     store.close()
 
-    _add_watch_pool_member(store_path, {"code": "600519", "name": "贵州茅台"})
-    pool = _watch_pool(store_path)
+    _add_watch_pool_member(store_path, {"code": "600519", "name": "贵州茅台"}, max_size=50)
+    pool = _watch_pool(store_path, max_size=50)
 
     assert pool["total"] == 50
     assert pool["items"][0]["code"] == "600519"

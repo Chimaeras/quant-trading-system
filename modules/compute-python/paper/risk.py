@@ -334,7 +334,11 @@ def check_watch_intent(
         if int(getattr(item, "qty", 0) or 0) > 0
     }
     occupied_codes.update(order.code for order in active_buy_orders)
-    if intent.stock_code not in occupied_codes and len(occupied_codes) >= config.max_positions:
+    if (
+        config.max_positions > 0
+        and intent.stock_code not in occupied_codes
+        and len(occupied_codes) >= config.max_positions
+    ):
         note("MAX_POSITIONS", False)
         return reject("MAX_POSITIONS")
     note("MAX_POSITIONS", True)

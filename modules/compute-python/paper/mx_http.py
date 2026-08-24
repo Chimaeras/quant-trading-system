@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+from threading import Lock
 from pathlib import Path
 
 import requests
@@ -63,6 +64,7 @@ class MxHttpClient:
         self._artifact_dir = artifact_dir
         self._session = requests.Session()
         self._call_seq = 0  # 单调递增调用序号（raw 文件名防覆盖）
+        self._raw_lock = Lock()
 
     def _endpoint_url(self, endpoint: str) -> str:
         return f"{self._config.api_base}{endpoint}"
@@ -71,14 +73,15 @@ class MxHttpClient:
         """按 run_id/call_seq/endpoint 落盘脱敏原文；返回相对路径（未配置目录则空）。"""
         if self._artifact_dir is None:
             return ""
-        self._call_seq += 1
-        safe = endpoint.strip("/").replace("/", "_")
-        path = self._artifact_dir / "raw" / f"{run_id}_{self._call_seq:04d}_{safe}.json"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(sanitize_payload(payload), ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        with self._raw_lock:
+            self._call_seq += 1
+            safe = endpoint.strip("/").replace("/", "_")
+            path = self._artifact_dir / "raw" / f"{run_id}_{self._call_seq:04d}_{safe}.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps(sanitize_payload(payload), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
         return str(path)
 
     def save_raw(self, run_id: str, endpoint: str, payload: dict) -> str:

@@ -40,8 +40,18 @@ def read_events(
     if not path.exists():
         return []
     out: list[dict] = []
+    event_types = {
+        item.strip() for item in str(event_type or "").split(",") if item.strip()
+    }
     lines = (
-        _tail_lines(path, limit) if latest and after_seq <= 0
+        _tail_lines(
+            path,
+            limit,
+            predicate=(
+                (lambda event: str(event.get("type", "")) in event_types)
+                if event_types else None
+            ),
+        ) if latest and after_seq <= 0
         else _lines_after_seq(path, after_seq) if after_seq > 0
         else None
     )
@@ -66,7 +76,7 @@ def read_events(
                 continue
             if code and str(event.get("code", "")) != code:
                 continue
-            if event_type and str(event.get("type", "")) != event_type:
+            if event_types and str(event.get("type", "")) not in event_types:
                 continue
             out.append(event)
             if len(out) >= limit:
@@ -116,7 +126,13 @@ def _lines_after_seq(path: Path, after_seq: int, *, block_size: int = 64 * 1024)
     return [raw.decode("utf-8", errors="replace") for raw in reversed(selected_reversed)]
 
 
-def _tail_lines(path: Path, lines: int, *, block_size: int = 64 * 1024) -> list[str]:
+def _tail_lines(
+    path: Path,
+    lines: int,
+    *,
+    block_size: int = 64 * 1024,
+    predicate=None,
+) -> list[str]:
     if lines <= 0 or not path.exists():
         return []
     selected_reversed: list[bytes] = []
@@ -138,6 +154,13 @@ def _tail_lines(path: Path, lines: int, *, block_size: int = 64 * 1024) -> list[
                 complete = parts
             for raw in reversed(complete):
                 if raw.strip():
+                    if predicate is not None:
+                        try:
+                            event = json.loads(raw.decode("utf-8"))
+                        except (UnicodeDecodeError, ValueError, TypeError):
+                            continue
+                        if not isinstance(event, dict) or not predicate(event):
+                            continue
                     selected_reversed.append(raw)
                     if len(selected_reversed) >= lines:
                         break

@@ -81,6 +81,7 @@ export interface WatchPosition {
 export interface WatchAccount {
   available: boolean
   session_id: string
+  price_basis?: string
   initial_cash: number
   cash: number
   frozen_cash: number
@@ -181,6 +182,7 @@ export interface WatchPnlCode {
 export interface WatchPnl {
   available: boolean
   session_id: string
+  price_basis?: string
   per_code: WatchPnlCode[]
   totals: {
     realized: number

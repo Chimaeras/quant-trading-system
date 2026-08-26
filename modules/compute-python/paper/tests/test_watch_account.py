@@ -18,7 +18,7 @@ from http.server import ThreadingHTTPServer
 import pytest
 
 from paper.watch.serve import (
-    _account, _decode_metadata, _fills, _orders, _pnl, _positions, make_handler,
+    _account, _decode_metadata, _fills, _orders, _pnl, make_handler,
 )
 from paper.watch.store import SqliteWatchStore
 
@@ -120,6 +120,7 @@ def test_account_fields_and_session_autodetect(tmp_path):
     assert acc["cash"] == 60000.0
     assert acc["frozen_cash"] == 5000.0
     assert acc["avail_balance"] == acc["cash"] - acc["frozen_cash"]  # 可用=现金-冻结
+    assert acc["price_basis"] == "snapshot"  # 未实现/市值基于持仓快照价（last_price）
     assert acc["market_value"] == 600 * 11.0 + 200 * 1520.0  # 310600
     assert acc["total_assets"] == 60000.0 + 310600.0
     assert acc["unrealized_pnl"] == (11.0 - 10.0) * 600 + (1520.0 - 1500.0) * 200  # 4600
@@ -130,17 +131,6 @@ def test_account_fields_and_session_autodetect(tmp_path):
     assert names["000001"] == "平安银行"
     assert names["600519"] == "贵州茅台"
     assert acc["positions"][0]["market_value"] == 600 * 11.0
-
-
-def test_positions_endpoint(tmp_path):
-    store_path = tmp_path / "runtime.sqlite3"
-    _build_store(store_path)
-
-    pos = _positions(store_path, SESSION)
-    assert pos["available"] is True
-    assert pos["count"] == 2
-    assert {p["code"] for p in pos["positions"]} == {"000001", "600519"}
-    assert pos["positions"][0]["profit"] == (11.0 - 10.0) * 600
 
 
 def test_orders_include_terminal_and_filter(tmp_path):
@@ -190,6 +180,7 @@ def test_pnl_replay_matches_account(tmp_path):
     assert totals["realized"] == pytest.approx(REALIZED)
     assert totals["realized_account"] == pytest.approx(REALIZED)
     assert totals["consistent"] is True  # 重放已实现与 sim_account.realized_pnl 一致
+    assert pnl["price_basis"] == "snapshot"
     assert totals["unrealized"] == pytest.approx(4600.0)
     assert totals["total"] == pytest.approx(REALIZED + 4600.0)
 
@@ -223,6 +214,12 @@ def test_watch_serve_routes_account_orders(tmp_path):
         orders = json.loads(res.read().decode("utf-8"))
         assert res.status == 200
         assert orders["count"] == 3
+
+        conn.request("GET", "/api/watch/positions")
+        res = conn.getresponse()
+        payload = json.loads(res.read().decode("utf-8"))
+        assert res.status == 404
+        assert payload["error"] == "unknown_resource"
 
         conn.request("GET", "/api/watch/unknown")
         res = conn.getresponse()

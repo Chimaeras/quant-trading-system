@@ -379,6 +379,7 @@ def _account(store_path: Path, session_id: str) -> dict:
             unr = sum(p["profit"] for p in positions)
             return {
                 "available": True, "session_id": sid, "positions": positions,
+                "price_basis": "snapshot",
                 "initial_cash": 0.0, "cash": 0.0, "frozen_cash": 0.0,
                 "avail_balance": 0.0, "market_value": mv, "total_assets": mv,
                 "realized_pnl": 0.0, "unrealized_pnl": unr, "total_profit": unr,
@@ -397,6 +398,7 @@ def _account(store_path: Path, session_id: str) -> dict:
         return {
             "available": True,
             "session_id": sid,
+            "price_basis": "snapshot",
             "initial_cash": initial_cash,
             "cash": cash,
             "frozen_cash": frozen,
@@ -411,26 +413,6 @@ def _account(store_path: Path, session_id: str) -> dict:
             "open_order_count": _open_order_count(conn, sid),
             "positions": positions,
         }
-    except sqlite3.Error as exc:
-        return {"available": False, "error": f"{type(exc).__name__}:{exc}"}
-    finally:
-        conn.close()
-
-
-def _positions(store_path: Path, session_id: str) -> dict:
-    conn = _ro_conn(store_path)
-    if conn is None:
-        return {"available": False, "error": "store_unavailable"}
-    try:
-        sid = _resolve_session_id(conn, session_id)
-        if not sid:
-            return {"available": False, "error": "no_session"}
-        names = _security_names(conn)
-        rows = conn.execute(
-            "SELECT * FROM sim_position WHERE session_id=? ORDER BY code", (sid,)
-        ).fetchall()
-        positions = [_position_view(dict(row), names) for row in rows]
-        return {"available": True, "session_id": sid, "positions": positions, "count": len(positions)}
     except sqlite3.Error as exc:
         return {"available": False, "error": f"{type(exc).__name__}:{exc}"}
     finally:
@@ -640,6 +622,7 @@ def _pnl(store_path: Path, session_id: str) -> dict:
         return {
             "available": True,
             "session_id": sid,
+            "price_basis": "snapshot",
             "per_code": result,
             "totals": {
                 "realized": total_realized,
@@ -705,8 +688,6 @@ def make_handler(log_base: Path, store_path: Path | None = None, *, max_pool_siz
                 resource = parts[2]
                 if resource == "account":
                     return _json_response(self, _account(runtime_store, (query.get("session_id") or [""])[0]))
-                if resource == "positions":
-                    return _json_response(self, _positions(runtime_store, (query.get("session_id") or [""])[0]))
                 if resource == "pnl":
                     return _json_response(self, _pnl(runtime_store, (query.get("session_id") or [""])[0]))
                 if resource in ("orders", "fills"):

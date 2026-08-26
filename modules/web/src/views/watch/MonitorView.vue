@@ -234,6 +234,7 @@
               <span>盯盘模拟账户<template v-if="accountView.session_id"> · {{ accountView.session_id }}</template></span>
               <div class="account-meta">
                 <span class="panel-hint">全程 · 最新会话</span>
+                <span v-if="isHistoricalAccountView" class="panel-hint">账户为最新会话累计（与所选日期无关）</span>
                 <el-tag v-if="accountPhaseLabel" size="small" effect="plain" :type="accountPhaseType">
                   {{ accountPhaseLabel }}
                 </el-tag>
@@ -841,9 +842,14 @@ const accountView = computed<Record<string, any>>(() => {
   }
 })
 
+/** 是否正查看历史交易日：账户/收益/委托/成交是「最新会话累计」，与所选日期无关。 */
+const isHistoricalAccountView = computed(() => {
+  const latest = days.value[0]
+  return !!(latest && selectedDate.value && selectedDate.value !== latest)
+})
+
 /** 有效实时行情：code -> last。quality 无效/过期/缺失或 last 非正数都排除。 */
-const liveQuotes = computed<Map<string, number>>(() => {
-  const quotes = new Map<string, number>()
+const liveQuotes = computed<Map<string, number>>(() => {  const quotes = new Map<string, number>()
   for (const quote of marketSnapshot.value?.quotes || []) {
     const quality = String(quote.quality || quote.validity || '')
     if (['INVALID', 'STALE', 'MISSING'].includes(quality)) continue
@@ -1094,7 +1100,7 @@ function fmtPrice(value: unknown): string {
   return Number(value).toFixed(4).replace(/0+$/, '').replace(/\.$/, '')
 }
 function fmtMoney(value: unknown): string {
-  if (value === undefined || value === null) return '—'
+  if (value === undefined || value === null || !Number.isFinite(Number(value))) return '—'
   return Number(value).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 function accountDetailCount(value: unknown): number {
@@ -1674,8 +1680,8 @@ onBeforeUnmount(() => {
   color: var(--text-secondary, #909399);
 }
 
-.account-after.positive { color: var(--success); }
-.account-after.negative { color: var(--warning); }
+.account-after.positive { color: var(--up); }
+.account-after.negative { color: var(--down); }
 
 .account-meta {
   display: inline-flex;

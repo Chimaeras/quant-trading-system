@@ -189,8 +189,13 @@ def test_pnl_replay_matches_account(tmp_path):
     assert codes["000001"]["trades"][0]["realized"] == pytest.approx(REALIZED)
     assert codes["000001"]["realized"] == pytest.approx(REALIZED)
     assert codes["000001"]["unrealized"] == pytest.approx((11.0 - 10.0) * 600)
+    # 现持仓/均价以 sim_position 为权威（重放可能因 seed/裁剪偏离），与未实现、前端实时覆盖口径一致
+    assert codes["000001"]["qty"] == 600
+    assert codes["000001"]["avg_cost"] == pytest.approx(10.0)
     assert codes["600519"]["trades"] == []
     assert codes["600519"]["unrealized"] == pytest.approx((1520.0 - 1500.0) * 200)
+    assert codes["600519"]["qty"] == 200
+    assert codes["600519"]["avg_cost"] == pytest.approx(1500.0)
 
 
 def test_watch_serve_routes_account_orders(tmp_path):

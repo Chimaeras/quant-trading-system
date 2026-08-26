@@ -611,9 +611,12 @@ def _pnl(store_path: Path, session_id: str) -> dict:
             if pos is None:
                 rec["unrealized"] = 0.0
             else:
-                cost = _finite(pos.get("avg_cost") or 0.0)
+                # 现持仓/均价以 sim_position 为权威（重放可能因 seed/裁剪偏离），已实现仍取重放
+                rec["qty"] = int(pos.get("qty") or 0)
+                rec["avg_cost"] = _finite(pos.get("avg_cost") or 0.0)
+                cost = rec["avg_cost"]
                 last = _finite(pos.get("last_price") or cost, cost)
-                rec["unrealized"] = (last - cost) * int(pos.get("qty") or 0)
+                rec["unrealized"] = (last - cost) * rec["qty"]
             rec["total"] = rec["realized"] + rec["unrealized"]
 
         result = sorted(per_code.values(), key=lambda item: item["code"])

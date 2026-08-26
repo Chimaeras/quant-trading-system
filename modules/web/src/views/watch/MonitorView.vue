@@ -849,7 +849,10 @@ const isHistoricalAccountView = computed(() => {
 })
 
 /** 有效实时行情：code -> last。quality 无效/过期/缺失或 last 非正数都排除。 */
-const liveQuotes = computed<Map<string, number>>(() => {  const quotes = new Map<string, number>()
+const liveQuotes = computed<Map<string, number>>(() => {
+  const quotes = new Map<string, number>()
+  // 账户卡是"最新会话累计、与所选日期无关"：历史视图不可用"那一天"的行情折算当前持仓，回落 /account 快照价
+  if (isHistoricalAccountView.value) return quotes
   for (const quote of marketSnapshot.value?.quotes || []) {
     const quality = String(quote.quality || quote.validity || '')
     if (['INVALID', 'STALE', 'MISSING'].includes(quality)) continue

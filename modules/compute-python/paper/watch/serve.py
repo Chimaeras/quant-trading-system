@@ -290,9 +290,10 @@ def _security_names(conn) -> dict[str, str]:
     try:
         for row in conn.execute("SELECT code, name FROM watch_pool_member WHERE name != ''"):
             names.setdefault(str(row["code"]), str(row["name"]))
+        # 取每个代码"最新一条非空名称"，避免最新行情名为空时丢失更早的名称。
         for row in conn.execute(
             "SELECT q.code, q.name FROM latest_quote q "
-            "JOIN (SELECT code, MAX(trade_date) md FROM latest_quote GROUP BY code) m "
+            "JOIN (SELECT code, MAX(trade_date) md FROM latest_quote WHERE name != '' GROUP BY code) m "
             "  ON q.code=m.code AND q.trade_date=m.md WHERE q.name != ''"
         ):
             names.setdefault(str(row["code"]), str(row["name"]))
@@ -369,6 +370,7 @@ def _account(store_path: Path, session_id: str) -> dict:
             "initial_cash": initial_cash,
             "cash": cash,
             "frozen_cash": frozen,
+            "avail_balance": max(cash - frozen, 0.0),
             "market_value": market_value,
             "total_assets": total_assets,
             "realized_pnl": realized,
@@ -416,9 +418,19 @@ def _open_order_count(conn, sid: str) -> int:
         return 0
 
 
+def _decode_metadata(raw) -> dict:
+    """解码 metadata_json；单条坏数据返回空对象，避免拖垮整个 /orders 或 /fills。"""
+    if not raw:
+        return {}
+    try:
+        decoded = json.loads(raw)
+    except ValueError:
+        return {}
+    return decoded if isinstance(decoded, dict) else {}
+
+
 def _order_view(row: dict, names: dict[str, str]) -> dict:
-    meta = row.get("metadata_json")
-    metadata = json.loads(meta) if meta else {}
+    metadata = _decode_metadata(row.get("metadata_json"))
     return {
         "client_order_id": row.get("client_order_id"),
         "session_id": row.get("session_id"),
@@ -479,8 +491,7 @@ def _orders(store_path: Path, params: dict) -> dict:
 
 
 def _fill_view(row: dict, names: dict[str, str]) -> dict:
-    meta = row.get("metadata_json")
-    metadata = json.loads(meta) if meta else {}
+    metadata = _decode_metadata(row.get("metadata_json"))
     return {
         "fill_id": row.get("fill_id"),
         "client_order_id": row.get("client_order_id"),
@@ -542,7 +553,8 @@ def _pnl(store_path: Path, session_id: str) -> dict:
         ).fetchall()
         positions = {str(row["code"]): dict(row) for row in pos_rows}
         fill_rows = conn.execute(
-            "SELECT * FROM fill WHERE session_id=? ORDER BY filled_at, fill_id", (sid,)
+            "SELECT * FROM fill WHERE session_id=?"
+            " ORDER BY filled_at, bar_ts, client_order_id, fill_id", (sid,)
         ).fetchall()
         account = conn.execute(
             "SELECT * FROM sim_account WHERE session_id=?", (sid,)

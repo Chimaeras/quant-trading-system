@@ -233,6 +233,7 @@
             <div class="panel-header">
               <span>盯盘模拟账户<template v-if="accountView.session_id"> · {{ accountView.session_id }}</template></span>
               <div class="account-meta">
+                <span class="panel-hint">全程 · 最新会话</span>
                 <el-tag v-if="accountPhaseLabel" size="small" effect="plain" :type="accountPhaseType">
                   {{ accountPhaseLabel }}
                 </el-tag>
@@ -248,7 +249,11 @@
               </div>
               <div class="account-item">
                 <span class="label">可用资金</span>
-                <span class="value">{{ fmtMoney(accountView.cash) }}</span>
+                <span class="value">{{ fmtMoney(accountView.avail_balance) }}</span>
+              </div>
+              <div class="account-item">
+                <span class="label">冻结资金</span>
+                <span class="value">{{ fmtMoney(accountView.frozen_cash ?? 0) }}</span>
               </div>
               <div class="account-item">
                 <span class="label">持仓市值</span>
@@ -805,7 +810,9 @@ const accountView = computed<Record<string, any>>(() => {
   if (a?.available && a.session_id) {
     return {
       total_assets: a.total_assets,
+      avail_balance: a.avail_balance,
       cash: a.cash,
+      frozen_cash: a.frozen_cash,
       market_value: a.market_value,
       unrealized_pnl: a.unrealized_pnl,
       realized_pnl: a.realized_pnl,
@@ -817,7 +824,9 @@ const accountView = computed<Record<string, any>>(() => {
   }
   return {
     total_assets: c.total_assets,
-    cash: c.avail_balance,
+    avail_balance: c.avail_balance,
+    cash: c.cash ?? c.avail_balance,
+    frozen_cash: c.frozen ?? null,
     market_value: c.market_value,
     unrealized_pnl: null,
     realized_pnl: null,
@@ -879,8 +888,8 @@ async function loadAccountData() {
   try {
     const [acc, ord, fl, pl] = await Promise.all([
       fetchAccount(),
-      fetchOrders({ limit: 200 }),
-      fetchFills({ limit: 200 }),
+      fetchOrders({ limit: 500 }),
+      fetchFills({ limit: 500 }),
       fetchPnl()
     ])
     if (disposed || !acc.available) return

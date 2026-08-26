@@ -17,7 +17,7 @@ from http.server import ThreadingHTTPServer
 import pytest
 
 from paper.watch.serve import (
-    _account, _fills, _orders, _pnl, _positions, make_handler,
+    _account, _decode_metadata, _fills, _orders, _pnl, _positions, make_handler,
 )
 from paper.watch.store import SqliteWatchStore
 
@@ -46,7 +46,7 @@ def _build_store(store_path):
             ) VALUES(?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
-                (SESSION, "2026-08-26", 100000.0, 60000.0, 0.0, REALIZED,
+                (SESSION, "2026-08-26", 100000.0, 60000.0, 5000.0, REALIZED,
                  "2026-08-26", "2026-08-26 11:00:00"),
                 (OLD_SESSION, "2026-08-25", 50000.0, 40000.0, 0.0, 0.0,
                  "2026-08-25", "2026-08-25 11:00:00"),
@@ -116,6 +116,9 @@ def test_account_fields_and_session_autodetect(tmp_path):
     assert acc["session_id"] == SESSION  # 缺省取自 updated_at 最新的 acct-test
     assert acc["position_count"] == 2
     assert acc["open_order_count"] == 1  # ord4 SUBMITTED 在途
+    assert acc["cash"] == 60000.0
+    assert acc["frozen_cash"] == 5000.0
+    assert acc["avail_balance"] == acc["cash"] - acc["frozen_cash"]  # 可用=现金-冻结
     assert acc["market_value"] == 600 * 11.0 + 200 * 1520.0  # 310600
     assert acc["total_assets"] == 60000.0 + 310600.0
     assert acc["unrealized_pnl"] == (11.0 - 10.0) * 600 + (1520.0 - 1500.0) * 200  # 4600
@@ -230,3 +233,42 @@ def test_watch_serve_routes_account_orders(tmp_path):
         server.shutdown()
         server.server_close()
         thread.join(timeout=3)
+
+
+def test_decode_metadata_is_defensive():
+    """单条 metadata_json 坏数据不拖垮 /orders 或 /fills。"""
+    assert _decode_metadata(None) == {}
+    assert _decode_metadata("") == {}
+    assert _decode_metadata("{not-json") == {}
+    assert _decode_metadata("[1,2]") == {}          # 非 dict 视为空
+    assert _decode_metadata('{"a": 1}') == {"a": 1}
+
+
+def test_orders_survive_corrupt_metadata_row(tmp_path):
+    """有一行 metadata_json 非法时，/orders 仍返回全部订单且坏行 metadata 为空。"""
+    store_path = tmp_path / "runtime.sqlite3"
+    _build_store(store_path)
+    conn = sqlite3.connect(store_path)
+    conn.execute("PRAGMA foreign_keys=ON")
+    try:
+        conn.execute(
+            """
+            INSERT INTO local_order(
+                client_order_id, idempotency_key, session_id, channel, run_id,
+                strategy, signal_bar_ts, code, side, order_type, limit_price,
+                qty, filled_qty, avg_fill_price, total_fee, status,
+                broker_order_id, created_at, updated_at, expires_at,
+                last_error_code, last_error_message, metadata_json
+            ) VALUES(?, ?, ?, 'internal', 'run1', 's1', ?, ?, ?, 'MARKET', ?, ?, ?, ?, ?, 'FILLED', ?, ?, ?, '', '', '', '{bad-json')
+            """,
+            ("ord-corrupt", "ik-c", SESSION, "2026-08-26 11:00:00", "000001", "buy",
+             None, 100, 100, 10.0, 5.0, "b-c", "2026-08-26 11:00:00", "2026-08-26 11:00:00"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    result = _orders(store_path, {"limit": ["200"]})
+    assert result["count"] == 5
+    corrupt = next(o for o in result["orders"] if o["client_order_id"] == "ord-corrupt")
+    assert corrupt["metadata"] == {}

@@ -84,6 +84,7 @@ export interface WatchAccount {
   initial_cash: number
   cash: number
   frozen_cash: number
+  avail_balance: number
   market_value: number
   total_assets: number
   realized_pnl: number

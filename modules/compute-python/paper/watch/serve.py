@@ -478,6 +478,7 @@ def _orders(store_path: Path, params: dict) -> dict:
         sid = _resolve_session_id(conn, (params.get("session_id") or [""])[0])
         status_filter = (params.get("status") or [""])[0]
         code_filter = (params.get("code") or [""])[0]
+        trade_date = (params.get("trade_date") or [""])[0].strip()
         limit = max(min(_query_int(params, "limit", 200), 1000), 1)
         clauses = ["session_id=?"]
         vals: list[object] = [sid]
@@ -488,6 +489,9 @@ def _orders(store_path: Path, params: dict) -> dict:
         if code_filter:
             clauses.append("code=?")
             vals.append(code_filter)
+        if trade_date:
+            clauses.append("substr(created_at, 1, 10)=?")
+            vals.append(trade_date)
         rows = conn.execute(
             "SELECT * FROM local_order WHERE " + " AND ".join(clauses)
             + " ORDER BY created_at DESC, client_order_id DESC LIMIT " + str(limit),
@@ -530,12 +534,16 @@ def _fills(store_path: Path, params: dict) -> dict:
     try:
         sid = _resolve_session_id(conn, (params.get("session_id") or [""])[0])
         code_filter = (params.get("code") or [""])[0]
+        trade_date = (params.get("trade_date") or [""])[0].strip()
         limit = max(min(_query_int(params, "limit", 200), 1000), 1)
         clauses = ["session_id=?"]
         vals: list[object] = [sid]
         if code_filter:
             clauses.append("code=?")
             vals.append(code_filter)
+        if trade_date:
+            clauses.append("substr(filled_at, 1, 10)=?")
+            vals.append(trade_date)
         rows = conn.execute(
             "SELECT * FROM fill WHERE " + " AND ".join(clauses)
             + " ORDER BY filled_at DESC, fill_id DESC LIMIT " + str(limit),

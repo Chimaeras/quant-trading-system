@@ -367,3 +367,53 @@ def test_account_snapshot_pruned_to_latest(tmp_path):
     assert len(rows) == _ACCOUNT_SNAPSHOT_KEEP
     # 最新一条保留，最旧被裁剪
     assert rows[0][0] == f"2026-08-26 09:30:{total - 1:02d}"
+
+
+def test_orders_fills_filter_by_trade_date(tmp_path):
+    """_orders/_fills 支持可选 trade_date 过滤（委托按 created_at、成交按 filled_at 日期前缀）。"""
+    store_path = tmp_path / "runtime.sqlite3"
+    _build_store(store_path)
+
+    conn = sqlite3.connect(store_path)
+    conn.execute("PRAGMA foreign_keys=ON")
+    try:
+        conn.execute(
+            """
+            INSERT INTO local_order(
+                client_order_id, idempotency_key, session_id, channel, run_id,
+                strategy, signal_bar_ts, code, side, order_type, limit_price,
+                qty, filled_qty, avg_fill_price, total_fee, status,
+                broker_order_id, created_at, updated_at, expires_at,
+                last_error_code, last_error_message, metadata_json
+            ) VALUES(?, ?, ?, 'internal', 'run1', 's1', ?, ?, ?, 'MARKET', ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', '', '{}')
+            """,
+            ("ord-x", "ik-x", SESSION, "2026-08-27 09:00:00", "000001", "buy", None,
+             500, 500, 10.5, 2.0, "FILLED", "bx", "2026-08-27 09:00:00", "2026-08-27 09:01:00"),
+        )
+        conn.execute(
+            """
+            INSERT INTO fill(
+                fill_id, client_order_id, session_id, code, side, qty, price,
+                gross_amount, commission, stamp_tax, total_fee, filled_at,
+                bar_ts, price_source, metadata_json
+            ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', 'SIMULATOR', '{}')
+            """,
+            ("f-x", "ord-x", SESSION, "000001", "buy", 500, 10.5,
+             5250.0, 2.0, 0.0, 2.0, "2026-08-27 09:01:00"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    # 无日期：全量（4 单 + 1 单 = 5；成交 3 + 1 = 4）
+    assert _orders(store_path, {})["count"] == 5
+    assert _fills(store_path, {})["count"] == 4
+    # 按日期：各只回该日
+    day2_orders = _orders(store_path, {"trade_date": ["2026-08-27"]})
+    assert day2_orders["count"] == 1 and day2_orders["orders"][0]["client_order_id"] == "ord-x"
+    assert _orders(store_path, {"trade_date": ["2026-08-26"]})["count"] == 4
+    day2_fills = _fills(store_path, {"trade_date": ["2026-08-27"]})
+    assert day2_fills["count"] == 1 and day2_fills["fills"][0]["fill_id"] == "f-x"
+    assert _fills(store_path, {"trade_date": ["2026-08-26"]})["count"] == 3
+    # 无效日期：空
+    assert _orders(store_path, {"trade_date": ["2026-08-28"]})["count"] == 0

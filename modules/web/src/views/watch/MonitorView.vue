@@ -320,7 +320,7 @@
                 <section class="account-section">
                   <div class="account-section-header">
                     <span>委托历史</span>
-                    <span class="panel-hint">已加载 {{ orders.length }} 条{{ orders.length >= 500 ? '（仅最近 500 条）' : '' }}</span>
+                    <span class="panel-hint">已加载 {{ orders.length }} 条{{ orders.length >= 500 ? '（该日仅最近 500 条）' : '' }}</span>
                     <el-select v-model="orderStatusFilter" size="small" placeholder="全部状态" clearable class="account-status-filter">
                       <el-option v-for="s in ORDER_STATUS_OPTIONS" :key="s" :label="s" :value="s" />
                     </el-select>
@@ -368,7 +368,7 @@
                 <section class="account-section">
                   <div class="account-section-header">
                     <span>成交记录</span>
-                    <span class="panel-hint">{{ fills.length }} 条{{ fills.length >= 500 ? '（仅最近 500 条）' : '' }}</span>
+                    <span class="panel-hint">{{ fills.length }} 条{{ fills.length >= 500 ? '（该日仅最近 500 条）' : '' }}</span>
                   </div>
                   <el-table v-if="fills.length" :data="fills" size="small" border class="account-detail-table">
                     <el-table-column label="时间" width="72">
@@ -956,8 +956,8 @@ async function loadAccountData() {
   try {
     const [acc, ord, fl, pl] = await Promise.all([
       fetchAccount(),
-      fetchOrders({ limit: 500 }),
-      fetchFills({ limit: 500 }),
+      fetchOrders({ limit: 500, trade_date: selectedDate.value }),
+      fetchFills({ limit: 500, trade_date: selectedDate.value }),
       fetchPnl()
     ])
     if (disposed || !acc.available) return
@@ -1140,17 +1140,17 @@ function accountSideClass(value: unknown): string {
 function formatSignedMoney(value: unknown): string {
   if (value === undefined || value === null || !Number.isFinite(Number(value))) return '—'
   const amount = Number(value)
-  return `${amount >= 0 ? '+' : ''}${fmtMoney(amount)}`
+  return `${amount > 0 ? '+' : ''}${fmtMoney(amount)}`
 }
 function formatSignedNumber(value: unknown): string {
   if (value === undefined || value === null || !Number.isFinite(Number(value))) return '—'
   const amount = Number(value)
-  return `${amount >= 0 ? '+' : ''}${amount}`
+  return `${amount > 0 ? '+' : ''}${amount}`
 }
 function formatSignedPercent(value: unknown): string {
   if (value === undefined || value === null || !Number.isFinite(Number(value))) return '—'
   const amount = Number(value)
-  return `${amount >= 0 ? '+' : ''}${amount.toFixed(2)}%`
+  return `${amount > 0 ? '+' : ''}${amount.toFixed(2)}%`
 }
 function numberClass(value: unknown): string {
   const amount = Number(value)

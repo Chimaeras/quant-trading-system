@@ -268,21 +268,23 @@ export function fetchAccount(session_id?: string): Promise<WatchAccount> {
   return get(`/api/watch/account${params}`)
 }
 
-export function fetchOrders(filters: { session_id?: string; status?: string; code?: string; limit?: number } = {}): Promise<WatchOrderList> {
+export function fetchOrders(filters: { session_id?: string; status?: string; code?: string; limit?: number; trade_date?: string } = {}): Promise<WatchOrderList> {
   const params = new URLSearchParams()
   if (filters.session_id) params.set('session_id', filters.session_id)
   if (filters.status) params.set('status', filters.status)
   if (filters.code) params.set('code', filters.code)
   if (filters.limit) params.set('limit', String(filters.limit))
+  if (filters.trade_date) params.set('trade_date', filters.trade_date)
   const query = params.toString()
   return get(`/api/watch/orders${query ? `?${query}` : ''}`)
 }
 
-export function fetchFills(filters: { session_id?: string; code?: string; limit?: number } = {}): Promise<WatchFillList> {
+export function fetchFills(filters: { session_id?: string; code?: string; limit?: number; trade_date?: string } = {}): Promise<WatchFillList> {
   const params = new URLSearchParams()
   if (filters.session_id) params.set('session_id', filters.session_id)
   if (filters.code) params.set('code', filters.code)
   if (filters.limit) params.set('limit', String(filters.limit))
+  if (filters.trade_date) params.set('trade_date', filters.trade_date)
   const query = params.toString()
   return get(`/api/watch/fills${query ? `?${query}` : ''}`)
 }

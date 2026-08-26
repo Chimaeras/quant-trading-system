@@ -334,3 +334,36 @@ def test_account_survives_nan_price(tmp_path):
         server.shutdown()
         server.server_close()
         thread.join(timeout=3)
+
+def test_account_snapshot_pruned_to_latest(tmp_path):
+    """save_account_snapshot 每轮追加且 serve 只读最新：连存超量后仅保留最新 _ACCOUNT_SNAPSHOT_KEEP 条。"""
+    from paper.watch.store import _ACCOUNT_SNAPSHOT_KEEP
+
+    store_path = tmp_path / "runtime.sqlite3"
+    store = SqliteWatchStore(store_path)
+    total = _ACCOUNT_SNAPSHOT_KEEP + 20
+    try:
+        for i in range(total):
+            store.save_account_snapshot({
+                "snapshot_id": f"run-{i}:before",
+                "session_id": SESSION,
+                "channel": "internal",
+                "trade_date": "2026-08-26",
+                "captured_at": f"2026-08-26 09:30:{i:02d}",
+                "consistent": True,
+                "payload": {"total_assets": float(i)},
+            })
+    finally:
+        store.close()
+
+    conn = sqlite3.connect(store_path)
+    try:
+        rows = conn.execute(
+            "SELECT captured_at FROM account_snapshot WHERE session_id=? "
+            "ORDER BY captured_at DESC, rowid DESC", (SESSION,)
+        ).fetchall()
+    finally:
+        conn.close()
+    assert len(rows) == _ACCOUNT_SNAPSHOT_KEEP
+    # 最新一条保留，最旧被裁剪
+    assert rows[0][0] == f"2026-08-26 09:30:{total - 1:02d}"

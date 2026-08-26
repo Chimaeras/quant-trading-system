@@ -21,6 +21,8 @@ from .models import WatchBar
 
 SCHEMA_VERSION = 4
 LEASE_NAME = "paper-watch-live"
+# account_snapshot 每轮 tick 追加，但 serve 仅读最新一条；保留最近 N 条防止长期膨胀。
+_ACCOUNT_SNAPSHOT_KEEP = 50
 
 
 class WatchStoreError(RuntimeError):
@@ -1365,6 +1367,20 @@ class SqliteWatchStore:
                         str(snapshot["captured_at"]), 1 if snapshot.get("consistent") else 0,
                         json.dumps(snapshot.get("payload", {}), ensure_ascii=False, default=str),
                     ),
+                )
+                # 快照每轮 tick 追加，但下游仅读最新一条；裁剪到最近 N 条，避免 runtime.sqlite3 长期膨胀。
+                self._conn.execute(
+                    """
+                    DELETE FROM account_snapshot
+                    WHERE session_id = ?
+                      AND rowid NOT IN (
+                          SELECT rowid FROM account_snapshot
+                          WHERE session_id = ?
+                          ORDER BY captured_at DESC, rowid DESC
+                          LIMIT ?
+                      )
+                    """,
+                    (str(snapshot["session_id"]), str(snapshot["session_id"]), _ACCOUNT_SNAPSHOT_KEEP),
                 )
         except (KeyError, TypeError, ValueError, sqlite3.Error) as exc:
             raise WatchStoreError(f"保存账户快照失败: {type(exc).__name__}:{exc}") from exc

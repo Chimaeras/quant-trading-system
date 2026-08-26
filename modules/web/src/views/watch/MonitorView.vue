@@ -245,7 +245,7 @@
             <div class="account-grid account-grid--finance">
               <div class="account-item">
                 <span class="label">总资产</span>
-                <span class="value">{{ fmtMoney(accountView.total_assets) }}</span>
+                <span class="value">{{ fmtMoney(accountFinance.total_assets) }}</span>
               </div>
               <div class="account-item">
                 <span class="label">可用资金</span>
@@ -257,11 +257,11 @@
               </div>
               <div class="account-item">
                 <span class="label">持仓市值</span>
-                <span class="value">{{ fmtMoney(accountView.market_value) }}</span>
+                <span class="value">{{ fmtMoney(accountFinance.market_value) }}</span>
               </div>
               <div class="account-item">
                 <span class="label">浮动盈亏</span>
-                <span class="value" :class="numberClass(accountView.unrealized_pnl)">{{ formatSignedMoney(accountView.unrealized_pnl) }}</span>
+                <span class="value" :class="numberClass(accountFinance.unrealized_pnl)">{{ formatSignedMoney(accountFinance.unrealized_pnl) }}</span>
               </div>
               <div class="account-item">
                 <span class="label">已实现盈亏</span>
@@ -269,7 +269,7 @@
               </div>
               <div class="account-item">
                 <span class="label">总收益率</span>
-                <span class="value" :class="numberClass(accountView.total_return_pct)">{{ formatSignedPercent(accountView.total_return_pct) }}</span>
+                <span class="value" :class="numberClass(accountFinance.total_return_pct)">{{ formatSignedPercent(accountFinance.total_return_pct) }}</span>
               </div>
               <div class="account-item">
                 <span class="label">持仓数 / 在途委托</span>
@@ -319,6 +319,7 @@
                 <section class="account-section">
                   <div class="account-section-header">
                     <span>委托历史</span>
+                    <span class="panel-hint">已加载 {{ orders.length }} 条{{ orders.length >= 500 ? '（仅最近 500 条）' : '' }}</span>
                     <el-select v-model="orderStatusFilter" size="small" placeholder="全部状态" clearable class="account-status-filter">
                       <el-option v-for="s in ORDER_STATUS_OPTIONS" :key="s" :label="s" :value="s" />
                     </el-select>
@@ -366,7 +367,7 @@
                 <section class="account-section">
                   <div class="account-section-header">
                     <span>成交记录</span>
-                    <span class="panel-hint">{{ fills.length }} 条</span>
+                    <span class="panel-hint">{{ fills.length }} 条{{ fills.length >= 500 ? '（仅最近 500 条）' : '' }}</span>
                   </div>
                   <el-table v-if="fills.length" :data="fills" size="small" border class="account-detail-table">
                     <el-table-column label="时间" width="72">
@@ -409,12 +410,13 @@
                 <section class="account-section">
                   <div class="account-section-header">
                     <span>每只收益</span>
-                    <span class="panel-hint">
-                      已实现 {{ formatSignedMoney(pnlTotals?.realized) }} · 未实现 {{ formatSignedMoney(pnlTotals?.unrealized) }} · 合计 {{ formatSignedMoney(pnlTotals?.total) }}
-                      <template v-if="pnlTotals?.consistent"> · 与账户一致</template>
-                    </span>
+                      <span class="panel-hint">
+                        已实现 {{ formatSignedMoney(pnlTotalsView?.realized) }} · 未实现 {{ formatSignedMoney(pnlTotalsView?.unrealized) }} · 合计 {{ formatSignedMoney(pnlTotalsView?.total) }}
+                        <template v-if="pnlTotalsView?.consistent"> · 与账户一致</template>
+                        <template v-else-if="pnlTotalsView"> · <el-tag type="danger" size="small" effect="plain">重放与账户已实现有偏差</el-tag></template>
+                      </span>
                   </div>
-                  <el-table v-if="pnl?.per_code?.length" :data="pnl.per_code" size="small" border class="account-detail-table" :row-key="(r: any) => r.code">
+                  <el-table v-if="pnlCodesView.length" :data="pnlCodesView" size="small" border class="account-detail-table" :row-key="(r: any) => r.code">
                     <el-table-column prop="code" label="代码" width="78" />
                     <el-table-column label="名称" min-width="96" show-overflow-tooltip>
                       <template #default="{ row }">{{ accountSecurityName(row) }}</template>
@@ -810,6 +812,7 @@ const accountView = computed<Record<string, any>>(() => {
   if (a?.available && a.session_id) {
     return {
       total_assets: a.total_assets,
+      initial_cash: a.initial_cash,
       avail_balance: a.avail_balance,
       cash: a.cash,
       frozen_cash: a.frozen_cash,
@@ -824,6 +827,7 @@ const accountView = computed<Record<string, any>>(() => {
   }
   return {
     total_assets: c.total_assets,
+    initial_cash: null,
     avail_balance: c.avail_balance,
     cash: c.cash ?? c.avail_balance,
     frozen_cash: c.frozen ?? null,
@@ -837,18 +841,22 @@ const accountView = computed<Record<string, any>>(() => {
   }
 })
 
+/** 有效实时行情：code -> last。quality 无效/过期/缺失或 last 非正数都排除。 */
+const liveQuotes = computed<Map<string, number>>(() => {
+  const quotes = new Map<string, number>()
+  for (const quote of marketSnapshot.value?.quotes || []) {
+    const quality = String(quote.quality || quote.validity || '')
+    if (['INVALID', 'STALE', 'MISSING'].includes(quality)) continue
+    const last = Number(quote.last)
+    if (!Number.isFinite(last) || last <= 0) continue
+    quotes.set(String(quote.code), last)
+  }
+  return quotes
+})
+
 /** 持仓 tab：以 /account positions 为权威，用 /market 实时行情覆盖现价重算市值/盈亏。 */
 const persistPositions = computed<Record<string, any>[]>(() => {
-  const quotes = new Map(
-    (marketSnapshot.value?.quotes || [])
-      .filter((quote: any) => {
-        const quality = String(quote.quality || quote.validity || '')
-        return !['INVALID', 'STALE', 'MISSING'].includes(quality)
-          && Number.isFinite(Number(quote.last))
-          && Number(quote.last) > 0
-      })
-      .map((quote: any) => [String(quote.code), Number(quote.last)])
-  )
+  const quotes = liveQuotes.value
   return (account.value?.positions || []).map((row) => {
     const qty = Number(row.qty)
     const cost = Number(row.avg_cost)
@@ -868,13 +876,64 @@ const persistPositions = computed<Record<string, any>[]>(() => {
   })
 })
 
+/** 账户财务口径：总览/收益分析统一用「实时行情覆盖后的持仓」聚合，避免与持仓 tab 口径不一。 */
+const accountFinance = computed<Record<string, any>>(() => {
+  const v = accountView.value
+  const a = account.value
+  if (a?.available && a.session_id) {
+    const positionsValue = persistPositions.value.reduce((s, p) => s + Number(p.market_value || 0), 0)
+    const positionsProfit = persistPositions.value.reduce((s, p) => s + Number(p.profit || 0), 0)
+    const cash = Number(v.cash ?? 0)
+    const initial = Number(a.initial_cash ?? 0)
+    const totalAssets = cash + positionsValue
+    return {
+      market_value: positionsValue,
+      unrealized_pnl: positionsProfit,
+      total_assets: totalAssets,
+      realized_pnl: Number(v.realized_pnl ?? 0),
+      total_return_pct: initial > 0 ? (totalAssets / initial - 1) * 100 : 0,
+    }
+  }
+  return {
+    market_value: Number(v.market_value ?? 0),
+    unrealized_pnl: Number(v.unrealized_pnl ?? 0),
+    total_assets: Number(v.total_assets ?? 0),
+    realized_pnl: Number(v.realized_pnl ?? 0),
+    total_return_pct: Number(v.total_return_pct ?? 0),
+  }
+})
+
 const filteredOrders = computed(() => {
   const status = orderStatusFilter.value
   if (!status) return orders.value
   return orders.value.filter((o) => o.status === status)
 })
 
-const pnlTotals = computed(() => pnl.value?.totals || null)
+/** 收益分析 per_code：未实现用实时价覆盖（无实时回落端点快照价），保证与持仓 tab 一致。 */
+const pnlCodesView = computed<Record<string, any>[]>(() => {
+  const quotes = liveQuotes.value
+  return (pnl.value?.per_code || []).map((item) => {
+    const realized = Number(item.realized || 0)
+    const current = quotes.get(String(item.code))
+    const unrealized = current !== undefined
+      ? (current - Number(item.avg_cost || 0)) * Number(item.qty || 0)
+      : Number(item.unrealized || 0)
+    return { ...item, unrealized, total: realized + unrealized }
+  })
+})
+
+const pnlTotalsView = computed<Record<string, any> | null>(() => {
+  const raw = pnl.value?.totals
+  if (!raw) return null
+  const codes = pnlCodesView.value
+  if (!codes.length) return raw
+  const realized = codes.reduce((s, i) => s + Number(i.realized || 0), 0)
+  const unrealized = codes.reduce((s, i) => s + Number(i.unrealized || 0), 0)
+  return {
+    realized, unrealized, total: realized + unrealized,
+    realized_account: raw.realized_account, consistent: raw.consistent,
+  }
+})
 
 function orderStatusType(status: string): WatchTagType {
   if (status === 'FILLED') return 'success'

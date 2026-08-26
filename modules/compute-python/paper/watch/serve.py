@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import sqlite3
 from datetime import datetime
@@ -24,12 +25,27 @@ DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def _json_response(handler: BaseHTTPRequestHandler, payload, status: int = 200) -> None:
-    body = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
+    # allow_nan=False：任何潜伏的 NaN/Infinity 会在序列化时显式抛错，
+    # 而不是泄出 `NaN`/`Infinity` 字面量（浏览器 JSON.parse 会直接崩）。
+    body = json.dumps(payload, ensure_ascii=False, default=str, allow_nan=False).encode("utf-8")
     handler.send_response(status)
     handler.send_header("Content-Type", "application/json; charset=utf-8")
     handler.send_header("Content-Length", str(len(body)))
     handler.end_headers()
     handler.wfile.write(body)
+
+
+def _finite(value, default: float = 0.0) -> float:
+    """把非有限/非法浮点收敛为默认值，杜绝 NaN/Infinity 泄入 JSON。
+
+    数据库里可能落入字符串 'nan'/'inf'（float() 会静默解出非有限值），
+    只要一只有问题的持仓就会让整个 /account 在浏览器 JSON.parse 处崩溃。
+    """
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return default
+    return v if math.isfinite(v) else default
 
 
 def _days(log_base: Path) -> list[str]:
@@ -303,22 +319,30 @@ def _security_names(conn) -> dict[str, str]:
 
 
 def _resolve_session_id(conn, requested: str) -> str:
-    """指定 session_id 用之；缺省取最近更新的 sim_account（即当前活跃会话）。"""
+    """指定 session_id 用之；缺省优先取最近账户快照的会话，其次最近更新的 sim_account。
+
+    以 account_snapshot.session_id 为权威（盯盘循环每轮都写入活跃会话），
+    避免仅靠 sim_account.updated_at 被旧会话/其他进程触碰而选错。
+    """
     if requested:
         return requested
-    try:
-        row = conn.execute(
-            "SELECT session_id FROM sim_account ORDER BY updated_at DESC, rowid DESC LIMIT 1"
-        ).fetchone()
-    except sqlite3.Error:
-        return ""
-    return str(row["session_id"]) if row else ""
+    for sql in (
+        "SELECT session_id FROM account_snapshot ORDER BY captured_at DESC, rowid DESC LIMIT 1",
+        "SELECT session_id FROM sim_account ORDER BY updated_at DESC, rowid DESC LIMIT 1",
+    ):
+        try:
+            row = conn.execute(sql).fetchone()
+        except sqlite3.Error:
+            continue
+        if row and row["session_id"]:
+            return str(row["session_id"])
+    return ""
 
 
 def _position_view(row: dict, names: dict[str, str]) -> dict:
     qty = int(row.get("qty") or 0)
-    cost = float(row.get("avg_cost") or 0.0)
-    last = float(row.get("last_price") or cost)
+    cost = _finite(row.get("avg_cost") or 0.0)
+    last = _finite(row.get("last_price") or cost, cost)
     code = str(row["code"])
     return {
         "code": code,
@@ -351,8 +375,14 @@ def _account(store_path: Path, session_id: str) -> dict:
         ).fetchall()
         positions = [_position_view(dict(row), names) for row in pos_rows]
         if account is None:
+            mv = sum(p["market_value"] for p in positions)
+            unr = sum(p["profit"] for p in positions)
             return {
                 "available": True, "session_id": sid, "positions": positions,
+                "initial_cash": 0.0, "cash": 0.0, "frozen_cash": 0.0,
+                "avail_balance": 0.0, "market_value": mv, "total_assets": mv,
+                "realized_pnl": 0.0, "unrealized_pnl": unr, "total_profit": unr,
+                "total_return_pct": 0.0,
                 "position_count": len(positions), "open_order_count": 0,
                 "errors": ["sim_account 尚无记录（未发生交易）"],
             }
@@ -566,9 +596,9 @@ def _pnl(store_path: Path, session_id: str) -> dict:
             code = str(row["code"])
             side = str(row["side"])
             qty = int(row["qty"])
-            price = float(row["price"])
-            fee = float(row["total_fee"] or 0.0)
-            gross = float(row["gross_amount"] or 0.0)
+            price = _finite(row["price"])
+            fee = _finite(row["total_fee"] or 0.0)
+            gross = _finite(row["gross_amount"] or 0.0)
             rec = per_code.setdefault(code, {
                 "code": code, "name": names.get(code, ""),
                 "qty": 0, "avg_cost": 0.0, "realized": 0.0,
@@ -599,8 +629,8 @@ def _pnl(store_path: Path, session_id: str) -> dict:
             if pos is None:
                 rec["unrealized"] = 0.0
             else:
-                cost = float(pos.get("avg_cost") or 0.0)
-                last = float(pos.get("last_price") or cost)
+                cost = _finite(pos.get("avg_cost") or 0.0)
+                last = _finite(pos.get("last_price") or cost, cost)
                 rec["unrealized"] = (last - cost) * int(pos.get("qty") or 0)
             rec["total"] = rec["realized"] + rec["unrealized"]
 

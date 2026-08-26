@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import math
 import sqlite3
 import threading
 from http.server import ThreadingHTTPServer
@@ -272,3 +273,62 @@ def test_orders_survive_corrupt_metadata_row(tmp_path):
     assert result["count"] == 5
     corrupt = next(o for o in result["orders"] if o["client_order_id"] == "ord-corrupt")
     assert corrupt["metadata"] == {}
+
+
+def test_finite_sanitizes_nan_and_inf():
+    """_finite 把 nan/inf/非法值收敛为默认值，杜绝 NaN/Infinity 泄入 JSON。"""
+    from paper.watch.serve import _finite
+
+    assert _finite("nan", 5.0) == 5.0
+    assert _finite("inf", 5.0) == 5.0
+    assert _finite("abc", 7.0) == 7.0
+    assert _finite(None, 3.0) == 3.0
+    assert _finite(float("nan")) == 0.0
+    assert _finite(float("inf")) == 0.0
+    assert _finite(12.5) == 12.5
+    assert _finite(0) == 0.0
+
+
+def test_account_survives_nan_price(tmp_path):
+    """一条 last_price='nan' 的持仓不拖垮 /account：数值有限且响应不含 NaN/Infinity 字面量。"""
+    store_path = tmp_path / "runtime.sqlite3"
+    _build_store(store_path)
+    conn = sqlite3.connect(store_path)
+    conn.execute("PRAGMA foreign_keys=ON")
+    try:
+        conn.execute(
+            "UPDATE sim_position SET last_price='nan' WHERE session_id=? AND code='000001'",
+            (SESSION,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    # 直接查 _account：_finite 兜底将 nan 收敛为 avg_cost，数值必须有限。
+    acc = _account(store_path, SESSION)
+    assert acc["available"] is True
+    for key in ("cash", "frozen_cash", "market_value", "total_assets",
+                "realized_pnl", "unrealized_pnl", "total_profit", "total_return_pct"):
+        assert math.isfinite(float(acc[key])), key
+    assert math.isfinite(float(acc["positions"][0]["market_value"]))
+    assert math.isfinite(float(acc["positions"][0]["profit"]))
+
+    # 走 HTTP 路由：_json_response 现为 allow_nan=False，命中 NaN 会抛错而非输出字面量。
+    server = ThreadingHTTPServer(
+        ("127.0.0.1", 0), make_handler(tmp_path, store_path=store_path)
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=3)
+        conn.request("GET", "/api/watch/account")
+        res = conn.getresponse()
+        body = res.read().decode("utf-8")
+        assert res.status == 200
+        assert "nan" not in body.lower()
+        assert "inf" not in body.lower()
+        conn.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=3)

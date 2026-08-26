@@ -38,7 +38,7 @@ def _hot_response(*codes: tuple[str, str, str]) -> dict:
 def test_watchlist_is_default_mode_and_uses_hot_stocks(monkeypatch):
     config = PaperConfig(api_key="test")
     assert config.watch_universe_mode == "WATCHLIST"
-    assert config.max_observe_codes == 100
+    assert config.max_observe_codes == 200
 
     monkeypatch.setattr(
         "paper.watch.universe.requests.get",
@@ -53,6 +53,39 @@ def test_watchlist_is_default_mode_and_uses_hot_stocks(monkeypatch):
         ("600519", "SH"), ("000001", "SZ")
     ]
     assert errors == []
+
+
+def test_hot_refresh_keeps_full_hot_topn_plus_manuals(monkeypatch, tmp_path):
+    """人工标的不挤占热门 TopN：max_size=2 时应得到 2 只热门 + 1 只人工。"""
+    store = SqliteWatchStore(tmp_path / "runtime.sqlite3")
+    store.upsert_watch_pool_member({
+        "code": "300750", "name": "宁德时代", "exchange": "SZ"
+    })
+    monkeypatch.setattr(
+        "paper.watch.universe.requests.get",
+        lambda *args, **kwargs: _Response(
+            _hot_response(
+                ("600519", "贵州茅台", "SSE"),
+                ("000001", "平安银行", "SZSE"),
+                ("600036", "招商银行", "SSE"),
+            )
+        ),
+    )
+
+    candidates, source, errors = load_watch_universe(
+        PaperConfig(api_key="test", max_observe_codes=2), "2026-08-20", store=store
+    )
+
+    assert source == "watch_pool"
+    assert errors == []
+    codes = [item.stock_code for item in candidates]
+    assert codes[0] == "300750"
+    assert set(codes[1:]) == {"600519", "000001"}
+    assert len(codes) == 3
+    rows = store.list_watch_pool()
+    assert sum(1 for row in rows if row["manual"] == 1) == 1
+    assert sum(1 for row in rows if row["manual"] == 0) == 2
+    store.close()
 
 
 def test_hot_refresh_preserves_manual_members(monkeypatch, tmp_path):
@@ -99,7 +132,8 @@ def test_watch_serve_pool_helpers_add_list_and_remove(tmp_path):
     assert sh_b["exchange"] == "SH"
 
 
-def test_manual_addition_evicts_lowest_ranked_hot_stock_at_capacity(tmp_path):
+def test_manual_addition_stacks_on_top_of_full_hot_pool(tmp_path):
+    """热门 TopN 已满时，人工标的叠加而不是挤掉热门股。"""
     store_path = tmp_path / "runtime.sqlite3"
     store = SqliteWatchStore(store_path)
     store.sync_default_watch_pool([
@@ -111,28 +145,32 @@ def test_manual_addition_evicts_lowest_ranked_hot_stock_at_capacity(tmp_path):
     _add_watch_pool_member(store_path, {"code": "600519", "name": "贵州茅台"}, max_size=50)
     pool = _watch_pool(store_path, max_size=50)
 
-    assert pool["total"] == 50
+    assert pool["total"] == 51
     assert pool["items"][0]["code"] == "600519"
-    assert "000049" not in {item["code"] for item in pool["items"]}
+    assert "000049" in {item["code"] for item in pool["items"]}
 
 
 def test_watch_serve_uses_configured_pool_capacity(tmp_path):
     store_path = tmp_path / "runtime.sqlite3"
     store = SqliteWatchStore(store_path)
-    store.upsert_watch_pool_member({"code": "000001", "name": "一", "exchange": "SZ"})
-    store.upsert_watch_pool_member({"code": "000002", "name": "二", "exchange": "SZ"})
+    # max_size=2 → 绝对上限 2+50=52；先塞满 52 只再拒绝新增。
+    for index in range(52):
+        store.upsert_watch_pool_member({
+            "code": f"{index:06d}", "name": f"码{index}", "exchange": "SZ"
+        })
     store.close()
 
     pool = _watch_pool(store_path, max_size=2)
     assert pool["max_size"] == 2
+    assert pool["total"] == 52
     try:
         _add_watch_pool_member(
-            store_path, {"code": "000003", "name": "三"}, max_size=2
+            store_path, {"code": "600519", "name": "贵州茅台"}, max_size=2
         )
     except ValueError as exc:
-        assert "2 只上限" in str(exc)
+        assert "52 只上限" in str(exc)
     else:
-        raise AssertionError("人工观察池达到配置上限后必须拒绝新增")
+        raise AssertionError("观察池达到绝对上限后必须拒绝新增")
 
 
 def test_watch_serve_rejects_direct_browser_write(tmp_path):
@@ -174,6 +212,11 @@ def test_hot_refresh_fills_capacity_when_manual_member_is_also_hot(tmp_path):
     rows = store.list_watch_pool()
     store.close()
 
-    assert len(rows) == 50
+    # 人工 000000 保留；热门仍灌满 50 只（跳过已是 manual 的 000000，补到 000050）
+    assert len(rows) == 51
     assert rows[0]["code"] == "000000" and rows[0]["manual"] == 1
-    assert rows[-1]["code"] == "000049"
+    hot_codes = [row["code"] for row in rows if row["manual"] == 0]
+    assert len(hot_codes) == 50
+    assert "000001" in hot_codes
+    assert "000050" in hot_codes
+    assert "000000" not in hot_codes

@@ -231,7 +231,7 @@
         <el-card shadow="never" class="panel account-panel">
           <template #header>
             <div class="panel-header">
-              <span>账户快照</span>
+              <span>盯盘模拟账户<template v-if="accountView.session_id"> · {{ accountView.session_id }}</template></span>
               <div class="account-meta">
                 <el-tag v-if="accountPhaseLabel" size="small" effect="plain" :type="accountPhaseType">
                   {{ accountPhaseLabel }}
@@ -241,84 +241,235 @@
             </div>
           </template>
           <div class="account-content">
-            <div class="account-grid">
+            <div class="account-grid account-grid--finance">
               <div class="account-item">
                 <span class="label">总资产</span>
-                <span class="value">{{ fmtMoney(currentAccount.total_assets) }}</span>
+                <span class="value">{{ fmtMoney(accountView.total_assets) }}</span>
               </div>
               <div class="account-item">
                 <span class="label">可用资金</span>
-                <span class="value">{{ fmtMoney(currentAccount.avail_balance) }}</span>
+                <span class="value">{{ fmtMoney(accountView.cash) }}</span>
               </div>
               <div class="account-item">
                 <span class="label">持仓市值</span>
-                <span class="value">{{ fmtMoney(currentAccount.market_value) }}</span>
+                <span class="value">{{ fmtMoney(accountView.market_value) }}</span>
+              </div>
+              <div class="account-item">
+                <span class="label">浮动盈亏</span>
+                <span class="value" :class="numberClass(accountView.unrealized_pnl)">{{ formatSignedMoney(accountView.unrealized_pnl) }}</span>
+              </div>
+              <div class="account-item">
+                <span class="label">已实现盈亏</span>
+                <span class="value" :class="numberClass(accountView.realized_pnl)">{{ formatSignedMoney(accountView.realized_pnl) }}</span>
+              </div>
+              <div class="account-item">
+                <span class="label">总收益率</span>
+                <span class="value" :class="numberClass(accountView.total_return_pct)">{{ formatSignedPercent(accountView.total_return_pct) }}</span>
               </div>
               <div class="account-item">
                 <span class="label">持仓数 / 在途委托</span>
-                <span class="value">{{ accountPositionCount }} / {{ accountOrderCount }}</span>
+                <span class="value">{{ accountView.position_count }} / {{ accountView.open_order_count }}</span>
               </div>
             </div>
 
-            <section class="account-section">
-              <div class="account-section-header">
-                <span>当前持仓</span>
-                <span class="panel-hint">{{ accountPositionCount }} 条</span>
-              </div>
-              <el-table v-if="accountPositionRows.length" :data="accountPositionRows" size="small" border class="account-detail-table">
-                <el-table-column prop="code" label="代码" width="78" />
-                <el-table-column label="名称" min-width="100" show-overflow-tooltip>
-                  <template #default="{ row }">{{ accountSecurityName(row) }}</template>
-                </el-table-column>
-                <el-table-column prop="qty" label="持仓" width="72" align="right" />
-                <el-table-column prop="avail_qty" label="可卖" width="72" align="right" />
-                <el-table-column label="成本价" width="88" align="right">
-                  <template #default="{ row }">{{ fmtPrice(row.cost) }}</template>
-                </el-table-column>
-                <el-table-column label="当前价" width="88" align="right">
-                  <template #default="{ row }">{{ fmtPrice(row.last) }}</template>
-                </el-table-column>
-                <el-table-column label="市值" width="100" align="right">
-                  <template #default="{ row }">{{ fmtMoney(row.market_value) }}</template>
-                </el-table-column>
-                <el-table-column label="浮动盈亏" width="104" align="right">
-                  <template #default="{ row }">
-                    <span :class="numberClass(row.profit)">{{ formatSignedMoney(row.profit) }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column label="盈亏率" width="88" align="right">
-                  <template #default="{ row }">
-                    <span :class="numberClass(row.profit)">{{ formatSignedPercent(positionProfitPct(row)) }}</span>
-                  </template>
-                </el-table-column>
-              </el-table>
-              <div v-else class="account-empty">暂无持仓明细</div>
-            </section>
+            <el-tabs v-model="accountTab" class="account-tabs" stretch>
+              <el-tab-pane label="持仓" name="positions">
+                <section class="account-section">
+                  <div class="account-section-header">
+                    <span>当前持仓</span>
+                    <span class="panel-hint">{{ persistPositions.length }} 条</span>
+                  </div>
+                  <el-table v-if="persistPositions.length" :data="persistPositions" size="small" border class="account-detail-table">
+                    <el-table-column prop="code" label="代码" width="78" />
+                    <el-table-column label="名称" min-width="100" show-overflow-tooltip>
+                      <template #default="{ row }">{{ accountSecurityName(row) }}</template>
+                    </el-table-column>
+                    <el-table-column prop="qty" label="持仓" width="72" align="right" />
+                    <el-table-column prop="avail_qty" label="可卖" width="72" align="right" />
+                    <el-table-column label="成本价" width="88" align="right">
+                      <template #default="{ row }">{{ fmtPrice(row.cost) }}</template>
+                    </el-table-column>
+                    <el-table-column label="当前价" width="88" align="right">
+                      <template #default="{ row }">{{ fmtPrice(row.last) }}</template>
+                    </el-table-column>
+                    <el-table-column label="市值" width="100" align="right">
+                      <template #default="{ row }">{{ fmtMoney(row.market_value) }}</template>
+                    </el-table-column>
+                    <el-table-column label="浮动盈亏" width="104" align="right">
+                      <template #default="{ row }">
+                        <span :class="numberClass(row.profit)">{{ formatSignedMoney(row.profit) }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="盈亏率" width="88" align="right">
+                      <template #default="{ row }">
+                        <span :class="numberClass(row.profit)">{{ formatSignedPercent(positionProfitPct(row)) }}</span>
+                      </template>
+                    </el-table-column>
+                  </el-table>
+                  <div v-else class="account-empty">暂无持仓明细</div>
+                </section>
+              </el-tab-pane>
 
-            <section class="account-section">
-              <div class="account-section-header">
-                <span>在途委托</span>
-                <span class="panel-hint">{{ accountOrderCount }} 条</span>
-              </div>
-              <el-table v-if="accountOrders.length" :data="accountOrders" size="small" border class="account-detail-table orders-detail-table">
-                <el-table-column label="时间" width="72">
-                  <template #default="{ row }">{{ compactTimestamp(row.ts) }}</template>
-                </el-table-column>
-                <el-table-column prop="code" label="代码" width="78" />
-                <el-table-column label="方向" width="56" align="center">
-                  <template #default="{ row }">
-                    <span :class="accountSideClass(row.side)">{{ accountSideText(row.side) }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column label="数量/价格" min-width="112" align="right">
-                  <template #default="{ row }">{{ row.qty ?? '—' }} / {{ row.price != null ? Number(row.price).toFixed(2) : '—' }}</template>
-                </el-table-column>
-                <el-table-column prop="filled_qty" label="已成" width="60" align="right" />
-                <el-table-column prop="status" label="状态" min-width="90" show-overflow-tooltip />
-                <el-table-column prop="order_id" label="委托号" min-width="120" show-overflow-tooltip />
-              </el-table>
-              <div v-else class="account-empty">暂无在途委托</div>
-            </section>
+              <el-tab-pane label="委托历史" name="orders">
+                <section class="account-section">
+                  <div class="account-section-header">
+                    <span>委托历史</span>
+                    <el-select v-model="orderStatusFilter" size="small" placeholder="全部状态" clearable class="account-status-filter">
+                      <el-option v-for="s in ORDER_STATUS_OPTIONS" :key="s" :label="s" :value="s" />
+                    </el-select>
+                  </div>
+                  <el-table v-if="filteredOrders.length" :data="filteredOrders" size="small" border class="account-detail-table">
+                    <el-table-column label="时间" width="72">
+                      <template #default="{ row }">{{ compactTimestamp(row.created_at) }}</template>
+                    </el-table-column>
+                    <el-table-column prop="code" label="代码" width="78" />
+                    <el-table-column label="名称" min-width="96" show-overflow-tooltip>
+                      <template #default="{ row }">{{ accountSecurityName(row) }}</template>
+                    </el-table-column>
+                    <el-table-column label="方向" width="56" align="center">
+                      <template #default="{ row }">
+                        <span :class="accountSideClass(row.side)">{{ accountSideText(row.side) }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="委托价" width="88" align="right">
+                      <template #default="{ row }">{{ row.limit_price != null ? Number(row.limit_price).toFixed(2) : '—' }}</template>
+                    </el-table-column>
+                    <el-table-column prop="qty" label="数量" width="72" align="right" />
+                    <el-table-column prop="filled_qty" label="已成" width="60" align="right" />
+                    <el-table-column label="状态" width="108">
+                      <template #default="{ row }">
+                        <el-tag size="small" effect="plain" :type="orderStatusType(row.status)">{{ row.status }}</el-tag>
+                      </template>
+                    </el-table-column>
+                    <el-table-column type="expand">
+                      <template #default="{ row }">
+                        <div class="account-expand">
+                          <div>委托号 {{ row.client_order_id || '—' }}<template v-if="row.broker_order_id"> / 券商号 {{ row.broker_order_id }}</template></div>
+                          <div v-if="row.strategy">策略 {{ row.strategy }}</div>
+                          <div v-if="row.avg_fill_price != null">成交均价 {{ Number(row.avg_fill_price).toFixed(3) }}，费用 {{ formatSignedMoney(row.total_fee) }}</div>
+                          <div v-if="row.last_error_code || row.last_error_message">错误 {{ row.last_error_code || '' }} {{ row.last_error_message || '' }}</div>
+                          <div v-if="Object.keys(row.metadata || {}).length">明细 {{ JSON.stringify(row.metadata) }}</div>
+                        </div>
+                      </template>
+                    </el-table-column>
+                  </el-table>
+                  <div v-else class="account-empty">暂无委托记录</div>
+                </section>
+              </el-tab-pane>
+
+              <el-tab-pane label="成交记录" name="fills">
+                <section class="account-section">
+                  <div class="account-section-header">
+                    <span>成交记录</span>
+                    <span class="panel-hint">{{ fills.length }} 条</span>
+                  </div>
+                  <el-table v-if="fills.length" :data="fills" size="small" border class="account-detail-table">
+                    <el-table-column label="时间" width="72">
+                      <template #default="{ row }">{{ compactTimestamp(row.filled_at) }}</template>
+                    </el-table-column>
+                    <el-table-column prop="code" label="代码" width="78" />
+                    <el-table-column label="名称" min-width="96" show-overflow-tooltip>
+                      <template #default="{ row }">{{ accountSecurityName(row) }}</template>
+                    </el-table-column>
+                    <el-table-column label="方向" width="56" align="center">
+                      <template #default="{ row }">
+                        <span :class="accountSideClass(row.side)">{{ accountSideText(row.side) }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="qty" label="数量" width="72" align="right" />
+                    <el-table-column label="成交价" width="88" align="right">
+                      <template #default="{ row }">{{ fmtPrice(row.price) }}</template>
+                    </el-table-column>
+                    <el-table-column label="金额" width="104" align="right">
+                      <template #default="{ row }">{{ fmtMoney(row.gross_amount) }}</template>
+                    </el-table-column>
+                    <el-table-column label="费用" width="92" align="right">
+                      <template #default="{ row }">{{ fmtMoney(row.total_fee) }}</template>
+                    </el-table-column>
+                    <el-table-column type="expand">
+                      <template #default="{ row }">
+                        <div class="account-expand">
+                          <div>成交号 {{ row.fill_id || '—' }} / 委托号 {{ row.client_order_id || '—' }}</div>
+                          <div>佣金 {{ fmtMoney(row.commission) }}，印花税 {{ fmtMoney(row.stamp_tax) }}，来源 {{ row.price_source || '—' }}</div>
+                          <div>成交时间 {{ row.filled_at }}</div>
+                        </div>
+                      </template>
+                    </el-table-column>
+                  </el-table>
+                  <div v-else class="account-empty">暂无成交记录</div>
+                </section>
+              </el-tab-pane>
+
+              <el-tab-pane label="收益分析" name="pnl">
+                <section class="account-section">
+                  <div class="account-section-header">
+                    <span>每只收益</span>
+                    <span class="panel-hint">
+                      已实现 {{ formatSignedMoney(pnlTotals?.realized) }} · 未实现 {{ formatSignedMoney(pnlTotals?.unrealized) }} · 合计 {{ formatSignedMoney(pnlTotals?.total) }}
+                      <template v-if="pnlTotals?.consistent"> · 与账户一致</template>
+                    </span>
+                  </div>
+                  <el-table v-if="pnl?.per_code?.length" :data="pnl.per_code" size="small" border class="account-detail-table" :row-key="(r: any) => r.code">
+                    <el-table-column prop="code" label="代码" width="78" />
+                    <el-table-column label="名称" min-width="96" show-overflow-tooltip>
+                      <template #default="{ row }">{{ accountSecurityName(row) }}</template>
+                    </el-table-column>
+                    <el-table-column label="现持仓" width="72" align="right">
+                      <template #default="{ row }">{{ row.qty }}</template>
+                    </el-table-column>
+                    <el-table-column label="平均成本" width="88" align="right">
+                      <template #default="{ row }">{{ fmtPrice(row.avg_cost) }}</template>
+                    </el-table-column>
+                    <el-table-column label="已实现" width="96" align="right">
+                      <template #default="{ row }">
+                        <span :class="numberClass(row.realized)">{{ formatSignedMoney(row.realized) }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="未实现" width="96" align="right">
+                      <template #default="{ row }">
+                        <span :class="numberClass(row.unrealized)">{{ formatSignedMoney(row.unrealized) }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="合计" width="104" align="right">
+                      <template #default="{ row }">
+                        <span :class="numberClass(row.total)">{{ formatSignedMoney(row.total) }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="交易" width="60" align="right">
+                      <template #default="{ row }">{{ row.trades.length }}</template>
+                    </el-table-column>
+                    <el-table-column type="expand">
+                      <template #default="{ row }">
+                        <div v-if="row.trades.length" class="account-expand">
+                          <el-table :data="row.trades" size="small" border class="pnl-trades-table">
+                            <el-table-column label="时间" width="120">
+                              <template #default="{ row: t }">{{ compactTimestamp(t.ts) }}</template>
+                            </el-table-column>
+                            <el-table-column prop="qty" label="卖出数量" width="72" align="right" />
+                            <el-table-column label="价格" width="88" align="right">
+                              <template #default="{ row: t }">{{ fmtPrice(t.price) }}</template>
+                            </el-table-column>
+                            <el-table-column label="均价" width="88" align="right">
+                              <template #default="{ row: t }">{{ fmtPrice(t.avg_cost) }}</template>
+                            </el-table-column>
+                            <el-table-column label="费用" width="80" align="right">
+                              <template #default="{ row: t }">{{ fmtMoney(t.fee) }}</template>
+                            </el-table-column>
+                            <el-table-column label="已实现" width="96" align="right">
+                              <template #default="{ row: t }">
+                                <span :class="numberClass(t.realized)">{{ formatSignedMoney(t.realized) }}</span>
+                              </template>
+                            </el-table-column>
+                          </el-table>
+                        </div>
+                        <div v-else class="account-empty">该标的仅买入，无已实现卖出</div>
+                      </template>
+                    </el-table-column>
+                  </el-table>
+                  <div v-else class="account-empty">暂无收益记录</div>
+                </section>
+              </el-tab-pane>
+            </el-tabs>
 
             <div v-if="latestAccountEvent && Object.keys(accountBefore).length" class="account-after" :class="accountDeltaClass">
               相对轮次开始：可用资金 {{ formatSignedMoney(accountDelta.avail_balance) }}，持仓数 {{ formatSignedNumber(accountDelta.positions) }}
@@ -354,9 +505,13 @@
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, nextTick } from 'vue'
 import {
   addWatchPoolMember,
+  fetchAccount,
   fetchDays,
   fetchEvents,
+  fetchFills,
   fetchMarket,
+  fetchOrders,
+  fetchPnl,
   fetchState,
   fetchTicks,
   fetchWatchPool,
@@ -364,7 +519,11 @@ import {
   type WatchEvent,
   type WatchMarketSnapshot,
   type WatchPoolResponse,
-  type WatchTickSummary
+  type WatchTickSummary,
+  type WatchAccount,
+  type WatchOrderRow,
+  type WatchFillRow,
+  type WatchPnl
 } from '@/api/watch'
 import { inferExchangeType, resolveSecurityName } from '@/utils/security'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -602,39 +761,6 @@ const currentAccount = computed<Record<string, any>>(() => ({
   ...((latestAccountEvent.value?.detail as any) || {}),
   ...latestTickAccount.value
 }))
-const accountPositions = computed<Record<string, any>[]>(() => {
-  const details = currentAccount.value.position_details ?? currentAccount.value.positions
-  return Array.isArray(details) ? details : []
-})
-const accountPositionRows = computed<Record<string, any>[]>(() => {
-  const quotes = new Map(
-    (marketSnapshot.value?.quotes || [])
-      .filter((quote: any) => {
-        const quality = String(quote.quality || quote.validity || '')
-        return !['INVALID', 'STALE', 'MISSING'].includes(quality)
-          && Number.isFinite(Number(quote.last))
-          && Number(quote.last) > 0
-      })
-      .map((quote: any) => [String(quote.code), Number(quote.last)])
-  )
-  return accountPositions.value.map((row) => {
-    const qty = Number(row.qty)
-    const cost = Number(row.cost)
-    const current = quotes.get(String(row.code)) ?? Number(row.last)
-    const hasCurrent = Number.isFinite(current)
-    const hasPositionMath = hasCurrent && Number.isFinite(qty) && Number.isFinite(cost)
-    return {
-      ...row,
-      last: hasCurrent ? current : row.last,
-      market_value: hasPositionMath ? current * qty : row.market_value,
-      profit: hasPositionMath ? (current - cost) * qty : row.profit,
-    }
-  })
-})
-const accountOrders = computed<Record<string, any>[]>(() => {
-  const details = currentAccount.value.order_details ?? currentAccount.value.orders
-  return Array.isArray(details) ? details : []
-})
 const accountPositionCount = computed(() => accountDetailCount(currentAccount.value.position_details ?? currentAccount.value.positions))
 const accountOrderCount = computed(() => accountDetailCount(currentAccount.value.order_details ?? currentAccount.value.orders))
 const accountBefore = computed<Record<string, any>>(() => {
@@ -662,6 +788,110 @@ const accountDeltaClass = computed(() => {
   if (accountDelta.value.avail_balance < 0) return 'negative'
   return ''
 })
+
+// ---------- 持久化盯盘模拟账户（serve 只读端点，/account · /orders · /fills · /pnl） ----------
+const account = shallowRef<WatchAccount | null>(null)
+const orders = shallowRef<WatchOrderRow[]>([])
+const fills = shallowRef<WatchFillRow[]>([])
+const pnl = shallowRef<WatchPnl | null>(null)
+const accountTab = ref('positions')
+const orderStatusFilter = ref('')
+const ORDER_STATUS_OPTIONS = ['SUBMITTED', 'PARTIAL', 'FILLED', 'CANCELLED', 'REJECTED', 'EXPIRED', 'SUBMITTING', 'CREATED', 'CANCEL_PENDING']
+
+/** 账户总览：优先取 /account 持久化数据，未就绪退回事件/tick 快照。 */
+const accountView = computed<Record<string, any>>(() => {
+  const a = account.value
+  const c = currentAccount.value
+  if (a?.available && a.session_id) {
+    return {
+      total_assets: a.total_assets,
+      cash: a.cash,
+      market_value: a.market_value,
+      unrealized_pnl: a.unrealized_pnl,
+      realized_pnl: a.realized_pnl,
+      total_return_pct: a.total_return_pct,
+      position_count: a.position_count,
+      open_order_count: a.open_order_count,
+      session_id: a.session_id,
+    }
+  }
+  return {
+    total_assets: c.total_assets,
+    cash: c.avail_balance,
+    market_value: c.market_value,
+    unrealized_pnl: null,
+    realized_pnl: null,
+    total_return_pct: null,
+    position_count: accountPositionCount.value,
+    open_order_count: accountOrderCount.value,
+    session_id: '',
+  }
+})
+
+/** 持仓 tab：以 /account positions 为权威，用 /market 实时行情覆盖现价重算市值/盈亏。 */
+const persistPositions = computed<Record<string, any>[]>(() => {
+  const quotes = new Map(
+    (marketSnapshot.value?.quotes || [])
+      .filter((quote: any) => {
+        const quality = String(quote.quality || quote.validity || '')
+        return !['INVALID', 'STALE', 'MISSING'].includes(quality)
+          && Number.isFinite(Number(quote.last))
+          && Number(quote.last) > 0
+      })
+      .map((quote: any) => [String(quote.code), Number(quote.last)])
+  )
+  return (account.value?.positions || []).map((row) => {
+    const qty = Number(row.qty)
+    const cost = Number(row.avg_cost)
+    const current = quotes.get(String(row.code)) ?? Number(row.last_price)
+    const hasCurrent = Number.isFinite(current)
+    const hasPositionMath = hasCurrent && Number.isFinite(qty) && Number.isFinite(cost)
+    return {
+      code: row.code,
+      name: row.name,
+      qty,
+      avail_qty: row.available_qty,
+      cost,
+      last: hasCurrent ? current : row.last_price,
+      market_value: hasPositionMath ? current * qty : row.market_value,
+      profit: hasPositionMath ? (current - cost) * qty : row.profit,
+    }
+  })
+})
+
+const filteredOrders = computed(() => {
+  const status = orderStatusFilter.value
+  if (!status) return orders.value
+  return orders.value.filter((o) => o.status === status)
+})
+
+const pnlTotals = computed(() => pnl.value?.totals || null)
+
+function orderStatusType(status: string): WatchTagType {
+  if (status === 'FILLED') return 'success'
+  if (status === 'REJECTED' || status === 'EXPIRED') return 'danger'
+  if (status === 'CANCELLED' || status === 'CANCEL_PENDING') return 'info'
+  if (status === 'SUBMITTED' || status === 'PARTIAL') return 'primary'
+  return 'warning'
+}
+
+async function loadAccountData() {
+  try {
+    const [acc, ord, fl, pl] = await Promise.all([
+      fetchAccount(),
+      fetchOrders({ limit: 200 }),
+      fetchFills({ limit: 200 }),
+      fetchPnl()
+    ])
+    if (disposed || !acc.available) return
+    account.value = acc
+    orders.value = ord.orders || []
+    fills.value = fl.fills || []
+    pnl.value = pl.available ? pl : null
+  } catch {
+    // 数据未就绪或已停服时保持上一快照，避免闪空。
+  }
+}
 
 function eventSummary(row: WatchEvent): string {
   const d = row.detail as any
@@ -903,6 +1133,7 @@ async function refresh(full = false) {
       ticks.value = tickData.ticks
       lastAppliedRefresh = requestId
       void ensureSecurityNames(all)
+      void loadAccountData()
     } else {
       const refreshSnapshot = refreshTick % 2 === 0
       const refreshPool = refreshTick % POOL_REFRESH_TICKS === 0
@@ -936,6 +1167,7 @@ async function refresh(full = false) {
       watchPool.value = pool
       if (tickData) ticks.value = tickData.ticks
       lastAppliedRefresh = requestId
+      if (refreshSnapshot) void loadAccountData()
     }
     serviceUp.value = true
     if (eventsChanged && detailVisible.value && chart) renderChart()
@@ -1381,6 +1613,34 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
+}
+
+.account-grid--finance {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.account-tabs {
+  margin-top: var(--sp-3);
+  min-width: 0;
+}
+
+.account-tabs :deep(.el-tabs__header) {
+  margin-bottom: var(--sp-2);
+}
+
+.account-status-filter {
+  width: 140px;
+}
+
+.account-expand {
+  padding: var(--sp-2) var(--sp-3);
+  color: var(--text-secondary, #909399);
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.pnl-trades-table {
+  margin-bottom: var(--sp-1);
 }
 
 .detail-chart {

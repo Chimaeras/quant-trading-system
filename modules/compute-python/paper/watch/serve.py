@@ -108,7 +108,7 @@ def _read_json_body(handler: BaseHTTPRequestHandler) -> dict:
     return payload
 
 
-def _watch_pool(store_path: Path, *, max_size: int = 50) -> dict:
+def _watch_pool(store_path: Path, *, max_size: int = 200) -> dict:
     if not store_path.exists():
         return {"items": [], "total": 0, "max_size": max_size, "available": False}
     try:
@@ -135,7 +135,7 @@ def _watch_pool(store_path: Path, *, max_size: int = 50) -> dict:
                 "error": f"{type(exc).__name__}:{exc}"}
 
 
-def _add_watch_pool_member(store_path: Path, payload: dict, *, max_size: int = 50) -> dict:
+def _add_watch_pool_member(store_path: Path, payload: dict, *, max_size: int = 200) -> dict:
     code = str(payload.get("code", payload.get("stock_code", ""))).strip()
     if not re.fullmatch(r"\d{6}", code):
         raise BadRequestError("证券代码必须是 6 位数字")
@@ -144,6 +144,8 @@ def _add_watch_pool_member(store_path: Path, payload: dict, *, max_size: int = 5
     if len(name) > 100:
         raise BadRequestError("证券名称不得超过 100 个字符")
     now = datetime.now().isoformat()
+    # 热门 TopN 占满 max_size；人工标的允许叠加，绝对上限留 50 余量。
+    absolute_cap = max(int(max_size) + 50, int(max_size))
     try:
         conn = sqlite3.connect(store_path, timeout=5)
         conn.row_factory = sqlite3.Row
@@ -155,17 +157,11 @@ def _add_watch_pool_member(store_path: Path, payload: dict, *, max_size: int = 5
             ).fetchone()
             if existing is None:
                 total = int(conn.execute("SELECT COUNT(*) FROM watch_pool_member").fetchone()[0])
-                if total >= max_size:
-                    evict = conn.execute(
-                        "SELECT code FROM watch_pool_member WHERE manual=0 "
-                        "ORDER BY sort_order DESC, code DESC LIMIT 1"
-                    ).fetchone()
-                    if evict is None:
-                        conn.rollback()
-                        raise BadRequestError(
-                            f"观察池已达到 {max_size} 只上限，请先移除人工标的"
-                        )
-                    conn.execute("DELETE FROM watch_pool_member WHERE code=?", (evict[0],))
+                if total >= absolute_cap:
+                    conn.rollback()
+                    raise BadRequestError(
+                        f"观察池已达到 {absolute_cap} 只上限（热门 Top{max_size} + 人工余量），请先移除标的"
+                    )
             conn.execute(
                 """
                 INSERT INTO watch_pool_member(
@@ -272,7 +268,352 @@ def _market_snapshot(store_path: Path, trade_date: str, *, limit: int = 10000) -
         }
 
 
-def make_handler(log_base: Path, store_path: Path | None = None, *, max_pool_size: int = 100):
+_ACTIVE_ORDER_STATUSES = ("CREATED", "SUBMITTING", "SUBMITTED", "PARTIAL", "CANCEL_PENDING")
+
+
+def _ro_conn(store_path: Path):
+    """只读连接：不建表不写库，避免与盯盘循环竞争（线程安全，每请求独立）。"""
+    if not store_path.exists():
+        return None
+    uri = f"file:{store_path.resolve().as_posix()}?mode=ro"
+    try:
+        conn = sqlite3.connect(uri, uri=True, timeout=2)
+        conn.row_factory = sqlite3.Row
+        return conn
+    except sqlite3.Error:
+        return None
+
+
+def _security_names(conn) -> dict[str, str]:
+    """从观察池与最新行情兜底补股票名；前端仍会二次解析（Java /stockinfo）。"""
+    names: dict[str, str] = {}
+    try:
+        for row in conn.execute("SELECT code, name FROM watch_pool_member WHERE name != ''"):
+            names.setdefault(str(row["code"]), str(row["name"]))
+        for row in conn.execute(
+            "SELECT q.code, q.name FROM latest_quote q "
+            "JOIN (SELECT code, MAX(trade_date) md FROM latest_quote GROUP BY code) m "
+            "  ON q.code=m.code AND q.trade_date=m.md WHERE q.name != ''"
+        ):
+            names.setdefault(str(row["code"]), str(row["name"]))
+    except sqlite3.Error:
+        pass
+    return names
+
+
+def _resolve_session_id(conn, requested: str) -> str:
+    """指定 session_id 用之；缺省取最近更新的 sim_account（即当前活跃会话）。"""
+    if requested:
+        return requested
+    try:
+        row = conn.execute(
+            "SELECT session_id FROM sim_account ORDER BY updated_at DESC, rowid DESC LIMIT 1"
+        ).fetchone()
+    except sqlite3.Error:
+        return ""
+    return str(row["session_id"]) if row else ""
+
+
+def _position_view(row: dict, names: dict[str, str]) -> dict:
+    qty = int(row.get("qty") or 0)
+    cost = float(row.get("avg_cost") or 0.0)
+    last = float(row.get("last_price") or cost)
+    code = str(row["code"])
+    return {
+        "code": code,
+        "name": row.get("name") or names.get(code, ""),
+        "qty": qty,
+        "available_qty": int(row.get("available_qty") or 0),
+        "today_buy_qty": int(row.get("today_buy_qty") or 0),
+        "avg_cost": cost,
+        "last_price": last,
+        "market_value": qty * last,
+        "profit": (last - cost) * qty,
+        "profit_rate": ((last / cost - 1) * 100) if cost > 0 else None,
+    }
+
+
+def _account(store_path: Path, session_id: str) -> dict:
+    conn = _ro_conn(store_path)
+    if conn is None:
+        return {"available": False, "error": "store_unavailable"}
+    try:
+        sid = _resolve_session_id(conn, session_id)
+        if not sid:
+            return {"available": False, "error": "no_session"}
+        names = _security_names(conn)
+        account = conn.execute(
+            "SELECT * FROM sim_account WHERE session_id=?", (sid,)
+        ).fetchone()
+        pos_rows = conn.execute(
+            "SELECT * FROM sim_position WHERE session_id=? ORDER BY code", (sid,)
+        ).fetchall()
+        positions = [_position_view(dict(row), names) for row in pos_rows]
+        if account is None:
+            return {
+                "available": True, "session_id": sid, "positions": positions,
+                "position_count": len(positions), "open_order_count": 0,
+                "errors": ["sim_account 尚无记录（未发生交易）"],
+            }
+        initial_cash = float(account["initial_cash"])
+        cash = float(account["cash"])
+        frozen = float(account["frozen_cash"])
+        realized = float(account["realized_pnl"] or 0.0)
+        market_value = sum(p["market_value"] for p in positions)
+        unrealized = sum(p["profit"] for p in positions)
+        total_assets = cash + market_value
+        total_profit = realized + unrealized
+        return {
+            "available": True,
+            "session_id": sid,
+            "initial_cash": initial_cash,
+            "cash": cash,
+            "frozen_cash": frozen,
+            "market_value": market_value,
+            "total_assets": total_assets,
+            "realized_pnl": realized,
+            "unrealized_pnl": unrealized,
+            "total_profit": total_profit,
+            "total_return_pct": (total_assets / initial_cash - 1) * 100 if initial_cash else 0.0,
+            "position_count": len(positions),
+            "open_order_count": _open_order_count(conn, sid),
+            "positions": positions,
+        }
+    except sqlite3.Error as exc:
+        return {"available": False, "error": f"{type(exc).__name__}:{exc}"}
+    finally:
+        conn.close()
+
+
+def _positions(store_path: Path, session_id: str) -> dict:
+    conn = _ro_conn(store_path)
+    if conn is None:
+        return {"available": False, "error": "store_unavailable"}
+    try:
+        sid = _resolve_session_id(conn, session_id)
+        if not sid:
+            return {"available": False, "error": "no_session"}
+        names = _security_names(conn)
+        rows = conn.execute(
+            "SELECT * FROM sim_position WHERE session_id=? ORDER BY code", (sid,)
+        ).fetchall()
+        positions = [_position_view(dict(row), names) for row in rows]
+        return {"available": True, "session_id": sid, "positions": positions, "count": len(positions)}
+    except sqlite3.Error as exc:
+        return {"available": False, "error": f"{type(exc).__name__}:{exc}"}
+    finally:
+        conn.close()
+
+
+def _open_order_count(conn, sid: str) -> int:
+    try:
+        placeholders = ",".join("?" for _ in _ACTIVE_ORDER_STATUSES)
+        return int(conn.execute(
+            "SELECT COUNT(*) FROM local_order WHERE session_id=? AND status IN (" + placeholders + ")",
+            (sid, *_ACTIVE_ORDER_STATUSES),
+        ).fetchone()[0])
+    except sqlite3.Error:
+        return 0
+
+
+def _order_view(row: dict, names: dict[str, str]) -> dict:
+    meta = row.get("metadata_json")
+    metadata = json.loads(meta) if meta else {}
+    return {
+        "client_order_id": row.get("client_order_id"),
+        "session_id": row.get("session_id"),
+        "channel": row.get("channel"),
+        "run_id": row.get("run_id"),
+        "strategy": row.get("strategy"),
+        "signal_bar_ts": row.get("signal_bar_ts"),
+        "code": row.get("code"),
+        "name": names.get(str(row.get("code", "")), ""),
+        "side": row.get("side"),
+        "order_type": row.get("order_type"),
+        "limit_price": row.get("limit_price"),
+        "qty": row.get("qty"),
+        "filled_qty": row.get("filled_qty"),
+        "avg_fill_price": row.get("avg_fill_price"),
+        "total_fee": row.get("total_fee"),
+        "status": row.get("status"),
+        "broker_order_id": row.get("broker_order_id"),
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
+        "expires_at": row.get("expires_at"),
+        "last_error_code": row.get("last_error_code"),
+        "last_error_message": row.get("last_error_message"),
+        "metadata": metadata,
+    }
+
+
+def _orders(store_path: Path, params: dict) -> dict:
+    conn = _ro_conn(store_path)
+    if conn is None:
+        return {"available": False, "error": "store_unavailable"}
+    try:
+        sid = _resolve_session_id(conn, (params.get("session_id") or [""])[0])
+        status_filter = (params.get("status") or [""])[0]
+        code_filter = (params.get("code") or [""])[0]
+        limit = max(min(_query_int(params, "limit", 200), 1000), 1)
+        clauses = ["session_id=?"]
+        vals: list[object] = [sid]
+        if status_filter:
+            statuses = [s for s in status_filter.split(",") if s]
+            clauses.append("status IN (" + ",".join("?" for _ in statuses) + ")")
+            vals.extend(statuses)
+        if code_filter:
+            clauses.append("code=?")
+            vals.append(code_filter)
+        rows = conn.execute(
+            "SELECT * FROM local_order WHERE " + " AND ".join(clauses)
+            + " ORDER BY created_at DESC, client_order_id DESC LIMIT " + str(limit),
+            vals,
+        ).fetchall()
+        names = _security_names(conn)
+        orders = [_order_view(dict(row), names) for row in rows]
+        return {"available": True, "session_id": sid, "orders": orders, "count": len(orders)}
+    except sqlite3.Error as exc:
+        return {"available": False, "error": f"{type(exc).__name__}:{exc}"}
+    finally:
+        conn.close()
+
+
+def _fill_view(row: dict, names: dict[str, str]) -> dict:
+    meta = row.get("metadata_json")
+    metadata = json.loads(meta) if meta else {}
+    return {
+        "fill_id": row.get("fill_id"),
+        "client_order_id": row.get("client_order_id"),
+        "code": row.get("code"),
+        "name": names.get(str(row.get("code", "")), ""),
+        "side": row.get("side"),
+        "qty": row.get("qty"),
+        "price": row.get("price"),
+        "gross_amount": row.get("gross_amount"),
+        "commission": row.get("commission"),
+        "stamp_tax": row.get("stamp_tax"),
+        "total_fee": row.get("total_fee"),
+        "filled_at": row.get("filled_at"),
+        "bar_ts": row.get("bar_ts"),
+        "price_source": row.get("price_source"),
+        "metadata": metadata,
+    }
+
+
+def _fills(store_path: Path, params: dict) -> dict:
+    conn = _ro_conn(store_path)
+    if conn is None:
+        return {"available": False, "error": "store_unavailable"}
+    try:
+        sid = _resolve_session_id(conn, (params.get("session_id") or [""])[0])
+        code_filter = (params.get("code") or [""])[0]
+        limit = max(min(_query_int(params, "limit", 200), 1000), 1)
+        clauses = ["session_id=?"]
+        vals: list[object] = [sid]
+        if code_filter:
+            clauses.append("code=?")
+            vals.append(code_filter)
+        rows = conn.execute(
+            "SELECT * FROM fill WHERE " + " AND ".join(clauses)
+            + " ORDER BY filled_at DESC, fill_id DESC LIMIT " + str(limit),
+            vals,
+        ).fetchall()
+        names = _security_names(conn)
+        fills = [_fill_view(dict(row), names) for row in rows]
+        return {"available": True, "session_id": sid, "fills": fills, "count": len(fills)}
+    except sqlite3.Error as exc:
+        return {"available": False, "error": f"{type(exc).__name__}:{exc}"}
+    finally:
+        conn.close()
+
+
+def _pnl(store_path: Path, session_id: str) -> dict:
+    """逐代码重放成交，还原每笔/每只已实现盈亏；未实现按当前持仓口径。"""
+    conn = _ro_conn(store_path)
+    if conn is None:
+        return {"available": False, "error": "store_unavailable"}
+    try:
+        sid = _resolve_session_id(conn, session_id)
+        if not sid:
+            return {"available": False, "error": "no_session"}
+        names = _security_names(conn)
+        pos_rows = conn.execute(
+            "SELECT * FROM sim_position WHERE session_id=? ORDER BY code", (sid,)
+        ).fetchall()
+        positions = {str(row["code"]): dict(row) for row in pos_rows}
+        fill_rows = conn.execute(
+            "SELECT * FROM fill WHERE session_id=? ORDER BY filled_at, fill_id", (sid,)
+        ).fetchall()
+        account = conn.execute(
+            "SELECT * FROM sim_account WHERE session_id=?", (sid,)
+        ).fetchone()
+        realized_total = float((account["realized_pnl"] if account else 0.0) or 0.0)
+
+        per_code: dict[str, dict] = {}
+        for row in fill_rows:
+            code = str(row["code"])
+            side = str(row["side"])
+            qty = int(row["qty"])
+            price = float(row["price"])
+            fee = float(row["total_fee"] or 0.0)
+            gross = float(row["gross_amount"] or 0.0)
+            rec = per_code.setdefault(code, {
+                "code": code, "name": names.get(code, ""),
+                "qty": 0, "avg_cost": 0.0, "realized": 0.0,
+                "unrealized": 0.0, "total": 0.0, "trades": [],
+            })
+            if side == "buy":
+                old_qty = int(rec["qty"])
+                rec["avg_cost"] = (rec["avg_cost"] * old_qty + gross + fee) / (old_qty + qty) if old_qty + qty else 0.0
+                rec["qty"] = old_qty + qty
+            else:  # sell
+                realized = (price - rec["avg_cost"]) * qty - fee
+                rec["realized"] += realized
+                rec["trades"].append({
+                    "fill_id": row["fill_id"],
+                    "ts": row["filled_at"],
+                    "qty": qty,
+                    "price": price,
+                    "fee": fee,
+                    "avg_cost": rec["avg_cost"],
+                    "realized": realized,
+                })
+                rec["qty"] = int(rec["qty"]) - qty
+                if rec["qty"] <= 0:
+                    rec["qty"] = 0
+
+        for code, rec in per_code.items():
+            pos = positions.get(code)
+            if pos is None:
+                rec["unrealized"] = 0.0
+            else:
+                cost = float(pos.get("avg_cost") or 0.0)
+                last = float(pos.get("last_price") or cost)
+                rec["unrealized"] = (last - cost) * int(pos.get("qty") or 0)
+            rec["total"] = rec["realized"] + rec["unrealized"]
+
+        result = sorted(per_code.values(), key=lambda item: item["code"])
+        total_realized = sum(item["realized"] for item in result)
+        total_unrealized = sum(item["unrealized"] for item in result)
+        return {
+            "available": True,
+            "session_id": sid,
+            "per_code": result,
+            "totals": {
+                "realized": total_realized,
+                "unrealized": total_unrealized,
+                "total": total_realized + total_unrealized,
+                "realized_account": realized_total,
+                "consistent": abs(total_realized - realized_total) < 0.01,
+            },
+        }
+    except sqlite3.Error as exc:
+        return {"available": False, "error": f"{type(exc).__name__}:{exc}"}
+    finally:
+        conn.close()
+
+
+def make_handler(log_base: Path, store_path: Path | None = None, *, max_pool_size: int = 200):
     runtime_store = store_path or (log_base / "watch" / "runtime.sqlite3")
     class WatchServeHandler(BaseHTTPRequestHandler):
         # 静默默认访问日志，避免刷屏；错误照常返回 4xx/5xx
@@ -310,12 +651,29 @@ def make_handler(log_base: Path, store_path: Path | None = None, *, max_pool_siz
                     self, _watch_pool(runtime_store, max_size=max_pool_size)
                 )
 
-            if len(parts) == 3 and parts[0] == "api" and parts[1] == "watch" and DATE_RE.match(parts[2]):
-                trade_date = parts[2]
-                if trade_date not in _days(log_base):
-                    return _json_response(self, {"error": "date_not_found", "date": trade_date}, 404)
-                # /api/watch/{date} 直接给当日汇总
-                return _json_response(self, _state(log_base, trade_date))
+            if len(parts) == 3 and parts[0] == "api" and parts[1] == "watch":
+                if DATE_RE.match(parts[2]):
+                    trade_date = parts[2]
+                    if trade_date not in _days(log_base):
+                        return _json_response(self, {"error": "date_not_found", "date": trade_date}, 404)
+                    # /api/watch/{date} 直接给当日汇总
+                    return _json_response(self, _state(log_base, trade_date))
+                # 非日期资源：盯盘模拟账户（持仓 / 收益 / 委托 / 成交）
+                query = parse_qs(parsed.query)
+                resource = parts[2]
+                if resource == "account":
+                    return _json_response(self, _account(runtime_store, (query.get("session_id") or [""])[0]))
+                if resource == "positions":
+                    return _json_response(self, _positions(runtime_store, (query.get("session_id") or [""])[0]))
+                if resource == "pnl":
+                    return _json_response(self, _pnl(runtime_store, (query.get("session_id") or [""])[0]))
+                if resource in ("orders", "fills"):
+                    try:
+                        payload = _orders(runtime_store, query) if resource == "orders" else _fills(runtime_store, query)
+                    except BadRequestError as exc:
+                        return _json_response(self, {"error": "bad_request", "message": str(exc)}, 400)
+                    return _json_response(self, payload)
+                return _json_response(self, {"error": "unknown_resource"}, 404)
 
             if len(parts) == 4 and parts[0] == "api" and parts[1] == "watch" and DATE_RE.match(parts[2]):
                 trade_date, resource = parts[2], parts[3]
@@ -385,7 +743,7 @@ def make_handler(log_base: Path, store_path: Path | None = None, *, max_pool_siz
 
 
 def serve(log_base: Path, host: str = "127.0.0.1", port: int = 8790,
-          store_path: Path | None = None, *, max_pool_size: int = 100) -> None:
+          store_path: Path | None = None, *, max_pool_size: int = 200) -> None:
     from .store import SqliteWatchStore
 
     if str(host).strip().lower() not in {"127.0.0.1", "localhost", "::1"}:

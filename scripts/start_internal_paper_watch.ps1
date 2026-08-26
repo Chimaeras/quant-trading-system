@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$SignalDate = (Get-Date -Format 'yyyy-MM-dd'),
     [string]$SessionId = 'analysis-paper',
@@ -36,7 +36,7 @@ if (-not $env:MX_APIKEY) {
 $env:PAPER_WATCH_EXECUTION_MODE = $ExecutionMode
 $env:PAPER_WATCH_LIVE = '1'
 $env:PAPER_WATCH_UNIVERSE_MODE = 'WATCHLIST'
-$env:PAPER_MAX_OBSERVE_CODES = '100'
+$env:PAPER_MAX_OBSERVE_CODES = '200'
 # 0 表示关闭最大持仓只数限制；资金、总仓位、单票权重等风控仍然生效。
 $env:PAPER_MAX_POSITIONS = '0'
 $env:PAPER_KLINE_SOURCE = 'auto'

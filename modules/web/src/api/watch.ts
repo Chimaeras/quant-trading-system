@@ -65,6 +65,132 @@ export interface WatchPoolResponse {
   error?: string
 }
 
+export interface WatchPosition {
+  code: string
+  name: string
+  qty: number
+  available_qty: number
+  today_buy_qty: number
+  avg_cost: number
+  last_price: number
+  market_value: number
+  profit: number
+  profit_rate: number | null
+}
+
+export interface WatchAccount {
+  available: boolean
+  session_id: string
+  initial_cash: number
+  cash: number
+  frozen_cash: number
+  market_value: number
+  total_assets: number
+  realized_pnl: number
+  unrealized_pnl: number
+  total_profit: number
+  total_return_pct: number
+  position_count: number
+  open_order_count: number
+  positions: WatchPosition[]
+  error?: string
+}
+
+export interface WatchOrderRow {
+  client_order_id: string
+  session_id: string
+  channel: string
+  run_id: string
+  strategy: string
+  signal_bar_ts: string
+  code: string
+  name: string
+  side: 'buy' | 'sell' | string
+  order_type: string
+  limit_price: number | null
+  qty: number
+  filled_qty: number
+  avg_fill_price: number | null
+  total_fee: number | null
+  status: string
+  broker_order_id: string
+  created_at: string
+  updated_at: string
+  expires_at: string
+  last_error_code: string
+  last_error_message: string
+  metadata: Record<string, unknown>
+}
+
+export interface WatchOrderList {
+  available: boolean
+  session_id: string
+  count: number
+  orders: WatchOrderRow[]
+  error?: string
+}
+
+export interface WatchFillRow {
+  fill_id: string
+  client_order_id: string
+  code: string
+  name: string
+  side: 'buy' | 'sell' | string
+  qty: number
+  price: number
+  gross_amount: number
+  commission: number
+  stamp_tax: number
+  total_fee: number
+  filled_at: string
+  bar_ts: string
+  price_source: string
+  metadata: Record<string, unknown>
+}
+
+export interface WatchFillList {
+  available: boolean
+  session_id: string
+  count: number
+  fills: WatchFillRow[]
+  error?: string
+}
+
+export interface WatchPnlTrade {
+  fill_id: string
+  ts: string
+  qty: number
+  price: number
+  fee: number
+  avg_cost: number
+  realized: number
+}
+
+export interface WatchPnlCode {
+  code: string
+  name: string
+  qty: number
+  avg_cost: number
+  realized: number
+  unrealized: number
+  total: number
+  trades: WatchPnlTrade[]
+}
+
+export interface WatchPnl {
+  available: boolean
+  session_id: string
+  per_code: WatchPnlCode[]
+  totals: {
+    realized: number
+    unrealized: number
+    total: number
+    realized_account: number
+    consistent: boolean
+  }
+  error?: string
+}
+
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('quant_token')
   const headers = new Headers(init.headers)
@@ -132,4 +258,33 @@ export function checkHealth(): Promise<boolean> {
   return get('/api/watch/health')
     .then(() => true)
     .catch(() => false)
+}
+
+export function fetchAccount(session_id?: string): Promise<WatchAccount> {
+  const params = session_id ? `?session_id=${encodeURIComponent(session_id)}` : ''
+  return get(`/api/watch/account${params}`)
+}
+
+export function fetchOrders(filters: { session_id?: string; status?: string; code?: string; limit?: number } = {}): Promise<WatchOrderList> {
+  const params = new URLSearchParams()
+  if (filters.session_id) params.set('session_id', filters.session_id)
+  if (filters.status) params.set('status', filters.status)
+  if (filters.code) params.set('code', filters.code)
+  if (filters.limit) params.set('limit', String(filters.limit))
+  const query = params.toString()
+  return get(`/api/watch/orders${query ? `?${query}` : ''}`)
+}
+
+export function fetchFills(filters: { session_id?: string; code?: string; limit?: number } = {}): Promise<WatchFillList> {
+  const params = new URLSearchParams()
+  if (filters.session_id) params.set('session_id', filters.session_id)
+  if (filters.code) params.set('code', filters.code)
+  if (filters.limit) params.set('limit', String(filters.limit))
+  const query = params.toString()
+  return get(`/api/watch/fills${query ? `?${query}` : ''}`)
+}
+
+export function fetchPnl(session_id?: string): Promise<WatchPnl> {
+  const params = session_id ? `?session_id=${encodeURIComponent(session_id)}` : ''
+  return get(`/api/watch/pnl${params}`)
 }

@@ -50,8 +50,9 @@ class PaperConfig:
     quote_request_timeout_sec: int = 8
     quote_batch_max_retry: int = 2
     query_interval_sec: int = 60
-    # 观察池默认最多 100 只；FULL 模式仍由 max_watch_universe_codes 控制。
-    max_observe_codes: int = 100
+    # 观察池默认热门股上限；FULL 模式仍由 max_watch_universe_codes 控制。
+    # 人工观察标的在热门榜之外叠加，不挤占 hot TopN 名额。
+    max_observe_codes: int = 200
     clock_skew_sec: int = 30  # 允许的行情时钟偏差（P1-02/P2-02）
     # 盘中自动盯盘配置（watch V1）
     watch_strategy: str = "MA_CROSS"
@@ -133,8 +134,8 @@ class PaperConfig:
             raise ValueError("quote_batch_max_retry 必须大于 0")
         if self.query_interval_sec <= 0:
             raise ValueError(f"query_interval_sec 必须大于 0，当前 {self.query_interval_sec}")
-        if not (1 <= self.max_observe_codes <= 100):
-            raise ValueError(f"max_observe_codes 必须在 [1,100]，当前 {self.max_observe_codes}")
+        if not (1 <= self.max_observe_codes <= 500):
+            raise ValueError(f"max_observe_codes 必须在 [1,500]，当前 {self.max_observe_codes}")
         if self.clock_skew_sec < 0:
             raise ValueError(f"clock_skew_sec 不能为负，当前 {self.clock_skew_sec}")
         if self.watch_strategy not in {"MA_CROSS", "MACD", "BOLL"}:
@@ -239,7 +240,7 @@ class PaperConfig:
             quote_request_timeout_sec=int(e.get("PAPER_QUOTE_REQUEST_TIMEOUT_SEC", "8")),
             quote_batch_max_retry=int(e.get("PAPER_QUOTE_BATCH_MAX_RETRY", "2")),
             query_interval_sec=int(e.get("PAPER_QUERY_INTERVAL_SEC", "60")),
-            max_observe_codes=int(e.get("PAPER_MAX_OBSERVE_CODES", "100")),
+            max_observe_codes=int(e.get("PAPER_MAX_OBSERVE_CODES", "200")),
             clock_skew_sec=int(e.get("PAPER_CLOCK_SKEW_SEC", "30")),
             watch_strategy=e.get("PAPER_WATCH_STRATEGY", "MA_CROSS").strip().upper(),
             bar_period_min=int(e.get("PAPER_BAR_PERIOD_MIN", "5")),

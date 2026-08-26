@@ -118,7 +118,7 @@ def load_hot_stock_universe(
     signal_date: str,
     token: str = "",
     *,
-    max_codes: int = 100,
+    max_codes: int = 200,
     timeout: int = 15,
 ) -> list[Candidate]:
     """读取数据管理的热门股票榜，作为盯盘启动默认观察池。"""
@@ -223,13 +223,15 @@ def load_watch_universe(
                         }
                         for item in hot_candidates
                     ], max_size=config.max_observe_codes)
+                # 人工项叠加在热门 TopN 之外，list 预留少量余量避免截断 manuals。
+                pool_limit = max(config.max_observe_codes + 50, 250)
                 candidates = [
                     _watchlist_item({
                         "code": row.get("code"),
                         "name": row.get("name"),
                         "exchange_type": row.get("exchange"),
                     }, signal_date)
-                    for row in store.list_watch_pool(limit=config.max_observe_codes)
+                    for row in store.list_watch_pool(limit=pool_limit)
                 ]
                 source = "watch_pool"
             except (OSError, TypeError, ValueError, WatchStoreError) as exc:
@@ -267,10 +269,11 @@ def load_watch_universe(
     candidates, duplicates = dedupe_candidates(candidates)
     if duplicates:
         errors.append("DUPLICATE_CODES_DROPPED:" + ",".join(sorted(set(duplicates))))
+    # watch_pool：热门 TopN + 人工叠加，允许略超 max_observe_codes。
     max_codes = (
         config.max_watch_universe_codes
         if source == "full_market"
-        else config.max_observe_codes
+        else (config.max_observe_codes + 50 if source == "watch_pool" else config.max_observe_codes)
     )
     if len(candidates) > max_codes:
         errors.append("FULL_UNIVERSE_TRUNCATED" if source == "full_market" else "WATCHLIST_TRUNCATED")

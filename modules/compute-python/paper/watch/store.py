@@ -1059,8 +1059,8 @@ class SqliteWatchStore:
 
     # ---------------------------- watch pool ----------------------------
 
-    def sync_default_watch_pool(self, rows: Iterable[dict], *, max_size: int = 50) -> None:
-        """刷新启动默认热门股；人工加入的成员始终保留。"""
+    def sync_default_watch_pool(self, rows: Iterable[dict], *, max_size: int = 200) -> None:
+        """刷新启动默认热门股；人工加入的成员始终保留，且不挤占热门 TopN 名额。"""
         values = list(rows)
         now = datetime.now().isoformat()
         try:
@@ -1071,8 +1071,8 @@ class SqliteWatchStore:
                         "SELECT code FROM watch_pool_member WHERE manual=1"
                     ).fetchall()
                 }
-                manual_count = len(manual_codes)
-                capacity = max(0, int(max_size) - manual_count)
+                # 热门榜按 max_size 完整灌入；已人工加入的代码跳过，避免覆盖 manual 标记。
+                capacity = max(0, int(max_size))
                 defaults = [
                     row for row in values
                     if str(row.get("code", "")).strip() not in manual_codes

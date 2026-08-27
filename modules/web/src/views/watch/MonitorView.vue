@@ -231,7 +231,10 @@
         <el-card shadow="never" class="panel account-panel">
           <template #header>
             <div class="panel-header">
-              <span>盯盘模拟账户<template v-if="accountView.session_id"> · {{ accountView.session_id }}</template></span>
+              <div class="panel-title">
+                <span>盯盘模拟账户<template v-if="accountView.session_id"> · {{ accountView.session_id }}</template></span>
+                <span class="panel-hint">横向滚动查看完整字段</span>
+              </div>
               <div class="account-meta">
                 <span class="panel-hint">全程 · 最新会话</span>
                 <span v-if="isHistoricalAccountView" class="panel-hint">账户为最新会话累计（与所选日期无关）</span>
@@ -285,7 +288,8 @@
                     <span>当前持仓</span>
                     <span class="panel-hint">{{ persistPositions.length }} 条</span>
                   </div>
-                  <el-table v-if="persistPositions.length" :data="persistPositions" size="small" border class="account-detail-table">
+                  <div v-if="persistPositions.length" class="table-host account-table-host">
+                  <el-table :data="persistPositions" size="small" border class="account-detail-table account-positions-table">
                     <el-table-column prop="code" label="代码" width="78" />
                     <el-table-column label="名称" min-width="100" show-overflow-tooltip>
                       <template #default="{ row }">{{ accountSecurityName(row) }}</template>
@@ -312,6 +316,7 @@
                       </template>
                     </el-table-column>
                   </el-table>
+                  </div>
                   <div v-else class="account-empty">暂无持仓明细</div>
                 </section>
               </el-tab-pane>
@@ -325,7 +330,8 @@
                       <el-option v-for="s in ORDER_STATUS_OPTIONS" :key="s" :label="s" :value="s" />
                     </el-select>
                   </div>
-                  <el-table v-if="filteredOrders.length" :data="filteredOrders" size="small" border class="account-detail-table">
+                  <div v-if="filteredOrders.length" class="table-host account-table-host">
+                  <el-table :data="filteredOrders" size="small" border class="account-detail-table account-orders-table">
                     <el-table-column label="时间" width="72">
                       <template #default="{ row }">{{ compactTimestamp(row.created_at) }}</template>
                     </el-table-column>
@@ -360,6 +366,7 @@
                       </template>
                     </el-table-column>
                   </el-table>
+                  </div>
                   <div v-else class="account-empty">暂无委托记录</div>
                 </section>
               </el-tab-pane>
@@ -370,7 +377,8 @@
                     <span>成交记录</span>
                     <span class="panel-hint">{{ fills.length }} 条{{ fills.length >= 500 ? '（该日仅最近 500 条）' : '' }}</span>
                   </div>
-                  <el-table v-if="fills.length" :data="fills" size="small" border class="account-detail-table">
+                  <div v-if="fills.length" class="table-host account-table-host">
+                  <el-table :data="fills" size="small" border class="account-detail-table account-fills-table">
                     <el-table-column label="时间" width="72">
                       <template #default="{ row }">{{ compactTimestamp(row.filled_at) }}</template>
                     </el-table-column>
@@ -403,6 +411,7 @@
                       </template>
                     </el-table-column>
                   </el-table>
+                  </div>
                   <div v-else class="account-empty">暂无成交记录</div>
                 </section>
               </el-tab-pane>
@@ -417,7 +426,8 @@
                         <template v-else-if="pnlTotalsView"> · <el-tag type="danger" size="small" effect="plain">重放与账户已实现有偏差</el-tag></template>
                       </span>
                   </div>
-                  <el-table v-if="pnlCodesView.length" :data="pnlCodesView" size="small" border class="account-detail-table" :row-key="(r: any) => r.code">
+                  <div v-if="pnlCodesView.length" class="table-host account-table-host">
+                  <el-table :data="pnlCodesView" size="small" border class="account-detail-table account-pnl-table" :row-key="(r: any) => r.code">
                     <el-table-column prop="code" label="代码" width="78" />
                     <el-table-column label="名称" min-width="96" show-overflow-tooltip>
                       <template #default="{ row }">{{ accountSecurityName(row) }}</template>
@@ -474,6 +484,7 @@
                       </template>
                     </el-table-column>
                   </el-table>
+                  </div>
                   <div v-else class="account-empty">暂无收益记录</div>
                 </section>
               </el-tab-pane>
@@ -1627,13 +1638,21 @@ onBeforeUnmount(() => {
   flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   scrollbar-width: thin;
+}
+
+.account-table-host {
+  /* 账户明细表格列较多，独立横向滚动，避免被 el-tabs / account-content 截断。 */
+  max-height: none;
+  margin-top: var(--sp-1);
 }
 
 .account-section {
   margin-top: var(--sp-3);
   min-width: 0;
+  overflow: visible;
 }
 
 .account-section-header {
@@ -1648,11 +1667,37 @@ onBeforeUnmount(() => {
 }
 
 .account-detail-table {
-  min-width: 820px;
+  width: max-content;
+  min-width: 100%;
+}
+
+.account-positions-table { min-width: 820px; }
+.account-orders-table { min-width: 760px; }
+.account-fills-table { min-width: 720px; }
+.account-pnl-table { min-width: 860px; }
+
+.account-table-host :deep(.el-table__body-wrapper),
+.account-table-host :deep(.el-table__header-wrapper) {
+  overflow: visible;
+}
+
+.account-tabs :deep(.el-tabs__content),
+.account-tabs :deep(.el-tab-pane) {
+  overflow: visible;
 }
 
 .orders-detail-table {
   min-width: 620px;
+}
+
+.account-panel .panel-header {
+  align-items: flex-start;
+}
+
+.account-panel .panel-title {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
 }
 
 .account-empty {

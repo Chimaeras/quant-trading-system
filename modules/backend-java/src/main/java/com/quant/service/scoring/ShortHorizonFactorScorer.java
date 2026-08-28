@@ -98,7 +98,10 @@ public final class ShortHorizonFactorScorer {
         } else if (rsi14 < 45) {
             s += ScoringUtils.clamp((45 - rsi14) * 0.4, 0, 8);
         }
-        if (rsiDelta3 > 0) {
+        // 仅当未到"极端超买"（rsi14<80）时，RSI 回升才算"超卖修复"。
+        // 极端超买（如横盘后直拉、rsi 冲到 ~100）继续走高属追涨，与超卖修复语义相反，
+        // 且 scoreShortMomentum 对极端涨幅已扣分，此处不应再叠加奖励（正常修复可站上 70）。
+        if (rsiDelta3 > 0 && rsi14 < 80) {
             s += ScoringUtils.clamp(rsiDelta3 * 1.2, 0, 12);
         }
         if (closeVsMa5Pct >= -3 && closeVsMa5Pct <= 2) {

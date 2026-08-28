@@ -81,7 +81,7 @@
       <div class="stat-grid">
         <div class="stat-card compact"><div class="label">总收益率</div><div class="value" :class="pctClass(result.totalReturn)">{{ fmtPct(result.totalReturn) }}</div></div>
         <div class="stat-card compact"><div class="label">最大回撤</div><div class="value text-down">{{ fmtPct(result.maxDrawdown) }}</div></div>
-        <div class="stat-card compact"><div class="label">夏普比率</div><div class="value">{{ result.sharpeRatio?.toFixed(2) }}</div></div>
+        <div class="stat-card compact"><div class="label">夏普比率</div><div class="value">{{ (result.sharpeRatio != null && Number.isFinite(Number(result.sharpeRatio))) ? result.sharpeRatio.toFixed(2) : '--' }}</div></div>
         <div class="stat-card compact"><div class="label">胜率</div><div class="value">{{ fmtPct(result.winRate) }}</div></div>
         <div class="stat-card compact"><div class="label">最终资金</div><div class="value">{{ result.finalCapital?.toLocaleString() }}</div></div>
         <div class="stat-card compact"><div class="label">交易次数</div><div class="value">{{ result.totalTrades }}</div></div>
@@ -133,12 +133,13 @@ const form = reactive({
 })
 
 function fmtPct(v?: number) {
-  if (v == null) return '--'
+  if (v == null || !Number.isFinite(Number(v))) return '--'
   return `${(v * 100).toFixed(2)}%`
 }
 
 function pctClass(v?: number) {
-  return v != null && v >= 0 ? 'text-up' : 'text-down'
+  if (v == null || !Number.isFinite(Number(v))) return ''
+  return v >= 0 ? 'text-up' : 'text-down'
 }
 
 const assumptionLabels: Record<string, string> = {

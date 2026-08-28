@@ -116,6 +116,10 @@ public final class DynamicWeightingService {
                 stockChar.sentimentWeight() * normalizedStockWeight;
 
         double total = technicalWeight + fundamentalWeight + sentimentWeight;
+        if (total < 1e-12) {
+            // 市场环境与个股特征权重均异常（如配置数组全 0）时归一化无意义，直接回落默认权重，避免 NaN 传播。
+            return getDefaultWeights();
+        }
         technicalWeight /= total;
         fundamentalWeight /= total;
         sentimentWeight /= total;

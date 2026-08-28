@@ -165,7 +165,9 @@ public final class TechnicalIndicators {
                 avgGain = (avgGain * (period - 1) + gain) / period;
                 avgLoss = (avgLoss * (period - 1) + loss) / period;
             }
-            if (avgLoss < 1e-12) {
+            if (avgGain < 1e-12 && avgLoss < 1e-12) {
+                out[i] = 50.0;   // 完全无波动（横盘/停牌复牌），动量中性，不应判为超买
+            } else if (avgLoss < 1e-12) {
                 out[i] = 100.0;
             } else if (avgGain < 1e-12) {
                 out[i] = 0.0;

@@ -483,7 +483,7 @@
               <span>最高：{{ (turnover.max_turnover * 100).toFixed(2) }}%</span>
               <span>最低：{{ (turnover.min_turnover * 100).toFixed(2) }}%</span>
             </div>
-            <el-table v-if="turnover.daily_turnover.length" :data="turnover.daily_turnover" size="small" stripe border max-height="320">
+            <el-table v-if="turnover.daily_turnover?.length" :data="turnover.daily_turnover" size="small" stripe border max-height="320">
               <el-table-column prop="trade_date" label="信号日" min-width="110" />
               <el-table-column label="换手率" min-width="100">
                 <template #default="{ row }">{{ (row.turnover * 100).toFixed(2) }}%</template>

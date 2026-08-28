@@ -132,8 +132,10 @@ public class MarketEnvironmentAnalyzer {
             if (bars.size() < 20) continue;
 
             // 计算20日收益率标准差
+            // bars 按 TradeDate ASC 排列，取最近 20 条（靠近 tradeDate），避免用窗口最旧段导致波动率滞后约一个窗口。
             java.util.List<Double> returns = new java.util.ArrayList<>();
-            for (int i = 1; i < Math.min(21, bars.size()); i++) {
+            int first = Math.max(1, bars.size() - 20);
+            for (int i = first; i < bars.size(); i++) {
                 if (bars.get(i).getClosePrice() != null && bars.get(i-1).getClosePrice() != null) {
                     double ret = (bars.get(i).getClosePrice().doubleValue() -
                                   bars.get(i-1).getClosePrice().doubleValue()) /

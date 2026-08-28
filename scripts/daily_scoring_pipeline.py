@@ -72,7 +72,7 @@ def strategy_payloads(trade_date: str, pool: int) -> list[tuple[str, dict]]:
             "tradeDate": trade_date,
             "fullHistory": True,
             "topN": pool,
-            "minAvgAmount": 30000,       # 万元；与前端默认一致
+            "minAvgAmount": 30_000_000,   # 单位元（=3000万元日均成交额）；修正「万元→元」口径，与后端默认一致
             "minTrendScore": 40,
             "minListingDays": 60,
             "horizonProfile": "MEDIUM_TREND",
@@ -83,7 +83,7 @@ def strategy_payloads(trade_date: str, pool: int) -> list[tuple[str, dict]]:
             "tradeDate": trade_date,
             "topN": pool,
             "minTotalScore": 60,
-            "minAvgAmount": 30000,
+            "minAvgAmount": 30_000_000,   # 单位元（=3000万元日均成交额）；修正「万元→元」口径
             "excludeST": True,
             "minListingDays": 60,
             "persist": True,
@@ -93,7 +93,7 @@ def strategy_payloads(trade_date: str, pool: int) -> list[tuple[str, dict]]:
             "tradeDate": trade_date,
             "topN": pool,
             "minTotalScore": 45,
-            "minAvgAmount": 30000,
+            "minAvgAmount": 30_000_000,   # 单位元（=3000万元日均成交额）；修正「万元→元」口径
             "excludeST": True,
             "minListingDays": 60,
             "persist": True,
@@ -104,7 +104,7 @@ def strategy_payloads(trade_date: str, pool: int) -> list[tuple[str, dict]]:
             "tradeDate": trade_date,
             "topN": pool,
             "minTotalScore": 55,
-            "minAvgAmount": 30000,
+            "minAvgAmount": 30_000_000,   # 单位元（=3000万元日均成交额）；修正「万元→元」口径
             "excludeST": True,
             "minListingDays": 60,
             "persist": True,
@@ -115,7 +115,7 @@ def strategy_payloads(trade_date: str, pool: int) -> list[tuple[str, dict]]:
             "tradeDate": trade_date,
             "topN": pool,
             "minTotalScore": 55,
-            "minAvgAmount": 30000,
+            "minAvgAmount": 30_000_000,   # 单位元（=3000万元日均成交额）；修正「万元→元」口径
             "excludeST": True,
             "minListingDays": 60,
             "persist": True,
@@ -152,6 +152,9 @@ def _http(method: str, path: str, body=None, params=None, token=None, timeout=12
     except urllib.error.HTTPError as e:
         raw = e.read().decode("utf-8", "replace")
         raise HttpError(e.code, None, raw)
+    except urllib.error.URLError as e:
+        # 连接被拒/DNS/网络瞬断/超时：统一包装为 HttpError，避免在长轮询中未捕获崩溃（调用方只捕获 HttpError）。
+        raise HttpError(None, None, f"网络错误: {e.reason}")
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError:
@@ -204,8 +207,11 @@ def create_update_task(mode, start, end, token):
     return task_id
 
 
-def poll_update(task_id, token):
+def poll_update(task_id, token, timeout_s):
+    deadline = time.time() + timeout_s
     while True:
+        if time.time() > deadline:
+            raise HttpError(None, None, f"数据更新任务 {task_id} 轮询超过 {timeout_s}s，放弃等待")
         data = _http("GET", f"/data/update/tasks/{task_id}", token=token)
         status = data.get("status", "")
         if status in UPDATE_TERMINAL:
@@ -223,8 +229,11 @@ def create_scoring_task(payload, token):
     return data
 
 
-def poll_scoring(task_id, token):
+def poll_scoring(task_id, token, timeout_s):
+    deadline = time.time() + timeout_s
     while True:
+        if time.time() > deadline:
+            raise HttpError(None, None, f"打分任务 {task_id} 轮询超过 {timeout_s}s，放弃等待")
         data = _http("GET", f"/scoring/unified/tasks/{task_id}", token=token)
         status = data.get("status", "")
         if status == "SUCCESS":
@@ -327,23 +336,17 @@ def main():
         try:
             task_id = create_update_task(args.mode, start, end, token)
             print(f"[数据更新] 任务 {task_id} 已创建，轮询中...")
-            t0 = time.time()
-            while True:
-                if time.time() - t0 > UPDATE_TIMEOUT_S:
-                    print("[数据更新] 超时，跳过（继续对已有数据打分）", file=sys.stderr)
-                    break
-                info = poll_update(task_id, token)
-                status = info.get("status")
-                print(f"[数据更新] {status} 插入={info.get('inserted_count', 0)} "
-                      f"跳过={info.get('skipped_count', 0)} 成功={info.get('success_stocks', 0)} "
-                      f"失败={info.get('failed_stocks', 0)}")
-                if status in ("SUCCESS", "PARTIAL"):
-                    break
-                if status in ("FAILED", "STOPPED"):
-                    print("[数据更新] 未成功，中止后续打分以避免基于过期数据", file=sys.stderr)
-                    sys.exit(2)
+            info = poll_update(task_id, token, UPDATE_TIMEOUT_S)
+            status = info.get("status")
+            print(f"[数据更新] {status} 插入={info.get('inserted_count', 0)} "
+                  f"跳过={info.get('skipped_count', 0)} 成功={info.get('success_stocks', 0)} "
+                  f"失败={info.get('failed_stocks', 0)}")
+            if status in ("FAILED", "STOPPED"):
+                print("[数据更新] 未成功，中止后续打分以避免基于过期数据", file=sys.stderr)
+                sys.exit(2)
         except HttpError as e:
-            print(f"[数据更新] 创建失败: {e.message}", file=sys.stderr)
+            # 更新失败/超时：跳过数据更新，继续对已有数据打分（原逻辑一致）
+            print(f"[数据更新] 未完成（{e.message}），继续对已有数据打分", file=sys.stderr)
 
     # 2) 依次打分 5 个维度
     strategies = strategy_payloads(end.isoformat(), args.pool)
@@ -357,12 +360,7 @@ def main():
                 print(f"[打分] {name} 命中同参历史结果，直接复用 result_id={created.get('result_id')}")
             else:
                 print(f"[打分] {name} 任务 {tid}（{created.get('status')}），轮询中...")
-                t0 = time.time()
-                while True:
-                    if time.time() - t0 > SCORING_TIMEOUT_S:
-                        raise HttpError(None, None, "打分超时")
-                    done = poll_scoring(tid, token)
-                    break
+                done = poll_scoring(tid, token, SCORING_TIMEOUT_S)
                 print(f"[打分] {name} 完成 result_id={done.get('result_id')}")
             data = fetch_result(name, end.isoformat(), args.pool, token)
             rows = data.get("list") or data.get("items") or []

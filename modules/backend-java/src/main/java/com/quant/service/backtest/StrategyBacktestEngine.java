@@ -213,8 +213,9 @@ public final class StrategyBacktestEngine {
                     && !Double.isNaN(execPrice)
                     && !isLimitUpAtExecOpen(execPrice, preClose, limitPct)) {
                 double buyPrice = execPrice * (1 + SLIPPAGE);
-                // 买入可负担股数须预留佣金，否则 cash -= amount + commission 可能使现金为负
-                int volume = (int) (cash / (buyPrice * (1 + COMMISSION)) / 100) * 100;
+                // 买入可负担股数须预留佣金（含 5 元最低佣金），否则 cash -= amount + commission 可能使现金为负。
+                // 最低佣金 5 元在小额交易时远高于费率佣金（费率 0.0003），若只按费率预留会低估成本、透支现金。
+                int volume = (int) ((cash - MIN_COMMISSION) / (buyPrice * (1 + COMMISSION)) / 100) * 100;
                 if (volume >= 100) {
                     double amount = buyPrice * volume;
                     double commission = Math.max(amount * COMMISSION, MIN_COMMISSION);
@@ -381,26 +382,28 @@ public final class StrategyBacktestEngine {
 
     /**
      * 涨停开盘判定（成交口径）：对 raw 原始开盘价判定封板，避免用 qfq 复权开盘价误判。
+     * <p>注意：不做上界判定。开盘价超过涨停价（脏数据、除权日 preClose 未更新）时，
+     * 实际比封板更不可能成交，必须判为不可买入而非放行（与 {@link #isLimitUpAtOpen} 口径一致）。
      */
     public static boolean isLimitUpAtExecOpen(double execOpen, double preClose, double limitPct) {
         if (Double.isNaN(execOpen) || execOpen <= 0 || preClose <= 0) {
             return false;
         }
         double limitUpPrice = preClose * (1 + limitPct);
-        return execOpen >= limitUpPrice * (1 - LIMIT_PRICE_TOLERANCE)
-                && execOpen <= limitUpPrice * (1 + LIMIT_PRICE_TOLERANCE);
+        return execOpen >= limitUpPrice * (1 - LIMIT_PRICE_TOLERANCE);
     }
 
     /**
      * 跌停开盘判定（成交口径）：对 raw 原始开盘价判定封板。
+     * <p>注意：不做下界判定。开盘价低于跌停价（脏数据、除权日 preClose 未更新）时，
+     * 实际比封板更不可能成交，必须判为不可卖出而非放行（与 {@link #isLimitDownAtOpen} 口径一致）。
      */
     public static boolean isLimitDownAtExecOpen(double execOpen, double preClose, double limitPct) {
         if (Double.isNaN(execOpen) || execOpen <= 0 || preClose <= 0) {
             return false;
         }
         double limitDownPrice = preClose * (1 - limitPct);
-        return execOpen <= limitDownPrice * (1 + LIMIT_PRICE_TOLERANCE)
-                && execOpen >= limitDownPrice * (1 - LIMIT_PRICE_TOLERANCE);
+        return execOpen <= limitDownPrice * (1 + LIMIT_PRICE_TOLERANCE);
     }
 
     /**

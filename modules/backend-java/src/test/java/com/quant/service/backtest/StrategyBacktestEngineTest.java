@@ -47,8 +47,9 @@ class StrategyBacktestEngineTest {
     void buyPriceMatchesExecutionDayOpenNotClose() {
         List<MarketData> bars = macdOscillationSeries();
         for (int i = 0; i < bars.size(); i++) {
-            double open = 30 + i;
-            bars.get(i).setOpenPrice(BigDecimal.valueOf(open));
+            // 开盘贴近前收（真实 A 股日内正常跳动），否则 30+i 的虚假跳空远超涨停会被拒买，无法验证「按开盘成交」。
+            double prevClose = i > 0 ? bars.get(i - 1).getClosePrice().doubleValue() : bars.get(i).getClosePrice().doubleValue();
+            bars.get(i).setOpenPrice(BigDecimal.valueOf(prevClose));
         }
         // V2-MP-014：成交执行价只读 market_price_raw 原始开盘价，须提供 rawByDate 才能成交
         Map<LocalDate, MarketPriceRaw> rawByDate = rawFromBars(bars);
@@ -157,6 +158,24 @@ class StrategyBacktestEngineTest {
         bar.setOpenPrice(BigDecimal.valueOf(10.5));
         assertThat(StrategyBacktestEngine.isLimitUpAtOpen(bar, 10.0, 0.10)).isFalse();
         assertThat(StrategyBacktestEngine.isLimitDownAtOpen(bar, 10.0, 0.10)).isFalse();
+    }
+
+    @Test
+    void execLimitUpBlocksBuyWhenOpenBeyondLimit() {
+        // 成交口径：开盘价超过涨停价（脏数据/除权日 preClose 未更新）必须判为不可买入，
+        // 不能因上界容差而放行买单。
+        assertThat(StrategyBacktestEngine.isLimitUpAtExecOpen(11.5, 10.0, 0.10)).isTrue();
+        assertThat(StrategyBacktestEngine.isLimitUpAtExecOpen(11.0, 10.0, 0.10)).isTrue();
+        assertThat(StrategyBacktestEngine.isLimitUpAtExecOpen(10.5, 10.0, 0.10)).isFalse();
+    }
+
+    @Test
+    void execLimitDownBlocksSellWhenOpenBeyondLimit() {
+        // 成交口径：开盘价低于跌停价（脏数据/除权日 preClose 未更新）必须判为不可卖出，
+        // 不能因下界容差而放行卖单。
+        assertThat(StrategyBacktestEngine.isLimitDownAtExecOpen(8.5, 10.0, 0.10)).isTrue();
+        assertThat(StrategyBacktestEngine.isLimitDownAtExecOpen(9.0, 10.0, 0.10)).isTrue();
+        assertThat(StrategyBacktestEngine.isLimitDownAtExecOpen(9.5, 10.0, 0.10)).isFalse();
     }
 
     @Test
@@ -284,12 +303,19 @@ class StrategyBacktestEngineTest {
         return rawByDate;
     }
 
-    /** 前 30 日横盘、第 31 日放量拉升触发 MA 金叉，第 32 日开盘买入 */
+    /** 前 30 日横盘、第 31 日起温和放量拉升触发 MA 金叉，第 32 日开盘买入（各日涨跌幅贴合 A 股 ±10% 限制） */
     private static List<MarketData> maCrossGoldenCrossSeries() {
         List<MarketData> bars = new ArrayList<>();
         LocalDate start = LocalDate.of(2024, 1, 2);
+        // 0-29 横盘 10.0；30 起温和上涨（单日 ≤6% 且低于涨停），使 MA5 在 index30 上穿 MA20。
+        double[] closes = {
+                10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
+                10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
+                10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
+                10.6, 11.2, 11.8, 12.4, 13.0
+        };
         for (int i = 0; i < 35; i++) {
-            double close = i < 30 ? 10.0 : 10.0 + (i - 29) * 40.0;
+            double close = closes[i];
             MarketData bar = new MarketData();
             bar.setTradeDate(start.plusDays(i));
             bar.setOpenPrice(BigDecimal.valueOf(close));

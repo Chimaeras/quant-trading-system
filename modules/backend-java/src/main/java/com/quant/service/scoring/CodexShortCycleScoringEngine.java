@@ -543,7 +543,10 @@ public class CodexShortCycleScoringEngine {
 
         List<Double> amtHist = amount.subList(Math.max(0, n - 21), n - 1);
         double medAmt = medianList(amtHist);
-        double volShock = medAmt > 0 ? Math.log(Math.max(1e-9, amount.get(n - 1) / medAmt)) : 0;
+        Double todayAmtBoxed = amount.get(n - 1);
+        double todayAmt = todayAmtBoxed != null ? todayAmtBoxed : 0;
+        // 当日成交额为 0/缺失（停牌、无数据）时不应产生 -20.7 的量能冲击：改为中性 0，而非 log(1e-9) 的极端负值。
+        double volShock = (medAmt > 0 && todayAmt > 0) ? Math.log(todayAmt / medAmt) : 0;
         double volConfirm = Math.signum(ret5) * volShock;
 
         Double pe = last.getPeRatio() != null ? last.getPeRatio().doubleValue() : null;

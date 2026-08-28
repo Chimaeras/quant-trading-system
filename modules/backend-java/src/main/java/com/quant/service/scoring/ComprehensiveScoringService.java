@@ -368,10 +368,13 @@ public class ComprehensiveScoringService {
             double[] closeVals = new double[61];
             for (int i = 0; i < 61; i++) {
                 MarketData m = bars.get(n - 61 + i);
-                closeVals[i] = m.getClosePrice() != null ? m.getClosePrice().doubleValue() : 0;
+                closeVals[i] = m.getClosePrice() != null ? m.getClosePrice().doubleValue() : Double.NaN;
             }
-            double mean = Arrays.stream(closeVals).average().orElse(0);
-            double var = Arrays.stream(closeVals).map(v -> (v - mean) * (v - mean)).average().orElse(0);
+            // 未收盘价缺失应剔除，而不是当 0 价处理：0 会拉低均值、抬高方差，使 vol60 失真进而误判股票类型。
+            double[] valid = java.util.Arrays.stream(closeVals).filter(v -> !Double.isNaN(v)).toArray();
+            double mean = valid.length > 0 ? java.util.Arrays.stream(valid).average().orElse(0) : 0;
+            double var = valid.length > 1
+                    ? java.util.Arrays.stream(valid).map(v -> (v - mean) * (v - mean)).average().orElse(0) : 0;
             vol60 = mean > 0 ? Math.sqrt(var) / mean * 100 : 0;
         }
 

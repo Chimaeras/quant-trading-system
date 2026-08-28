@@ -10,11 +10,11 @@ ALLOWED_API_BASE = "https://mkapi2.dfcfs.com/finskillshub"
 # 交易时段（本地时间，A 股连续竞价）
 TRADING_SESSIONS = (("09:30", "11:30"), ("13:00", "15:00"))
 
-# 费用口径（与 Java TradingFeePolicy 对齐）
+# 费用口径（佣金/印花税与 Java TradingFeePolicy 对齐；滑点不在本区块——
+# 见 PaperConfig.slippage_bps，paper live 采用文档记载的 20bps 组合限价/成交缓冲，宽于 Java 回测 2bps）
 COMMISSION_RATE = 0.0003
 MIN_COMMISSION = 5.0
 STAMP_TAX_RATE = 0.0005  # 仅卖出
-SLIPPAGE_RATE = 0.0002
 LOT_SIZE = 100
 
 # 当前 universe 仅为 A 股股票，最小报价单位统一按 0.01；基金/债券接入后

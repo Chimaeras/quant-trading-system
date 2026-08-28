@@ -615,7 +615,7 @@ public class OversoldReboundScoringService {
         // 周K形态
         trendScore += ScoringRules.scoreBearWeeks(consecutiveBearWeeks);
 
-        // --- 成交量验证（30分）---
+        // --- 成交量验证（25分）---
         int volumeScore = 0;
         if (vRatio > 0.8) volumeScore += 15;
         else if (vRatio >= 0.5) volumeScore += 10;
@@ -636,7 +636,7 @@ public class OversoldReboundScoringService {
 
         // 统一使用加权归一化得分 (0-100 分制)
         double weightedScore = (trendScore / 40.0) * 100 * 0.35
-                + (volumeScore / 30.0) * 100 * 0.25
+                + (volumeScore / 25.0) * 100 * 0.25
                 + (oversoldScore / 30.0) * 100 * 0.25
                 + (confirmScore / 15.0) * 100 * 0.15;
         if (!confirm.hasSignal()) {

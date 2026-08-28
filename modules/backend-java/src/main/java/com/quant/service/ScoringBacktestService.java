@@ -189,7 +189,6 @@ public class ScoringBacktestService {
         int frozenCount = 0;
         Map<String, Integer> rejectReasons = new LinkedHashMap<>();
         int rawPriceHits = 0;
-        int qfqPriceHits = 0;
 
         for (SelectorResult result : dailyResults) {
             LocalDate tradeDate = result.getTradeDate();
@@ -365,7 +364,7 @@ public class ScoringBacktestService {
             }
         }
 
-        String priceSource = resolvePriceSourceLabel(rawPriceHits, qfqPriceHits);
+        String priceSource = resolvePriceSourceLabel(rawPriceHits);
         Map<String, Object> funnel = new LinkedHashMap<>();
         funnel.put("signal_count", signalCount);
         funnel.put("buyable_count", buyableCount);
@@ -375,7 +374,6 @@ public class ScoringBacktestService {
         funnel.put("price_source", priceSource);
         funnel.put("metric_scope", "FILLED_SAMPLE");
         funnel.put("raw_price_hits", rawPriceHits);
-        funnel.put("qfq_legacy_hits", qfqPriceHits);
         funnel.put("note", "winRate/filledSampleWinRate 仅含成交成功样本；signal/buyable/filled/frozen 闭合信号漏斗");
 
         // 6. 汇总各持仓周期的统计
@@ -846,17 +844,13 @@ public class ScoringBacktestService {
         }
     }
 
-    private static String resolvePriceSourceLabel(int rawHits, int qfqHits) {
-        if (rawHits > 0 && qfqHits == 0) {
+    private static String resolvePriceSourceLabel(int rawHits) {
+        // V2-MP-014 之后成交执行价一律只读 market_price_raw，不再有 qfq 兜底成交。
+        // rawHits==0 意味着本批次没有任何成交样本（而非「用了复权价」），如实标注 none。
+        if (rawHits > 0) {
             return "market_price_raw";
         }
-        if (rawHits == 0 && qfqHits > 0) {
-            return "qfq_legacy";
-        }
-        if (rawHits > 0) {
-            return "mixed";
-        }
-        return "qfq_legacy";
+        return "none";
     }
 
     private static Map<String, Object> emptyFunnel(String priceSource) {

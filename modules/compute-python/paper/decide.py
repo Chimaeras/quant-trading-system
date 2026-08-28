@@ -16,6 +16,24 @@ _WEAK_LIMIT_PCT = 9.8
 # 主板涨停幅度（用于从 last/pct_chg 反推涨停价，来源记录在 limit_up_source）
 _MAIN_BOARD_LIMIT_PCT = 10.0
 _BSE_LIMIT_PCT = 30.0
+# 创业板（300/301）与科创板（688/689）涨跌幅 20%，与 models.board_blocked 板块闸保持一致
+_CHINEXT_LIMIT_PCT = 20.0
+_STAR_LIMIT_PCT = 20.0
+
+
+def board_limit_pct(code: str, exchange: str) -> float:
+    """按证券代码/交易所返回涨跌幅（用于反推涨停价）。
+
+    板块判定规则与 models.board_blocked 保持一致：300/301 → 创业板 20%，
+    688/689 → 科创板 20%，BJ/BSE → 北交所 30%，其余 → 主板 10%。
+    """
+    if str(exchange).upper() in {"BJ", "BSE"}:
+        return _BSE_LIMIT_PCT
+    if code.startswith(("300", "301")):
+        return _CHINEXT_LIMIT_PCT
+    if code.startswith(("688", "689")):
+        return _STAR_LIMIT_PCT
+    return _MAIN_BOARD_LIMIT_PCT
 
 
 def in_trading_window(now: datetime) -> bool:
@@ -60,7 +78,7 @@ def affordable_qty(avail_balance: float, last: float, commission_estimate: float
 
 
 def derive_limit_up_price(quote: Quote) -> Quote:
-    """从 last 与 pct_chg 反推涨停价：主板按 10%，北交所按 30%。
+    """从 last 与 pct_chg 反推涨停价：主板 10%、北交所 30%、创业板/科创板 20%。
 
     prev_close=last/(1+pct/100)，再按对应市场涨跌幅取整到 2 位。
 
@@ -72,7 +90,7 @@ def derive_limit_up_price(quote: Quote) -> Quote:
     if quote.pct_chg <= -100:
         return quote
     prev_close = quote.last / (1 + quote.pct_chg / 100)
-    limit_pct = _BSE_LIMIT_PCT if str(quote.exchange).upper() in {"BJ", "BSE"} else _MAIN_BOARD_LIMIT_PCT
+    limit_pct = board_limit_pct(quote.code, quote.exchange)
     quote.limit_up_price = round(prev_close * (1 + limit_pct / 100), 2)
     quote.limit_up_source = (
         f"derived:prev_close=last/(1+pct_chg/100)={prev_close:.4f};"

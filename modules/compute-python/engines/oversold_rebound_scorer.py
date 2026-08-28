@@ -157,7 +157,7 @@ def score_oversold_rebound(df: pd.DataFrame) -> Optional[ScoreResult]:
         trend += 3
     trend += score_bear_weeks(bear_weeks)
 
-    # --- 量能维度（30分）---
+    # --- 量能维度（25分）---
     volume_score = 0
     if v_ratio > 0.8:
         volume_score += 15
@@ -207,7 +207,7 @@ def score_oversold_rebound(df: pd.DataFrame) -> Optional[ScoreResult]:
     # --- 统一加权得分 (0-100分制，与 Java 一致) ---
     weighted = (
         (trend / 40.0) * 100 * 0.35
-        + (volume_score / 30.0) * 100 * 0.25
+        + (volume_score / 25.0) * 100 * 0.25
         + (oversold / 30.0) * 100 * 0.25
         + (confirm_score / 15.0) * 100 * 0.15
     )

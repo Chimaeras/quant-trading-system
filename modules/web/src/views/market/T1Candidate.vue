@@ -19,7 +19,7 @@
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="genLoading" @click="generate">生成 T+1 候选</el-button>
-          <el-button :loading="settleLoading" :disabled="!result || result.candidates.length === 0" @click="settle">次日核销</el-button>
+          <el-button :loading="settleLoading" :disabled="!result || (result.candidates?.length ?? 0) === 0" @click="settle">次日核销</el-button>
           <el-button :disabled="!tableData.length" @click="exportOperationList">导出次日操作清单</el-button>
           <el-button :loading="recentLoading" @click="loadRecent">最近清单</el-button>
         </el-form-item>
@@ -67,12 +67,12 @@
         </el-table-column>
         <el-table-column label="当日涨跌" width="90">
           <template #default="{ row }">
-            <span :class="(row.change_pct ?? 0) >= 0 ? 'text-success' : 'text-danger'">{{ fmt1(row.change_pct) }}%</span>
+            <span :class="(row.change_pct ?? 0) >= 0 ? 'text-up' : 'text-down'">{{ fmt1(row.change_pct) }}%</span>
           </template>
         </el-table-column>
         <el-table-column label="次日涨幅" width="90">
           <template #default="{ row }">
-            <span v-if="row.settled" :class="(row.next_ret ?? 0) >= 0 ? 'text-success' : 'text-danger'">{{ pct(row.next_ret) }}</span>
+            <span v-if="row.settled" :class="(row.next_ret ?? 0) >= 0 ? 'text-up' : 'text-down'">{{ pct(row.next_ret) }}</span>
             <span v-else-if="row.skip">跳过</span>
             <span v-else>待核销</span>
           </template>
@@ -85,7 +85,7 @@
         </el-table-column>
         <el-table-column label="高开" width="80">
           <template #default="{ row }">
-            <span v-if="row.settled" :class="(row.gap ?? 0) >= 0 ? 'text-success' : 'text-danger'">{{ pct(row.gap) }}</span>
+            <span v-if="row.settled" :class="(row.gap ?? 0) >= 0 ? 'text-up' : 'text-down'">{{ pct(row.gap) }}</span>
             <span v-else>—</span>
           </template>
         </el-table-column>
@@ -171,7 +171,7 @@
           </el-table-column>
           <el-table-column label="平均次日涨幅" min-width="110">
             <template #default="{ row }">
-              <span :class="(row.avg_next_ret ?? 0) >= 0 ? 'text-success' : 'text-danger'">{{ pct(row.avg_next_ret) }}</span>
+              <span :class="(row.avg_next_ret ?? 0) >= 0 ? 'text-up' : 'text-down'">{{ pct(row.avg_next_ret) }}</span>
             </template>
           </el-table-column>
         </el-table>

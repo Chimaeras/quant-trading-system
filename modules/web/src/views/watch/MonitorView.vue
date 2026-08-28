@@ -880,7 +880,11 @@ const persistPositions = computed<Record<string, any>[]>(() => {
   return (account.value?.positions || []).map((row) => {
     const qty = Number(row.qty)
     const cost = Number(row.avg_cost)
-    const current = quotes.get(String(row.code)) ?? Number(row.last_price)
+    const live = quotes.get(String(row.code))
+    const last = Number(row.last_price)
+    const current = live != null && Number.isFinite(Number(live)) && Number(live) > 0
+      ? Number(live)
+      : (Number.isFinite(last) && last > 0 ? last : NaN)
     const hasCurrent = Number.isFinite(current)
     const hasPositionMath = hasCurrent && Number.isFinite(qty) && Number.isFinite(cost)
     return {
@@ -984,8 +988,13 @@ async function loadAccountData() {
 function eventSummary(row: WatchEvent): string {
   const d = row.detail as any
   switch (row.type) {
-    case 'QUOTE':
-      return `${Number(d.last).toFixed(2)} ${d.pct_chg >= 0 ? '+' : ''}${Number(d.pct_chg).toFixed(2)}%`
+    case 'QUOTE': {
+      const last = Number(d.last)
+      const chg = Number(d.pct_chg)
+      if (!Number.isFinite(last)) return '—'
+      const chgText = Number.isFinite(chg) ? `${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%` : '—'
+      return `${last.toFixed(2)} ${chgText}`
+    }
     case 'QUOTE_FAIL':
       return String(d.message || '行情失败')
     case 'BAR_CLOSED':

@@ -1679,3 +1679,51 @@ def test_serve_rejects_bad_query_params(tmp_path: Path):
         pass
     else:
         raise AssertionError("非法参数必须抛 BadRequestError")
+
+
+def test_internal_paper_full_fill_releases_reserved_commission(tmp_path: Path):
+    """全额买单不应把「按限价冻结的预估佣金 − 实际成交佣金」泄漏进 frozen_cash。
+
+    提交时冻结的是 限价×全额 + 限价×全额×费率(≈30>5 元最低佣金)；成交价=min(限价,开盘*(1+滑点))
+    通常低于限价，故按实际成交价累计的佣金会低于预估；此前逐笔只释放实际佣金，差值永久滞留
+    frozen_cash，抬高资金占用并误拒后续买单（撤单路径反而正确释放该差值，造成不一致）。
+    """
+    from paper.watch.internal_broker import InternalPaperBroker
+    from paper.watch.oms import OmsService, OrderStatus
+
+    config = _config(
+        watch_execution_mode="INTERNAL_PAPER",
+        paper_session_id="test-comm",
+        internal_initial_cash=1_000_000,
+        internal_fill_participation=0.10,
+        slippage_bps=20,
+    )
+    store = SqliteWatchStore(tmp_path / "runtime.sqlite3")
+    broker = InternalPaperBroker(store, config, now_fn=lambda: T0)
+    oms = OmsService(store, session_id=config.paper_session_id, channel="INTERNAL_PAPER")
+    order, _ = oms.create(
+        run_id="run-1", strategy="MA_CROSS", signal_bar_ts=T0.isoformat(),
+        code="600519", side="buy", qty=1000, limit_price=100.0, ttl_sec=600, now=T0,
+    )
+    order = oms.transition(order.client_order_id, OrderStatus.SUBMITTING)
+    assert broker.submit_local_order(order).ok is True
+
+    before, _ = broker.balance()
+    # 开仓冻结 = 限价×数量 + max(限价×数量×费率, 最低佣金) = 100000 + 30
+    assert before.frozen == 100030.0
+    # 成交价 = min(限价 100, 开盘 90×(1+20/10000)) = 90.18 → gross=90180
+    fills = broker.process_bars([
+        WatchBar(
+            code="600519", period_min=5,
+            open=90.0, high=96.0, low=89.5, close=95.0,
+            volume=50000, start_ts=T0, end_ts=T0 + timedelta(minutes=5), closed=True,
+        )
+    ], now=T0 + timedelta(minutes=5))
+    assert len(fills) == 1
+
+    after, _ = broker.balance()
+    # 实际佣金 = max(90180×0.0003, 5) = 27.054；预估佣金(30) − 实际(27.054) 应被释放，frozen 归零
+    expected_commission = 90180.0 * 0.0003
+    assert after.frozen == 0.0
+    assert abs(after.avail_balance - (1_000_000 - 90180.0 - expected_commission)) < 1e-6
+    store.close()

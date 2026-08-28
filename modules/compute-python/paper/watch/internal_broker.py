@@ -287,6 +287,14 @@ class InternalPaperBroker:
             if order.side == "buy":
                 release = qty * order.limit_price + commission
                 account["frozen_cash"] = max(float(account["frozen_cash"]) - release, 0.0)
+                if new_filled == order.qty:
+                    # 全额成交：提交时按「限价×全额」冻结的预估佣金 ≥ 按实际成交价累计的佣金，
+                    # 差值会永久滞留 frozen_cash，抬高资金占用、误拒后续买单；撤单路径虽释放该差值，
+                    # 但全成交路径此前不释放，造成「撤单不泄漏、全成交泄漏」的不一致。此处补释放。
+                    reserved_commission = max(order.qty * order.limit_price * COMMISSION_RATE, MIN_COMMISSION)
+                    actual_commission = float(order.total_fee) + total_fee
+                    extra_release = max(reserved_commission - actual_commission, 0.0)
+                    account["frozen_cash"] = max(float(account["frozen_cash"]) - extra_release, 0.0)
                 account["cash"] = float(account["cash"]) - gross - total_fee
                 position = positions.setdefault(order.code, {
                     "code": order.code, "name": "", "qty": 0, "available_qty": 0,

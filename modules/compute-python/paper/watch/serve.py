@@ -161,7 +161,7 @@ def _add_watch_pool_member(store_path: Path, payload: dict, *, max_size: int = 2
         raise BadRequestError("证券名称不得超过 100 个字符")
     now = datetime.now().isoformat()
     # 热门 TopN 占满 max_size；人工标的允许叠加，绝对上限留 50 余量。
-    absolute_cap = max(int(max_size) + 50, int(max_size))
+    absolute_cap = int(max_size) + 50
     try:
         conn = sqlite3.connect(store_path, timeout=5)
         conn.row_factory = sqlite3.Row
@@ -614,6 +614,15 @@ def _pnl(store_path: Path, session_id: str) -> dict:
                 if rec["qty"] <= 0:
                     rec["qty"] = 0
 
+        # 纯持仓但无成交流水的代码（如外部导入/对账重建的持仓）也要进入 per_code，
+        # 否则收益分析会缺项、与总览账户卡对不上；其已实现=0、未实现按持仓快照。
+        for code, pos in positions.items():
+            if code not in per_code:
+                per_code[code] = {
+                    "code": code, "name": names.get(code, ""),
+                    "qty": 0, "avg_cost": 0.0, "realized": 0.0,
+                    "unrealized": 0.0, "total": 0.0, "trades": [],
+                }
         for code, rec in per_code.items():
             pos = positions.get(code)
             if pos is None:

@@ -176,7 +176,7 @@
       </el-table-column>
       <el-table-column label="方向" width="80">
         <template #default="{ row }">
-          <span :class="row.action === 'buy' ? 'text-success' : 'text-danger'">{{ row.action === 'buy' ? '买入' : '卖出' }}</span>
+          <span :class="row.action === 'buy' ? 'text-up' : 'text-down'">{{ row.action === 'buy' ? '买入' : '卖出' }}</span>
         </template>
       </el-table-column>
       <el-table-column label="价格" width="90">
@@ -278,7 +278,7 @@ function fmtPct(v?: number) {
 function pnlClass(v?: number) {
   // 区分 null（无盈亏数据，不着色）与 0（持平）
   if (v == null || !Number.isFinite(Number(v))) return ''
-  return Number(v) >= 0 ? 'text-success' : 'text-danger'
+  return Number(v) >= 0 ? 'text-up' : 'text-down'
 }
 
 function feeValue(key: string): unknown {

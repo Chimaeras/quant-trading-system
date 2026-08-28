@@ -135,7 +135,7 @@
               </el-select>
               <el-input v-model="codeFilter" placeholder="代码" clearable size="small" style="width: 100px" />
               <el-switch v-model="hideNoise" active-text="隐藏行情噪音" size="small" />
-              <el-switch v-model="tradesOnly" active-text="只看买卖" size="small" />
+              <el-switch v-model="tradesOnly" active-text="只看成交" size="small" />
             </div>
           </div>
         </template>
@@ -182,8 +182,8 @@
           <template #header>
             <div class="panel-header">
               <div class="panel-title">
-                <span>交易动作（{{ tradeActionRows.length }}）</span>
-                <span class="panel-hint">委托价、实际成交价和成交结果</span>
+                <span>成交记录（{{ tradeActionRows.length }}）</span>
+                <span class="panel-hint">仅最终成交；不含信号、风控拦截与 dry-run</span>
               </div>
             </div>
           </template>
@@ -681,7 +681,17 @@ const universeRows = computed(() => {
   return [...rows.values()]
 })
 
-const TRADE_TYPES = new Set(['SIGNAL', 'SIZING', 'RISK_GATE', 'ORDER', 'SUBMIT', 'FILL', 'CANCEL'])
+/** 「只看成交」：仅最终真实成交，不含信号/定仓/风控拦截/dry-run 委托。 */
+function isFinalFillEvent(event: WatchEvent): boolean {
+  if (event.type === 'FILL') return true
+  // 少数路径把完全成交记在 SUBMIT.status=FILLED，同样视为成交结果。
+  if (event.type === 'SUBMIT') {
+    const status = String((event.detail as any).status || '').trim().toUpperCase()
+    return status === 'FILLED' || status === 'PARTIAL'
+  }
+  return false
+}
+
 function isBuyOrSellSignal(event: WatchEvent): boolean {
   if (event.type !== 'SIGNAL') return true
   const action = String((event.detail as any).action || '').trim().toLowerCase()
@@ -696,7 +706,7 @@ const filteredEvents = computed(() => {
     if (hideNoise.value && NOISE_TYPES.has(event.type)) continue
     if (typeFilter.value && event.type !== typeFilter.value) continue
     if (codeFilter.value && event.code !== codeFilter.value) continue
-    if (tradesOnly.value && (!TRADE_TYPES.has(event.type) || !isBuyOrSellSignal(event))) continue
+    if (tradesOnly.value && !isFinalFillEvent(event)) continue
     result.push({ ...event, name: eventName(event) })
   }
   return result
@@ -732,7 +742,8 @@ const tradeActionRows = computed(() => {
     if (orderId && Number.isFinite(price)) orderPrices.set(orderId, price)
   }
   return tradeEvents.value
-    .filter((event) => event.type === 'SUBMIT' || event.type === 'FILL')
+    // 右侧「交易动作」也只展示真实成交，排除 DRY_RUN / 被拒委托等半途记录。
+    .filter((event) => isFinalFillEvent(event))
     .sort((left, right) => right.seq - left.seq)
     .slice(0, DISPLAY_SUBMITS)
     .map((event) => {

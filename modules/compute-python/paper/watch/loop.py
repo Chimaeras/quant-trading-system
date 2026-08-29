@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import secrets
 import time
 import requests
+import math
 from dataclasses import asdict, replace
 from datetime import datetime, timedelta
 from hashlib import sha256
@@ -32,9 +33,10 @@ from .bar_store import BarStore
 from .cooldown import CooldownBook
 from .decide_watch import build_watch_intent
 from .events import EventLog
+from .execution import create_execution_adapter
 from .size import sizing_detail
 from .models import WatchTick
-from .oms import LocalOrder, OmsService, OrderStatus
+from .oms import ACTIVE_STATUSES as OMS_ACTIVE_STATUSES, LocalOrder, OmsService, OrderStatus, external_status
 from .readiness import build_readiness_report
 from .signal_adapter import SignalAdapter
 from .state import WatchState
@@ -59,6 +61,14 @@ def _exchange_for_code(code: str) -> str:
     if pure.startswith(("5", "6", "9")):
         return "SH"
     return "SZ"
+
+
+def _optional_float(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
 
 
 class WatchLoop:
@@ -108,6 +118,9 @@ class WatchLoop:
         self._lease_owner_id = default_owner_id()
         self._lease_held = False
         self.execution_mode = config.watch_execution_mode
+        self.execution_adapter = create_execution_adapter(self.execution_mode, broker)
+        if store is not None:
+            store.bind_account_scope(self.execution_mode, config.paper_session_id)
         self.oms = (
             OmsService(store, session_id=config.paper_session_id, channel=self.execution_mode)
             if store is not None and self.execution_mode != "SHADOW"
@@ -690,21 +703,45 @@ class WatchLoop:
             return self._shadow_account()
         balance, b_result = self.broker.balance(run_id)
         if balance is None or (b_result is not None and not b_result.ok):
-            return None, None, None, f"balance 查询失败: {_result_message(b_result)}", bool(b_result and b_result.stop_run())
+            error = f"balance 查询失败: {_result_message(b_result)}"
+            self._record_account_sync_error(error)
+            return None, None, None, error, bool(b_result and b_result.stop_run())
         positions, p_result = self.broker.positions(run_id)
         if positions is None or (p_result is not None and not p_result.ok):
-            return None, None, None, f"positions 查询失败: {_result_message(p_result)}", bool(p_result and p_result.stop_run())
+            error = f"positions 查询失败: {_result_message(p_result)}"
+            self._record_account_sync_error(error)
+            return None, None, None, error, bool(p_result and p_result.stop_run())
         orders, o_result = self.broker.orders(run_id)
         if orders is None or (o_result is not None and not o_result.ok):
-            return None, None, None, f"orders 查询失败: {_result_message(o_result)}", bool(o_result and o_result.stop_run())
+            error = f"orders 查询失败: {_result_message(o_result)}"
+            self._record_account_sync_error(error)
+            return None, None, None, error, bool(o_result and o_result.stop_run())
         return balance, positions, orders, "", False
+
+    def _record_account_sync_error(self, message: str) -> None:
+        if self.store is None or self.execution_mode == "SHADOW":
+            return
+        try:
+            self.store.save_account_sync_state({
+                "channel": self.execution_mode,
+                "session_id": self.config.paper_session_id,
+                "source_status": "ERROR",
+                "last_error": message,
+            })
+        except WatchStoreError:
+            self._live_halted = True
 
     @staticmethod
     def _account_snapshot(balance, positions, orders) -> dict:
         return {
             "total_assets": balance.total_assets,
             "avail_balance": balance.avail_balance,
+            "frozen_cash": balance.frozen,
             "market_value": balance.market_value,
+            "total_profit": _optional_float((balance.raw or {}).get("totalProfit")),
+            "total_return_pct": _optional_float((balance.raw or {}).get("totalReturnPct")),
+            "day_profit": _optional_float((balance.raw or {}).get("dayProfit")),
+            "day_return_pct": _optional_float((balance.raw or {}).get("dayReturnPct")),
             "positions": [
                 {
                     "code": position.code,
@@ -715,6 +752,14 @@ class WatchLoop:
                     "last": position.last,
                     "market_value": position.market_value,
                     "profit": position.profit,
+                    "profit_rate": _optional_float((position.raw or {}).get("profitPct")),
+                    "day_profit": _optional_float((position.raw or {}).get("dayProfit")),
+                    "day_profit_rate": _optional_float((position.raw or {}).get("dayProfitPct")),
+                    "position_pct": _optional_float((position.raw or {}).get("positionPct")),
+                    "exchange": _exchange_for_code(position.code),
+                    "price_source": "MX_ACCOUNT_SNAPSHOT"
+                        if (position.raw or {}).get("channel") != "INTERNAL_PAPER"
+                        else "INTERNAL_MATCHING",
                 }
                 for position in positions
             ],
@@ -743,7 +788,11 @@ class WatchLoop:
             "avail_balance": snapshot["avail_balance"],
             "market_value": snapshot["market_value"],
             "positions": len(snapshot["positions"]),
-            "open_orders": len(snapshot["orders"]),
+            "open_orders": sum(
+                1 for order in orders
+                if external_status(order).value in OMS_ACTIVE_STATUSES
+                and max(int(order.qty) - int(order.filled_qty or 0), 0) > 0
+            ),
             "position_details": snapshot["positions"],
             "order_details": snapshot["orders"],
             **extra,
@@ -763,7 +812,7 @@ class WatchLoop:
         if self.store is None:
             return
         self.store.save_account_snapshot({
-            "snapshot_id": f"{run_id}:{phase}",
+            "snapshot_id": f"{self.execution_mode}:{self.config.paper_session_id}:{run_id}:{phase}",
             "session_id": self.config.paper_session_id,
             "channel": self.execution_mode,
             "trade_date": trade_date,
@@ -973,17 +1022,9 @@ class WatchLoop:
 
     def _submit(self, intent, run_id: str, local_order: LocalOrder | None = None) -> SubmitRecord:
         try:
-            if local_order is not None and hasattr(self.broker, "submit_local_order"):
-                result = self.broker.submit_local_order(local_order)
-            else:
-                result = self.broker.trade(
-                    intent.stock_code,
-                    intent.side,
-                    intent.qty,
-                    use_market_price=False,
-                    price=intent.limit_price,
-                    run_id=run_id,
-                )
+            result = self.execution_adapter.submit_order(
+                intent, run_id=run_id, local_order=local_order
+            )
         except Exception as exc:
             return SubmitRecord(
                 stock_code=intent.stock_code,
@@ -1112,7 +1153,7 @@ class WatchLoop:
                 continue
             try:
                 pending = self.oms.transition(order.client_order_id, OrderStatus.CANCEL_PENDING)
-                result = self.broker.cancel_order(
+                result = self.execution_adapter.cancel_order(
                     pending.broker_order_id or pending.client_order_id,
                     pending.code,
                     run_id=run_id,
@@ -1121,7 +1162,7 @@ class WatchLoop:
                 # 必须等待下一轮 orders 证明最终状态。
                 status = (
                     self.oms.get(order.client_order_id).status
-                    if getattr(self.broker, "is_internal_paper", False)
+                    if not self.execution_adapter.supports_external_execution
                     else OrderStatus.CANCEL_PENDING.value
                 )
                 events.emit("CANCEL", code=order.code, cycle=self._cycle, detail={
@@ -1203,6 +1244,8 @@ class WatchLoop:
             "execution_mode": self.execution_mode,
         }, now=current)
         actual_live = bool(live and confirm and self.config.watch_live and not self._live_halted)
+        if self.execution_mode == "SHADOW":
+            actual_live = False
         tick = WatchTick(
             run_id=run_id,
             trade_date=trade_date,
@@ -1216,6 +1259,8 @@ class WatchLoop:
             tick.errors.append("LIVE_CONFIRM_REQUIRED: --live、--confirm 与 PAPER_WATCH_LIVE=1 必须同时满足")
             tick.status = "BLOCKED"
             return self._finish(tick)
+        if live and self.execution_mode == "SHADOW":
+            tick.errors.append("SHADOW_NO_SUBMIT: 仅生成信号、风控与订单意图")
         # INTERNAL_PAPER 是本地模拟，不会触达外部交易柜台，可以使用本地
         # weekday fallback；EXTERNAL_PAPER 仍必须注入正式交易日历。
         if (
@@ -2158,6 +2203,10 @@ class WatchLoop:
                                 "reason_codes": checked.reason_codes,
                                 "quote_ts": checked.quote_ts,
                                 "execution_mode": self.execution_mode,
+                                "account_scope": f"{self.execution_mode}:{self.config.paper_session_id}",
+                                "session_id": self.config.paper_session_id,
+                                "strategy": self.adapter.strategy_name,
+                                "signal_bar_ts": signal.bar_ts,
                                 "market_data_level": "L2" if pipeline_v2 else "LEGACY",
                                 "quote_source": getattr(quote, "source", ""),
                                 "security_rule": (

@@ -1,7 +1,11 @@
 # 实时量化监控交易系统批次 B：OMS 与内部 Paper 实施说明
 
 日期：2026-08-19  
-状态：核心功能已实施，外部模拟盘实盘时段联调待执行
+状态：执行链路与统一账户投影已实施，外部模拟盘实盘时段联调待执行
+
+> 2026-08-29 增量：运行库升级到 schema v5，账户范围统一为
+> `execution_mode + session_id`；新增外部委托镜像、账户同步状态、统一只读账户 API
+> 与前端 `WatchAccountPanel`。Java/MySQL 历史演练账户继续独立，不与盯盘账本双写或合计。
 
 ## 1. 本地代码审计结论
 
@@ -59,13 +63,16 @@ CREATED -> SUBMITTING -> SUBMITTED -> PARTIAL -> FILLED
 
 ## 6. 数据表
 
-SQLite schema v2 新增：
+SQLite 当前 schema v5 包括：
 
 - `local_order`：本地/柜台订单号、幂等键、状态、累计成交、TTL、错误。
 - `fill`：成交数量、价格、费用、bar、价格来源和模型参数。
 - `account_snapshot`：每轮提交前、撮合后、提交后的账户一致快照。
 - `sim_account`：内部现金、冻结资金、已实现损益和交易日。
 - `sim_position`：持仓、可卖、今日买入、成本和最新价。
+- `account_scope_registry`：固定执行模式与会话组成的账户作用域。
+- `account_sync_state`：最新同步状态、最后成功时间和错误；失败不覆盖成功快照。
+- `external_order`：妙想全部委托的规范化镜像，包含未被本地 OMS 跟踪的委托。
 
 ## 7. 运行模式与配置
 
@@ -89,8 +96,12 @@ PAPER_TRADING_CALENDAR_FILE=path/to/trading-calendar.json
 python -m paper.cli watch --live --confirm
 ```
 
-外部 live 模式必须注入正式交易日历；未注入时会在发单前阻断，禁止用周一至周五近似值触达模拟柜台。推荐使用
+外部 live 模式必须注入 `MX_APIKEY` 和正式交易日历；未注入时会在发单前阻断，禁止用周一至周五近似值触达模拟柜台。推荐使用
 `scripts/start_external_paper_watch.ps1 -TradingCalendarFile <path>` 启动。常规观察池分析走公开批量行情，只有买卖信号通过风控后才会调用 `mockTrading/trade`。
+
+内部模式使用 `eastmoney/auto` 数据源时无需 `MX_APIKEY`；`watch-serve` 只读 SQLite，
+也不要求任何妙想凭证。只有 EXTERNAL_PAPER 或显式 `PAPER_KLINE_SOURCE=mx_query`
+才创建妙想 HTTP/交易客户端。
 
 其他参数：`PAPER_INTERNAL_INITIAL_CASH`、`PAPER_INTERNAL_FILL_PARTICIPATION`、
 `PAPER_INTERNAL_MATCHING_MODEL=NEXT_BAR`、`PAPER_BUY_ORDER_TTL_SEC`、

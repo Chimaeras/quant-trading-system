@@ -24,6 +24,11 @@ _open_http_clients: list = []
 
 def _build_clients(config: PaperConfig):
     """构建 http/quote/broker 客户端。"""
+    try:
+        config.require_mx_api_key()
+    except ValueError as exc:
+        print(f"[paper] 配置错误: {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc
     from .broker_client import BrokerClient
     from .mx_http import MxHttpClient
     from .quote_client import QuoteClient
@@ -31,6 +36,16 @@ def _build_clients(config: PaperConfig):
     http = MxHttpClient(config, artifact_dir=LOG_BASE / "paper" / "raw")
     _open_http_clients.append(http)
     return http, QuoteClient(http, config), BrokerClient(http)
+
+
+class _DisabledMxHttp:
+    """公开行情模式占位器；任何误入妙想网络调用都会立即失败。"""
+    def post(self, *_args, **_kwargs):
+        raise RuntimeError("当前执行模式未启用妙想 API 客户端")
+
+    @staticmethod
+    def save_raw(*_args, **_kwargs):
+        return ""
 
 
 def _close_clients() -> None:
@@ -251,7 +266,15 @@ def _watch_loop(config: PaperConfig, args: argparse.Namespace):
     from .watch.loop import WatchLoop
     from .watch.store import SqliteWatchStore, WatchStoreError
 
-    http, quote_client, broker = _build_clients(config)
+    from .quote_client import QuoteClient
+
+    needs_mx = config.watch_execution_mode == "EXTERNAL_PAPER" or config.kline_source == "mx_query"
+    if needs_mx:
+        http, quote_client, broker = _build_clients(config)
+    else:
+        http = None
+        quote_client = QuoteClient(_DisabledMxHttp(), config)
+        broker = None
     store_path = Path(config.watch_store_path) if config.watch_store_path else LOG_BASE / "watch" / "runtime.sqlite3"
     store = None
     store_error = ""
@@ -315,11 +338,15 @@ def cmd_watch_serve(args: argparse.Namespace) -> int:
     """监控面板 API：交易数据只读，可维护本地观察池，不下单不联网。"""
     from .watch.serve import serve
 
-    config = _load_config()
+    import os
+    try:
+        max_pool_size = int(os.environ.get("PAPER_MAX_OBSERVE_CODES", "200"))
+    except ValueError:
+        max_pool_size = 200
     serve(
         Path(args.log_base), host=args.host, port=args.port,
         store_path=Path(args.store_path) if args.store_path else None,
-        max_pool_size=config.max_observe_codes,
+        max_pool_size=max(1, min(max_pool_size, 500)),
     )
     return 0
 
@@ -329,6 +356,7 @@ def cmd_watch_once(args: argparse.Namespace) -> int:
     config = _watch_config(_load_config(), args)
     override = _watch_override(args)
     loop = _watch_loop(config, args)
+    _print_watch_startup(config, args)
     signal_date = args.signal_date or datetime.now().strftime("%Y-%m-%d")
     try:
         tick = loop.run_once(
@@ -348,6 +376,7 @@ def cmd_watch(args: argparse.Namespace) -> int:
     config = _watch_config(_load_config(), args)
     override = _watch_override(args)
     loop = _watch_loop(config, args)
+    _print_watch_startup(config, args)
     signal_date = args.signal_date or datetime.now().strftime("%Y-%m-%d")
     try:
         ticks = loop.run(
@@ -365,6 +394,18 @@ def cmd_watch(args: argparse.Namespace) -> int:
     for tick in ticks:
         _print_watch_tick(tick)
     return 0 if all(tick.status != "BLOCKED" for tick in ticks) else 1
+
+
+def _print_watch_startup(config: PaperConfig, args: argparse.Namespace) -> None:
+    store_path = Path(config.watch_store_path) if config.watch_store_path else LOG_BASE / "watch" / "runtime.sqlite3"
+    print("[paper][watch] 启动配置")
+    print(f"  ExecutionMode: {config.watch_execution_mode}")
+    print(f"  SessionId: {config.paper_session_id}")
+    print(f"  AccountScope: {config.watch_execution_mode}:{config.paper_session_id}")
+    print(f"  StorePath: {store_path.resolve()}")
+    print(f"  Live/Confirm: {bool(args.live)}/{bool(args.confirm)}")
+    print(f"  数据源: quote=eastmoney_batch kline={config.kline_source}")
+    print(f"  外部账户已配置: {bool(config.api_key) and config.watch_execution_mode == 'EXTERNAL_PAPER'}")
 
 
 def build_parser() -> argparse.ArgumentParser:

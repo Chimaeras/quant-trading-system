@@ -14,8 +14,8 @@ BASE = "/api/claw/mockTrading"
 
 # 官方订单状态枚举（1-10），是否仍视为活动委托由 decide/risk 判断
 ORDER_STATUSES = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"}
-# 需要继续视为 active 的状态（P1-01 基线：7/10 由 remaining 判断，此处先按 active 处理）
-ACTIVE_ORDER_STATUSES = {"1", "2", "3", "5", "6", "7", "10"}
+# 7=部撤，剩余委托已撤销，属于终态；10=撤单失败/未知仍作为风险冻结对象。
+ACTIVE_ORDER_STATUSES = {"1", "2", "3", "5", "6", "10"}
 
 # drt 方向映射：1 买入，2 卖出，其他值解析失败
 _DRT_SIDES = {"1": "buy", "2": "sell"}

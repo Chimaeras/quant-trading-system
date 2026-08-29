@@ -46,6 +46,7 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     StatusBadge: typeof import('./../components/ui/StatusBadge.vue')['default']
     ToastContainer: typeof import('./../components/ui/ToastContainer.vue')['default']
+    WatchAccountPanel: typeof import('./../components/WatchAccountPanel.vue')['default']
   }
   export interface ComponentCustomProperties {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']

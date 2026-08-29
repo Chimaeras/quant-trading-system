@@ -85,7 +85,7 @@ class TestOfficialParsing:
             parse_order_item({k: v for k, v in ORDER_OFFICIAL.items() if k != "id"})
 
     def test_active_status_set(self):
-        assert ACTIVE_ORDER_STATUSES == {"1", "2", "3", "5", "6", "7", "10"}
+        assert ACTIVE_ORDER_STATUSES == {"1", "2", "3", "5", "6", "10"}
 
     def test_order_remaining_qty(self):
         base = dict(ORDER_OFFICIAL, count=100, tradeCount=40, status=3)

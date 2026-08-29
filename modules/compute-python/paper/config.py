@@ -206,21 +206,27 @@ class PaperConfig:
             raise ValueError("max_positions 不能为负；0 表示不限制持仓数量")
         if self.min_cash_reserve < 0:
             raise ValueError("min_cash_reserve 不能为负")
-        if not self.api_key or not self.api_key.strip():
-            raise ValueError("api_key 不能为空或纯空白")
-        if self.api_base != ALLOWED_API_BASE:
+        if self.watch_execution_mode == "EXTERNAL_PAPER" or self.kline_source == "mx_query":
+            self.require_mx_api_key()
+        if (self.watch_execution_mode == "EXTERNAL_PAPER" or self.kline_source == "mx_query") \
+                and self.api_base != ALLOWED_API_BASE:
             raise ValueError(f"api_base 只允许官方基址 {ALLOWED_API_BASE}")
+
+    def require_mx_api_key(self) -> None:
+        if not self.api_key or not self.api_key.strip():
+            raise ValueError("当前命令/数据源要求 MX_APIKEY（仅允许通过环境变量注入）")
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> "PaperConfig":
         """从环境变量构建配置；域名不符直接抛错（fail-closed）。"""
         e = env if env is not None else dict(os.environ)
         api_base = e.get("MX_API_URL", ALLOWED_API_BASE).rstrip("/")
-        if api_base != ALLOWED_API_BASE:
+        execution_mode = e.get("PAPER_WATCH_EXECUTION_MODE", "SHADOW").strip().upper()
+        kline_source = e.get("PAPER_KLINE_SOURCE", "auto").strip().lower()
+        if (execution_mode == "EXTERNAL_PAPER" or kline_source == "mx_query") \
+                and api_base != ALLOWED_API_BASE:
             raise ValueError(f"MX_API_URL 只允许官方基址 {ALLOWED_API_BASE}，当前: {api_base}")
         api_key = e.get("MX_APIKEY", "")
-        if not api_key:
-            raise ValueError("未配置 MX_APIKEY 环境变量（妙想 API 密钥必填，禁止写入文件或代码）")
         config = cls(
             api_key=api_key,
             api_base=api_base,
@@ -244,7 +250,7 @@ class PaperConfig:
             clock_skew_sec=int(e.get("PAPER_CLOCK_SKEW_SEC", "30")),
             watch_strategy=e.get("PAPER_WATCH_STRATEGY", "MA_CROSS").strip().upper(),
             bar_period_min=int(e.get("PAPER_BAR_PERIOD_MIN", "5")),
-            kline_source=e.get("PAPER_KLINE_SOURCE", "auto").strip().lower(),
+            kline_source=kline_source,
             kline_retry_sec=int(e.get("PAPER_KLINE_RETRY_SEC", "60")),
             kline_retry_workers=int(e.get("PAPER_KLINE_RETRY_WORKERS", "8")),
             kline_retry_batch_size=int(e.get("PAPER_KLINE_RETRY_BATCH_SIZE", "24")),
@@ -266,7 +272,7 @@ class PaperConfig:
             lease_ttl_sec=int(e.get("PAPER_LEASE_TTL_SEC", "180")),
             min_strategy_ready_coverage=float(e.get("PAPER_MIN_STRATEGY_READY_COVERAGE", "0.95")),
             min_store_free_mb=int(e.get("PAPER_MIN_STORE_FREE_MB", "256")),
-            watch_execution_mode=e.get("PAPER_WATCH_EXECUTION_MODE", "SHADOW").strip().upper(),
+            watch_execution_mode=execution_mode,
             paper_session_id=e.get("PAPER_SESSION_ID", "default").strip(),
             internal_initial_cash=float(e.get("PAPER_INTERNAL_INITIAL_CASH", "1000000")),
             internal_fill_participation=float(e.get("PAPER_INTERNAL_FILL_PARTICIPATION", "0.10")),

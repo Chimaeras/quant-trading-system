@@ -24,11 +24,11 @@ if ($existing) {
     throw "已有 paper watch 进程运行（PID: $ids），为避免重复撮合，本次不启动。"
 }
 
-if (-not $env:MX_APIKEY) {
+if ($ExecutionMode -eq 'EXTERNAL_PAPER' -and -not $env:MX_APIKEY) {
     $env:MX_APIKEY = [Environment]::GetEnvironmentVariable('MX_APIKEY', 'User')
 }
-if (-not $env:MX_APIKEY) {
-    throw '未找到 MX_APIKEY；真实行情分析需要通过环境变量注入 API Key。'
+if ($ExecutionMode -eq 'EXTERNAL_PAPER' -and -not $env:MX_APIKEY) {
+    throw 'EXTERNAL_PAPER 未找到 MX_APIKEY；禁止启动外部模拟盘。'
 }
 
 # 真实行情/策略分析：常规扫描走公开批量行情；只有 EXTERNAL_PAPER
@@ -61,8 +61,9 @@ if ($ExecutionMode -eq 'EXTERNAL_PAPER' -and -not $env:PAPER_TRADING_CALENDAR_FI
 
 $python = (Get-Command python.exe -ErrorAction Stop).Source
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-$stdoutPath = Join-Path $watchLogRoot "internal-paper-watch-$stamp.stdout.log"
-$stderrPath = Join-Path $watchLogRoot "internal-paper-watch-$stamp.stderr.log"
+$logMode = $ExecutionMode.ToLowerInvariant().Replace('_', '-')
+$stdoutPath = Join-Path $watchLogRoot "$logMode-watch-$stamp.stdout.log"
+$stderrPath = Join-Path $watchLogRoot "$logMode-watch-$stamp.stderr.log"
 $arguments = @(
     '-u', '-m', 'paper.cli', 'watch',
     '--signal-date', $SignalDate,
@@ -84,10 +85,15 @@ $process = Start-Process @startParams
 [pscustomobject]@{
     ProcessId = $process.Id
     Mode = $env:PAPER_WATCH_EXECUTION_MODE
+    ExecutionMode = $env:PAPER_WATCH_EXECUTION_MODE
     Live = $env:PAPER_WATCH_LIVE
+    Confirm = $true
     Universe = $env:PAPER_WATCH_UNIVERSE_MODE
     SessionId = $env:PAPER_SESSION_ID
+    AccountScope = "$($env:PAPER_WATCH_EXECUTION_MODE):$($env:PAPER_SESSION_ID)"
     Store = $storePath
+    DataSource = 'quote=eastmoney_batch;kline=auto'
+    ExternalAccountConfigured = [bool]($ExecutionMode -eq 'EXTERNAL_PAPER' -and $env:MX_APIKEY)
     Stdout = $stdoutPath
     Stderr = $stderrPath
 }

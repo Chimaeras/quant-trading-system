@@ -172,6 +172,22 @@ def external_status(order: MxOrder) -> OrderStatus:
     return OrderStatus.UNKNOWN
 
 
+def _external_average_price(order: MxOrder) -> tuple[float | None, str]:
+    """只解析已冻结的 tradePrice/tradePriceDec；缺失时明确降级为委托价估算。"""
+    raw = order.raw if isinstance(order.raw, dict) else {}
+    trade_price = raw.get("tradePrice")
+    if trade_price not in (None, ""):
+        try:
+            value = float(trade_price) / (10 ** int(raw.get("tradePriceDec", 0) or 0))
+        except (TypeError, ValueError, OverflowError):
+            value = 0.0
+        if value > 0:
+            return value, "MX_ORDER_AGGREGATE"
+    if order.price is not None and float(order.price) > 0:
+        return float(order.price), "BROKER_ORDER_AGGREGATE_ESTIMATE"
+    return None, ""
+
+
 class OmsService:
     def __init__(self, store: WatchStore, *, session_id: str, channel: str):
         self.store = store
@@ -299,6 +315,7 @@ class OmsService:
         current = now or datetime.now()
         changes: list[dict] = []
         used: set[str] = set()
+        linked: dict[str, str] = {}
         for local in self.active():
             match = next(
                 (item for item in broker_orders if local.broker_order_id and item.order_id == local.broker_order_id),
@@ -319,6 +336,7 @@ class OmsService:
             if match is None:
                 continue
             used.add(match.order_id)
+            linked[match.order_id] = local.client_order_id
             target = external_status(match)
             if local.status == OrderStatus.CANCEL_PENDING.value and target == OrderStatus.SUBMITTED:
                 # 撤单请求后的柜台快照可能仍是旧“已报”，不能把本地状态倒退。
@@ -328,20 +346,26 @@ class OmsService:
                 "broker_order_id": match.order_id,
                 "filled_qty": filled,
             }
-            if filled > local.filled_qty and match.price is not None:
+            aggregate_price, price_source = _external_average_price(match)
+            if filled > local.filled_qty and aggregate_price is not None:
                 delta = filled - local.filled_qty
-                # orders 接口没有逐笔成交价/费用；记录为估算来源，不能伪称真实回报。
+                # orders 只提供累计成交证据；不拆成虚构逐笔，费用保持 unknown。
                 local = self.record_fill(
                     local,
                     qty=delta,
-                    price=float(match.price),
+                    price=aggregate_price,
                     commission=0.0,
                     stamp_tax=0.0,
                     filled_at=current,
                     bar_ts="",
-                    price_source="BROKER_ORDER_AGGREGATE_ESTIMATE",
+                    price_source=price_source,
                     fill_id=f"mx-{match.order_id}-{filled}",
-                    metadata={"fee_unknown": True, "mx_status": match.status},
+                    metadata={
+                        "fee_unknown": True,
+                        "mx_status": match.status,
+                        "aggregate": True,
+                        "price_estimated": price_source == "BROKER_ORDER_AGGREGATE_ESTIMATE",
+                    },
                 )
                 fields.pop("filled_qty", None)
                 if target == OrderStatus.PARTIAL and local.status == target.value:
@@ -364,4 +388,43 @@ class OmsService:
                 "status": updated.status,
                 "filled_qty": updated.filled_qty,
             })
+        mirror_rows = []
+        for broker_order in broker_orders:
+            normalized = external_status(broker_order).value
+            filled = max(int(broker_order.filled_qty or 0), 0)
+            average, source = _external_average_price(broker_order)
+            mirror_rows.append({
+                "broker_order_id": broker_order.order_id,
+                "client_order_id": linked.get(broker_order.order_id, ""),
+                "origin": "WATCH_OMS" if broker_order.order_id in linked else "EXTERNAL/UNTRACKED",
+                "code": broker_order.code,
+                "name": str((broker_order.raw or {}).get("secName", "")),
+                "exchange": "SH" if broker_order.code.startswith(("5", "6", "9")) else (
+                    "BJ" if broker_order.code.startswith(("4", "8", "92")) else "SZ"
+                ),
+                "side": broker_order.side,
+                "order_type": "LIMIT",
+                "limit_price": broker_order.price,
+                "qty": broker_order.qty,
+                "filled_qty": filled,
+                "remaining_qty": max(broker_order.qty - filled, 0)
+                    if normalized not in TERMINAL_STATUSES else 0,
+                "avg_fill_price": average if filled > 0 else None,
+                "total_fee": None,
+                "broker_status": broker_order.status,
+                "normalized_status": normalized,
+                "broker_time": broker_order.ts,
+                "created_at": broker_order.ts,
+                "metadata": {
+                    "fee_unknown": True,
+                    "price_source": source or None,
+                    "price_estimated": source == "BROKER_ORDER_AGGREGATE_ESTIMATE",
+                },
+            })
+        self.store.upsert_external_orders(
+            channel=self.channel,
+            session_id=self.session_id,
+            orders=mirror_rows,
+            captured_at=current.isoformat(),
+        )
         return changes

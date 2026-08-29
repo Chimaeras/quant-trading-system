@@ -1,8 +1,9 @@
 <template>
+  <WatchAccountPanel />
   <el-card shadow="hover" class="terminal-page">
     <template #header>
       <div class="header-row">
-        <span>模拟账户</span>
+        <span>历史演练 / 手工模拟账户</span>
         <span class="header-meta">
           <el-tag v-if="activeSession" type="warning" effect="plain" size="small">
             演练会话 #{{ activeSession.sessionId }}
@@ -198,6 +199,7 @@
 </template>
 
 <script setup lang="ts">
+import WatchAccountPanel from '@/components/WatchAccountPanel.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import {
   accountApi,

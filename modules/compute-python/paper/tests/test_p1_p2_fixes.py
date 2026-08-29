@@ -174,8 +174,8 @@ class TestConfigValidation:
             _config(query_interval_sec=0).validate()
         with pytest.raises(ValueError, match="max_observe_codes"):
             _config(max_observe_codes=0).validate()
-        with pytest.raises(ValueError, match="api_key"):
-            PaperConfig(api_key="  ").validate()
+        with pytest.raises(ValueError, match="MX_APIKEY"):
+            PaperConfig(api_key="  ", watch_execution_mode="EXTERNAL_PAPER").validate()
 
     def test_from_env_validates(self):
         with pytest.raises(ValueError, match="max_name_weight"):

@@ -23,13 +23,23 @@ class TestConfig:
         assert config.allow_star is False
         assert config.allow_market is False
 
-    def test_missing_key_raises(self):
+    def test_missing_key_only_blocks_external_or_mx_query(self):
+        internal = PaperConfig.from_env({
+            "PAPER_WATCH_EXECUTION_MODE": "INTERNAL_PAPER",
+            "PAPER_KLINE_SOURCE": "eastmoney",
+        })
+        assert internal.api_key == ""
         with pytest.raises(ValueError, match="MX_APIKEY"):
-            PaperConfig.from_env({})
+            PaperConfig.from_env({"PAPER_WATCH_EXECUTION_MODE": "EXTERNAL_PAPER"})
+        with pytest.raises(ValueError, match="MX_APIKEY"):
+            PaperConfig.from_env({"PAPER_KLINE_SOURCE": "mx_query"})
 
     def test_wrong_base_raises(self):
         with pytest.raises(ValueError, match="只允许官方基址"):
-            PaperConfig.from_env(self._env(MX_API_URL="https://evil.example.com"))
+            PaperConfig.from_env(self._env(
+                MX_API_URL="https://evil.example.com",
+                PAPER_WATCH_EXECUTION_MODE="EXTERNAL_PAPER",
+            ))
 
     def test_public_snapshot_no_secret(self):
         config = PaperConfig.from_env(self._env())

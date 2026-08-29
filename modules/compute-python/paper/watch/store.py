@@ -19,7 +19,7 @@ from typing import Iterable, Protocol
 from .models import WatchBar
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 LEASE_NAME = "paper-watch-live"
 # account_snapshot 每轮 tick 追加，但 serve 仅读最新一条；保留最近 N 条防止长期膨胀。
 _ACCOUNT_SNAPSHOT_KEEP = 50
@@ -74,8 +74,13 @@ class WatchStore(Protocol):
                           channel: str = "", session_id: str = "") -> list[dict]: ...
     def update_local_order(self, client_order_id: str, fields: dict) -> dict: ...
     def append_fill(self, fill: dict, order_fields: dict) -> bool: ...
-    def list_fills(self, client_order_id: str = "", session_id: str = "") -> list[dict]: ...
+    def list_fills(self, client_order_id: str = "", session_id: str = "",
+                   channel: str = "") -> list[dict]: ...
     def save_account_snapshot(self, snapshot: dict) -> None: ...
+    def bind_account_scope(self, channel: str, session_id: str) -> dict: ...
+    def save_account_sync_state(self, state: dict) -> None: ...
+    def upsert_external_orders(self, *, channel: str, session_id: str,
+                               orders: Iterable[dict], captured_at: str) -> None: ...
     def load_simulation(self, session_id: str) -> tuple[dict | None, list[dict]]: ...
     def save_simulation(self, account: dict, positions: Iterable[dict]) -> None: ...
     def apply_internal_execution(self, *, client_order_id: str, order_fields: dict,
@@ -373,7 +378,56 @@ class SqliteWatchStore:
                     payload_json TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS idx_account_snapshot_session
-                    ON account_snapshot(session_id, captured_at DESC);
+                    ON account_snapshot(channel, session_id, captured_at DESC);
+
+                CREATE TABLE IF NOT EXISTS account_scope_registry (
+                    account_scope TEXT PRIMARY KEY,
+                    channel TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    execution_mode TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    last_seen_at TEXT NOT NULL,
+                    UNIQUE(channel, session_id)
+                );
+
+                CREATE TABLE IF NOT EXISTS account_sync_state (
+                    channel TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    source_status TEXT NOT NULL,
+                    captured_at TEXT NOT NULL DEFAULT '',
+                    last_success_at TEXT NOT NULL DEFAULT '',
+                    last_error TEXT NOT NULL DEFAULT '',
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY(channel, session_id)
+                );
+
+                CREATE TABLE IF NOT EXISTS external_order (
+                    channel TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    broker_order_id TEXT NOT NULL,
+                    client_order_id TEXT NOT NULL DEFAULT '',
+                    origin TEXT NOT NULL DEFAULT 'EXTERNAL/UNTRACKED',
+                    code TEXT NOT NULL,
+                    name TEXT NOT NULL DEFAULT '',
+                    exchange TEXT NOT NULL DEFAULT '',
+                    side TEXT NOT NULL,
+                    order_type TEXT NOT NULL DEFAULT 'LIMIT',
+                    limit_price REAL,
+                    qty INTEGER NOT NULL,
+                    filled_qty INTEGER NOT NULL DEFAULT 0,
+                    remaining_qty INTEGER NOT NULL DEFAULT 0,
+                    avg_fill_price REAL,
+                    total_fee REAL,
+                    broker_status TEXT NOT NULL,
+                    normalized_status TEXT NOT NULL,
+                    broker_time TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL DEFAULT '',
+                    updated_at TEXT NOT NULL,
+                    metadata_json TEXT NOT NULL DEFAULT '{}',
+                    PRIMARY KEY(channel, session_id, broker_order_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_external_order_scope_status
+                    ON external_order(channel, session_id, normalized_status, updated_at DESC);
 
                 CREATE TABLE IF NOT EXISTS sim_account (
                     session_id TEXT PRIMARY KEY,
@@ -1333,23 +1387,154 @@ class SqliteWatchStore:
         except (KeyError, TypeError, ValueError, sqlite3.Error) as exc:
             raise WatchStoreError(f"保存成交失败: {type(exc).__name__}:{exc}") from exc
 
-    def list_fills(self, client_order_id: str = "", session_id: str = "") -> list[dict]:
+    def list_fills(self, client_order_id: str = "", session_id: str = "",
+                   channel: str = "") -> list[dict]:
         clauses: list[str] = []
         params: list[str] = []
         if client_order_id:
-            clauses.append("client_order_id=?")
+            clauses.append("f.client_order_id=?")
             params.append(client_order_id)
         if session_id:
-            clauses.append("session_id=?")
+            clauses.append("f.session_id=?")
             params.append(session_id)
+        if channel:
+            clauses.append("o.channel=?")
+            params.append(channel)
         where = " WHERE " + " AND ".join(clauses) if clauses else ""
         try:
             rows = self._conn.execute(
-                "SELECT * FROM fill" + where + " ORDER BY filled_at, fill_id", params
+                "SELECT f.* FROM fill f JOIN local_order o ON o.client_order_id=f.client_order_id"
+                + where + " ORDER BY f.filled_at, f.fill_id", params
             ).fetchall()
             return [self._decode_json_columns(row) for row in rows]
         except sqlite3.Error as exc:
             raise WatchStoreError(f"查询成交失败: {type(exc).__name__}:{exc}") from exc
+
+    def bind_account_scope(self, channel: str, session_id: str) -> dict:
+        """注册不可变账户作用域；相同 session 可在不同 channel 下完全隔离。"""
+        normalized_channel = str(channel).strip().upper()
+        normalized_session = str(session_id).strip()
+        if normalized_channel not in {"SHADOW", "INTERNAL_PAPER", "EXTERNAL_PAPER"}:
+            raise WatchStoreError(f"执行模式非法: {normalized_channel}")
+        if not normalized_session:
+            raise WatchStoreError("session_id 不能为空")
+        account_scope = f"{normalized_channel}:{normalized_session}"
+        now = datetime.now().isoformat()
+        try:
+            with self._transaction():
+                unsafe = self._conn.execute(
+                    "SELECT COUNT(*) FROM local_order WHERE session_id=? AND channel<>? "
+                    "AND status IN ('SUBMITTING','UNKNOWN','CANCEL_PENDING')",
+                    (normalized_session, normalized_channel),
+                ).fetchone()[0]
+                if int(unsafe) > 0:
+                    raise WatchStoreError(
+                        "同名会话的旧执行模式仍有 UNKNOWN/SUBMITTING/未完成撤单，禁止切换"
+                    )
+                row = self._conn.execute(
+                    "SELECT * FROM account_scope_registry WHERE account_scope=?", (account_scope,)
+                ).fetchone()
+                if row is not None and str(row["execution_mode"]) != normalized_channel:
+                    raise WatchStoreError("运行会话的 execution_mode 禁止热切换")
+                self._conn.execute(
+                    """
+                    INSERT INTO account_scope_registry(
+                        account_scope, channel, session_id, execution_mode, created_at, last_seen_at
+                    ) VALUES(?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(account_scope) DO UPDATE SET last_seen_at=excluded.last_seen_at
+                    """,
+                    (account_scope, normalized_channel, normalized_session,
+                     normalized_channel, now, now),
+                )
+                saved = self._conn.execute(
+                    "SELECT * FROM account_scope_registry WHERE account_scope=?", (account_scope,)
+                ).fetchone()
+            return dict(saved)
+        except sqlite3.Error as exc:
+            raise WatchStoreError(f"绑定账户作用域失败: {type(exc).__name__}:{exc}") from exc
+
+    def save_account_sync_state(self, state: dict) -> None:
+        now = datetime.now().isoformat()
+        try:
+            with self._transaction():
+                self._conn.execute(
+                    """
+                    INSERT INTO account_sync_state(
+                        channel, session_id, source_status, captured_at,
+                        last_success_at, last_error, updated_at
+                    ) VALUES(?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(channel, session_id) DO UPDATE SET
+                        source_status=excluded.source_status,
+                        captured_at=excluded.captured_at,
+                        last_success_at=CASE WHEN excluded.last_success_at != ''
+                            THEN excluded.last_success_at ELSE account_sync_state.last_success_at END,
+                        last_error=excluded.last_error,
+                        updated_at=excluded.updated_at
+                    """,
+                    (
+                        str(state["channel"]), str(state["session_id"]),
+                        str(state.get("source_status", "ERROR")),
+                        str(state.get("captured_at", "")),
+                        str(state.get("last_success_at", "")),
+                        str(state.get("last_error", "")), now,
+                    ),
+                )
+        except (KeyError, sqlite3.Error) as exc:
+            raise WatchStoreError(f"保存账户同步状态失败: {type(exc).__name__}:{exc}") from exc
+
+    def upsert_external_orders(self, *, channel: str, session_id: str,
+                               orders: Iterable[dict], captured_at: str) -> None:
+        rows = list(orders)
+        try:
+            with self._transaction():
+                for item in rows:
+                    self._conn.execute(
+                        """
+                        INSERT INTO external_order(
+                            channel, session_id, broker_order_id, client_order_id, origin,
+                            code, name, exchange, side, order_type, limit_price, qty,
+                            filled_qty, remaining_qty, avg_fill_price, total_fee,
+                            broker_status, normalized_status, broker_time, created_at,
+                            updated_at, metadata_json
+                        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(channel, session_id, broker_order_id) DO UPDATE SET
+                            client_order_id=CASE WHEN excluded.client_order_id != ''
+                                THEN excluded.client_order_id ELSE external_order.client_order_id END,
+                            origin=CASE WHEN excluded.client_order_id != ''
+                                THEN 'WATCH_OMS' ELSE external_order.origin END,
+                            code=excluded.code, name=excluded.name, exchange=excluded.exchange,
+                            side=excluded.side, order_type=excluded.order_type,
+                            limit_price=excluded.limit_price, qty=excluded.qty,
+                            filled_qty=MAX(external_order.filled_qty, excluded.filled_qty),
+                            remaining_qty=CASE
+                                WHEN excluded.filled_qty >= external_order.filled_qty
+                                THEN excluded.remaining_qty ELSE external_order.remaining_qty END,
+                            avg_fill_price=COALESCE(excluded.avg_fill_price, external_order.avg_fill_price),
+                            total_fee=COALESCE(excluded.total_fee, external_order.total_fee),
+                            broker_status=excluded.broker_status,
+                            normalized_status=excluded.normalized_status,
+                            broker_time=excluded.broker_time,
+                            created_at=CASE WHEN external_order.created_at=''
+                                THEN excluded.created_at ELSE external_order.created_at END,
+                            updated_at=excluded.updated_at,
+                            metadata_json=excluded.metadata_json
+                        """,
+                        (
+                            str(channel), str(session_id), str(item["broker_order_id"]),
+                            str(item.get("client_order_id", "")), str(item.get("origin", "EXTERNAL/UNTRACKED")),
+                            str(item.get("code", "")), str(item.get("name", "")),
+                            str(item.get("exchange", "")), str(item.get("side", "")),
+                            str(item.get("order_type", "LIMIT")), item.get("limit_price"),
+                            int(item.get("qty", 0)), int(item.get("filled_qty", 0)),
+                            int(item.get("remaining_qty", 0)), item.get("avg_fill_price"),
+                            item.get("total_fee"), str(item.get("broker_status", "")),
+                            str(item.get("normalized_status", "UNKNOWN")),
+                            str(item.get("broker_time", "")), str(item.get("created_at", "")),
+                            str(captured_at), json.dumps(item.get("metadata", {}), ensure_ascii=False, default=str),
+                        ),
+                    )
+        except (KeyError, TypeError, ValueError, sqlite3.Error) as exc:
+            raise WatchStoreError(f"保存外部委托镜像失败: {type(exc).__name__}:{exc}") from exc
 
     def save_account_snapshot(self, snapshot: dict) -> None:
         try:
@@ -1372,15 +1557,36 @@ class SqliteWatchStore:
                 self._conn.execute(
                     """
                     DELETE FROM account_snapshot
-                    WHERE session_id = ?
+                    WHERE channel = ? AND session_id = ?
                       AND rowid NOT IN (
                           SELECT rowid FROM account_snapshot
-                          WHERE session_id = ?
+                          WHERE channel = ? AND session_id = ?
                           ORDER BY captured_at DESC, rowid DESC
                           LIMIT ?
                       )
                     """,
-                    (str(snapshot["session_id"]), str(snapshot["session_id"]), _ACCOUNT_SNAPSHOT_KEEP),
+                    (
+                        str(snapshot["channel"]), str(snapshot["session_id"]),
+                        str(snapshot["channel"]), str(snapshot["session_id"]),
+                        _ACCOUNT_SNAPSHOT_KEEP,
+                    ),
+                )
+                self._conn.execute(
+                    """
+                    INSERT INTO account_sync_state(
+                        channel, session_id, source_status, captured_at,
+                        last_success_at, last_error, updated_at
+                    ) VALUES(?, ?, 'LIVE', ?, ?, '', ?)
+                    ON CONFLICT(channel, session_id) DO UPDATE SET
+                        source_status='LIVE', captured_at=excluded.captured_at,
+                        last_success_at=excluded.last_success_at, last_error='',
+                        updated_at=excluded.updated_at
+                    """,
+                    (
+                        str(snapshot["channel"]), str(snapshot["session_id"]),
+                        str(snapshot["captured_at"]), str(snapshot["captured_at"]),
+                        datetime.now().isoformat(),
+                    ),
                 )
         except (KeyError, TypeError, ValueError, sqlite3.Error) as exc:
             raise WatchStoreError(f"保存账户快照失败: {type(exc).__name__}:{exc}") from exc

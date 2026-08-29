@@ -940,13 +940,13 @@ def test_submit_classifies_rejected_vs_unknown(tmp_path: Path):
 
     # 明确业务拒绝（ok=False）→ REJECTED，而不是 UNKNOWN_SUBMIT
     rejected_result = MxResult(endpoint="/mockTrading", ok=False, code="300", message="余额不足")
-    loop = WatchLoop(_config(), _WatchQuote(), _ResultBroker([rejected_result]), log_base=tmp_path, seed_bars={})
+    loop = WatchLoop(_config(watch_execution_mode="EXTERNAL_PAPER"), _WatchQuote(), _ResultBroker([rejected_result]), log_base=tmp_path, seed_bars={})
     rejected = loop._submit(intent, "t1")
     assert rejected.status == "REJECTED"
 
     # ok=True 但缺 orderId → UNKNOWN_SUBMIT
     ok_no_id = MxResult(endpoint="/mockTrading", ok=True, code="200", message="ok", data={})
-    loop2 = WatchLoop(_config(), _WatchQuote(), _ResultBroker([ok_no_id]), log_base=tmp_path, seed_bars={})
+    loop2 = WatchLoop(_config(watch_execution_mode="EXTERNAL_PAPER"), _WatchQuote(), _ResultBroker([ok_no_id]), log_base=tmp_path, seed_bars={})
     missing_id = loop2._submit(intent, "t2")
     assert missing_id.status == "UNKNOWN_SUBMIT"
     assert missing_id.error_code == "NO_ORDER_ID"
@@ -996,7 +996,7 @@ def test_live_halt_mid_cycle_blocks_remaining_submits(tmp_path: Path):
 
     broker = _Broker()
     loop = WatchLoop(
-        _config(watch_live=True),
+        _config(watch_live=True, watch_execution_mode="EXTERNAL_PAPER"),
         quote,
         broker,
         log_base=tmp_path,
@@ -1430,7 +1430,7 @@ def test_live_blocks_when_quote_coverage_is_below_threshold(tmp_path: Path):
 
     broker = _ResultBroker([])
     loop = WatchLoop(
-        _config(watch_live=True, min_quote_coverage=0.75),
+            _config(watch_live=True, min_quote_coverage=0.75, watch_execution_mode="EXTERNAL_PAPER"),
         _PartialQuote(),
         broker,
         log_base=tmp_path,

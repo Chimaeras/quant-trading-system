@@ -318,25 +318,63 @@ def _security_names(conn) -> dict[str, str]:
     return names
 
 
-def _resolve_session_id(conn, requested: str) -> str:
-    """指定 session_id 用之；缺省优先取最近账户快照的会话，其次最近更新的 sim_account。
+def _normalize_channel(value: str) -> str:
+    aliases = {
+        "INTERNAL": "INTERNAL_PAPER", "EXTERNAL": "EXTERNAL_PAPER",
+        "LOCAL": "INTERNAL_PAPER", "MX": "EXTERNAL_PAPER",
+    }
+    normalized = str(value or "").strip().upper()
+    return aliases.get(normalized, normalized)
 
-    以 account_snapshot.session_id 为权威（盯盘循环每轮都写入活跃会话），
-    避免仅靠 sim_account.updated_at 被旧会话/其他进程触碰而选错。
-    """
-    if requested:
-        return requested
-    for sql in (
-        "SELECT session_id FROM account_snapshot ORDER BY captured_at DESC, rowid DESC LIMIT 1",
-        "SELECT session_id FROM sim_account ORDER BY updated_at DESC, rowid DESC LIMIT 1",
-    ):
-        try:
-            row = conn.execute(sql).fetchone()
-        except sqlite3.Error:
-            continue
-        if row and row["session_id"]:
-            return str(row["session_id"])
-    return ""
+
+def _channel_values(channel: str) -> tuple[str, ...]:
+    normalized = _normalize_channel(channel)
+    if normalized == "INTERNAL_PAPER":
+        return ("INTERNAL_PAPER", "internal")
+    if normalized == "EXTERNAL_PAPER":
+        return ("EXTERNAL_PAPER", "external")
+    return (normalized,)
+
+
+def _resolve_account_scope(conn, requested_channel: str, requested_session: str) -> tuple[str, str]:
+    """账户必须以 channel + session_id 解析；缺省选择最近活跃的完整作用域。"""
+    channel = _normalize_channel(requested_channel)
+    session_id = str(requested_session or "").strip()
+    if channel and session_id:
+        return channel, session_id
+    try:
+        clauses, values = [], []
+        if channel:
+            clauses.append("channel IN (" + ",".join("?" for _ in _channel_values(channel)) + ")")
+            values.extend(_channel_values(channel))
+        if session_id:
+            clauses.append("session_id=?")
+            values.append(session_id)
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
+        row = conn.execute(
+            "SELECT channel, session_id FROM account_snapshot" + where
+            + " ORDER BY captured_at DESC, rowid DESC LIMIT 1", values,
+        ).fetchone()
+        if row:
+            return _normalize_channel(row["channel"]), str(row["session_id"])
+    except sqlite3.Error:
+        pass
+    if session_id:
+        return channel or "INTERNAL_PAPER", session_id
+    try:
+        row = conn.execute(
+            "SELECT session_id FROM sim_account ORDER BY updated_at DESC, rowid DESC LIMIT 1"
+        ).fetchone()
+        if row:
+            return "INTERNAL_PAPER", str(row["session_id"])
+    except sqlite3.Error:
+        pass
+    return channel, ""
+
+
+def _resolve_session_id(conn, requested: str) -> str:
+    """兼容旧调用；新 API 必须同时传 execution_mode。"""
+    return _resolve_account_scope(conn, "", requested)[1]
 
 
 def _position_view(row: dict, names: dict[str, str]) -> dict:
@@ -350,22 +388,35 @@ def _position_view(row: dict, names: dict[str, str]) -> dict:
         "qty": qty,
         "available_qty": int(row.get("available_qty") or 0),
         "today_buy_qty": int(row.get("today_buy_qty") or 0),
+        "frozen_qty": max(qty - int(row.get("available_qty") or 0), 0),
         "avg_cost": cost,
         "last_price": last,
         "market_value": qty * last,
         "profit": (last - cost) * qty,
         "profit_rate": ((last / cost - 1) * 100) if cost > 0 else None,
+        "day_profit": None,
+        "day_profit_rate": None,
+        "position_pct": None,
+        "exchange": "SH" if code.startswith(("5", "6", "9")) else (
+            "BJ" if code.startswith(("4", "8", "92")) else "SZ"
+        ),
+        "price_source": "INTERNAL_SNAPSHOT",
+        "source_updated_at": row.get("updated_at"),
     }
 
 
-def _account(store_path: Path, session_id: str) -> dict:
+def _account(store_path: Path, session_id: str, execution_mode: str = "") -> dict:
     conn = _ro_conn(store_path)
     if conn is None:
         return {"available": False, "error": "store_unavailable"}
     try:
-        sid = _resolve_session_id(conn, session_id)
+        channel, sid = _resolve_account_scope(conn, execution_mode, session_id)
         if not sid:
             return {"available": False, "error": "no_session"}
+        if channel == "EXTERNAL_PAPER":
+            return _external_account(conn, channel, sid)
+        if channel == "SHADOW":
+            return _shadow_account_projection(conn, channel, sid)
         names = _security_names(conn)
         account = conn.execute(
             "SELECT * FROM sim_account WHERE session_id=?", (sid,)
@@ -379,11 +430,13 @@ def _account(store_path: Path, session_id: str) -> dict:
             unr = sum(p["profit"] for p in positions)
             return {
                 "available": True, "session_id": sid, "positions": positions,
+                "account_scope": f"{channel}:{sid}", "execution_mode": channel,
+                "account_source": "LOCAL_SIMULATION", "source_status": "NOT_AVAILABLE",
                 "price_basis": "snapshot",
-                "initial_cash": 0.0, "cash": 0.0, "frozen_cash": 0.0,
-                "avail_balance": 0.0, "market_value": mv, "total_assets": mv,
-                "realized_pnl": 0.0, "unrealized_pnl": unr, "total_profit": unr,
-                "total_return_pct": 0.0,
+                "initial_cash": None, "cash": None, "frozen_cash": None,
+                "avail_balance": None, "market_value": mv, "total_assets": None,
+                "realized_pnl": None, "unrealized_pnl": unr, "total_profit": None,
+                "total_return_pct": None, "day_profit": None, "day_return_pct": None,
                 "position_count": len(positions), "open_order_count": 0,
                 "errors": ["sim_account 尚无记录（未发生交易）"],
             }
@@ -395,9 +448,18 @@ def _account(store_path: Path, session_id: str) -> dict:
         unrealized = sum(p["profit"] for p in positions)
         total_assets = cash + market_value
         total_profit = realized + unrealized
+        day_profit, day_return_pct = _internal_day_pnl(
+            conn, channel, sid, str(account["trade_date"]), total_assets
+        )
         return {
             "available": True,
             "session_id": sid,
+            "account_scope": f"{channel}:{sid}",
+            "execution_mode": channel,
+            "account_source": "LOCAL_SIMULATION",
+            "source_status": "LIVE",
+            "captured_at": account["updated_at"],
+            "freshness_seconds": _freshness_seconds(account["updated_at"]),
             "price_basis": "snapshot",
             "initial_cash": initial_cash,
             "cash": cash,
@@ -408,10 +470,17 @@ def _account(store_path: Path, session_id: str) -> dict:
             "realized_pnl": realized,
             "unrealized_pnl": unrealized,
             "total_profit": total_profit,
-            "total_return_pct": (total_assets / initial_cash - 1) * 100 if initial_cash else 0.0,
+            "total_return_pct": (total_assets / initial_cash - 1) * 100 if initial_cash else None,
+            "day_profit": day_profit,
+            "day_return_pct": day_return_pct,
             "position_count": len(positions),
-            "open_order_count": _open_order_count(conn, sid),
+            "open_order_count": _open_order_count(conn, channel, sid),
             "positions": positions,
+            "errors": [],
+            "capabilities": {
+                "exact_positions": True, "exact_orders": True, "exact_fees": True,
+                "exact_realized_pnl": True, "cancellable_orders": True,
+            },
         }
     except sqlite3.Error as exc:
         return {"available": False, "error": f"{type(exc).__name__}:{exc}"}
@@ -419,12 +488,164 @@ def _account(store_path: Path, session_id: str) -> dict:
         conn.close()
 
 
-def _open_order_count(conn, sid: str) -> int:
+def _freshness_seconds(captured_at) -> float | None:
     try:
+        captured = datetime.fromisoformat(str(captured_at))
+        return max((datetime.now() - captured).total_seconds(), 0.0)
+    except (TypeError, ValueError):
+        return None
+
+
+def _internal_day_pnl(conn, channel: str, sid: str, trade_date: str,
+                      total_assets: float) -> tuple[float | None, float | None]:
+    try:
+        values = _channel_values(channel)
+        row = conn.execute(
+            "SELECT payload_json FROM account_snapshot WHERE channel IN ("
+            + ",".join("?" for _ in values)
+            + ") AND session_id=? AND trade_date=? AND consistent=1 "
+              "ORDER BY captured_at, rowid LIMIT 1",
+            (*values, sid, trade_date),
+        ).fetchone()
+        payload = _decode_metadata(row["payload_json"]) if row else {}
+        baseline = payload.get("total_assets")
+        if baseline is None:
+            return None, None
+        baseline_value = float(baseline)
+        day_profit = total_assets - baseline_value
+        return day_profit, (day_profit / baseline_value * 100) if baseline_value else None
+    except (sqlite3.Error, TypeError, ValueError):
+        return None, None
+
+
+def _sync_state(conn, channel: str, sid: str, captured_at: str) -> tuple[str, list[str]]:
+    try:
+        row = conn.execute(
+            "SELECT * FROM account_sync_state WHERE channel=? AND session_id=?",
+            (channel, sid),
+        ).fetchone()
+    except sqlite3.Error:
+        row = None
+    errors = [str(row["last_error"])] if row and row["last_error"] else []
+    status = str(row["source_status"]) if row else "LIVE"
+    freshness = _freshness_seconds(captured_at)
+    if status == "LIVE" and freshness is not None and freshness > 120:
+        status = "STALE"
+    return status, errors
+
+
+def _external_position_view(row: dict, names: dict[str, str], captured_at: str) -> dict:
+    code = str(row.get("code", ""))
+    qty = int(row.get("qty") or 0)
+    cost = _finite(row.get("cost"), 0.0)
+    last = _finite(row.get("last"), cost)
+    market_value = _finite(row.get("market_value"), qty * last)
+    profit = _finite(row.get("profit"), (last - cost) * qty)
+    return {
+        "code": code, "name": row.get("name") or names.get(code, ""),
+        "exchange": row.get("exchange") or (
+            "SH" if code.startswith(("5", "6", "9")) else "BJ" if code.startswith(("4", "8", "92")) else "SZ"
+        ),
+        "qty": qty, "available_qty": int(row.get("avail_qty") or 0),
+        "today_buy_qty": None, "frozen_qty": None, "avg_cost": cost,
+        "last_price": last, "market_value": market_value, "profit": profit,
+        "profit_rate": row.get("profit_rate"), "day_profit": row.get("day_profit"),
+        "day_profit_rate": row.get("day_profit_rate"), "position_pct": row.get("position_pct"),
+        "price_source": row.get("price_source") or "MX_ACCOUNT_SNAPSHOT",
+        "source_updated_at": captured_at,
+    }
+
+
+def _latest_snapshot(conn, channel: str, sid: str):
+    values = _channel_values(channel)
+    return conn.execute(
+        "SELECT * FROM account_snapshot WHERE channel IN ("
+        + ",".join("?" for _ in values)
+        + ") AND session_id=? AND consistent=1 ORDER BY captured_at DESC, rowid DESC LIMIT 1",
+        (*values, sid),
+    ).fetchone()
+
+
+def _external_account(conn, channel: str, sid: str) -> dict:
+    snapshot = _latest_snapshot(conn, channel, sid)
+    if snapshot is None:
+        return {
+            "available": False, "error": "no_consistent_external_snapshot",
+            "account_scope": f"{channel}:{sid}", "session_id": sid,
+            "execution_mode": channel, "account_source": "MX_MIRROR",
+            "source_status": "NOT_AVAILABLE",
+        }
+    payload = _decode_metadata(snapshot["payload_json"])
+    captured_at = str(snapshot["captured_at"])
+    names = _security_names(conn)
+    positions = [_external_position_view(row, names, captured_at)
+                 for row in payload.get("positions", []) if isinstance(row, dict)]
+    source_status, errors = _sync_state(conn, channel, sid, captured_at)
+    total_assets = payload.get("total_assets")
+    market_value = payload.get("market_value")
+    avail = payload.get("avail_balance")
+    frozen = payload.get("frozen_cash")
+    unrealized = sum(_finite(row.get("profit"), 0.0) for row in positions)
+    return {
+        "available": True, "account_scope": f"{channel}:{sid}", "session_id": sid,
+        "execution_mode": channel, "account_source": "MX_MIRROR",
+        "source_status": source_status, "captured_at": captured_at,
+        "freshness_seconds": _freshness_seconds(captured_at), "price_basis": "broker_snapshot",
+        "total_assets": total_assets, "initial_cash": None, "cash": None,
+        "avail_balance": avail, "frozen_cash": frozen, "market_value": market_value,
+        "position_count": len(positions),
+        "open_order_count": _open_order_count(conn, channel, sid),
+        "total_profit": payload.get("total_profit"),
+        "total_return_pct": payload.get("total_return_pct"),
+        "day_profit": payload.get("day_profit"),
+        "day_return_pct": payload.get("day_return_pct"),
+        "realized_pnl": None, "unrealized_pnl": unrealized,
+        "positions": positions, "errors": errors,
+        "capabilities": {
+            "exact_positions": True, "exact_orders": True, "exact_fees": False,
+            "exact_realized_pnl": False, "cancellable_orders": True,
+        },
+    }
+
+
+def _shadow_account_projection(conn, channel: str, sid: str) -> dict:
+    snapshot = _latest_snapshot(conn, channel, sid)
+    payload = _decode_metadata(snapshot["payload_json"]) if snapshot else {}
+    captured_at = str(snapshot["captured_at"]) if snapshot else None
+    return {
+        "available": True, "account_scope": f"{channel}:{sid}", "session_id": sid,
+        "execution_mode": channel, "account_source": "SHADOW",
+        "source_status": "LIVE" if snapshot else "NOT_AVAILABLE",
+        "captured_at": captured_at, "freshness_seconds": _freshness_seconds(captured_at),
+        "total_assets": payload.get("total_assets"), "initial_cash": payload.get("total_assets"),
+        "cash": payload.get("total_assets"), "avail_balance": payload.get("avail_balance"),
+        "frozen_cash": None, "market_value": 0.0, "position_count": 0,
+        "open_order_count": 0, "total_profit": None, "total_return_pct": None,
+        "day_profit": None, "day_return_pct": None, "realized_pnl": None,
+        "unrealized_pnl": None, "positions": [],
+        "errors": ["影子模式为分析资金基准，不是交易账户"],
+        "capabilities": {
+            "exact_positions": False, "exact_orders": False, "exact_fees": False,
+            "exact_realized_pnl": False, "cancellable_orders": False,
+        },
+    }
+
+
+def _open_order_count(conn, channel: str, sid: str) -> int:
+    try:
+        if channel == "EXTERNAL_PAPER":
+            return int(conn.execute(
+                "SELECT COUNT(*) FROM external_order WHERE channel=? AND session_id=? "
+                "AND normalized_status IN ('SUBMITTING','SUBMITTED','PARTIAL','CANCEL_PENDING','UNKNOWN') "
+                "AND remaining_qty>0", (channel, sid),
+            ).fetchone()[0])
         placeholders = ",".join("?" for _ in _ACTIVE_ORDER_STATUSES)
+        channel_values = _channel_values(channel)
         return int(conn.execute(
-            "SELECT COUNT(*) FROM local_order WHERE session_id=? AND status IN (" + placeholders + ")",
-            (sid, *_ACTIVE_ORDER_STATUSES),
+            "SELECT COUNT(*) FROM local_order WHERE channel IN ("
+            + ",".join("?" for _ in channel_values)
+            + ") AND session_id=? AND status IN (" + placeholders + ") AND qty-filled_qty>0",
+            (*channel_values, sid, *_ACTIVE_ORDER_STATUSES),
         ).fetchone()[0])
     except sqlite3.Error:
         return 0
@@ -458,8 +679,13 @@ def _order_view(row: dict, names: dict[str, str]) -> dict:
         "qty": row.get("qty"),
         "filled_qty": row.get("filled_qty"),
         "avg_fill_price": row.get("avg_fill_price"),
-        "total_fee": row.get("total_fee"),
+        "total_fee": None if metadata.get("fee_unknown") else row.get("total_fee"),
         "status": row.get("status"),
+        "local_status": row.get("status"),
+        "broker_status": metadata.get("broker_status"),
+        "normalized_status": row.get("status"),
+        "remaining_qty": max(int(row.get("qty") or 0) - int(row.get("filled_qty") or 0), 0),
+        "origin": "WATCH_OMS",
         "broker_order_id": row.get("broker_order_id"),
         "created_at": row.get("created_at"),
         "updated_at": row.get("updated_at"),
@@ -470,18 +696,82 @@ def _order_view(row: dict, names: dict[str, str]) -> dict:
     }
 
 
+def _external_order_view(row: dict, names: dict[str, str]) -> dict:
+    metadata = _decode_metadata(row.get("metadata_json"))
+    return {
+        "client_order_id": row.get("client_order_id") or None,
+        "broker_order_id": row.get("broker_order_id"),
+        "origin": row.get("origin") or "EXTERNAL/UNTRACKED",
+        "channel": row.get("channel"), "session_id": row.get("session_id"),
+        "run_id": None, "strategy": None, "signal_bar_ts": None,
+        "code": row.get("code"), "name": row.get("name") or names.get(str(row.get("code", "")), ""),
+        "side": row.get("side"), "order_type": row.get("order_type"),
+        "limit_price": row.get("limit_price"), "qty": row.get("qty"),
+        "filled_qty": row.get("filled_qty"), "remaining_qty": row.get("remaining_qty"),
+        "avg_fill_price": row.get("avg_fill_price"), "total_fee": row.get("total_fee"),
+        "status": row.get("normalized_status"), "local_status": None,
+        "broker_status": row.get("broker_status"),
+        "normalized_status": row.get("normalized_status"),
+        "created_at": row.get("created_at") or row.get("broker_time"),
+        "broker_time": row.get("broker_time"), "updated_at": row.get("updated_at"),
+        "expires_at": None, "last_error_code": None, "last_error_message": None,
+        "metadata": metadata,
+    }
+
+
 def _orders(store_path: Path, params: dict) -> dict:
     conn = _ro_conn(store_path)
     if conn is None:
         return {"available": False, "error": "store_unavailable"}
     try:
-        sid = _resolve_session_id(conn, (params.get("session_id") or [""])[0])
+        channel, sid = _resolve_account_scope(
+            conn,
+            (params.get("execution_mode") or params.get("channel") or [""])[0],
+            (params.get("session_id") or [""])[0],
+        )
         status_filter = (params.get("status") or [""])[0]
         code_filter = (params.get("code") or [""])[0]
         trade_date = (params.get("trade_date") or [""])[0].strip()
         limit = max(min(_query_int(params, "limit", 200), 1000), 1)
-        clauses = ["session_id=?"]
-        vals: list[object] = [sid]
+        names = _security_names(conn)
+        if channel == "EXTERNAL_PAPER":
+            clauses = ["channel=?", "session_id=?"]
+            vals: list[object] = [channel, sid]
+            if status_filter:
+                statuses = [s for s in status_filter.split(",") if s]
+                clauses.append("normalized_status IN (" + ",".join("?" for _ in statuses) + ")")
+                vals.extend(statuses)
+            if code_filter:
+                clauses.append("code=?")
+                vals.append(code_filter)
+            if trade_date:
+                clauses.append("substr(COALESCE(NULLIF(created_at,''), broker_time), 1, 10)=?")
+                vals.append(trade_date)
+            rows = conn.execute(
+                "SELECT * FROM external_order WHERE " + " AND ".join(clauses)
+                + " ORDER BY updated_at DESC, broker_order_id DESC LIMIT " + str(limit), vals,
+            ).fetchall()
+            orders = [_external_order_view(dict(row), names) for row in rows]
+            # 尚未出现在柜台镜像中的本地 UNKNOWN/SUBMITTING 也必须展示；按 broker id/client id 去重。
+            seen_clients = {str(row.get("client_order_id")) for row in orders if row.get("client_order_id")}
+            pending = conn.execute(
+                "SELECT * FROM local_order WHERE channel=? AND session_id=? "
+                "AND status IN ('CREATED','SUBMITTING','UNKNOWN') ORDER BY created_at DESC",
+                (channel, sid),
+            ).fetchall()
+            for row in pending:
+                view = _order_view(dict(row), names)
+                if view["client_order_id"] not in seen_clients:
+                    orders.append(view)
+            orders = orders[:limit]
+            return {
+                "available": True, "account_scope": f"{channel}:{sid}",
+                "execution_mode": channel, "session_id": sid,
+                "orders": orders, "count": len(orders),
+            }
+        channel_values = _channel_values(channel or "INTERNAL_PAPER")
+        clauses = ["channel IN (" + ",".join("?" for _ in channel_values) + ")", "session_id=?"]
+        vals = [*channel_values, sid]
         if status_filter:
             statuses = [s for s in status_filter.split(",") if s]
             clauses.append("status IN (" + ",".join("?" for _ in statuses) + ")")
@@ -497,9 +787,12 @@ def _orders(store_path: Path, params: dict) -> dict:
             + " ORDER BY created_at DESC, client_order_id DESC LIMIT " + str(limit),
             vals,
         ).fetchall()
-        names = _security_names(conn)
         orders = [_order_view(dict(row), names) for row in rows]
-        return {"available": True, "session_id": sid, "orders": orders, "count": len(orders)}
+        return {
+            "available": True, "account_scope": f"{channel or 'INTERNAL_PAPER'}:{sid}",
+            "execution_mode": channel or "INTERNAL_PAPER", "session_id": sid,
+            "orders": orders, "count": len(orders),
+        }
     except sqlite3.Error as exc:
         return {"available": False, "error": f"{type(exc).__name__}:{exc}"}
     finally:
@@ -508,6 +801,7 @@ def _orders(store_path: Path, params: dict) -> dict:
 
 def _fill_view(row: dict, names: dict[str, str]) -> dict:
     metadata = _decode_metadata(row.get("metadata_json"))
+    fee_unknown = bool(metadata.get("fee_unknown"))
     return {
         "fill_id": row.get("fill_id"),
         "client_order_id": row.get("client_order_id"),
@@ -517,9 +811,11 @@ def _fill_view(row: dict, names: dict[str, str]) -> dict:
         "qty": row.get("qty"),
         "price": row.get("price"),
         "gross_amount": row.get("gross_amount"),
-        "commission": row.get("commission"),
-        "stamp_tax": row.get("stamp_tax"),
-        "total_fee": row.get("total_fee"),
+        "commission": None if fee_unknown else row.get("commission"),
+        "stamp_tax": None if fee_unknown else row.get("stamp_tax"),
+        "total_fee": None if fee_unknown else row.get("total_fee"),
+        "fee_unknown": fee_unknown,
+        "estimated": bool(metadata.get("price_estimated")),
         "filled_at": row.get("filled_at"),
         "bar_ts": row.get("bar_ts"),
         "price_source": row.get("price_source"),
@@ -532,49 +828,82 @@ def _fills(store_path: Path, params: dict) -> dict:
     if conn is None:
         return {"available": False, "error": "store_unavailable"}
     try:
-        sid = _resolve_session_id(conn, (params.get("session_id") or [""])[0])
+        channel, sid = _resolve_account_scope(
+            conn,
+            (params.get("execution_mode") or params.get("channel") or [""])[0],
+            (params.get("session_id") or [""])[0],
+        )
         code_filter = (params.get("code") or [""])[0]
         trade_date = (params.get("trade_date") or [""])[0].strip()
         limit = max(min(_query_int(params, "limit", 200), 1000), 1)
-        clauses = ["session_id=?"]
-        vals: list[object] = [sid]
+        channel_values = _channel_values(channel or "INTERNAL_PAPER")
+        clauses = ["o.channel IN (" + ",".join("?" for _ in channel_values) + ")", "f.session_id=?"]
+        vals: list[object] = [*channel_values, sid]
         if code_filter:
-            clauses.append("code=?")
+            clauses.append("f.code=?")
             vals.append(code_filter)
         if trade_date:
-            clauses.append("substr(filled_at, 1, 10)=?")
+            clauses.append("substr(f.filled_at, 1, 10)=?")
             vals.append(trade_date)
         rows = conn.execute(
-            "SELECT * FROM fill WHERE " + " AND ".join(clauses)
-            + " ORDER BY filled_at DESC, fill_id DESC LIMIT " + str(limit),
+            "SELECT f.* FROM fill f JOIN local_order o ON o.client_order_id=f.client_order_id WHERE "
+            + " AND ".join(clauses)
+            + " ORDER BY f.filled_at DESC, f.fill_id DESC LIMIT " + str(limit),
             vals,
         ).fetchall()
         names = _security_names(conn)
         fills = [_fill_view(dict(row), names) for row in rows]
-        return {"available": True, "session_id": sid, "fills": fills, "count": len(fills)}
+        return {
+            "available": True, "account_scope": f"{channel or 'INTERNAL_PAPER'}:{sid}",
+            "execution_mode": channel or "INTERNAL_PAPER", "session_id": sid,
+            "fills": fills, "count": len(fills),
+        }
     except sqlite3.Error as exc:
         return {"available": False, "error": f"{type(exc).__name__}:{exc}"}
     finally:
         conn.close()
 
 
-def _pnl(store_path: Path, session_id: str) -> dict:
+def _pnl(store_path: Path, session_id: str, execution_mode: str = "") -> dict:
     """逐代码重放成交，还原每笔/每只已实现盈亏；未实现按当前持仓口径。"""
     conn = _ro_conn(store_path)
     if conn is None:
         return {"available": False, "error": "store_unavailable"}
     try:
-        sid = _resolve_session_id(conn, session_id)
+        channel, sid = _resolve_account_scope(conn, execution_mode, session_id)
         if not sid:
             return {"available": False, "error": "no_session"}
+        if channel == "EXTERNAL_PAPER":
+            account_view = _external_account(conn, channel, sid)
+            if not account_view.get("available"):
+                return account_view
+            per_code = [{
+                "code": row["code"], "name": row.get("name", ""),
+                "qty": row["qty"], "avg_cost": row.get("avg_cost"),
+                "realized": None, "unrealized": row.get("profit"),
+                "total": None, "trades": [],
+            } for row in account_view.get("positions", [])]
+            return {
+                "available": True, "account_scope": f"{channel}:{sid}",
+                "execution_mode": channel, "session_id": sid,
+                "price_basis": "broker_snapshot", "per_code": per_code,
+                "totals": {
+                    "realized": None,
+                    "unrealized": account_view.get("unrealized_pnl"),
+                    "total": None, "realized_account": None, "consistent": None,
+                },
+                "errors": ["妙想接口未提供精确已实现盈亏；本地聚合成交不作为柜台完整历史"],
+            }
         names = _security_names(conn)
         pos_rows = conn.execute(
             "SELECT * FROM sim_position WHERE session_id=? ORDER BY code", (sid,)
         ).fetchall()
         positions = {str(row["code"]): dict(row) for row in pos_rows}
+        channel_values = _channel_values(channel or "INTERNAL_PAPER")
         fill_rows = conn.execute(
-            "SELECT * FROM fill WHERE session_id=?"
-            " ORDER BY filled_at, bar_ts, client_order_id, fill_id", (sid,)
+            "SELECT f.* FROM fill f JOIN local_order o ON o.client_order_id=f.client_order_id "
+            "WHERE o.channel IN (" + ",".join("?" for _ in channel_values) + ") AND f.session_id=?"
+            " ORDER BY f.filled_at, f.bar_ts, f.client_order_id, f.fill_id", (*channel_values, sid)
         ).fetchall()
         account = conn.execute(
             "SELECT * FROM sim_account WHERE session_id=?", (sid,)
@@ -642,6 +971,8 @@ def _pnl(store_path: Path, session_id: str) -> dict:
         return {
             "available": True,
             "session_id": sid,
+            "account_scope": f"{channel or 'INTERNAL_PAPER'}:{sid}",
+            "execution_mode": channel or "INTERNAL_PAPER",
             "price_basis": "snapshot",
             "per_code": result,
             "totals": {
@@ -654,6 +985,39 @@ def _pnl(store_path: Path, session_id: str) -> dict:
         }
     except sqlite3.Error as exc:
         return {"available": False, "error": f"{type(exc).__name__}:{exc}"}
+    finally:
+        conn.close()
+
+
+def _account_scopes(store_path: Path) -> dict:
+    conn = _ro_conn(store_path)
+    if conn is None:
+        return {"available": False, "accounts": [], "error": "store_unavailable"}
+    try:
+        rows = conn.execute(
+            "SELECT channel, session_id, MAX(captured_at) captured_at "
+            "FROM account_snapshot GROUP BY channel, session_id ORDER BY captured_at DESC"
+        ).fetchall()
+        seen: set[tuple[str, str]] = set()
+        accounts = []
+        for row in rows:
+            channel = _normalize_channel(row["channel"])
+            sid = str(row["session_id"])
+            key = (channel, sid)
+            if key in seen:
+                continue
+            seen.add(key)
+            accounts.append({
+                "account_scope": f"{channel}:{sid}", "execution_mode": channel,
+                "session_id": sid,
+                "account_source": "MX_MIRROR" if channel == "EXTERNAL_PAPER" else (
+                    "SHADOW" if channel == "SHADOW" else "LOCAL_SIMULATION"
+                ),
+                "captured_at": row["captured_at"],
+            })
+        return {"available": True, "accounts": accounts, "count": len(accounts)}
+    except sqlite3.Error as exc:
+        return {"available": False, "accounts": [], "error": f"{type(exc).__name__}:{exc}"}
     finally:
         conn.close()
 
@@ -706,10 +1070,14 @@ def make_handler(log_base: Path, store_path: Path | None = None, *, max_pool_siz
                 # 非日期资源：盯盘模拟账户（持仓 / 收益 / 委托 / 成交）
                 query = parse_qs(parsed.query)
                 resource = parts[2]
+                execution_mode = (query.get("execution_mode") or query.get("channel") or [""])[0]
+                session_id = (query.get("session_id") or [""])[0]
+                if resource == "accounts":
+                    return _json_response(self, _account_scopes(runtime_store))
                 if resource == "account":
-                    return _json_response(self, _account(runtime_store, (query.get("session_id") or [""])[0]))
+                    return _json_response(self, _account(runtime_store, session_id, execution_mode))
                 if resource == "pnl":
-                    return _json_response(self, _pnl(runtime_store, (query.get("session_id") or [""])[0]))
+                    return _json_response(self, _pnl(runtime_store, session_id, execution_mode))
                 if resource in ("orders", "fills"):
                     try:
                         payload = _orders(runtime_store, query) if resource == "orders" else _fills(runtime_store, query)

@@ -13,6 +13,7 @@ import json
 import math
 import sqlite3
 import threading
+from datetime import datetime
 from http.server import ThreadingHTTPServer
 
 import pytest
@@ -20,7 +21,9 @@ import pytest
 from paper.watch.serve import (
     _account, _decode_metadata, _fills, _orders, _pnl, make_handler,
 )
-from paper.watch.store import SqliteWatchStore
+from paper.watch.store import SqliteWatchStore, WatchStoreError
+from paper.watch.oms import OmsService, OrderStatus
+from paper.models import MxOrder
 
 SESSION = "acct-test"
 OLD_SESSION = "old-sess"
@@ -417,3 +420,172 @@ def test_orders_fills_filter_by_trade_date(tmp_path):
     assert _fills(store_path, {"trade_date": ["2026-08-26"]})["count"] == 3
     # 无效日期：空
     assert _orders(store_path, {"trade_date": ["2026-08-28"]})["count"] == 0
+
+
+def test_same_session_isolated_by_execution_mode_and_external_projection(tmp_path):
+    store_path = tmp_path / "runtime.sqlite3"
+    store = SqliteWatchStore(store_path)
+    try:
+        store.bind_account_scope("INTERNAL_PAPER", SESSION)
+        store.bind_account_scope("EXTERNAL_PAPER", SESSION)
+        store.save_simulation({
+            "session_id": SESSION, "trade_date": "2026-08-29",
+            "initial_cash": 100000.0, "cash": 80000.0, "frozen_cash": 0.0,
+            "realized_pnl": 0.0,
+        }, [{
+            "code": "000001", "name": "平安银行", "qty": 1000,
+            "available_qty": 1000, "today_buy_qty": 0,
+            "avg_cost": 10.0, "last_price": 11.0,
+        }])
+        store.save_account_snapshot({
+            "snapshot_id": "external:1", "session_id": SESSION,
+            "channel": "EXTERNAL_PAPER", "trade_date": "2026-08-29",
+            "captured_at": datetime.now().isoformat(), "consistent": True,
+            "payload": {
+                "total_assets": 520000.0, "avail_balance": 400000.0,
+                "frozen_cash": 10000.0, "market_value": 120000.0,
+                "positions": [{
+                    "code": "600519", "name": "贵州茅台", "qty": 100,
+                    "avail_qty": 100, "cost": 1100.0, "last": 1200.0,
+                    "market_value": 120000.0, "profit": 10000.0,
+                    "profit_rate": 9.09,
+                }], "orders": [],
+            },
+        })
+    finally:
+        store.close()
+
+    internal = _account(store_path, SESSION, "INTERNAL_PAPER")
+    external = _account(store_path, SESSION, "EXTERNAL_PAPER")
+    assert internal["account_source"] == "LOCAL_SIMULATION"
+    assert {row["code"] for row in internal["positions"]} == {"000001"}
+    assert external["account_source"] == "MX_MIRROR"
+    assert external["total_assets"] == 520000.0
+    assert external["positions"][0]["code"] == "600519"
+    assert external["realized_pnl"] is None
+
+
+def test_external_terminal_orders_are_not_open_and_untracked_are_visible(tmp_path):
+    store_path = tmp_path / "runtime.sqlite3"
+    store = SqliteWatchStore(store_path)
+    try:
+        store.bind_account_scope("EXTERNAL_PAPER", SESSION)
+        now = datetime.now().isoformat()
+        store.save_account_snapshot({
+            "snapshot_id": "external:orders", "session_id": SESSION,
+            "channel": "EXTERNAL_PAPER", "trade_date": "2026-08-29",
+            "captured_at": now, "consistent": True,
+            "payload": {"total_assets": 100000.0, "avail_balance": 100000.0,
+                        "frozen_cash": 0.0, "market_value": 0.0,
+                        "positions": [], "orders": []},
+        })
+        store.upsert_external_orders(
+            channel="EXTERNAL_PAPER", session_id=SESSION, captured_at=now,
+            orders=[
+                {"broker_order_id": "mx-filled", "code": "000001", "side": "buy",
+                 "qty": 100, "filled_qty": 100, "remaining_qty": 0,
+                 "broker_status": "4", "normalized_status": "FILLED"},
+                {"broker_order_id": "mx-cancelled", "code": "000002", "side": "buy",
+                 "qty": 100, "filled_qty": 0, "remaining_qty": 0,
+                 "broker_status": "8", "normalized_status": "CANCELLED"},
+                {"broker_order_id": "mx-rejected", "code": "000003", "side": "buy",
+                 "qty": 100, "filled_qty": 0, "remaining_qty": 0,
+                 "broker_status": "9", "normalized_status": "REJECTED"},
+            ],
+        )
+    finally:
+        store.close()
+
+    account = _account(store_path, SESSION, "EXTERNAL_PAPER")
+    orders = _orders(store_path, {
+        "session_id": [SESSION], "execution_mode": ["EXTERNAL_PAPER"]
+    })
+    assert account["open_order_count"] == 0
+    assert orders["count"] == 3
+    assert all(row["origin"] == "EXTERNAL/UNTRACKED" for row in orders["orders"])
+
+
+def test_external_fee_unknown_is_null_in_fill_api(tmp_path):
+    store_path = tmp_path / "runtime.sqlite3"
+    _build_store(store_path)
+    conn = sqlite3.connect(store_path)
+    try:
+        conn.execute(
+            "UPDATE local_order SET channel='EXTERNAL_PAPER' WHERE client_order_id='ord1'"
+        )
+        conn.execute(
+            "UPDATE fill SET metadata_json=? WHERE fill_id='f1'",
+            (json.dumps({"fee_unknown": True, "price_estimated": True}),),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    result = _fills(store_path, {
+        "session_id": [SESSION], "execution_mode": ["EXTERNAL_PAPER"]
+    })
+    row = next(item for item in result["fills"] if item["fill_id"] == "f1")
+    assert row["total_fee"] is None
+    assert row["commission"] is None
+    assert row["fee_unknown"] is True
+    assert row["estimated"] is True
+
+
+def test_mode_switch_blocked_while_old_scope_has_unknown_order(tmp_path):
+    store = SqliteWatchStore(tmp_path / "runtime.sqlite3")
+    try:
+        store.bind_account_scope("INTERNAL_PAPER", SESSION)
+        store.create_local_order({
+            "client_order_id": "unsafe-order", "idempotency_key": "unsafe-key",
+            "session_id": SESSION, "channel": "INTERNAL_PAPER", "run_id": "run",
+            "strategy": "MA_CROSS", "signal_bar_ts": "2026-08-29T09:35:00",
+            "code": "000001", "side": "buy", "order_type": "LIMIT",
+            "limit_price": 10.0, "qty": 100, "status": "UNKNOWN",
+            "created_at": datetime.now().isoformat(),
+        })
+        with pytest.raises(WatchStoreError, match="禁止切换"):
+            store.bind_account_scope("EXTERNAL_PAPER", SESSION)
+    finally:
+        store.close()
+
+
+def test_external_cumulative_fill_is_incremental_and_mirror_links_once(tmp_path):
+    store = SqliteWatchStore(tmp_path / "runtime.sqlite3")
+    try:
+        store.bind_account_scope("EXTERNAL_PAPER", SESSION)
+        oms = OmsService(store, session_id=SESSION, channel="EXTERNAL_PAPER")
+        local, _ = oms.create(
+            run_id="run", strategy="MA_CROSS", signal_bar_ts="2026-08-29T09:35:00",
+            code="000001", side="buy", qty=100, limit_price=10.5, ttl_sec=600,
+            now=datetime(2026, 8, 29, 9, 35),
+        )
+        local = oms.transition(local.client_order_id, OrderStatus.SUBMITTING)
+        oms.transition(local.client_order_id, OrderStatus.SUBMITTED, broker_order_id="mx-1")
+        partial = MxOrder(
+            "mx-1", "000001", "buy", 10.5, 100, 40, "3",
+            ts="2026-08-29 09:36:00",
+            raw={"secName": "平安银行", "tradePrice": 1050, "tradePriceDec": 2},
+        )
+        oms.sync_external([partial], datetime(2026, 8, 29, 9, 36))
+        oms.sync_external([partial], datetime(2026, 8, 29, 9, 36, 5))
+        assert [row["qty"] for row in store.list_fills(session_id=SESSION, channel="EXTERNAL_PAPER")] == [40]
+
+        filled = MxOrder(
+            "mx-1", "000001", "buy", 10.5, 100, 100, "4",
+            ts="2026-08-29 09:37:00",
+            raw={"secName": "平安银行", "tradePrice": 1050, "tradePriceDec": 2},
+        )
+        oms.sync_external([filled], datetime(2026, 8, 29, 9, 37))
+        oms.sync_external([filled], datetime(2026, 8, 29, 9, 37, 5))
+        fills = store.list_fills(session_id=SESSION, channel="EXTERNAL_PAPER")
+        assert [row["qty"] for row in fills] == [40, 60]
+        assert all(row["price_source"] == "MX_ORDER_AGGREGATE" for row in fills)
+        mirror = store._conn.execute(
+            "SELECT * FROM external_order WHERE channel=? AND session_id=? AND broker_order_id=?",
+            ("EXTERNAL_PAPER", SESSION, "mx-1"),
+        ).fetchone()
+        assert mirror["client_order_id"] == local.client_order_id
+        assert mirror["origin"] == "WATCH_OMS"
+        assert mirror["filled_qty"] == 100
+        assert mirror["remaining_qty"] == 0
+    finally:
+        store.close()

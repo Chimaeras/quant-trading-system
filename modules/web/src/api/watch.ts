@@ -70,36 +70,53 @@ export interface WatchPosition {
   name: string
   qty: number
   available_qty: number
-  today_buy_qty: number
+  today_buy_qty: number | null
+  frozen_qty: number | null
   avg_cost: number
   last_price: number
   market_value: number
   profit: number
   profit_rate: number | null
+  day_profit: number | null
+  day_profit_rate: number | null
+  position_pct: number | null
+  exchange: string
+  price_source: string
+  source_updated_at: string | null
 }
 
 export interface WatchAccount {
   available: boolean
   session_id: string
+  account_scope: string
+  execution_mode: 'SHADOW' | 'INTERNAL_PAPER' | 'EXTERNAL_PAPER' | string
+  account_source: 'LOCAL_SIMULATION' | 'MX_MIRROR' | 'SHADOW' | string
+  source_status: 'LIVE' | 'STALE' | 'ERROR' | 'NOT_AVAILABLE' | string
+  captured_at: string | null
+  freshness_seconds: number | null
   price_basis?: string
-  initial_cash: number
-  cash: number
-  frozen_cash: number
-  avail_balance: number
-  market_value: number
-  total_assets: number
-  realized_pnl: number
-  unrealized_pnl: number
-  total_profit: number
-  total_return_pct: number
+  initial_cash: number | null
+  cash: number | null
+  frozen_cash: number | null
+  avail_balance: number | null
+  market_value: number | null
+  total_assets: number | null
+  realized_pnl: number | null
+  unrealized_pnl: number | null
+  total_profit: number | null
+  total_return_pct: number | null
+  day_profit: number | null
+  day_return_pct: number | null
   position_count: number
   open_order_count: number
   positions: WatchPosition[]
+  errors: string[]
+  capabilities: Record<string, boolean>
   error?: string
 }
 
 export interface WatchOrderRow {
-  client_order_id: string
+  client_order_id: string | null
   session_id: string
   channel: string
   run_id: string
@@ -112,9 +129,14 @@ export interface WatchOrderRow {
   limit_price: number | null
   qty: number
   filled_qty: number
+  remaining_qty: number
   avg_fill_price: number | null
   total_fee: number | null
   status: string
+  local_status: string | null
+  broker_status: string | null
+  normalized_status: string
+  origin: string
   broker_order_id: string
   created_at: string
   updated_at: string
@@ -141,9 +163,11 @@ export interface WatchFillRow {
   qty: number
   price: number
   gross_amount: number
-  commission: number
-  stamp_tax: number
-  total_fee: number
+  total_fee: number | null
+  commission: number | null
+  stamp_tax: number | null
+  fee_unknown: boolean
+  estimated: boolean
   filled_at: string
   bar_ts: string
   price_source: string
@@ -173,9 +197,9 @@ export interface WatchPnlCode {
   name: string
   qty: number
   avg_cost: number
-  realized: number
-  unrealized: number
-  total: number
+  realized: number | null
+  unrealized: number | null
+  total: number | null
   trades: WatchPnlTrade[]
 }
 
@@ -185,11 +209,11 @@ export interface WatchPnl {
   price_basis?: string
   per_code: WatchPnlCode[]
   totals: {
-    realized: number
-    unrealized: number
-    total: number
-    realized_account: number
-    consistent: boolean
+    realized: number | null
+    unrealized: number | null
+    total: number | null
+    realized_account: number | null
+    consistent: boolean | null
   }
   error?: string
 }
@@ -263,14 +287,27 @@ export function checkHealth(): Promise<boolean> {
     .catch(() => false)
 }
 
-export function fetchAccount(session_id?: string): Promise<WatchAccount> {
-  const params = session_id ? `?session_id=${encodeURIComponent(session_id)}` : ''
-  return get(`/api/watch/account${params}`)
+export interface WatchAccountScope {
+  account_scope: string
+  execution_mode: string
+  session_id: string
+  account_source: string
+  captured_at: string
 }
 
-export function fetchOrders(filters: { session_id?: string; status?: string; code?: string; limit?: number; trade_date?: string } = {}): Promise<WatchOrderList> {
+export function fetchAccountScopes(): Promise<{ available: boolean; accounts: WatchAccountScope[]; count: number }> {
+  return get('/api/watch/accounts')
+}
+
+export function fetchAccount(session_id?: string, execution_mode?: string): Promise<WatchAccount> {
+  const query = scopeQuery(session_id, execution_mode)
+  return get(`/api/watch/account${query ? `?${query}` : ''}`)
+}
+
+export function fetchOrders(filters: { session_id?: string; execution_mode?: string; status?: string; code?: string; limit?: number; trade_date?: string } = {}): Promise<WatchOrderList> {
   const params = new URLSearchParams()
   if (filters.session_id) params.set('session_id', filters.session_id)
+  if (filters.execution_mode) params.set('execution_mode', filters.execution_mode)
   if (filters.status) params.set('status', filters.status)
   if (filters.code) params.set('code', filters.code)
   if (filters.limit) params.set('limit', String(filters.limit))
@@ -279,9 +316,10 @@ export function fetchOrders(filters: { session_id?: string; status?: string; cod
   return get(`/api/watch/orders${query ? `?${query}` : ''}`)
 }
 
-export function fetchFills(filters: { session_id?: string; code?: string; limit?: number; trade_date?: string } = {}): Promise<WatchFillList> {
+export function fetchFills(filters: { session_id?: string; execution_mode?: string; code?: string; limit?: number; trade_date?: string } = {}): Promise<WatchFillList> {
   const params = new URLSearchParams()
   if (filters.session_id) params.set('session_id', filters.session_id)
+  if (filters.execution_mode) params.set('execution_mode', filters.execution_mode)
   if (filters.code) params.set('code', filters.code)
   if (filters.limit) params.set('limit', String(filters.limit))
   if (filters.trade_date) params.set('trade_date', filters.trade_date)
@@ -289,7 +327,14 @@ export function fetchFills(filters: { session_id?: string; code?: string; limit?
   return get(`/api/watch/fills${query ? `?${query}` : ''}`)
 }
 
-export function fetchPnl(session_id?: string): Promise<WatchPnl> {
-  const params = session_id ? `?session_id=${encodeURIComponent(session_id)}` : ''
-  return get(`/api/watch/pnl${params}`)
+export function fetchPnl(session_id?: string, execution_mode?: string): Promise<WatchPnl> {
+  const query = scopeQuery(session_id, execution_mode)
+  return get(`/api/watch/pnl${query ? `?${query}` : ''}`)
+}
+
+function scopeQuery(session_id?: string, execution_mode?: string): string {
+  const params = new URLSearchParams()
+  if (session_id) params.set('session_id', session_id)
+  if (execution_mode) params.set('execution_mode', execution_mode)
+  return params.toString()
 }

@@ -260,6 +260,44 @@ class ClassicFactorCalculatorTest {
         assertThat(result).isEmpty();
     }
 
+    @Test
+    void shortProfileRespectsConfiguredMinTrendScoreNotHardcoded35() {
+        // 短周期也须尊重配置的 minTrendScore；此前硬编码 35 会绕过（如配置 90 仍可放行）。
+        List<MarketData> bars = sampleBars(75, 12, 50_000_000, -0.08);
+        for (int i = bars.size() - 5; i < bars.size(); i++) {
+            double c = 8.5 + (i - (bars.size() - 5)) * 0.15;
+            bars.get(i).setClosePrice(java.math.BigDecimal.valueOf(c));
+            bars.get(i).setAmount(java.math.BigDecimal.valueOf(80_000_000));
+        }
+
+        // 高阈值 90：短周期 shortHorizonScore 不足以达标 → 应被拒（硬编码 35 时代会错误放行）
+        var rejected = calculator.calculate(
+                "000001", "SZSE", bars, 1_000_000, 90, key -> "测试股份", true,
+                ClassicFactorCalculator.HORIZON_SHORT);
+        // 阈值 0：等同于不卡，应通过 —— 证明配置阈值是唯一闸门
+        var accepted = calculator.calculate(
+                "000001", "SZSE", bars, 1_000_000, 0, key -> "测试股份", true,
+                ClassicFactorCalculator.HORIZON_SHORT);
+
+        assertThat(rejected).isEmpty();
+        assertThat(accepted).isPresent();
+    }
+
+    @Test
+    void volumeScoreDoesNotSaturateWhenMinAvgAmountUnset() {
+        // minAvgAmount<=0（未配置门槛）时，流动性分不应因 Math.max(1,0)*60 而饱和到 60。
+        // 修复后该分来自 volumeRatio*20（≈20），远低于 60，保证区分度。
+        List<MarketData> bars = sampleBars(75, 10, 50_000_000, 0.02);
+
+        var result = calculator.calculate(
+                "000001", "SZSE", bars, 0, 0, key -> "测试股份", true,
+                ClassicFactorCalculator.HORIZON_MEDIUM);
+
+        assertThat(result).isPresent();
+        assertThat(result.get().getVolumeScore()).isLessThan(60.0);
+        assertThat(result.get().getVolumeScore()).isPositive();
+    }
+
     private static List<MarketData> sampleBars(int count, double close, double amount) {
         return sampleBars(count, close, amount, 0.01);
     }

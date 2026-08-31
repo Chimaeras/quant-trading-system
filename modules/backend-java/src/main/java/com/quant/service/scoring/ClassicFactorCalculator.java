@@ -171,7 +171,7 @@ public class ClassicFactorCalculator {
         TechnicalIndicators.MacdResult macd = TechnicalIndicators.macd(closeArr);
         double macdHist = macd.macd()[closeArr.length - 1];
 
-        double volumeRatio = amount.get(amount.size() - 1) / Math.max(1d, avgAmount20);
+        double volumeRatio = avgAmount20 > 0 ? amount.get(amount.size() - 1) / avgAmount20 : 0;
 
         boolean shortProfile = HORIZON_SHORT.equals(horizonProfile);
         ShortHorizonFactorScorer.ShortHorizonResult shortHorizon = shortProfile
@@ -193,7 +193,7 @@ public class ClassicFactorCalculator {
         momentum = ScoringUtils.clamp(momentum, 0, 100);
 
         double volumeScore = ScoringUtils.clamp(
-                (avgAmount20 / Math.max(1, minAvgAmount)) * 60 + volumeRatio * 20, 0, 100);
+                (minAvgAmount > 0 ? (avgAmount20 / minAvgAmount) * 60 : 0) + volumeRatio * 20, 0, 100);
         double riskPenalty = ScoringUtils.clamp(vol20 * 1.5 + mdd60 * 1.2, 0, 100);
 
         double finalScore;
@@ -205,7 +205,8 @@ public class ClassicFactorCalculator {
         }
 
         boolean passMinAvgAmount = avgAmount20 >= minAvgAmount;
-        boolean passMinTrendScore = shortProfile ? shortHorizonScore >= 35 : trend >= minTrendScore;
+        // 短周期也用配置的 minTrendScore 作质量闸，不硬编码 35，避免阈值被绕过（路由改动时放行不合格股）。
+        boolean passMinTrendScore = shortProfile ? shortHorizonScore >= minTrendScore : trend >= minTrendScore;
         boolean passMaTrend = shortProfile || ma20 > ma60;
         boolean passRet20 = shortProfile || ret20 >= -5;
         if (!passMinAvgAmount || !passMinTrendScore || !passMaTrend || !passRet20) {

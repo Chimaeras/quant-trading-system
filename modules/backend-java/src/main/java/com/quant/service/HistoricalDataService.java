@@ -281,9 +281,17 @@ public class HistoricalDataService {
         if (toInsert.isEmpty()) {
             return;
         }
-        for (int i = 0; i < toInsert.size(); i += INSERT_BATCH_SIZE) {
-            int end = Math.min(i + INSERT_BATCH_SIZE, toInsert.size());
-            marketDataRepo.saveAll(toInsert.subList(i, end));
+        // 统一入库质量闸：单股增量路径不应绕过 isValidDailyBar（fetch/解析层已过滤，这里再做一道
+        // 防未来新数据源遗漏），避免异常 OHLC（high<low、open/close 越界、负量额）污染选股输入。
+        List<MarketData> validated = toInsert.stream()
+                .filter(HistoricalDataService::isValidDailyBar)
+                .toList();
+        if (validated.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < validated.size(); i += INSERT_BATCH_SIZE) {
+            int end = Math.min(i + INSERT_BATCH_SIZE, validated.size());
+            marketDataRepo.saveAll(validated.subList(i, end));
         }
     }
 

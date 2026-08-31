@@ -384,6 +384,9 @@ public class StockTrendScoringService {
                                                 Map<String, LocalDate> listDateCache, Map<String, Integer> statusCache,
                                                 int minListingDays, double minAvgAmount, double biasThreshold,
                                                 boolean excludeST, AtomicInteger skippedNoBarOnTradeDate) {
+        // 防御性按交易日去重（保留最后一条）：虽 market_data 有 (stock_code,exchange_type,trade_date) 唯一键，
+        // 但跨渠道/历史脏数据下 bars 仍可能同一天两条，导致 close[L-1] 与 close[L] 取到同一天两根而失真。
+        bars = dedupeByTradeDate(bars);
         if (bars == null || bars.size() < ScoringConstants.MIN_BARS_TECHNICAL) {
             return Optional.empty();
         }
@@ -669,6 +672,20 @@ public class StockTrendScoringService {
         if (ma <= 1e-9) return false;
         double d = Math.abs(price - ma) / ma;
         return d <= ScoringConstants.MA_SUPPORT_TOLERANCE && price >= ma;
+    }
+
+    /** 按交易日去重（保序，保留最后一条），避免同一天两根 K 线导致 close[L-1]/close[L] 失真。 */
+    static List<MarketData> dedupeByTradeDate(List<MarketData> bars) {
+        if (bars == null || bars.isEmpty()) {
+            return List.of();
+        }
+        Map<LocalDate, MarketData> byDate = new LinkedHashMap<>();
+        for (MarketData bar : bars) {
+            if (bar != null && bar.getTradeDate() != null) {
+                byDate.put(bar.getTradeDate(), bar);
+            }
+        }
+        return new ArrayList<>(byDate.values());
     }
 
     private static String classifyRsiDetailed(double rsi) {

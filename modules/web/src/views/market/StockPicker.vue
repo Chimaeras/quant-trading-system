@@ -190,8 +190,14 @@
         </el-radio-group>
       </el-form-item>
       <el-form-item>
+        <el-input
+          v-model="tableSearch"
+          placeholder="按代码/名称过滤"
+          clearable
+          style="width: 180px"
+        />
         <el-button type="primary" :disabled="!results.length" @click="applyFocusSelection">生成关注清单</el-button>
-        <el-button :disabled="!displayedResults.length" @click="exportCsv">导出当前视图</el-button>
+        <el-button :disabled="!tableRows.length" @click="exportCsv">导出当前视图</el-button>
         <el-button link type="primary" :disabled="!resultMeta.result_id" @click="saveFocusSnapshot">保存关注快照</el-button>
         <el-button link type="primary" @click="loadFocusSnapshot">载入快照</el-button>
       </el-form-item>
@@ -240,13 +246,13 @@
       </template>
     </el-empty>
 
-    <el-table v-if="mode === 'classic' && results.length" v-loading="loading" :data="displayedResults" stripe>
+    <el-table v-if="mode === 'classic' && results.length" v-loading="loading" :data="tableRows" stripe>
       <el-table-column label="排名" width="70">
         <template #default="{ row, $index }">{{ resolveRank(row, $index) }}</template>
       </el-table-column>
       <el-table-column prop="stock_code" label="代码" min-width="95" />
       <el-table-column prop="stock_name" label="名称" min-width="120" />
-      <el-table-column prop="final_score" label="综合分（规则分）" min-width="100" />
+      <el-table-column prop="final_score" label="综合分（规则分）" min-width="100" sortable />
       <el-table-column v-if="form.horizonProfile === 'SHORT_3_5D'" label="T" min-width="72">
         <template #default="{ row }">{{ formatCodexFactor(row, 'T') }}</template>
       </el-table-column>
@@ -259,11 +265,11 @@
       <el-table-column v-if="form.horizonProfile === 'SHORT_3_5D'" label="中性化" min-width="100">
         <template #default="{ row }">{{ formatNeutralizationMode(row) }}</template>
       </el-table-column>
-      <el-table-column v-if="form.horizonProfile !== 'SHORT_3_5D'" prop="trend_score" label="趋势分" min-width="90" />
-      <el-table-column v-if="form.horizonProfile !== 'SHORT_3_5D'" prop="momentum_score" label="动量分" min-width="90" />
-      <el-table-column v-if="form.horizonProfile !== 'SHORT_3_5D'" prop="ret20" label="20日收益(%)" min-width="110" />
-      <el-table-column v-if="form.horizonProfile !== 'SHORT_3_5D'" prop="ret60" label="60日收益(%)" min-width="110" />
-      <el-table-column prop="max_drawdown60" label="60日回撤(%)" min-width="110" />
+      <el-table-column v-if="form.horizonProfile !== 'SHORT_3_5D'" prop="trend_score" label="趋势分" min-width="90" sortable />
+      <el-table-column v-if="form.horizonProfile !== 'SHORT_3_5D'" prop="momentum_score" label="动量分" min-width="90" sortable />
+      <el-table-column v-if="form.horizonProfile !== 'SHORT_3_5D'" prop="ret20" label="20日收益(%)" min-width="110" sortable />
+      <el-table-column v-if="form.horizonProfile !== 'SHORT_3_5D'" prop="ret60" label="60日收益(%)" min-width="110" sortable />
+      <el-table-column prop="max_drawdown60" label="60日回撤(%)" min-width="110" sortable />
       <el-table-column label="操作" min-width="90" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="showDetail(row)">详情</el-button>
@@ -271,19 +277,19 @@
       </el-table-column>
     </el-table>
 
-    <el-table v-else-if="mode === 'oversold' && results.length" v-loading="loading" :data="displayedResults" stripe>
+    <el-table v-else-if="mode === 'oversold' && results.length" v-loading="loading" :data="tableRows" stripe>
       <el-table-column label="排名" width="70">
         <template #default="{ row, $index }">{{ resolveRank(row, $index) }}</template>
       </el-table-column>
       <el-table-column prop="stock_code" label="代码" min-width="95" />
       <el-table-column prop="stock_name" label="名称" min-width="120" />
-      <el-table-column prop="final_score" label="综合分（规则分）" min-width="100" />
-      <el-table-column prop="trend_score" label="趋势(40)" min-width="88" />
-      <el-table-column prop="volume_score" label="量能(30)" min-width="88" />
-      <el-table-column prop="momentum_score" label="超跌(30)" min-width="88" />
-      <el-table-column prop="volatility20" label="加权分" min-width="88" />
-      <el-table-column prop="ret20" label="20日收益(%)" min-width="110" />
-      <el-table-column prop="ret60" label="60日收益(%)" min-width="110" />
+      <el-table-column prop="final_score" label="综合分（规则分）" min-width="100" sortable />
+      <el-table-column prop="trend_score" label="趋势(40)" min-width="88" sortable />
+      <el-table-column prop="volume_score" label="量能(30)" min-width="88" sortable />
+      <el-table-column prop="momentum_score" label="超跌(30)" min-width="88" sortable />
+      <el-table-column prop="volatility20" label="加权分" min-width="88" sortable />
+      <el-table-column prop="ret20" label="20日收益(%)" min-width="110" sortable />
+      <el-table-column prop="ret60" label="60日收益(%)" min-width="110" sortable />
       <el-table-column label="操作" min-width="90" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="showDetail(row)">详情</el-button>
@@ -291,16 +297,16 @@
       </el-table-column>
     </el-table>
 
-    <el-table v-else-if="results.length" v-loading="loading" :data="displayedResults" stripe>
+    <el-table v-else-if="results.length" v-loading="loading" :data="tableRows" stripe>
       <el-table-column label="排名" width="70">
         <template #default="{ row, $index }">{{ resolveRank(row, $index) }}</template>
       </el-table-column>
       <el-table-column prop="stock_code" label="代码" min-width="95" />
       <el-table-column prop="stock_name" label="名称" min-width="120" />
-      <el-table-column prop="final_score" label="综合分（规则分）" min-width="100" />
-      <el-table-column prop="trend_score" :label="dimensionLabels.dim1" min-width="90" />
-      <el-table-column prop="momentum_score" :label="dimensionLabels.dim2" min-width="90" />
-      <el-table-column prop="volume_score" :label="dimensionLabels.dim3" min-width="90" />
+      <el-table-column prop="final_score" label="综合分（规则分）" min-width="100" sortable />
+      <el-table-column prop="trend_score" :label="dimensionLabels.dim1" min-width="90" sortable />
+      <el-table-column prop="momentum_score" :label="dimensionLabels.dim2" min-width="90" sortable />
+      <el-table-column prop="volume_score" :label="dimensionLabels.dim3" min-width="90" sortable />
       <el-table-column v-if="mode === 'comprehensive'" prop="investment_advice" label="投资建议" min-width="100" />
       <el-table-column v-if="mode === 'trend'" prop="buy_signal" label="信号" min-width="90">
         <template #default="{ row }">{{ row.buy_signal || row.extra_metrics?.buy_signal || '--' }}</template>
@@ -402,6 +408,14 @@ import { useToast } from '@/composables/useToast'
 type ModeType = 'classic' | 'oversold' | 'trend' | 'comprehensive' | 'multi_dim'
 type TaskStatusType = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | ''
 
+/** 上市天数缺省闸（新股需≥指定天数才纳入可交易池），与后端默认对齐，避免字面量漂移 */
+const MIN_LISTING_DAYS_DEFAULT = 60
+/** 各模式缺省最低总分：trend=45、comprehensive/multi_dim=55、classic/oversold=0（不设下限按分排序） */
+const DEFAULT_MIN_TOTAL_SCORE = { trend: 45, comprehensive: 55, multi_dim: 55, classic: 0, oversold: 0 } as const
+const LISTING_DAYS_FALLBACK_LABEL = `上市≥${MIN_LISTING_DAYS_DEFAULT}天（缺 snapshot 时默认）`
+/** 结果表关键字过滤（代码/名称），空串=不过滤 */
+const tableSearch = ref('')
+
 const loading = ref(false)
 const running = ref(false)
 const toast = useToast()
@@ -463,7 +477,7 @@ const form = reactive({
   scoreTopN: 500,
   minAvgAmount: 30_000_000,
   minTrendScore: 40,
-  minListingDays: 60,
+  minListingDays: MIN_LISTING_DAYS_DEFAULT,
   horizonProfile: 'MEDIUM_TREND',
   minCodexScore: 90,
   templateId: ''
@@ -487,7 +501,7 @@ const commonForm = reactive({
   minTotalScore: 45,
   minAvgAmount: 30_000_000,
   excludeST: true,
-  minListingDays: 60
+  minListingDays: MIN_LISTING_DAYS_DEFAULT
 })
 
 const isGenericMode = computed(() => ['trend', 'comprehensive', 'multi_dim'].includes(mode.value))
@@ -512,6 +526,18 @@ const focusForm = reactive({
 })
 
 const displayedResults = computed(() => (focusForm.view === 'focus' ? focusResults.value : results.value))
+
+/** 结果表展示行：在 displayedResults 之上做关键字过滤（代码/名称），供表格与导出共用 */
+const tableRows = computed(() => {
+  const rows = displayedResults.value
+  const kw = tableSearch.value.trim().toLowerCase()
+  if (!kw) return rows
+  return rows.filter(
+    (r) =>
+      String(r.stock_code ?? '').toLowerCase().includes(kw) ||
+      String(r.stock_name ?? '').toLowerCase().includes(kw)
+  )
+})
 
 const REASON_LABELS: Record<string, string> = {
   trend: '趋势判断',
@@ -583,8 +609,8 @@ const tradabilitySummary = computed(() => {
     if (trad.bulk_fetch === false) parts.push('非bulk预过滤')
     if (parts.length) return `可交易性: ${parts.join(' / ')}`
   }
-  if (mode.value === 'oversold') return '可交易性: 过滤涨停 / 排除ST / 上市≥60天（缺 snapshot 时默认）'
-  if (isGenericMode.value || mode.value === 'classic') return '可交易性: 过滤涨跌停 / 排除ST / 上市≥60天（缺 snapshot 时默认）'
+  if (mode.value === 'oversold') return `可交易性: 过滤涨停 / 排除ST / ${LISTING_DAYS_FALLBACK_LABEL}`
+  if (isGenericMode.value || mode.value === 'classic') return `可交易性: 过滤涨跌停 / 排除ST / ${LISTING_DAYS_FALLBACK_LABEL}`
   return ''
 })
 
@@ -774,9 +800,7 @@ function buildTaskSummary(t: UnifiedScoringTaskStatus) {
 }
 
 function defaultMinTotalScoreForMode(m: ModeType) {
-  if (m === 'trend') return 45
-  if (m === 'comprehensive' || m === 'multi_dim') return 55
-  return 0
+  return DEFAULT_MIN_TOTAL_SCORE[m]
 }
 
 function applyQualityMeta(data: Record<string, any>) {
@@ -1140,7 +1164,7 @@ async function runOversold() {
       minTotalScore: oversoldForm.minTotalScore,
       minAvgAmount: oversoldForm.minAvgAmount,
       excludeST: oversoldForm.excludeST,
-      minListingDays: 60,
+      minListingDays: MIN_LISTING_DAYS_DEFAULT,
       persist: oversoldForm.persist,
       templateId: oversoldForm.templateId || undefined
     })
@@ -1364,7 +1388,7 @@ async function saveOversoldTemplate() {
 }
 
 function exportCsv() {
-  const rows = displayedResults.value
+  const rows = tableRows.value
   if (!rows.length) return
   const codex = form.horizonProfile === 'SHORT_3_5D'
   const headers = codex

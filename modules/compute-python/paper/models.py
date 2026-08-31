@@ -148,8 +148,12 @@ class Candidate:
     source: str = "t1"
 
     def board_blocked(self, allow_chinext: bool, allow_star: bool) -> str | None:
-        """板块闸：返回拦截原因码或 None。创业板 300 开头，科创 688/689。"""
-        if self.stock_code.startswith("300") and not allow_chinext:
+        """板块闸：返回拦截原因码或 None。创业板 300/301 开头，科创 688/689。
+
+        与 decide.board_limit_pct 的板块判定保持一致（300/301 → 创业板 20%），
+        避免 allow_chinext=False 时 301 仍被放行。
+        """
+        if self.stock_code.startswith(("300", "301")) and not allow_chinext:
             return "BOARD_BLOCKED_CHINEXT"
         if self.stock_code.startswith(("688", "689")) and not allow_star:
             return "BOARD_BLOCKED_STAR"

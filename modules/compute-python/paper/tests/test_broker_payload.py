@@ -58,6 +58,14 @@ class TestBoardBlocked:
         assert cand.board_blocked(False, False) == "BOARD_BLOCKED_CHINEXT"
         assert cand.board_blocked(True, False) is None
 
+    def test_chinext_301_blocked(self):
+        """301 开头亦属创业板，allow_chinext=False 时应被拦截（与 board_limit_pct 口径一致）。"""
+        from paper.models import Candidate
+
+        cand = Candidate(stock_code="301236", stock_name="深水海纳", exchange_type="SZ")
+        assert cand.board_blocked(False, False) == "BOARD_BLOCKED_CHINEXT"
+        assert cand.board_blocked(True, False) is None
+
     def test_star_blocked(self):
         from paper.models import Candidate
 

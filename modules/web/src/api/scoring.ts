@@ -67,6 +67,17 @@ export interface ComprehensiveRunResult {
   items: ComprehensiveScoreRow[]
 }
 
+/** GET /scoring/comprehensive/scores 分页响应（对应后端 ComprehensiveScoringService.listScores） */
+export interface ComprehensiveScoresPage {
+  score_type: string
+  factor_version: string
+  trade_date: string
+  list: ComprehensiveScoreRow[]
+  total: number
+  page: number
+  size: number
+}
+
 export type UnifiedScoringStrategy =
   | 'TREND'
   | 'COMPREHENSIVE'
@@ -225,8 +236,8 @@ export const scoringApi = {
   },
 
   async getComprehensiveScores(params?: { tradeDate?: string; page?: number; size?: number }) {
-    const res = await request.get<Record<string, unknown>>('/scoring/comprehensive/scores', { params })
-    return unwrap(res) ?? {}
+    const res = await request.get<ComprehensiveScoresPage>('/scoring/comprehensive/scores', { params })
+    return unwrap(res) ?? ({} as ComprehensiveScoresPage)
   },
 
   /** 统一打分入口：通过 strategy 选择不同打分策略并统一落库。 */

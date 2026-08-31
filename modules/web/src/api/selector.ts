@@ -10,9 +10,6 @@ export interface SelectorRunParams {
   factorVersion?: string
 }
 
-/** 与后端 OversoldReboundScoringService.FACTOR_VERSION 一致 */
-export const OVERSOLD_REBOUND_FACTOR_VERSION = 'oversold_rebound_v1'
-
 export interface OversoldReboundRunParams {
   tradeDate?: string
   topN?: number

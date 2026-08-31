@@ -130,7 +130,9 @@ export const dataApi = {
           earliest_date: d.earliest_date ?? '-',
           latest_date: d.latest_date ?? '-',
           completeness: d.completeness ?? 0,
-          storage_size: d.storage_size ?? '-'
+          storage_size: d.storage_size ?? '-',
+          list_date_missing_count: d.list_date_missing_count ?? 0,
+          list_date_backfillable_count: d.list_date_backfillable_count ?? 0
         }
       }
     } catch {

@@ -212,6 +212,7 @@ public class MultiDimScoringService {
         res.put("include_items", includeItems);
         res.put("exclude_st", excludeST);
         res.put("min_avg_amount", minAvgAmount);
+        res.put("industry_pe_coverage", buildPeCoverageSummary(indAvgs));
         if (includeItems) {
             List<Map<String, Object>> items = new ArrayList<>();
             int i = 0;
@@ -451,24 +452,48 @@ public class MultiDimScoringService {
         return Math.max(0, Math.min(10, n));
     }
 
-    private record IndustryAvgs(
+    record IndustryAvgs(
             Map<String, Double> avgPeByIndustry,
-            Map<String, Double> avgRet5ByIndustry
+            Map<String, Double> avgRet5ByIndustry,
+            Map<String, Double> peCoverageByIndustry,
+            Map<String, Integer> peStocksByIndustry,
+            Map<String, Integer> industryStocksByIndustry,
+            int nullPeDropped
     ) {}
 
     private record SectorIndustryMaps(Map<String, Integer> sectorRank, Map<String, Double> industryAvgRet5) {}
 
-    private IndustryAvgs computeIndustryPeAvg(Map<String, MarketData> mdToday, Map<String, StockInfo> infoByKey) {
+    IndustryAvgs computeIndustryPeAvg(Map<String, MarketData> mdToday, Map<String, StockInfo> infoByKey) {
         Map<String, List<Double>> peB = new HashMap<>();
+        Map<String, Integer> peCount = new HashMap<>();
+        Map<String, Integer> totalCount = new HashMap<>();
         for (Map.Entry<String, MarketData> e : mdToday.entrySet()) {
             StockInfo si = infoByKey.get(e.getKey());
             if (si == null || si.getIndustry() == null || si.getIndustry().isBlank()) continue;
             String ind = si.getIndustry();
+            totalCount.merge(ind, 1, Integer::sum);
             if (e.getValue().getPeRatio() != null) {
                 peB.computeIfAbsent(ind, k -> new ArrayList<>()).add(e.getValue().getPeRatio().doubleValue());
+                peCount.merge(ind, 1, Integer::sum);
             }
         }
-        return new IndustryAvgs(avg(peB), Map.of());
+        int dropped = 0;
+        Map<String, Double> coverage = new HashMap<>();
+        List<String> partial = new ArrayList<>();
+        for (String ind : totalCount.keySet()) {
+            int total = totalCount.get(ind);
+            int withPe = peCount.getOrDefault(ind, 0);
+            dropped += total - withPe;
+            coverage.put(ind, total == 0 ? 0d : (double) withPe / total);
+            if (withPe < total) {
+                partial.add(ind);
+            }
+        }
+        if (!partial.isEmpty()) {
+            log.warn("行业平均 PE 覆盖不完整：{} 个行业存在 PE 缺失个股（缺失 {} 只），平均 PE 按可见非空 PE 个股聚合",
+                    partial.size(), dropped);
+        }
+        return new IndustryAvgs(avg(peB), Map.of(), coverage, peCount, totalCount, dropped);
     }
 
     private SectorIndustryMaps buildSectorRankAndIndustryRet5(
@@ -516,7 +541,28 @@ public class MultiDimScoringService {
 
     /** 合并行业 PE 与行业 5 日收益均值 */
     private IndustryAvgs mergeIndustryRet(IndustryAvgs peOnly, Map<String, Double> avgRet5ByIndustry) {
-        return new IndustryAvgs(peOnly.avgPeByIndustry(), avgRet5ByIndustry);
+        return new IndustryAvgs(peOnly.avgPeByIndustry(), avgRet5ByIndustry,
+                peOnly.peCoverageByIndustry(), peOnly.peStocksByIndustry(),
+                peOnly.industryStocksByIndustry(), peOnly.nullPeDropped());
+    }
+
+    /**
+     * 行业平均 PE 覆盖率披露：行业均值仅由 PE 非空个股计算，PE 缺失个股被静默排除。
+     * 这里把覆盖情况打包成可读摘要，避免"行业平均 PE 基于全行业"的误解（P3-4）。
+     */
+    private Map<String, Object> buildPeCoverageSummary(IndustryAvgs indAvgs) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        int industriesWithPe = (int) indAvgs.peCoverageByIndustry().values().stream().filter(v -> v > 0).count();
+        int industriesPartial = (int) indAvgs.peCoverageByIndustry().values().stream()
+                .filter(v -> v > 0 && v < 1.0).count();
+        int industriesNoPe = (int) indAvgs.peCoverageByIndustry().values().stream().filter(v -> v == 0).count();
+        m.put("industries_total", indAvgs.peCoverageByIndustry().size());
+        m.put("industries_with_pe", industriesWithPe);
+        m.put("industries_no_pe", industriesNoPe);
+        m.put("industries_partial_coverage", industriesPartial);
+        m.put("null_pe_stocks_dropped", indAvgs.nullPeDropped());
+        m.put("note", "行业平均 PE 仅由 PE 非空个股聚合；PE 缺失个股被排除，覆盖率为 含PE个股数/该行业个股数。");
+        return m;
     }
 
     private static Map<String, Double> avg(Map<String, List<Double>> b) {

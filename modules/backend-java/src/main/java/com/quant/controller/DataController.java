@@ -319,25 +319,40 @@ public class DataController {
         private BigDecimal marginBalance;
     }
 
-    /** 财报指标批量导入（akshare 脚本等） */
+    /** 财报指标批量导入（akshare 脚本等）——按 (stock_code, exchange_type, report_period) 幂等 upsert。 */
     @PostMapping("/financial/bulk")
     @Transactional
     public ApiResponse<Map<String, Object>> bulkFinancial(@RequestBody List<FinancialItem> items) {
         if (items == null || items.isEmpty()) {
-            return ApiResponse.success(Map.of("saved", 0));
+            return ApiResponse.success(Map.of("saved", 0, "updated", 0, "skipped", 0));
         }
         if (items.size() > MAX_BULK_IMPORT_SIZE) {
             return ApiResponse.error(400, "批量导入条数超上限: " + MAX_BULK_IMPORT_SIZE);
         }
-        List<StockFinancialSnapshot> rows = new ArrayList<>();
+        int saved = 0;
+        int updated = 0;
+        int skipped = 0;
         for (FinancialItem it : items) {
             if (it.getStockCode() == null || it.getExchangeType() == null || it.getReportPeriod() == null) {
+                skipped++;
                 continue;
             }
-            StockFinancialSnapshot f = new StockFinancialSnapshot();
-            f.setStockCode(it.getStockCode().trim());
-            f.setExchangeType(it.getExchangeType().trim());
-            f.setReportPeriod(it.getReportPeriod());
+            String code = it.getStockCode().trim();
+            String ex = it.getExchangeType().trim();
+            // EOD 导入天然重跑（重试/刷新同日）：先查已有唯一键，存在则更新而非插入，避免撞唯一键抛 500。
+            StockFinancialSnapshot existing =
+                    stockFinancialSnapshotRepository.findByStockCodeAndExchangeTypeAndReportPeriod(code, ex, it.getReportPeriod()).orElse(null);
+            StockFinancialSnapshot f;
+            if (existing != null) {
+                f = existing;
+                updated++;
+            } else {
+                f = new StockFinancialSnapshot();
+                f.setStockCode(code);
+                f.setExchangeType(ex);
+                f.setReportPeriod(it.getReportPeriod());
+                saved++;
+            }
             f.setAnnouncementDate(it.getAnnouncementDate());
             f.setRevenueYoY(it.getRevenueYoY());
             f.setNetProfitYoY(it.getNetProfitYoY());
@@ -345,39 +360,55 @@ public class DataController {
             f.setDebtRatio(it.getDebtRatio());
             f.setPbRatio(it.getPbRatio());
             f.setCurrentRatio(it.getCurrentRatio());
-            rows.add(f);
+            stockFinancialSnapshotRepository.save(f);
         }
-        stockFinancialSnapshotRepository.saveAll(rows);
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("saved", rows.size());
+        out.put("saved", saved);
+        out.put("updated", updated);
+        out.put("skipped", skipped);
         return ApiResponse.success(out);
     }
 
-    /** 融资余额批量导入 */
+    /** 融资余额批量导入——按 (stock_code, exchange_type, trade_date) 幂等 upsert。 */
     @PostMapping("/margin/bulk")
     @Transactional
     public ApiResponse<Map<String, Object>> bulkMargin(@RequestBody List<MarginItem> items) {
         if (items == null || items.isEmpty()) {
-            return ApiResponse.success(Map.of("saved", 0));
+            return ApiResponse.success(Map.of("saved", 0, "updated", 0, "skipped", 0));
         }
         if (items.size() > MAX_BULK_IMPORT_SIZE) {
             return ApiResponse.error(400, "批量导入条数超上限: " + MAX_BULK_IMPORT_SIZE);
         }
-        List<StockMarginDaily> rows = new ArrayList<>();
+        int saved = 0;
+        int updated = 0;
+        int skipped = 0;
         for (MarginItem it : items) {
             if (it.getStockCode() == null || it.getExchangeType() == null || it.getTradeDate() == null) {
+                skipped++;
                 continue;
             }
-            StockMarginDaily m = new StockMarginDaily();
-            m.setStockCode(it.getStockCode().trim());
-            m.setExchangeType(it.getExchangeType().trim());
-            m.setTradeDate(it.getTradeDate());
+            String code = it.getStockCode().trim();
+            String ex = it.getExchangeType().trim();
+            StockMarginDaily existing =
+                    stockMarginDailyRepository.findByStockCodeAndExchangeTypeAndTradeDate(code, ex, it.getTradeDate()).orElse(null);
+            StockMarginDaily m;
+            if (existing != null) {
+                m = existing;
+                updated++;
+            } else {
+                m = new StockMarginDaily();
+                m.setStockCode(code);
+                m.setExchangeType(ex);
+                m.setTradeDate(it.getTradeDate());
+                saved++;
+            }
             m.setMarginBalance(it.getMarginBalance());
-            rows.add(m);
+            stockMarginDailyRepository.save(m);
         }
-        stockMarginDailyRepository.saveAll(rows);
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("saved", rows.size());
+        out.put("saved", saved);
+        out.put("updated", updated);
+        out.put("skipped", skipped);
         return ApiResponse.success(out);
     }
 }

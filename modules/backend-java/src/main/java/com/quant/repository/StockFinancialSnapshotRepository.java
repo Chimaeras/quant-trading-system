@@ -12,6 +12,10 @@ public interface StockFinancialSnapshotRepository extends JpaRepository<StockFin
     Optional<StockFinancialSnapshot> findTopByStockCodeAndExchangeTypeOrderByReportPeriodDesc(
             String stockCode, String exchangeType);
 
+    /** 按唯一键 (stock_code, exchange_type, report_period) 查找，用于批量导入幂等 upsert。 */
+    Optional<StockFinancialSnapshot> findByStockCodeAndExchangeTypeAndReportPeriod(
+            String stockCode, String exchangeType, LocalDate reportPeriod);
+
     /** 按公告日过滤；含 announcementDate 为空的旧数据行（由 Loader 做保守可用日过滤） */
     List<StockFinancialSnapshot> findByAnnouncementDateLessThanEqualOrAnnouncementDateIsNull(LocalDate asOfDate);
 }

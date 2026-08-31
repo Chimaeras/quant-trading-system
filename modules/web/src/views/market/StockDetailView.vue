@@ -171,6 +171,12 @@ const realtimeLoading = ref(false)
 const detail = ref<Partial<StockDetail>>({})
 const klineData = ref<KLineItem[]>([])
 
+// 请求竞态守卫：快速切换标的/刷新时，后发请求序号更大；先返回的旧请求序号不匹配则丢弃，
+// 避免旧股票的详情/K 线/实时价覆盖新股票的数据（与 stores/data.ts 的 reqSeq 模式一致）。
+let detailSeq = 0
+let klineSeq = 0
+let realtimeSeq = 0
+
 /** 按周期重采样：日K原样；周/月K聚合 OHLCV（open=首、high=max、low=min、close=末、volume=和）。 */
 const displayKline = computed(() => {
   const data = klineData.value
@@ -267,33 +273,37 @@ function formatAmount(v: number | undefined) {
 async function loadDetail() {
   const code = route.query.code as string
   if (!code) return
+  const mySeq = ++detailSeq
   try {
     const res = await marketApi.getStockDetail(code, route.query.exchange as string)
-    detail.value = res ?? {}
+    if (mySeq === detailSeq) detail.value = res ?? {}
   } catch {
-    toast.error('加载股票详情失败')
+    if (mySeq === detailSeq) toast.error('加载股票详情失败')
   }
 }
 
 async function loadRealtime() {
   const code = route.query.code as string
   if (!code) return
+  const mySeq = ++realtimeSeq
   realtimeLoading.value = true
   try {
     const data = await marketApi.getRealtimeQuote(code, route.query.exchange as string)
+    if (mySeq !== realtimeSeq) return
     if (data && Object.keys(data).length > 0) {
       detail.value = { ...detail.value, ...data }
     }
   } catch {
-    toast.warning('实时行情获取失败')
+    if (mySeq === realtimeSeq) toast.warning('实时行情获取失败')
   } finally {
-    realtimeLoading.value = false
+    if (mySeq === realtimeSeq) realtimeLoading.value = false
   }
 }
 
 async function loadKline() {
   const code = route.query.code as string
   if (!code) return
+  const mySeq = ++klineSeq
   const [start, end] = dateRange.value || [
     dayjs().subtract(1, 'year').format('YYYY-MM-DD'),
     dayjs().format('YYYY-MM-DD')
@@ -305,11 +315,14 @@ async function loadKline() {
       endDate: end,
       limit: 500
     })
+    if (mySeq !== klineSeq) return
     klineData.value = Array.isArray(data) ? data : []
     renderChart()
   } catch {
-    klineData.value = []
-    toast.error('K线数据加载失败')
+    if (mySeq === klineSeq) {
+      klineData.value = []
+      toast.error('K线数据加载失败')
+    }
   }
 }
 

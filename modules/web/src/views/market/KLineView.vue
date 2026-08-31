@@ -45,6 +45,12 @@ const securityTitle = computed(() => {
 })
 let chart: echarts.ECharts | null = null
 
+// 请求竞态守卫：快速切换标的/刷新时，后发请求序号更大；先返回的旧请求序号不匹配则丢弃，
+// 避免旧代码的实时价/K 线/名称覆盖新代码的界面（与 stores/data.ts 的 reqSeq 模式一致）。
+let realtimeSeq = 0
+let klineSeq = 0
+let nameSeq = 0
+
 /** 窗口尺寸变化时自适应，避免 canvas 残留旧尺寸 */
 function handleResize() {
   chart?.resize()
@@ -53,16 +59,18 @@ function handleResize() {
 async function loadRealtime() {
   const code = route.query.code as string
   if (!code) return
+  const mySeq = ++realtimeSeq
   realtimeLoading.value = true
   try {
     const d = await marketApi.getRealtimeQuote(code, route.query.exchange as string)
+    if (mySeq !== realtimeSeq) return
     realtime.value = d && (d.close_price != null || d.change_pct != null) ? d : null
     if (d?.stock_name && d.stock_name !== code) securityName.value = d.stock_name
   } catch {
-    realtime.value = null
+    if (mySeq === realtimeSeq) realtime.value = null
     toast.warning('实时行情拉取失败')
   } finally {
-    realtimeLoading.value = false
+    if (mySeq === realtimeSeq) realtimeLoading.value = false
   }
 }
 
@@ -72,16 +80,19 @@ async function loadSecurityName() {
     securityName.value = ''
     return
   }
+  const mySeq = ++nameSeq
   const routeName = String(route.query.name || '').trim()
   securityName.value = routeName && routeName !== code ? routeName : ''
   if (!securityName.value) {
-    securityName.value = await resolveSecurityName(code, route.query.exchange as string)
+    const resolved = await resolveSecurityName(code, route.query.exchange as string)
+    if (mySeq === nameSeq) securityName.value = resolved
   }
 }
 
 const loadData = async () => {
   const code = route.query.code as string
   if (!code) return
+  const mySeq = ++klineSeq
   const [start, end] = dateRange.value || [new Date(Date.now() - 365 * 24 * 3600 * 1000), new Date()]
   // 用本地时区格式化，避免 toISOString() 的 UTC 偏移（东八区凌晨会得"昨天"）
   const startDate = dayjs(start).format('YYYY-MM-DD')
@@ -94,12 +105,15 @@ const loadData = async () => {
       startDate,
       endDate
     })) as KLineItem[]
+    if (mySeq !== klineSeq) return
     dataSource.value = 'backend'
   } catch {
     data = (await dataApi.getKLine(code, startDate, endDate)) as KLineItem[]
+    if (mySeq !== klineSeq) return
     dataSource.value = 'local'
   }
   if (!Array.isArray(data) || data.length === 0) return
+  if (mySeq !== klineSeq) return
   const dates = data.map((d: { date: string }) => d.date)
   const ohlc = data.map((d: { open: number; high: number; low: number; close: number }) => [d.open, d.close, d.low, d.high])
   const volumes = data.map((d: { volume?: number }) => d.volume ?? 0)

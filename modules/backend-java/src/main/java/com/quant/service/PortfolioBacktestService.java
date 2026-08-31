@@ -423,8 +423,12 @@ public class PortfolioBacktestService {
                         .toList();
                 int n = eligible.size();
                 if (n > 0) {
-                    double budgetEach = cash / n;
+                    DayBudgetGuard budget = new DayBudgetGuard(cash, n);
                     for (PendingBuy b : eligible) {
+                        // 等权分配但须动态反映剩余：若前几笔被拒(未花钱)或买得便宜，剩余现金变大，
+                        // 后续标的可用钱也应增加，否则固定 budgetEach=cash/n 会让高价标的被误拒。
+                        // 每笔先按「当前剩余现金/剩余待买数量」确定预算；最终 totalCost>cash 兜底保证不超支。
+                        double budgetEach = budget.budgetForNext();
                         PriceBar bar = resolveExecutionBar(b.stockCode, b.exchangeType, day, rawMap);
                         if (bar == null || bar.open == null || bar.open <= 0 || bar.zeroVolume) {
                             String rejectReason = bar == null ? "NO_QUOTE_RAW_MISSING" : "NOT_BUYABLE";
@@ -432,6 +436,7 @@ public class PortfolioBacktestService {
                             orderBuffer.add(o);
                             rejectCount++;
                             rejectFunnel.merge(rejectReason, 1, Integer::sum);
+                            budget.onRejected();
                             continue;
                         }
                         double preClose = resolvePreClose(bar, b.stockCode, b.exchangeType, day, rawMap, qfqMap, tradingDays);
@@ -442,31 +447,25 @@ public class PortfolioBacktestService {
                             orderBuffer.add(rejectBuy(runId, ++seqCounter, day, b, "LIMIT_UP"));
                             rejectCount++;
                             rejectFunnel.merge("LIMIT_UP", 1, Integer::sum);
+                            budget.onRejected();
                             continue;
                         }
                         double entryPx = bar.open * (1 + slippageRate);
-                        int shares = largestAffordableLot(entryPx, commissionRate, budgetEach);
-                        if (shares < LOT_SIZE) {
-                            orderBuffer.add(rejectBuy(runId, ++seqCounter, day, b, "INSUFFICIENT_CASH_FOR_LOT"));
+                        BuyDecision d = decideBuy(entryPx, commissionRate, budgetEach, budget.remainingCash());
+                        if (!d.isFill()) {
+                            orderBuffer.add(rejectBuy(runId, ++seqCounter, day, b, d.rejectReason()));
                             rejectCount++;
-                            rejectFunnel.merge("INSUFFICIENT_CASH_FOR_LOT", 1, Integer::sum);
+                            rejectFunnel.merge(d.rejectReason(), 1, Integer::sum);
+                            budget.onRejected();
                             continue;
                         }
-                        double gross = entryPx * shares;
-                        double commission = Math.max(gross * commissionRate, MIN_COMMISSION);
-                        double totalCost = gross + commission;
-                        if (totalCost > cash + 1e-6) {
-                            orderBuffer.add(rejectBuy(runId, ++seqCounter, day, b, "INSUFFICIENT_CASH"));
-                            rejectCount++;
-                            rejectFunnel.merge("INSUFFICIENT_CASH", 1, Integer::sum);
-                            continue;
-                        }
-                        cash -= totalCost;
-                        buyCashOut += totalCost;
+                        budget.onSpent(d.totalCost());
+                        cash -= d.totalCost();
+                        buyCashOut += d.totalCost();
                         positions.put(b.key(), new Position(
-                                b.stockCode, b.exchangeType, b.stockName, shares, entryPx, day, b.exitDate));
+                                b.stockCode, b.exchangeType, b.stockName, d.shares(), entryPx, day, b.exitDate));
                         lastKnownMark.put(b.key(), entryPx);
-                        PortfolioOrder o = fillBuy(runId, ++seqCounter, day, b, entryPx, shares, gross, totalCost, commission, bar.source);
+                        PortfolioOrder o = fillBuy(runId, ++seqCounter, day, b, entryPx, d.shares(), d.gross(), d.totalCost(), d.commission(), bar.source);
                         orderBuffer.add(o);
                         tradeCount++;
                     }
@@ -1210,6 +1209,77 @@ public class PortfolioBacktestService {
 
     private static double round4(double v) {
         return Math.round(v * 10000.0) / 10000.0;
+    }
+
+    /**
+     * 当日开盘买入的「等权但动态」预算追踪器。
+     * 每笔预算 = 剩余现金 / 剩余待买数；当某笔被拒(未花钱)或买得便宜时，剩余现金相对变大，
+     * 后续标的可用预算随之增加。修复固定 {@code budgetEach=cash/n} 会误拒高价标的的问题：
+     * 旧逻辑下一旦前几笔买得便宜，后面标的仍按最初均摊额度被 {@code INSUFFICIENT_CASH_FOR_LOT} 误拒，
+     * 即便实际剩余现金足够。
+     */
+    static final class DayBudgetGuard {
+        private double remainingCash;
+        private int remaining;
+
+        DayBudgetGuard(double cash, int n) {
+            this.remainingCash = cash;
+            this.remaining = n;
+        }
+
+        /** 当前实际可用现金（与账户现金同步扣减）。 */
+        double remainingCash() {
+            return remainingCash;
+        }
+
+        /** 剩余待买数量。 */
+        int remaining() {
+            return remaining;
+        }
+
+        /** 下一笔的预算上限；剩余为 0 时兜底返回 0（不会发生，循环次数=初始 n）。 */
+        double budgetForNext() {
+            return remaining > 0 ? remainingCash / remaining : 0;
+        }
+
+        /** 本笔被拒而未花钱：仅减少待买数，现金保留，让渡给后续标的。 */
+        void onRejected() {
+            remaining--;
+        }
+
+        /** 本笔成交：同时减少现金与待买数。 */
+        void onSpent(double totalCost) {
+            remainingCash -= totalCost;
+            remaining--;
+        }
+    }
+
+    /**
+     * 单笔买入决策。将「预算内最大可买手数」与「实际现金上限」两层判断集中到一处，
+     * 便于回归测试固定预算误拒高价标的问题。返回 {@link BuyDecision} 作为成交或拒绝原因。
+     */
+    static BuyDecision decideBuy(double entryPx, double commissionRate, double budgetEach, double availableCash) {
+        int shares = largestAffordableLot(entryPx, commissionRate, budgetEach);
+        if (shares < LOT_SIZE) {
+            return BuyDecision.reject("INSUFFICIENT_CASH_FOR_LOT");
+        }
+        double gross = entryPx * shares;
+        double commission = Math.max(gross * commissionRate, MIN_COMMISSION);
+        double totalCost = gross + commission;
+        if (totalCost > availableCash + 1e-6) {
+            return BuyDecision.reject("INSUFFICIENT_CASH");
+        }
+        return BuyDecision.fill(shares, gross, commission, totalCost);
+    }
+
+    record BuyDecision(boolean isFill, String rejectReason, int shares, double gross, double commission, double totalCost) {
+        static BuyDecision fill(int shares, double gross, double commission, double totalCost) {
+            return new BuyDecision(true, null, shares, gross, commission, totalCost);
+        }
+
+        static BuyDecision reject(String reason) {
+            return new BuyDecision(false, reason, 0, 0, 0, 0);
+        }
     }
 
     /**

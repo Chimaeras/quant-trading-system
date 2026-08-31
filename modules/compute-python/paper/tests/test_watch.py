@@ -113,6 +113,16 @@ def test_cooldown_only_blocks_reverse_signal():
     assert book.can_trade("600519", "sell", T0 + timedelta(minutes=15))
 
 
+def test_cooldown_tz_mismatch_fails_closed():
+    # record 写入 naive iso（T0 无 tzinfo），can_trade 传 aware now → now - naive 抛 TypeError。
+    # 旧实现只 except ValueError 会泄漏 TypeError；修复为 (ValueError, TypeError) 且保守拦截。
+    from datetime import timezone
+    book = CooldownBook(15)
+    book.record("600519", "buy", T0)
+    aware = datetime(2026, 8, 18, 10, 0, tzinfo=timezone.utc)
+    assert book.can_trade("600519", "sell", aware) is False
+
+
 def test_sell_risk_allows_sell_during_halt_but_caps_available_quantity():
     position = Position("600519", "测试", 500, 300, 90, 100, 50000, 500)
     intent = Intent("600519", IntentType.SELL_LIMIT, side="sell", qty=300, limit_price=99)

@@ -57,7 +57,7 @@ def _round_half_up(value: float, ndigits: int) -> float:
 
 
 def round_limit_price(price: float, exchange: str) -> float:
-    """限价小数位：沪/北 2 位，深 3 位。"""
+    """限价小数位：沪/北/深均为 2 位（PRICE_DECIMALS）。A 股报价最小价位为 0.01。"""
     return _round_half_up(price, PRICE_DECIMALS.get(exchange, 2))
 
 
@@ -99,7 +99,9 @@ def derive_limit_up_price(quote: Quote) -> Quote:
     """
     if quote.limit_up_price is not None or quote.last <= 0 or quote.pct_chg is None:
         return quote
-    if quote.pct_chg <= -100:
+    # pct_chg 在 [-90,-100] 区间（如 -99.99）说明前收近 0 或数据异常：用它反推 prev_close 会爆炸。
+    # 与 marketdata/rules.apply_rule_price_limits 的 -90 挡保持一致。
+    if quote.pct_chg <= -90:
         return quote
     prev_close = quote.last / (1 + quote.pct_chg / 100)
     limit_pct = board_limit_pct(quote.code, quote.exchange)

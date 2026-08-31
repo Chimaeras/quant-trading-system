@@ -141,8 +141,12 @@ def load_hot_stock_universe(
     for item in rows:
         if not isinstance(item, dict):
             continue
-        code = _validated_code(item.get("stock_code", item.get("code")))
-        exchange = _market_exchange(item.get("exchange_type"), code)
+        # 与全市场加载同理：单行坏数据（代码非法/交易所缺失）只丢弃该行，不让其拖垮整批。
+        try:
+            code = _validated_code(item.get("stock_code", item.get("code")))
+            exchange = _market_exchange(item.get("exchange_type"), code)
+        except (TypeError, ValueError):
+            continue
         if exchange is None:
             continue
         name = str(item.get("stock_name", item.get("name", ""))).strip() or code

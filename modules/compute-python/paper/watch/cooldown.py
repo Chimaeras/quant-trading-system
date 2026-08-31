@@ -18,7 +18,9 @@ class CooldownBook:
             return True
         try:
             elapsed = now - datetime.fromisoformat(previous_at)
-        except ValueError:
+        except (ValueError, TypeError):
+            # ValueError：previous_at 非法 iso；TypeError：now 为 naive 而 previous_at 为 aware
+            # （或反之），相减抛 TypeError。两者都视为「无法判断冷却是否到期」→ 保守拦截。
             return False
         return elapsed >= timedelta(minutes=self.cooldown_min)
 

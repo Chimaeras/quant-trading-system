@@ -4,6 +4,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime
+import math
 import time
 
 import requests
@@ -48,7 +49,9 @@ def _float_field(value, *, scale: float = 1.0, allow_negative: bool = False) -> 
         number = float(value)
     except (TypeError, ValueError):
         return None
-    if number != number or (number < 0 and not allow_negative):
+    # not math.isfinite 同时拦截 NaN(inf) 与 ±inf：inf 通过 (number<0) 检查会漏网，
+    # 作为价格/比例进入后续计算会把 prev_close、比例等推成 inf/NaN。
+    if not math.isfinite(number) or (number < 0 and not allow_negative):
         return None
     return number * scale
 

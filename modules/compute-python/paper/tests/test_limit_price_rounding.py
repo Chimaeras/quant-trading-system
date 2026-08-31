@@ -7,7 +7,7 @@ Python 内置 round 使用银行家舍入，在精确 .005 边界会舍到偶数
 - paper/marketdata/rules.py apply_rule_price_limits（watch 运行时 security_rule 路径）
 - paper/decide.py _round_half_up / derive_limit_up_price（研判 derive 路径）
 """
-from paper.decide import _round_half_up
+from paper.decide import _round_half_up, derive_limit_up_price
 from paper.marketdata.rules import SecurityRule, apply_rule_price_limits
 from paper.models import Quote
 
@@ -55,3 +55,21 @@ def test_apply_rule_price_limits_skip_when_inputs_unreliable():
     apply_rule_price_limits(q, _rule())
     assert q.limit_up_price is None
     assert q.limit_down_price is None
+
+
+def test_apply_rule_price_limits_skip_on_extreme_negative_pct_chg():
+    # pct_chg=-99.99（前收近 0 或脏数据）反推 prev_close 会爆炸；-90 挡应跳过不推导。
+    q = Quote(code="000001", name="平安银行", exchange="SZSE", last=11.0, pct_chg=-99.99)
+    apply_rule_price_limits(q, _rule())
+    assert q.limit_up_price is None
+    assert q.limit_down_price is None
+
+
+def test_derive_limit_up_price_skip_on_extreme_negative_pct_chg():
+    # 与 rules 路径一致：decide.derive_limit_up_price 对 pct_chg<=-90 也返回原值，不反推。
+    # 默认 limit_up_source 为 ""，若发生推导会以 "derived:" 前缀写入；此处应保持为空。
+    q = Quote(code="000001", name="平安银行", exchange="SZSE", last=11.0, pct_chg=-99.99)
+    out = derive_limit_up_price(q)
+    assert out is q
+    assert out.limit_up_price is None
+    assert out.limit_up_source == ""

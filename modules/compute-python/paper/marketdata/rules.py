@@ -113,7 +113,7 @@ def apply_rule_price_limits(quote: Quote, rule: SecurityRule | None) -> Quote:
     """仅在规则和前收推导输入都可靠时补齐涨跌停价，并保留来源。"""
     if rule is None or rule.limit_rate is None or quote.pct_chg is None:
         return quote
-    if quote.last <= 0 or quote.pct_chg <= -100:
+    if quote.last <= 0 or quote.pct_chg <= -90:
         return quote
     decimals = rule.price_decimals if rule.price_decimals is not None else 2
     previous_close = quote.last / (1 + quote.pct_chg / 100)

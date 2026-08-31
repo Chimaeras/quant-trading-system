@@ -67,12 +67,12 @@
         </el-table-column>
         <el-table-column label="当日涨跌" width="90">
           <template #default="{ row }">
-            <span :class="(row.change_pct ?? 0) >= 0 ? 'text-up' : 'text-down'">{{ fmt1(row.change_pct) }}%</span>
+            <span :class="trendClass(row.change_pct)">{{ fmt1(row.change_pct) }}%</span>
           </template>
         </el-table-column>
         <el-table-column label="次日涨幅" width="90">
           <template #default="{ row }">
-            <span v-if="row.settled" :class="(row.next_ret ?? 0) >= 0 ? 'text-up' : 'text-down'">{{ pct(row.next_ret) }}</span>
+            <span v-if="row.settled" :class="trendClass(row.next_ret)">{{ pct(row.next_ret) }}</span>
             <span v-else-if="row.skip">跳过</span>
             <span v-else>待核销</span>
           </template>
@@ -85,7 +85,7 @@
         </el-table-column>
         <el-table-column label="高开" width="80">
           <template #default="{ row }">
-            <span v-if="row.settled" :class="(row.gap ?? 0) >= 0 ? 'text-up' : 'text-down'">{{ pct(row.gap) }}</span>
+            <span v-if="row.settled" :class="trendClass(row.gap)">{{ pct(row.gap) }}</span>
             <span v-else>—</span>
           </template>
         </el-table-column>
@@ -152,8 +152,8 @@
         <div class="kpi-row">
           <div class="kpi-card"><span class="kpi-label">已核销天数</span><b class="kpi-value">{{ stats.days }}</b></div>
           <div class="kpi-card"><span class="kpi-label">样本数</span><b class="kpi-value">{{ stats.total_settled ?? 0 }}</b></div>
-          <div class="kpi-card"><span class="kpi-label">命中率</span><b class="kpi-value" :class="(stats.hit_rate ?? 0) >= 0.5 ? 'text-up' : 'text-down'">{{ pct(stats.hit_rate) }}</b></div>
-          <div class="kpi-card"><span class="kpi-label">平均次日涨幅</span><b class="kpi-value" :class="(stats.avg_next_ret ?? 0) >= 0 ? 'text-up' : 'text-down'">{{ pct(stats.avg_next_ret) }}</b></div>
+          <div class="kpi-card"><span class="kpi-label">命中率</span><b class="kpi-value" :class="trendClass(stats.hit_rate, 0.5)">{{ pct(stats.hit_rate) }}</b></div>
+          <div class="kpi-card"><span class="kpi-label">平均次日涨幅</span><b class="kpi-value" :class="trendClass(stats.avg_next_ret)">{{ pct(stats.avg_next_ret) }}</b></div>
           <div class="kpi-card"><span class="kpi-label">平均高开</span><b class="kpi-value">{{ pct(stats.avg_gap) }}</b></div>
           <div v-if="stats.benchmark?.available" class="kpi-card">
             <span class="kpi-label">vs 沪深300 日均</span>
@@ -171,7 +171,7 @@
           </el-table-column>
           <el-table-column label="平均次日涨幅" min-width="110">
             <template #default="{ row }">
-              <span :class="(row.avg_next_ret ?? 0) >= 0 ? 'text-up' : 'text-down'">{{ pct(row.avg_next_ret) }}</span>
+              <span :class="trendClass(row.avg_next_ret)">{{ pct(row.avg_next_ret) }}</span>
             </template>
           </el-table-column>
         </el-table>
@@ -214,6 +214,11 @@ function fmt1(v: number | undefined | null): string {
 }
 function pct(v: number | undefined | null): string {
   return v == null || !Number.isFinite(v) ? '—' : `${(v * 100).toFixed(2)}%`
+}
+/** 涨跌方向着色：null/非有限值为中性（无涨跌色，避免把缺失值标成红/涨）。 */
+function trendClass(v: number | undefined | null, threshold = 0): string {
+  if (v == null || !Number.isFinite(v)) return ''
+  return v >= threshold ? 'text-up' : 'text-down'
 }
 function buyabilityType(b: string | undefined): 'success' | 'warning' | 'danger' | 'info' {
   if (b === '可买') return 'success'

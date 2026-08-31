@@ -91,7 +91,7 @@
           <el-table-column label="涨跌幅" min-width="90" align="right">
             <template #default="{ row }">
               <span v-if="row.pct !== undefined" :class="row.pct >= 0 ? 'up' : 'down'">
-                {{ row.pct >= 0 ? '+' : '' }}{{ row.pct.toFixed(2) }}%
+                {{ row.pct > 0 ? '+' : '' }}{{ row.pct.toFixed(2) }}%
               </span>
               <span v-else>—</span>
             </template>
@@ -497,7 +497,7 @@ function eventSummary(row: WatchEvent): string {
       const last = Number(d.last)
       const chg = Number(d.pct_chg)
       if (!Number.isFinite(last)) return '—'
-      const chgText = Number.isFinite(chg) ? `${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%` : '—'
+      const chgText = Number.isFinite(chg) ? `${chg > 0 ? '+' : ''}${chg.toFixed(2)}%` : '—'
       return `${last.toFixed(2)} ${chgText}`
     }
     case 'QUOTE_FAIL':

@@ -7,11 +7,11 @@
     </template>
     <div v-if="realtime" class="realtime-bar">
       <span class="label">实时</span>
-      <span :class="['price', (realtime.change_pct ?? 0) >= 0 ? 'up' : 'down']">
+      <span :class="['price', realtime.change_pct == null ? '' : realtime.change_pct >= 0 ? 'up' : 'down']">
         {{ realtime.close_price != null ? realtime.close_price.toFixed(2) : '--' }}
       </span>
       <span v-if="realtime.change_pct != null" :class="(realtime.change_pct >= 0 ? 'up' : 'down')">
-        {{ realtime.change_pct >= 0 ? '+' : '' }}{{ realtime.change_pct.toFixed(2) }}%
+        {{ realtime.change_pct > 0 ? '+' : '' }}{{ realtime.change_pct.toFixed(2) }}%
       </span>
     </div>
     <div ref="chartRef" style="height: 500px" />

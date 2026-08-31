@@ -254,7 +254,7 @@ function formatPct(v: number | undefined) {
 function formatChange(close?: number, pre?: number) {
   if (close == null || pre == null || pre === 0) return ''
   const ch = close - pre
-  const sign = ch >= 0 ? '+' : ''
+  const sign = ch > 0 ? '+' : ''
   return sign + ch.toFixed(2)
 }
 function formatVolume(v: number | undefined) {

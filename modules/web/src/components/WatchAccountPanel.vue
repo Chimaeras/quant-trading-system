@@ -237,8 +237,8 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 .metric { padding: 10px; border: 1px solid var(--el-border-color-lighter); border-radius: 6px; display: flex; flex-direction: column; gap: 5px; }
 .metric span { color: var(--el-text-color-secondary); font-size: 12px; }
 .metric strong { font-size: 15px; }
-.positive { color: #cf1322; }
-.negative { color: #389e0d; }
+.positive { color: var(--up); }
+.negative { color: var(--down); }
 .table-host { overflow-x: auto; }
 .table-host :deep(.el-table) { min-width: 1050px; }
 @media (max-width: 1100px) { .metrics { grid-template-columns: repeat(3, 1fr); } }

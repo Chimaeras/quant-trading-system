@@ -93,6 +93,8 @@
     <build>
         <plugins>
             <!-- 构建前端（需先安装 Node.js）：npm install && npm run build -->
+            <!-- 绑定到 prepare-package（而非 generate-resources）：mvn test 纯后端测试不触发 npm/Node，
+                 仅在 mvn package/install 打包时构建前端；可用 -Dskip.frontend.build=true 全跳过（P3-6） -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
@@ -100,7 +102,7 @@
                 <executions>
                     <execution>
                         <id>build-frontend</id>
-                        <phase>generate-resources</phase>
+                        <phase>prepare-package</phase>
                         <goals>
                             <goal>exec</goal>
                         </goals>
@@ -115,7 +117,7 @@
                     </execution>
                     <execution>
                         <id>build-frontend-dist</id>
-                        <phase>generate-resources</phase>
+                        <phase>prepare-package</phase>
                         <goals>
                             <goal>exec</goal>
                         </goals>
@@ -138,7 +140,7 @@
                 <executions>
                     <execution>
                         <id>copy-frontend</id>
-                        <phase>generate-resources</phase>
+                        <phase>prepare-package</phase>
                         <goals>
                             <goal>copy-resources</goal>
                         </goals>

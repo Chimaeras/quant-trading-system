@@ -1,6 +1,10 @@
 -- ============================================
--- 量化交易系统数据库初始化脚本
--- 基于数据库设计方案，适用 MySQL 8.0+
+-- 量化交易系统数据库初始化脚本（基线参考）
+-- 对应 Flyway V1__baseline_core.sql 的核心表；适用 MySQL 8.0+
+-- 说明：本文件为《数据库设计方案》的基线落地方案，结构与 Flyway V1 对齐。
+-- 生产权威 schema 以 backend-java/src/main/resources/db/migration/V1..V21 为准，
+-- 后续迁移新增的表/列（研究表、stock_trend_score、SECURITY_MASTER_HISTORY、
+-- 市值可靠性、组合/模拟账户等）不在本文件内，请以对应迁移脚本为准。
 -- 执行方式: mysql -u root -p < scripts/db/01_init_schema.sql
 -- ============================================
 
@@ -54,13 +58,16 @@ CREATE TABLE IF NOT EXISTS market_data (
     turnover_rate       DECIMAL(8,4) DEFAULT NULL COMMENT '换手率%',
     pe_ratio            DECIMAL(12,4) DEFAULT NULL COMMENT '市盈率',
     pb_ratio            DECIMAL(12,4) DEFAULT NULL COMMENT '市净率',
+    total_market_value  DECIMAL(24,4) DEFAULT NULL COMMENT '总市值(元)',
     created_at          DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     
     UNIQUE KEY uk_code_date (stock_code, exchange_type, trade_date),
     INDEX idx_trade_date (trade_date),
     INDEX idx_stock_code (stock_code),
-    INDEX idx_exchange_date (exchange_type, trade_date)
+    INDEX idx_exchange_date (exchange_type, trade_date),
+    INDEX idx_market_data_query (exchange_type, trade_date, stock_code),
+    INDEX idx_market_data_stock_date (stock_code, exchange_type, trade_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='行情数据表';
 
 -- 分区表方案（数据量大时取消注释执行）:

@@ -641,6 +641,13 @@ public class CodexShortCycleScoringEngine {
         if (minTrendScoreApplied > 0) {
             reasons.put("min_trend_score_applied", ScoringUtils.round2(minTrendScoreApplied));
         }
+        // R6: 市值可靠性不足时，size(lnMV) 中性化被跳过——显式披露而非静默，
+        // 避免评估因子 IC 时误以为 size 已中性化。真实可靠市值接入官方源后此处自动消失。
+        if (CrossSectionNeutralizer.MODE_SKIPPED_MV_RELIABILITY.equals(reasons.get("neutralization_mode"))) {
+            reasons.put("size_neutralization_note",
+                    "size(lnMV) 中性化因市值可靠性不足(UNKNOWN_LEGACY/FLOAT_CAP_APPROX)被跳过，"
+                            + "仅做行业哑变量中性化；该横截面未对市值暴露做中性化处理");
+        }
         c.setReasons(reasons);
         return c;
     }

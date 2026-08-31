@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -79,6 +80,38 @@ class CodexShortCycleScoringEngineTest {
         assertThat(c.getReasons()).containsKeys(
                 "pass_min_avg_amount", "pass_min_trend_score", "pass_ma_trend", "pass_ret20");
         assertThat(c.isPassMinAvgAmount()).isTrue();
+    }
+
+    @Test
+    void toCandidateDisclosesSkippedSizeNeutralization() throws Exception {
+        // R6: 市值可靠性不足时 size(lnMV) 中性化被跳过，须在 reasons 显式披露而非静默。
+        CodexShortCycleScoringEngine.RawFeatures rf = raw(
+                "000001", "SZSE", "测试", "银行",
+                0.01, 0.03, 0.05, 0.02, -0.5, 0.1,
+                0.15, 0.10, 40, 1.5, 0.05, 0.3,
+                0.25, 0.01, 1e-8, 0.02, 50_000_000, 0.01, 22.0,
+                CrossSectionNeutralizer.LOG_MV_FROM_TURNOVER, CrossSectionNeutralizer.REL_UNKNOWN_LEGACY);
+        Map<String, Object> breakdown = new java.util.LinkedHashMap<>();
+        breakdown.put("neutralization_mode", CrossSectionNeutralizer.MODE_SKIPPED_MV_RELIABILITY);
+        breakdown.put("mv_reliable_count", 0);
+        breakdown.put("mv_total_count", 5);
+        CodexShortCycleScoringEngine.ScoredRow row =
+                new CodexShortCycleScoringEngine.ScoredRow(rf, 0.5, 0.4, -0.3, 40, 50, breakdown);
+
+        var invoke = CodexShortCycleScoringEngine.class.getDeclaredMethod("toCandidate",
+                CodexShortCycleScoringEngine.ScoredRow.class, double.class, double.class, double.class, int.class);
+        invoke.setAccessible(true);
+        CandidateScore c = (CandidateScore) invoke.invoke(null, row, 0.0, 0.0, 1_000_000.0, 0);
+
+        assertThat(c.getReasons()).containsKey("size_neutralization_note");
+        assertThat(c.getReasons().get("size_neutralization_note").toString()).contains("被跳过");
+
+        // 非跳过时不应有该披露
+        breakdown.put("neutralization_mode", CrossSectionNeutralizer.MODE_FULL);
+        CodexShortCycleScoringEngine.ScoredRow fullRow =
+                new CodexShortCycleScoringEngine.ScoredRow(rf, 0.5, 0.4, -0.3, 40, 50, breakdown);
+        CandidateScore full = (CandidateScore) invoke.invoke(null, fullRow, 0.0, 0.0, 1_000_000.0, 0);
+        assertThat(full.getReasons()).doesNotContainKey("size_neutralization_note");
     }
 
     @Test

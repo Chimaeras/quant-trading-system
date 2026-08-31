@@ -147,6 +147,11 @@ public class MultiDimScoringService {
 
         List<StockMultiDimScore> rows = Collections.synchronizedList(new ArrayList<>());
         AtomicInteger skipped = new AtomicInteger(0);
+        // 将「个股打分的未预期异常」与「正常过滤」分开统计：正常过滤（上市期/可交易性/均额不足）
+        // 计入 skipped；数据或序列化等异常计入 failed 并记录 key，避免把错误当成普通跳过而静默吞掉。
+        // 串行与并行路径采用一致的 fail-open + 可观测语义，避免一线程失败拖垮整批。
+        AtomicInteger failed = new AtomicInteger(0);
+        List<String> failedKeys = Collections.synchronizedList(new ArrayList<>());
 
         List<String> keys = new ArrayList<>();
         for (Object[] pair : pairs) {
@@ -159,8 +164,14 @@ public class MultiDimScoringService {
                 int p = key.indexOf('|');
                 String stockCode = p > 0 ? key.substring(0, p) : key;
                 String exchangeType = p > 0 ? key.substring(p + 1) : "";
-                scoreAndAdd(key, stockCode, exchangeType, tradeDate, grouped.getOrDefault(key, List.of()),
-                        mdToday.get(key), infoByKey.get(key), indAvgs, sim, rows, skipped, excludeST, minListingDays, minAvgAmount, marketIndicators);
+                try {
+                    scoreAndAdd(key, stockCode, exchangeType, tradeDate, grouped.getOrDefault(key, List.of()),
+                            mdToday.get(key), infoByKey.get(key), indAvgs, sim, rows, skipped, excludeST, minListingDays, minAvgAmount, marketIndicators);
+                } catch (Exception e) {
+                    failed.incrementAndGet();
+                    failedKeys.add(key);
+                    log.warn("多维度打分个股任务失败: {} - {}", e.getCause() != null ? e.getCause().getMessage() : e.getMessage(), e.getClass().getSimpleName());
+                }
             }
         } else {
             ExecutorService pool = Executors.newFixedThreadPool(threads, r -> {
@@ -179,8 +190,14 @@ public class MultiDimScoringService {
                     int p = key.indexOf('|');
                     String stockCode = p > 0 ? key.substring(0, p) : key;
                     String exchangeType = p > 0 ? key.substring(p + 1) : "";
-                    scoreAndAdd(key, stockCode, exchangeType, tradeDate, grouped.getOrDefault(key, List.of()),
-                            mdToday.get(key), infoByKey.get(key), indAvgs, sim, rows, skipped, finalExcludeST, finalMinListingDays, finalMinAvgAmount, finalMarketIndicators);
+                    try {
+                        scoreAndAdd(key, stockCode, exchangeType, tradeDate, grouped.getOrDefault(key, List.of()),
+                                mdToday.get(key), infoByKey.get(key), indAvgs, sim, rows, skipped, finalExcludeST, finalMinListingDays, finalMinAvgAmount, finalMarketIndicators);
+                    } catch (Exception e) {
+                        failed.incrementAndGet();
+                        failedKeys.add(key);
+                        log.warn("多维度打分个股任务失败: {} - {}", e.getCause() != null ? e.getCause().getMessage() : e.getMessage(), e.getClass().getSimpleName());
+                    }
                     return null;
                 });
             }
@@ -188,9 +205,9 @@ public class MultiDimScoringService {
                 try {
                     cs.take().get();
                 } catch (Exception e) {
-                    skipped.incrementAndGet();
-                    // 记录根因，避免打分任务整体失败原因不可见
-                    log.warn("多维度打分个股任务失败: {} - {}", e.getCause() != null ? e.getCause().getMessage() : e.getMessage(), e.getClass().getSimpleName());
+                    // 正常情况下任务内部已捕获；此处兜底仅为防中断被静默。
+                    failed.incrementAndGet();
+                    log.warn("多维度打分任务异常: {}", e.getCause() != null ? e.getCause().getMessage() : e.getMessage());
                 }
             }
             ExecutorLifecycle.shutdownGracefully(pool);
@@ -209,6 +226,8 @@ public class MultiDimScoringService {
         res.put("persisted", persist && !toSave.isEmpty());
         res.put("scored", toSave.size());
         res.put("skipped", skipped.get());
+        res.put("failed", failed.get());
+        res.put("failed_keys", List.copyOf(failedKeys));
         res.put("include_items", includeItems);
         res.put("exclude_st", excludeST);
         res.put("min_avg_amount", minAvgAmount);

@@ -1,49 +1,14 @@
 import request, { unwrap } from './request'
 
-export interface SelectorRunParams {
-  tradeDate?: string
-  lookbackDays?: number
-  topN?: number
-  minAvgAmount?: number
-  minTrendScore?: number
-  templateId?: string
-  factorVersion?: string
-}
-
-export interface OversoldReboundRunParams {
-  tradeDate?: string
-  topN?: number
-  minTotalScore?: number
-  excludeST?: boolean
-  templateId?: string
-  /** 是否写入 selector_result（默认 true） */
-  persist?: boolean
-}
-
+/**
+ * 选股模板 API。
+ *
+ * 选股的「运行 / 查看结果」已迁移到统一打分异步任务 API（scoring.ts 的
+ * runUnifiedScoringTask / getUnifiedScoringTask / getUnifiedLatest / getUnifiedResult，
+ * 即 /scoring/unified/*）。此处不再保留旧的同步 /selector/run、/selector/oversold-rebound/run、
+ * /selector/result、/selector/result/{resultId} 封装——迁移后已无任何调用方。
+ */
 export const selectorApi = {
-  async run(params: SelectorRunParams) {
-    const res = await request.post<Record<string, unknown>>('/selector/run', params)
-    return unwrap(res) ?? {}
-  },
-
-  /** 超跌反弹打分（落库 factor_version = oversold_rebound_v1） */
-  async runOversoldRebound(params: OversoldReboundRunParams) {
-    const res = await request.post<Record<string, unknown>>('/selector/oversold-rebound/run', params)
-    return unwrap(res) ?? {}
-  },
-
-  async getLatest(tradeDate?: string, factorVersion?: string) {
-    const res = await request.get<Record<string, unknown>>('/selector/result', {
-      params: { tradeDate, factorVersion }
-    })
-    return unwrap(res) ?? {}
-  },
-
-  async getDetail(resultId: string) {
-    const res = await request.get<Record<string, unknown>>(`/selector/result/${resultId}`)
-    return unwrap(res) ?? {}
-  },
-
   async listTemplates() {
     const res = await request.get<Array<Record<string, unknown>>>('/selector/templates')
     return unwrap(res) ?? []

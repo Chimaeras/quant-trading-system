@@ -71,6 +71,21 @@ class DataEngine:
                 f"无法保证时间序，下游滚动窗口/前瞻标签将失真"
             )
 
+        if df.index.has_duplicates:
+            dup = df.index[df.index.duplicated()].unique()
+            raise ValueError(f"{path}: 日期索引存在重复交易日 {list(dup)}，"
+                             f"同一交易日的多根 K 线会引入 order-dependence")
+
+        # OHLC 一致性（fail-closed）：high 不得低于 open/close/low，low 不得高于 open/close/high
+        high_low = df[["open", "close", "low"]].max(axis=1)
+        low_high = df[["open", "close", "high"]].min(axis=1)
+        bad_ohlc = (df["high"] < high_low) | (df["low"] > low_high)
+        if bad_ohlc.any():
+            raise ValueError(
+                f"{path}: 存在 OHLC 逻辑矛盾（high<max(open,close,low) 或 low>min(open,close,high)），"
+                f"首个坏行索引: {df.index[bad_ohlc.argmax()]}"
+            )
+
         if not df.index.is_monotonic_increasing:
             df = df.sort_index()
         return df

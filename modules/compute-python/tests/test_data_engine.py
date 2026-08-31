@@ -57,3 +57,32 @@ def test_load_csv_rejects_non_date_index(tmp_path):
     # index_col=0 会把 note 当索引 → 非日期索引被拒
     with pytest.raises(ValueError, match="日期索引"):
         DataEngine(data_dir=str(tmp_path)).load_csv("600000", str(p))
+
+
+def test_load_csv_rejects_ohlc_contradiction(tmp_path):
+    # high < close：逻辑矛盾应 fail-closed 拒绝
+    df = _good_df(5)
+    df.iloc[2, df.columns.get_loc("high")] = df.iloc[2]["close"] - 1.0
+    p = _write_csv(tmp_path, df)
+    with pytest.raises(ValueError, match="OHLC 逻辑矛盾"):
+        DataEngine(data_dir=str(tmp_path)).load_csv("600000", str(p))
+
+
+def test_load_csv_rejects_duplicate_trading_dates(tmp_path):
+    # 同一交易日两根 K 线：去重缺失时下游末两根取序不确定 → 应拒绝
+    df = _good_df(5)
+    df = pd.concat([df, df.iloc[[0]]])  # 重复首行日期
+    p = _write_csv(tmp_path, df)
+    with pytest.raises(ValueError, match="重复交易日"):
+        DataEngine(data_dir=str(tmp_path)).load_csv("600000", str(p))
+
+
+def test_load_csv_accepts_zero_volume_suspension_days(tmp_path):
+    # 停牌日常以零量表示：应通过入口校验（由下游口径决定是否剔除，而非在入口误杀）
+    df = _good_df(10)
+    df.loc[df.index[4], "volume"] = 0
+    df.loc[df.index[7], "volume"] = 0
+    p = _write_csv(tmp_path, df)
+    out = DataEngine(data_dir=str(tmp_path)).load_csv("600000", str(p))
+    assert (out["volume"] == 0).sum() == 2
+

@@ -4,9 +4,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
 
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * 批量打分通用执行框架：线程池创建、CompletionService 批处理、优雅关闭。
  */
+@Slf4j
 public abstract class AbstractScoringService {
 
     protected <T> List<T> runParallel(
@@ -37,6 +40,11 @@ public abstract class AbstractScoringService {
                 try {
                     results.add(cs.take().get());
                 } catch (ExecutionException e) {
+                    // 保留 fail-open（该股结果置 null 由调用方跳过），但必须把根因记入日志，
+                    // 避免整批任务静默丢结果却无从排查（否则失败只表现为 null 而原因不可见）。
+                    Throwable cause = e.getCause();
+                    log.warn("并行打分任务异常，该任务结果置 null：{}",
+                            cause != null ? cause.toString() : e.toString());
                     results.add(null);
                 }
             }

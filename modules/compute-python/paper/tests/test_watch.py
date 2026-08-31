@@ -254,6 +254,37 @@ def test_watch_buy_sizes_with_order_limit_price_so_name_weight_does_not_self_rej
     assert checked.risk_status == RiskStatus.PASS
 
 
+def test_watch_limit_price_uses_half_up_rounding():
+    """watch 限价必须按『四舍五入（half up）』，不能是内置 round 的银行家舍入。
+
+    round(2.675, 2) → 2.67（银行家）；half up → 2.68。
+    round(12.525, 2) → 2 位小数 12.52（银行家）；half up → 12.53。
+    """
+    from paper.watch.size import limit_price, round_limit_price
+
+    assert round_limit_price(2.675, "SZ") == 2.68
+    assert limit_price(12.5, "SZ", "buy", 20) == 12.53
+
+
+def test_watch_buy_tick_snap_keeps_half_up():
+    """tick_size 取整路径同样走 half up，不因银行家舍入少一个价位。"""
+    import types
+
+    from paper.watch.decide_watch import build_watch_intent
+    from paper.watch.models import WatchSignal
+
+    config = _config(max_name_weight=0.20, slippage_bps=20)
+    balance = Balance(total_assets=100000, avail_balance=100000)
+    candidate = Candidate("000001", "平安银行", "SZ", source="watchlist")
+    signal = WatchSignal("000001", "buy", "MA_CROSS", T0.isoformat(), ["MA_GOLDEN", "BAR_CLOSED"])
+    quote = _quote(code="000001", exchange="SZ", last=12.5)
+    rule = types.SimpleNamespace(tick_size=0.01, price_decimals=2)
+
+    intent = build_watch_intent(candidate, signal, quote, balance, None, config, now=T0, security_rule=rule)
+
+    assert intent.limit_price == 12.53
+
+
 class _WatchBroker:
     def __init__(self):
         self.trade_calls = []

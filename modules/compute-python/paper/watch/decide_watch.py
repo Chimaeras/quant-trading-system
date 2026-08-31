@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from ..decide import derive_limit_up_price
+from ..decide import _round_half_up, derive_limit_up_price
 from ..models import Balance, Candidate, Intent, IntentType, Position, Quote, QuoteValidity
 from ..config import LOT_SIZE, PaperConfig
 from .models import WatchSignal
@@ -54,7 +54,10 @@ def build_watch_intent(
         tick_size = getattr(security_rule, "tick_size", None) if security_rule is not None else None
         decimals = getattr(security_rule, "price_decimals", None) if security_rule is not None else None
         if tick_size and tick_size > 0:
-            planned_limit = round(round(planned_limit / tick_size) * tick_size, decimals or 2)
+            # 四舍五入（half up）到整价位与最小变动价位，避免银行家舍入在精确 .005/.5 边界少一个价位。
+            planned_limit = _round_half_up(
+                _round_half_up(planned_limit / tick_size, 0) * tick_size, decimals or 2
+            )
         # 仓位和可负担数量必须按实际委托限价计算；按最新价取整后再叠加
         # 滑点会让名义金额穿过 max_name_weight，导致正常信号被风控反拒。
         qty = buy_qty(balance, planned_limit, config)

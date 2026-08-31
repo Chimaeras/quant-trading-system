@@ -4,11 +4,17 @@ from __future__ import annotations
 import math
 
 from ..config import LOT_SIZE, MIN_COMMISSION, PRICE_DECIMALS, PaperConfig
+from ..decide import _round_half_up
 from ..models import Balance
 
 
 def round_limit_price(price: float, exchange: str) -> float:
-    return round(price, PRICE_DECIMALS.get(exchange, 2))
+    """限价按市场小数位四舍五入（half up），与 V1 decide 路径口径一致。
+
+    不内置 round（银行家舍入）：在精确 .005 边界会舍到偶数，导致 watch 实际提交的
+    限价单比约定少/多 1 个价位。
+    """
+    return _round_half_up(price, PRICE_DECIMALS.get(exchange, 2))
 
 
 def buy_qty(balance: Balance, last: float, config: PaperConfig) -> int:

@@ -82,6 +82,12 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- 内存库：供 @DataJpaTest 以真实 JPA/SQL 语义验证 PIT 查询等（项目主库为 MySQL，测试不连主库） -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

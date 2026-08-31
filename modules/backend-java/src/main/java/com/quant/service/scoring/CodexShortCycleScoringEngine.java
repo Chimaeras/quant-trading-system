@@ -30,6 +30,15 @@ public class CodexShortCycleScoringEngine {
     public static final double MIN_F_FACTOR = -0.5;
     public static final double MIN_R_FACTOR = -1.0;
     /** 财务缺失哨兵；与真实 0 或行业典型值区分，避免 imputeFin 误插补。 */
+    /**
+     * 财务/估值字段缺失哨兵：用 NaN，而非 0——保证它不参与行业/截面中位数（medianField 显式剔除 NaN），
+     * 也不会被当成一个真实的"0 估值"参与排序。仅当整个行业该字段都缺失、无可用中位数时，
+     * imputeFin 才会回退到兜底常量（见 imputeFinancialByIndustry）。
+     *
+     * <p>来源注：market_data.pe_ratio / pb_ratio 目前无 Java 入库写入方（全库 NULL），
+     * earningsYield / bookToMarket 因此退化：缺失→行业中位数（往往也为空）→兜底 0，形成近似恒定列。
+     * 该值因子在本库当前不具备信息量——官方 PE/PB 源接入前（需用户决策）不得据此得出估值结论。
+     */
     static final double MISSING_FINANCIAL = Double.NaN;
 
     public record StockBarContext(

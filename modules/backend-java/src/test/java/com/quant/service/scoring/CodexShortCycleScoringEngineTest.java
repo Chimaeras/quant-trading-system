@@ -269,6 +269,10 @@ class CodexShortCycleScoringEngineTest {
         assertThat(imputed.get(0).debtRatio()).isEqualTo(50);
         assertThat(imputed.get(0).currentRatio()).isEqualTo(1.5);
         assertThat(imputed.get(0).roe()).isEqualTo(0);
+        // P1-1：值因子（earningsYield/bookToMarket）全缺失时同样回退到兜底 0——记录该"估值因子退化"现状，
+        // 供披露/后续接入官方 PE/PB 源时对比。
+        assertThat(imputed.get(0).earningsYield()).isEqualTo(0);
+        assertThat(imputed.get(0).bookToMarket()).isEqualTo(0);
     }
 
     /** R20-P3 边界：单股成组 → 中位数即自身；空行业名 → "_none_" 桶共享中位数。 */
@@ -302,6 +306,24 @@ class CodexShortCycleScoringEngineTest {
         List<CodexShortCycleScoringEngine.RawFeatures> imputed = CodexShortCycleScoringEngine.imputeFinancialByIndustry(raws);
         assertThat(imputed.get(0).roe()).isEqualTo(20);
         assertThat(imputed.get(1).roe()).isEqualTo(20);
+    }
+
+    /** P1-1 回归：值因子缺失须用同行业真实中位数填充，不得退化为 0 参与排序（MISSING_FINANCIAL=NaN 被剔除）。 */
+    @Test
+    void valueFactorMissingImputedFromIndustryMedianNotZero() {
+        List<CodexShortCycleScoringEngine.RawFeatures> raws = List.of(
+                raw("000001", "SZSE", "A", "银行", 0, 0, 0, 0, 0, 0,
+                        0.15, 0.10, 40, 1.5, Double.NaN, Double.NaN,
+                        0, 0, 0, 0, 1),
+                raw("000002", "SZSE", "B", "银行", 0, 0, 0, 0, 0, 0,
+                        0.20, 0.15, 35, 1.8, 0.05, 0.30,
+                        0, 0, 0, 0, 1)
+        );
+        List<CodexShortCycleScoringEngine.RawFeatures> imputed =
+                CodexShortCycleScoringEngine.imputeFinancialByIndustry(raws);
+        // 缺失的 earningsYield/bookToMarket 用同行业真实值 0.05/0.30 填充，而非退化为 0
+        assertThat(imputed.get(0).earningsYield()).isEqualTo(0.05);
+        assertThat(imputed.get(0).bookToMarket()).isEqualTo(0.30);
     }
 
     @Test

@@ -667,7 +667,7 @@ public class FactorResearchService {
             block.put("long_short_spread", 0.0);
             block.put("daily_rank_ic", List.of());
             block.put("grouped_returns", List.of());
-            block.put("executable_net_ic", emptyNetIcBlock());
+            block.put("cost_net_ic", emptyNetIcBlock());
             return block;
         }
 
@@ -787,7 +787,7 @@ public class FactorResearchService {
         block.put("grouped_returns", grouped);
 
         // 成本后近似净收益 IC（与标签/回测成交口径对齐的对照列；不含涨跌停/停牌拒单过滤）
-        block.put("executable_net_ic", buildNetIcBlock(
+        block.put("cost_net_ic", buildNetIcBlock(
                 FactorResearchEngine.summarize(
                         netObsByDate,
                         holdingDays,

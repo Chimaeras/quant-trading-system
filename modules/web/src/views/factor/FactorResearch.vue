@@ -331,7 +331,7 @@
               <template #default="{ row }">{{ pct(row.long_short_spread) }}</template>
             </el-table-column>
             <el-table-column label="净收益 IC (成本后近似)" width="130">
-              <template #default="{ row }">{{ row.executable_net_ic ? fmt4(row.executable_net_ic.rank_ic_mean) : '—' }}</template>
+              <template #default="{ row }">{{ row.cost_net_ic ? fmt4(row.cost_net_ic.rank_ic_mean) : '—' }}</template>
             </el-table-column>
             <el-table-column label="HAC 95%CI" min-width="130">
               <template #default="{ row }">{{ fmt4(row.ci_lower) }} ~ {{ fmt4(row.ci_upper) }}</template>
@@ -514,7 +514,7 @@ function exportUnifiedCsv() {
     ...r.by_horizon.map((row) => [
       row.holding_days, row.rank_ic_mean, row.pearson_ic_mean, row.rank_ic_ir,
       row.rank_ic_positive_rate, row.monotonicity, row.long_short_spread,
-      row.executable_net_ic?.rank_ic_mean ?? '', row.hac_std, row.ci_lower, row.ci_upper
+      row.cost_net_ic?.rank_ic_mean ?? '', row.hac_std, row.ci_lower, row.ci_upper
     ].join(','))
   ]
   const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })

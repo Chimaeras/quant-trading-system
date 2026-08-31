@@ -225,7 +225,7 @@ class FactorResearchServiceTest {
             assertThat(hb.get("net_basis_note")).asString().contains("佣金");
             assertThat(hb.get("embargo_note")).asString().contains("不外推");
             @SuppressWarnings("unchecked")
-            Map<String, Object> net = (Map<String, Object>) hb.get("executable_net_ic");
+            Map<String, Object> net = (Map<String, Object>) hb.get("cost_net_ic");
             // V2-MP-014：净收益成交价改读 raw，basis_note 文案为 rawOpen[t+1]
             assertThat(net.get("basis_note")).asString().contains("rawOpen[t+1]");
             if (Integer.valueOf(2).equals(hb.get("holding_days"))) {

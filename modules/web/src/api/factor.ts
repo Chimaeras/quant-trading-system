@@ -205,7 +205,7 @@ export interface UnifiedReportHorizonRow {
   ci_upper: number
   long_short_spread: number
   /** 成本后近似 IC（尚未接入涨跌停/停牌拒单，勿称为完整可执行） */
-  executable_net_ic?: {
+  cost_net_ic?: {
     cross_section_days: number
     total_observations: number
     rank_ic_mean: number

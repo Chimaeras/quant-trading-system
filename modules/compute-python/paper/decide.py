@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import math
 from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP
 
 from .broker_client import ACTIVE_ORDER_STATUSES, order_remaining_qty
 from .config import BUYABILITY_BLOCKED, LOT_SIZE, PaperConfig, PRICE_DECIMALS
@@ -44,9 +45,20 @@ def in_trading_window(now: datetime) -> bool:
     return (930 <= hhmm < 1130) or (1300 <= hhmm < 1500)
 
 
+def _round_half_up(value: float, ndigits: int) -> float:
+    """A 股『四舍五入』取整到 ndigits 位小数。
+
+    交易所涨跌停/限价按四舍五入（half up）取到最小价位；Python 内置 round 是银行家舍入，
+    在精确 .005 边界会舍到偶数（如 round(2.675, 2) → 2.67），与约定不一致。用 Decimal
+    ROUND_HALF_UP 在十进制表示上按半价上舍入。
+    """
+    q = Decimal(1).scaleb(-ndigits)
+    return float(Decimal(str(value)).quantize(q, rounding=ROUND_HALF_UP))
+
+
 def round_limit_price(price: float, exchange: str) -> float:
     """限价小数位：沪/北 2 位，深 3 位。"""
-    return round(price, PRICE_DECIMALS.get(exchange, 2))
+    return _round_half_up(price, PRICE_DECIMALS.get(exchange, 2))
 
 
 def limit_price_for_buy(last: float, exchange: str, slippage_bps: int) -> float:
@@ -91,10 +103,10 @@ def derive_limit_up_price(quote: Quote) -> Quote:
         return quote
     prev_close = quote.last / (1 + quote.pct_chg / 100)
     limit_pct = board_limit_pct(quote.code, quote.exchange)
-    quote.limit_up_price = round(prev_close * (1 + limit_pct / 100), 2)
+    quote.limit_up_price = _round_half_up(prev_close * (1 + limit_pct / 100), 2)
     quote.limit_up_source = (
         f"derived:prev_close=last/(1+pct_chg/100)={prev_close:.4f};"
-        f"limit_up=round(prev*{limit_pct/100+1:.2f},2)"
+        f"limit_up=round_half_up(prev*{limit_pct/100+1:.2f},2)"
     )
     return quote
 

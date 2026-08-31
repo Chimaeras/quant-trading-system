@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP
 
 import requests
 
@@ -97,6 +98,17 @@ class SecurityRuleClient:
         return rules, errors
 
 
+def _round_half_up(value: float, ndigits: int) -> float:
+    """A 股『四舍五入』取整到 ndigits 位小数（半价上舍入）。
+
+    交易所涨跌停价按四舍五入取到最小价位；Python 内置 round 为银行家舍入，在精确 .005
+    边界会舍到偶数（如 round(2.675, 2) → 2.67），与约定不一致。用 Decimal ROUND_HALF_UP
+    在十进制表示上按半价上舍入。
+    """
+    q = Decimal(1).scaleb(-ndigits)
+    return float(Decimal(str(value)).quantize(q, rounding=ROUND_HALF_UP))
+
+
 def apply_rule_price_limits(quote: Quote, rule: SecurityRule | None) -> Quote:
     """仅在规则和前收推导输入都可靠时补齐涨跌停价，并保留来源。"""
     if rule is None or rule.limit_rate is None or quote.pct_chg is None:
@@ -106,9 +118,9 @@ def apply_rule_price_limits(quote: Quote, rule: SecurityRule | None) -> Quote:
     decimals = rule.price_decimals if rule.price_decimals is not None else 2
     previous_close = quote.last / (1 + quote.pct_chg / 100)
     if quote.limit_up_price is None:
-        quote.limit_up_price = round(previous_close * (1 + rule.limit_rate), decimals)
+        quote.limit_up_price = _round_half_up(previous_close * (1 + rule.limit_rate), decimals)
         quote.limit_up_source = f"security_rule:{rule.rule_version}:{rule.source}"
     if quote.limit_down_price is None:
-        quote.limit_down_price = round(previous_close * (1 - rule.limit_rate), decimals)
+        quote.limit_down_price = _round_half_up(previous_close * (1 - rule.limit_rate), decimals)
         quote.limit_down_source = f"security_rule:{rule.rule_version}:{rule.source}"
     return quote

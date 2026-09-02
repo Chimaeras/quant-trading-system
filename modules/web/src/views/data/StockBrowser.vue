@@ -59,7 +59,10 @@ const pageSize = ref(20)
 const total = ref(0)
 const dataSource = ref<'backend' | 'local'>('backend')
 
+let stockSeq = 0
+
 const loadStocks = async () => {
+  const mySeq = ++stockSeq
   loading.value = true
   try {
     // 优先使用后端 API（MySQL 数据），失败则回退到 IndexedDB 并标注来源
@@ -70,6 +73,7 @@ const loadStocks = async () => {
         keyword: keyword.value || undefined,
         exchange: exchangeType.value || undefined
       })
+      if (mySeq !== stockSeq) return
       stockList.value = data?.list ?? []
       total.value = data?.total ?? 0
       dataSource.value = 'backend'
@@ -80,12 +84,13 @@ const loadStocks = async () => {
         keyword: keyword.value || undefined,
         exchange_type: exchangeType.value || undefined
       })
+      if (mySeq !== stockSeq) return
       stockList.value = res.list
       total.value = res.total
       dataSource.value = 'local'
     }
   } finally {
-    loading.value = false
+    if (mySeq === stockSeq) loading.value = false
   }
 }
 

@@ -42,6 +42,7 @@
 
       <!-- 候选列表（含核销后的次日表现） -->
       <el-table v-loading="genLoading || settleLoading" :data="tableData" size="small" stripe border max-height="480">
+        <template #empty><span v-if="result">暂无数据</span></template>
         <el-table-column type="index" label="#" width="46" :index="(i: number) => i + 1" />
         <el-table-column prop="stock_code" label="代码" width="90" />
         <el-table-column prop="stock_name" label="名称" min-width="100" />
@@ -289,10 +290,14 @@ async function settle() {
   }
 }
 
+let dateSeq = 0
+
 async function loadDate(date: string) {
   tradeDate.value = date
+  const mySeq = ++dateSeq
   try {
     const res = await getT1Candidates(date)
+    if (mySeq !== dateSeq) return
     if (res.found) {
       // 后端 getCandidates 把核销结果嵌套在 settle 字段下（settle.results / settle.summary），
       // 这里提升到顶层，使表格能展示次日涨幅/高开/命中率等已核销字段。
@@ -306,7 +311,7 @@ async function loadDate(date: string) {
       toast.info('该日无候选记录')
     }
   } catch (e: unknown) {
-    toast.error(errorText(e))
+    if (mySeq === dateSeq) toast.error(errorText(e))
   }
 }
 

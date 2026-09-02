@@ -84,6 +84,13 @@
   background: currentColor;
   box-shadow: 0 0 7px currentColor;
 }
+.chip .chip-dot.live {
+  animation: chip-pulse 2s ease-in-out infinite;
+}
+@keyframes chip-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
 .chip.chip-ok {
   color: var(--ok);
   border-color: rgba(74, 222, 128, 0.35);

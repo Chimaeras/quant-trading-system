@@ -24,7 +24,7 @@
 | 14 | /research/probability | views/research/ProbabilityResearch.vue | 942 | 高 | 已完成 |
 | 15 | /research/tasks | views/research/ResearchTasks.vue | 1012 | 高 | 已完成 |
 | 16 | /research/rolling-walk-forward | views/research/RollingWalkForward.vue | 360 | 中 | 已完成 |
-| 17 | /backtest/scoring | views/backtest/ScoringBacktest.vue | 1504 | 高 | 待重构 |
+| 17 | /backtest/scoring | views/backtest/ScoringBacktest.vue | 1504 | 高 | 已完成 |
 | 18 | /backtest/strategy | views/backtest/StrategyBacktest.vue | 241 | 中 | 已完成 |
 | 19 | /backtest/portfolio | views/backtest/PortfolioBacktest.vue | 639 | 高 | 已完成 |
 | 20 | /backtest/walk-forward | views/backtest/WalkForward.vue | 190 | 低 | 已完成 |

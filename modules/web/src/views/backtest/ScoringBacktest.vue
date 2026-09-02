@@ -1,10 +1,9 @@
 <template>
-  <el-card shadow="hover" class="terminal-page">
-    <template #header>
-      <div class="header-row">
-        <span>候选前瞻收益（非组合回测）</span>
-      </div>
-    </template>
+  <PageShell>
+    <PageHeader
+      title="候选前瞻收益（非组合回测）"
+      subtitle="统计各候选信号的前瞻收益样本与因子有效性，不含组合状态机。"
+    />
 
     <el-alert
       type="warning"
@@ -16,47 +15,48 @@
     />
 
     <!-- 参数配置 -->
-    <div class="section-title">回测参数配置</div>
-    <el-form inline>
-      <el-form-item label="策略类型">
-        <el-select v-model="form.strategyType" placeholder="全部策略" style="width: 200px" :loading="strategiesLoading" clearable>
-          <el-option label="全部策略" value="" />
-          <el-option v-for="s in strategies" :key="s" :label="s" :value="s" />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="起始日期">
-        <el-date-picker v-model="form.startDate" type="date" value-format="YYYY-MM-DD" />
-      </el-form-item>
-      <el-form-item label="结束日期">
-        <el-date-picker v-model="form.endDate" type="date" value-format="YYYY-MM-DD" />
-      </el-form-item>
-      <el-form-item label="每日选取TopN">
-        <el-input-number v-model="form.topN" :min="1" :max="100" :step="1" />
-      </el-form-item>
-      <el-form-item label="因子分组数">
-        <el-input-number v-model="form.factorGroupCount" :min="2" :max="10" :step="1" />
-      </el-form-item>
-    </el-form>
-    <el-form inline class="holding-form">
-      <el-form-item label="持仓周期(交易日)">
-        <el-checkbox-group v-model="form.holdingDays">
-          <el-checkbox :value="1">T+1</el-checkbox>
-          <el-checkbox :value="3">T+3</el-checkbox>
-          <el-checkbox :value="5">T+5</el-checkbox>
-          <el-checkbox :value="10">T+10</el-checkbox>
-          <el-checkbox :value="20">T+20</el-checkbox>
-        </el-checkbox-group>
-      </el-form-item>
-      <el-form-item>
-        <el-button type="primary" :loading="running" @click="runBacktest">执行回测</el-button>
-      </el-form-item>
-      <el-form-item label="历史回测">
-        <el-select v-model="historyResultId" placeholder="按 result_id 回溯历史回测" clearable filterable style="width: 300px" @change="loadRun">
-          <el-option v-for="r in runs" :key="r.result_id" :label="`${r.strategy_type} ${r.start_date}~${r.end_date} (${r.result_id})`" :value="r.result_id" />
-        </el-select>
-        <el-button link type="primary" :loading="runsLoading" @click="loadRuns">刷新</el-button>
-      </el-form-item>
-    </el-form>
+    <SectionCard title="回测参数配置">
+      <el-form inline>
+        <el-form-item label="策略类型">
+          <el-select v-model="form.strategyType" placeholder="全部策略" style="width: 200px" :loading="strategiesLoading" clearable>
+            <el-option label="全部策略" value="" />
+            <el-option v-for="s in strategies" :key="s" :label="s" :value="s" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="起始日期">
+          <el-date-picker v-model="form.startDate" type="date" value-format="YYYY-MM-DD" />
+        </el-form-item>
+        <el-form-item label="结束日期">
+          <el-date-picker v-model="form.endDate" type="date" value-format="YYYY-MM-DD" />
+        </el-form-item>
+        <el-form-item label="每日选取TopN">
+          <el-input-number v-model="form.topN" :min="1" :max="100" :step="1" />
+        </el-form-item>
+        <el-form-item label="因子分组数">
+          <el-input-number v-model="form.factorGroupCount" :min="2" :max="10" :step="1" />
+        </el-form-item>
+      </el-form>
+      <el-form inline class="holding-form">
+        <el-form-item label="持仓周期(交易日)">
+          <el-checkbox-group v-model="form.holdingDays">
+            <el-checkbox :value="1">T+1</el-checkbox>
+            <el-checkbox :value="3">T+3</el-checkbox>
+            <el-checkbox :value="5">T+5</el-checkbox>
+            <el-checkbox :value="10">T+10</el-checkbox>
+            <el-checkbox :value="20">T+20</el-checkbox>
+          </el-checkbox-group>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="running" @click="runBacktest">执行回测</el-button>
+        </el-form-item>
+        <el-form-item label="历史回测">
+          <el-select v-model="historyResultId" placeholder="按 result_id 回溯历史回测" clearable filterable style="width: 300px" @change="loadRun">
+            <el-option v-for="r in runs" :key="r.result_id" :label="`${r.strategy_type} ${r.start_date}~${r.end_date} (${r.result_id})`" :value="r.result_id" />
+          </el-select>
+          <el-button link type="primary" :loading="runsLoading" @click="loadRuns">刷新</el-button>
+        </el-form-item>
+      </el-form>
+    </SectionCard>
 
     <el-alert
       v-if="!response"
@@ -73,6 +73,7 @@
 
     <!-- 回测结果 -->
     <template v-if="response">
+      <SectionCard title="回测结果">
       <div class="result-meta">
         <span>策略：{{ response.strategyType || '全部' }}</span>
         <span>日期：{{ response.startDate }} ~ {{ response.endDate }}</span>
@@ -407,7 +408,7 @@
               </template>
             </template>
           </template>
-          <el-empty v-else description="本次回测无因子有效性数据" />
+          <EmptyState v-else message="本次回测无因子有效性数据" />
         </el-tab-pane>
 
         <!-- ============ Tab 4：每日明细 ============ -->
@@ -445,6 +446,7 @@
           </div>
         </el-tab-pane>
       </el-tabs>
+      </SectionCard>
 
       <!-- 详情弹窗 -->
       <el-dialog v-model="detailVisible" :title="'回测明细 - ' + detailDate" width="900px" destroy-on-close>
@@ -544,7 +546,7 @@
         </el-collapse-item>
       </el-collapse>
     </template>
-  </el-card>
+  </PageShell>
 </template>
 
 <script setup lang="ts">
@@ -554,6 +556,10 @@ import dayjs from 'dayjs'
 import { backtestApi, analyzeTurnover, analyzeStability, type ScoringBacktestResponse, type DailyDetail, type StockReturn, type TurnoverResponse, type StabilityResponse } from '@/api/backtest'
 import { errorText } from '@/api/request'
 import { useToast } from '@/composables/useToast'
+import PageShell from '@/components/ui/PageShell.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import SectionCard from '@/components/ui/SectionCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 const toast = useToast()
 const running = ref(false)
@@ -1250,14 +1256,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
 .disclaimer-alert {
   margin-bottom: 16px;
 }

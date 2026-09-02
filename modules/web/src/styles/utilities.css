@@ -2,20 +2,22 @@
  * 共享工具类 —— 消除各页重复定义的 stat 卡片、涨跌色、页面布局等
  *
  * 命名约定：.page-* 页面布局 / .stat-* 统计卡 / .kpi-* 指标卡 / .text-* 文本语义 / .glass 玻璃容器
+ * V2-UI-Codex：色值与圆角对齐新令牌；保留旧类名，页面无需改动。
  */
 
-/* ===== 玻璃容器 ===== */
+/* ===== 玻璃容器（Codex：16px 圆角） ===== */
 .glass {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg);
   backdrop-filter: blur(var(--blur));
-  box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  -webkit-backdrop-filter: blur(var(--blur));
+  box-shadow: var(--shadow-card);
 }
 
 /* ===== 文本语义 ===== */
-.muted { color: var(--text-secondary); }
-.dim { color: var(--text-dim); }
+.muted { color: var(--subtle); }
+.dim { color: var(--muted); }
 .text-number {
   font-weight: var(--fw-num);
   letter-spacing: 0.2px;
@@ -25,13 +27,13 @@
 /* 涨跌色：A 股红涨绿跌 */
 .text-up { color: var(--up); }
 .text-down { color: var(--down); }
-.text-flat { color: var(--text-dim); }
+.text-flat { color: var(--muted); }
 
 /* 兼容旧语义类名（部分页面用 success/danger 表示涨跌） */
 .text-success { color: var(--success); }
 .text-danger { color: var(--danger); }
 
-/* ===== 页面布局 ===== */
+/* ===== 页面布局（兼容旧名：内部对齐 .page-shell） ===== */
 .page-wrap {
   padding: var(--sp-5);
   display: flex;
@@ -47,7 +49,7 @@
 .section-title {
   margin: 0;
   font-size: var(--fz-lg);
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-primary);
   display: flex;
   align-items: center;
@@ -77,10 +79,11 @@
   padding: var(--sp-4);
   background: var(--surface-1);
   border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg);
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
+  box-shadow: var(--shadow-card);
   transition: transform var(--dur-fast) var(--ease), border-color var(--dur-mid) var(--ease), box-shadow var(--dur-mid) var(--ease);
 }
 .stat-card:hover {
@@ -197,7 +200,8 @@
   }
 }
 @media (max-width: 767px) {
-  .page-wrap {
+  .page-wrap,
+  .page-shell {
     padding: var(--sp-4);
   }
   .grid-2,

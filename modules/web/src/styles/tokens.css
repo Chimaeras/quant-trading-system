@@ -4,59 +4,73 @@
  * 分层：表面 / 文本 / 品牌 / 语义 / 圆角 / 间距 / 字体 / 阴影 / 运动 / 图表
  * 约定：A 股红涨绿跌 —— --up 为红、--down 为绿；操作语义 --success/--danger 与涨跌色分离。
  * 兼容：保留旧变量名别名，已存在的页面无需改动即可生效。
+ *
+ * V2-UI-Codex：整套令牌对齐 Codex Tools 暗色（蓝主色 #60a5fa，#0b1120 应用底色）。
+ * 旧变量名（--bg-0/--text-primary/--accent-1/--glass-bg 等）全部保留并映射到新 Codex 语义，
+ * 已存在页面无需改动外观即可自动切换。
  */
 :root {
-  /* ===== 表面 Surface（深色玻璃） ===== */
-  --bg-0: #060b14;            /* 应用背景基底 */
-  --bg-1: #0a1424;            /* 抬升背景 */
-  --bg-2: #0f1d33;            /* 面板背景 */
-  --bg-elevated: #15233a;     /* 最高抬升 */
-  --surface-1: rgba(19, 33, 55, 0.68);  /* 卡片表面 */
-  --surface-2: rgba(9, 18, 34, 0.72);   /* 凹陷/内嵌表面（stat、输入框底） */
-  --surface-3: rgba(8, 15, 28, 0.88);   /* 表头/粘性栏 */
-  --glass-bg: rgba(14, 24, 40, 0.62);
-  --glass-bg-strong: rgba(13, 22, 37, 0.82);
-  --glass-border: rgba(145, 196, 255, 0.22);
-  --glass-border-strong: rgba(145, 196, 255, 0.34);
-  --hairline: rgba(145, 196, 255, 0.16);       /* 分隔线 */
-  --hairline-strong: rgba(145, 196, 255, 0.22);
+  /* ===== 表面 Surface（Codex 暗色） ===== */
+  --body-bg: #0b1120;            /* 应用底色（Codex） */
+  --bg-0: #0b1120;               /* 应用背景基底（Codex） */
+  --card: #111827;               /* 卡片/面板（Codex） */
+  --bg-1: #111827;               /* 抬升背景（Codex） */
+  --bg-2: #1e293b;               /* 抬升面（Codex） */
+  --bg-elevated: #293548;        /* 最高抬升（Codex 加深） */
+  --surface-1: rgba(17, 24, 39, 0.72);   /* 卡片表面 */
+  --surface-2: rgba(15, 23, 42, 0.72);   /* 凹陷/内嵌表面（stat、输入框底） */
+  --surface-3: rgba(30, 41, 59, 0.9);    /* 表头/粘性栏 */
+  --glass-bg: rgba(17, 24, 39, 0.66);
+  --glass-bg-strong: rgba(15, 23, 42, 0.86);
+  --glass-border: rgba(148, 163, 184, 0.16);
+  --glass-border-strong: rgba(148, 163, 184, 0.26);
+  --hairline: rgba(226, 232, 240, 0.10);       /* 分隔线 */
+  --hairline-strong: rgba(226, 232, 240, 0.18);
   /* 兼容旧名 */
   --glass-bd: var(--glass-border);
   --glass-bd-strong: var(--glass-border-strong);
 
-  /* ===== 文本 Text ===== */
-  --text-primary: #e9f1ff;
-  --text-secondary: #9db1cc;
-  --text-dim: #6f819a;
-  --text-muted: #6f819a;      /* 兼容旧名 */
+  /* ===== 文本 Text（Codex） ===== */
+  --ink: #e5edf7;               /* 主文字（Codex） */
+  --text-primary: #e5edf7;
+  --subtle: #94a3b8;            /* 次要文字（Codex） */
+  --text-secondary: #94a3b8;
+  --muted: #64748b;             /* 弱化文字（Codex） */
+  --text-dim: #64748b;          /* 兼容旧名 */
+  --text-muted: #64748b;        /* 兼容旧名 */
 
-  /* ===== 品牌 / 强调 Brand ===== */
-  --accent-1: #58b9ff;
-  --accent-2: #1cd6a6;
-  --accent-grad: linear-gradient(135deg, var(--accent-1), var(--accent-2));
-  --accent-soft: rgba(88, 185, 255, 0.12);
+  /* ===== 品牌 / 强调（Codex 蓝） ===== */
+  --brand: #60a5fa;             /* 品牌蓝（Codex） */
+  --brand-strong: #93c5fd;      /* 强调（Codex） */
+  --brand-deep: #2563eb;        /* 深蓝（Codex 渐变色） */
+  --accent-1: var(--brand);
+  --accent-2: var(--brand-deep);
+  --accent-grad: linear-gradient(135deg, var(--brand), var(--brand-deep));
+  --accent-soft: rgba(96, 165, 250, 0.12);
+  --button-primary-bg: linear-gradient(180deg, #60a5fa, #2563eb);  /* 主按钮（Codex） */
 
   /* ===== 语义 Semantic =====
    * 涨跌色遵循 A 股惯例：红涨绿跌。
-   * --success/--danger 用于操作反馈（成功/危险），与价格涨跌色解耦。 */
-  --up: #f23645;              /* 涨 / 正向（红） */
-  --down: #089981;            /* 跌 / 负向（绿） */
+   * --ok/--warning/--danger 用于操作反馈（Codex），与价格涨跌色解耦。 */
+  --ok: #4ade80;                /* 成功（Codex） */
+  --success: #4ade80;           /* 兼容旧名 */
+  --warning: #fbbf24;           /* 警告（Codex） */
+  --danger: #fb7185;            /* 危险/错误（Codex） */
+  --up: #f23645;                /* 涨 / 正向（红）—— A 股业务强制，保持不变 */
+  --down: #089981;              /* 跌 / 负向（绿）—— A 股业务强制，保持不变 */
   --up-soft: rgba(242, 54, 69, 0.14);
   --down-soft: rgba(8, 153, 129, 0.14);
-  --success: #35d49a;         /* 操作成功（青绿） */
-  --running: #4cb6ff;
-  --warning: #f0b95a;
-  --danger: #ff6b7a;          /* 操作危险/错误 */
+  --running: #60a5fa;
   /* 兼容旧名 */
-  --text-success: var(--success);
+  --text-success: var(--ok);
   --text-danger: var(--danger);
 
-  /* ===== 圆角 Radius ===== */
+  /* ===== 圆角 Radius（Codex：卡片 16 / 控件 12 / 对话框 18） ===== */
   --r-xs: 6px;
   --r-sm: 8px;
   --r-md: 12px;
   --r-lg: 16px;
-  --r-xl: 20px;
+  --r-xl: 18px;
   --r-pill: 999px;
 
   /* ===== 间距 Spacing ===== */
@@ -69,6 +83,7 @@
   --sp-7: 32px;
 
   /* ===== 字体 Typography ===== */
+  --font-ui: "Segoe UI", "SF Pro Text", -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
   --fz-xs: 12px;
   --fz-sm: 13px;
   --fz-md: 14px;
@@ -80,32 +95,35 @@
   --lh-normal: 1.5;
 
   /* ===== 布局 Layout ===== */
-  --topbar-h: 60px;
-  --tab-h: 44px;
+  --topbar-h: 72px;              /* 顶栏（Codex 三段式） */
+  --topbar-min-h: 64px;
+  --tab-h: 44px;                 /* 二级子导航 */
+  --segmented-h: 38px;           /* 一级胶囊 */
   --sidebar-w: 260px;
-  --page-max: 1480px;
+  --page-max: 1520px;            /* Codex 内容宽度（min(1520px,100%)） */
+  --shell-max: 1600px;
 
   /* ===== 阴影 Elevation ===== */
-  --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.35);
-  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.25);
-  --shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--glass-border-strong);
-  --shadow-glow: 0 0 0 1px rgba(88, 185, 255, 0.25), 0 0 24px rgba(28, 214, 166, 0.14);
+  --shadow-soft: 0 16px 40px rgba(0, 0, 0, 0.45);
+  --shadow-card: 0 2px 14px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --shadow-hover: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--glass-border-strong);
+  --shadow-glow: 0 0 0 1px rgba(96, 165, 250, 0.3), 0 0 28px rgba(96, 165, 250, 0.16);
 
   /* ===== 运动 Motion ===== */
   --dur-fast: 120ms;
-  --dur-mid: 220ms;
-  --dur-slow: 340ms;
+  --dur-mid: 200ms;
+  --dur-slow: 320ms;
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
   --blur: 12px;
-  --focus-ring: 0 0 0 2px rgba(88, 185, 255, 0.45);
+  --focus-ring: 0 0 0 2px rgba(96, 165, 250, 0.45);
 
-  /* ===== 图表 ECharts 调色板 ===== */
-  --chart-c1: #58b9ff;
-  --chart-c2: #1cd6a6;
-  --chart-c3: #f0b95a;
+  /* ===== 图表 ECharts 调色板（Codex 蓝系） ===== */
+  --chart-c1: #60a5fa;
+  --chart-c2: #22d3ee;
+  --chart-c3: #fbbf24;
   --chart-c4: #c084fc;
-  --chart-c5: #ff6b7a;
-  --chart-c6: #38bdf8;
+  --chart-c5: #fb7185;
+  --chart-c6: #34d399;
   --chart-up: var(--up);
   --chart-down: var(--down);
 }

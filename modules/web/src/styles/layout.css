@@ -1,0 +1,331 @@
+/**
+ * Layout 壳层 —— 对齐 Codex Tools 顶栏三段式 + 两级导航 + viewStage
+ *
+ * 结构（见 UI_Codex风格布局重构计划 §4.3）：
+ *   .shell > .panel > .topbar(.brandLine/.topSegmentedNav/.topActions) + .subNav + .viewStage
+ *
+ * 这些类由 MainLayout.vue 与 ui/* 组件共享；均为纯布局/外观，不含业务逻辑。
+ */
+
+/* ===== Panel 内容容器 ===== */
+.panel {
+  width: 100%;
+  max-width: var(--shell-max);
+  margin: 0 auto;
+  padding: var(--sp-4) var(--sp-5) var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  flex: 1;
+  min-height: 0;
+}
+
+/* ===== Topbar 顶栏（三段 Grid） ===== */
+.topbar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--sp-4);
+  min-height: var(--topbar-min-h);
+  padding: 10px var(--sp-5);
+  background: var(--topbar-bg);
+  border: 1px solid var(--topbar-border);
+  border-radius: var(--r-lg);
+  backdrop-filter: blur(var(--topbar-blur));
+  -webkit-backdrop-filter: blur(var(--topbar-blur));
+  box-shadow: var(--shadow-card);
+}
+
+/* 品牌区 */
+.brandLine {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: max-content;
+  padding-right: var(--sp-4);
+  border-right: 1px solid var(--hairline);
+}
+.brandLine .brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  background: var(--accent-grad);
+  color: #0b1120;
+  font-weight: 800;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 5px 14px rgba(96, 165, 250, 0.35);
+  flex-shrink: 0;
+}
+.brandLine .brand-name {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.2;
+}
+.brandLine .brand-name strong {
+  font-size: var(--fz-md);
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: var(--ink);
+}
+.brandLine .brand-name span {
+  font-size: var(--fz-xs);
+  color: var(--subtle);
+  letter-spacing: 0.5px;
+}
+
+/* 一级胶囊容器 */
+.topSegmentedNav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: var(--segmented-bg);
+  border: 1px solid var(--segmented-border);
+  border-radius: var(--r-pill);
+  width: fit-content;
+  margin: 0 auto;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.topSegmentedNav::-webkit-scrollbar {
+  display: none;
+}
+
+.segmented-item {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--subtle);
+  font-size: var(--fz-sm);
+  font-weight: 600;
+  height: var(--segmented-h);
+  padding: 0 var(--sp-4);
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+.segmented-item:hover {
+  color: var(--ink);
+  background: rgba(148, 163, 184, 0.10);
+}
+.segmented-item.active {
+  color: var(--brand-strong);
+  background: var(--segmented-active-bg);
+  box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.35), 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.segmented-item.active:hover {
+  background: var(--segmented-active-bg-hover);
+}
+
+/* 右侧操作区 */
+.topActions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: max-content;
+  justify-content: flex-end;
+}
+
+/* ===== 二级子导航 ===== */
+.subNav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  background: var(--subnav-bg);
+  border: 1px solid var(--subnav-border);
+  border-radius: var(--r-md);
+  overflow-x: auto;
+  scrollbar-width: none;
+  min-height: var(--tab-h);
+}
+.subNav::-webkit-scrollbar {
+  display: none;
+}
+.subnav-item {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--subtle);
+  font-size: var(--fz-sm);
+  font-weight: 600;
+  height: 32px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+.subnav-item:hover {
+  color: var(--ink);
+  background: var(--accent-soft);
+}
+.subnav-item.active {
+  color: var(--brand-strong);
+  background: var(--accent-soft);
+  border-color: rgba(96, 165, 250, 0.35);
+  font-weight: 700;
+}
+
+/* ===== ViewStage 内容舞台 ===== */
+.viewStage {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border-radius: var(--r-lg);
+}
+
+/* 盯盘页需要内部控制滚动：顶栏仍在，viewStage 不产生外层滚动 */
+.viewStage.stage-watch {
+  overflow: hidden;
+}
+
+/* ===== PageShell 页面壳（页面内部包裹用） ===== */
+.page-shell {
+  width: 100%;
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.page-shell.flush {
+  max-width: none;
+}
+
+/* ===== PageHeader 页面标题行 ===== */
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+.page-header .ph-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.page-header .ph-title h1 {
+  margin: 0;
+  font-size: var(--fz-xl);
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: 0.2px;
+}
+.page-header .ph-title .ph-subtitle {
+  font-size: var(--fz-sm);
+  color: var(--subtle);
+  line-height: var(--lh-normal);
+}
+.page-header .ph-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+/* ===== SectionCard 区块卡 ===== */
+.section-card {
+  background: var(--surface-1);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  padding: var(--sp-5);
+}
+.section-card.sc-pad-sm {
+  padding: var(--sp-4);
+}
+.section-card .sc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+.section-card .sc-title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  font-size: var(--fz-lg);
+  font-weight: 700;
+  color: var(--ink);
+}
+.section-card .sc-title::before {
+  content: "";
+  width: 3px;
+  height: 15px;
+  border-radius: var(--r-pill);
+  background: var(--accent-grad);
+}
+.section-card .sc-extra {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* ===== 入场动效（克制使用） ===== */
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.anim-rise {
+  animation: riseIn var(--dur-mid) var(--ease) both;
+}
+.anim-fade {
+  animation: fadeIn var(--dur-mid) var(--ease) both;
+}
+
+/* ===== 响应式 ===== */
+@media (max-width: 1199px) {
+  .topbar {
+    grid-template-columns: auto 1fr auto;
+  }
+}
+@media (max-width: 900px) {
+  .panel {
+    padding: var(--sp-3);
+  }
+  .topbar {
+    grid-template-columns: 1fr;
+    gap: var(--sp-3);
+  }
+  .brandLine {
+    border-right: none;
+    padding-right: 0;
+  }
+  .topActions {
+    justify-content: flex-start;
+  }
+}
+@media (max-width: 680px) {
+  .page-shell {
+    padding: var(--sp-4);
+  }
+  .topSegmentedNav {
+    margin: 0;
+  }
+}

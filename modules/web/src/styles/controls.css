@@ -1,0 +1,104 @@
+/**
+ * Controls —— 自研控件外观类（非 Element Plus 组件）
+ *
+ * 主要提供给布局壳与共享 UI 组件使用的轻度自定义控件：
+ * 图标按钮、搜索框、信息 chip 等。项目仍以 Element Plus 为主体控件，
+ * 本文件只补充没有对应 EP 组件、或需要极简自绘外观的场合。
+ */
+
+/* ===== 图标按钮 ===== */
+.icon-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--glass-border);
+  background: var(--surface-2);
+  color: var(--subtle);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+.icon-btn:hover {
+  color: var(--brand-strong);
+  border-color: var(--glass-border-strong);
+  background: var(--surface-1);
+}
+.icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== 搜索框 ===== */
+.search-box {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 32px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-pill);
+  border: 1px solid var(--glass-border);
+  background: var(--surface-2);
+  color: var(--subtle);
+  max-width: 300px;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.search-box:focus-within {
+  border-color: var(--brand);
+  background: var(--surface-1);
+}
+.search-box input {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--fz-sm);
+  width: 100%;
+}
+.search-box input::placeholder {
+  color: var(--muted);
+}
+
+/* ===== 信息 Chip ===== */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--glass-border);
+  background: var(--surface-2);
+  color: var(--subtle);
+  font-size: var(--fz-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.chip .chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 7px currentColor;
+}
+.chip.chip-ok {
+  color: var(--ok);
+  border-color: rgba(74, 222, 128, 0.35);
+  background: rgba(74, 222, 128, 0.08);
+}
+.chip.chip-warn {
+  color: var(--warning);
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.08);
+}
+.chip.chip-block {
+  color: var(--danger);
+  border-color: rgba(251, 113, 133, 0.4);
+  background: rgba(251, 113, 133, 0.08);
+}
+.chip.chip-muted {
+  color: var(--muted);
+}

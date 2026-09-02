@@ -1,0 +1,66 @@
+/**
+ * Codex Dark 主题（唯一主题）—— UI_Codex 风格布局重构
+ *
+ * 对齐 codex-tools `src/styles/themes/dark.css` 思路，映射到本项目语义化令牌。
+ * 本文件提供「Codex 暗色」的完整令牌包，作为全局唯一主题；不引入任何亮色路径，
+ * 不声明 `data-theme="light"`。结构性令牌（shell/ambient/顶栏）与 color-scheme 也在此。
+ *
+ * 说明：tokens.css 已内置主令牌值，本文件再次集中声明以保证「主题层可作为独立主题」
+ * 并被后续导航/壳层样式依赖；若与 tokens.css 冲突，以本文件后加载的同名值为准。
+ */
+:root {
+  color-scheme: dark;
+
+  /* ===== Codex 核心色板（再声明，确保主题层自洽） ===== */
+  --body-bg: #0b1120;
+  --bg-0: #0b1120;
+  --card: #111827;
+  --bg-1: #111827;
+  --bg-2: #1e293b;
+  --ink: #e5edf7;
+  --subtle: #94a3b8;
+  --muted: #64748b;
+  --line: rgba(226, 232, 240, 0.12);
+  --brand: #60a5fa;
+  --brand-strong: #93c5fd;
+  --brand-deep: #2563eb;
+  --button-primary-bg: linear-gradient(180deg, #60a5fa, #2563eb);
+  --ok: #4ade80;
+  --warning: #fbbf24;
+  --danger: #fb7185;
+  --up: #f23645;   /* 业务强制：红涨（不变） */
+  --down: #089981; /* 业务强制：绿跌（不变） */
+
+  /* ===== Shell / 环境 ===== */
+  --shell-bg:
+    radial-gradient(1100px 520px at 18% -8%, rgba(37, 99, 235, 0.30) 0%, rgba(37, 99, 235, 0) 55%),
+    radial-gradient(900px 480px at 92% 6%, rgba(96, 165, 250, 0.18) 0%, rgba(96, 165, 250, 0) 50%),
+    linear-gradient(168deg, var(--bg-0) 0%, var(--bg-2) 100%);
+  --ambient-grid-color: rgba(148, 163, 184, 0.05);
+  --ambient-grid-size: 42px;
+
+  /* ===== 顶栏 / 层级 ===== */
+  --topbar-bg: rgba(15, 23, 42, 0.72);
+  --topbar-border: rgba(148, 163, 184, 0.16);
+  --topbar-blur: 14px;
+  --segmented-bg: rgba(30, 41, 59, 0.5);
+  --segmented-border: rgba(148, 163, 184, 0.16);
+  --segmented-active-bg: rgba(30, 41, 59, 0.95);
+  --segmented-active-bg-hover: rgba(51, 65, 85, 0.95);
+  --subnav-bg: rgba(15, 23, 42, 0.55);
+  --subnav-border: rgba(148, 163, 184, 0.14);
+}
+
+/* ===== Ambient 网格（低透明度，勿喧宾夺主） ===== */
+.ambient-grid {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--ambient-grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--ambient-grid-color) 1px, transparent 1px);
+  background-size: var(--ambient-grid-size) var(--ambient-grid-size);
+  mask-image: radial-gradient(ellipse 72% 60% at 50% 0%, #000 0%, transparent 78%);
+  -webkit-mask-image: radial-gradient(ellipse 72% 60% at 50% 0%, #000 0%, transparent 78%);
+}

@@ -182,7 +182,9 @@
                     </template>
                   </el-table-column>
                   <el-table-column label="收益" min-width="110">
-                    <template #default="{ row }">{{ fmtPct(row.label_net_return ?? row.raw_forward_return) }}</template>
+                    <template #default="{ row }">
+                      <span :class="retClass(row.label_net_return ?? row.raw_forward_return)">{{ fmtPct(row.label_net_return ?? row.raw_forward_return) }}</span>
+                    </template>
                   </el-table-column>
                   <el-table-column label="entry/exit" min-width="150">
                     <template #default="{ row }">{{ fmtPrice(row.entry_close) }} → {{ fmtPrice(row.exit_close) }}</template>
@@ -296,6 +298,11 @@ function fmt4(v: number | null | undefined): string {
 
 function fmtPct(v: number | null | undefined): string {
   return v != null && Number.isFinite(v) ? `${(v * 100).toFixed(2)}%` : '—'
+}
+
+/** A 股红涨绿跌：正收益红、负收益绿（与回测页 pctClass 口径一致）。 */
+function retClass(v: number | null | undefined): string {
+  return v != null && Number.isFinite(v) ? (v >= 0 ? 'text-up' : 'text-down') : ''
 }
 
 function fmtPrice(v: number | null | undefined): string {

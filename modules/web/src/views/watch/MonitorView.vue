@@ -1,5 +1,5 @@
 <template>
-  <div class="watch-monitor terminal-page">
+  <div class="watch-monitor">
     <!-- ① 状态条 -->
     <el-card shadow="hover" class="status-bar">
       <div class="status-row">

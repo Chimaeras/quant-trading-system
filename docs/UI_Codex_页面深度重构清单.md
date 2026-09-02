@@ -30,7 +30,7 @@
 | 20 | /backtest/walk-forward | views/backtest/WalkForward.vue | 190 | 低 | 已完成 |
 | 21 | /account/overview | views/account/AccountView.vue | 479 | 中 | 已完成 |
 | 22 | /reconcile/position | views/reconcile/ReconcileView.vue | 173 | 低 | 已完成 |
-| 23 | /watch/monitor | views/watch/MonitorView.vue | 1151 | 极高 | 待重构(优先保行为) |
+| 23 | /watch/monitor | views/watch/MonitorView.vue | 1151 | 极高 | 已完成（例外：全视口仪表盘，保留 el-card 面板 + 三列 grid，未套 PageShell/SectionCard；仅移除 dead `terminal-page` 标记） |
 
 ## 二、通用问题（跨页共性，逐页落实）
 

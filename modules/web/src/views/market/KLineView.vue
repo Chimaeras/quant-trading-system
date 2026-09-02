@@ -1,25 +1,32 @@
 <template>
-  <el-card shadow="hover">
-    <template #header>
-      <span>{{ securityTitle }}</span>
-      <el-date-picker v-model="dateRange" type="daterange" range-separator="至" start-placeholder="开始" end-placeholder="结束" size="small" style="float: right" @change="loadData" />
-      <el-button v-if="route.query.code" size="small" style="margin-right: 8px" :loading="realtimeLoading" @click="loadRealtime">获取实时</el-button>
-    </template>
-    <div v-if="realtime" class="realtime-bar">
-      <span class="label">实时</span>
-      <span :class="['price', realtime.change_pct == null ? '' : realtime.change_pct >= 0 ? 'up' : 'down']">
-        {{ realtime.close_price != null ? realtime.close_price.toFixed(2) : '--' }}
-      </span>
-      <span v-if="realtime.change_pct != null" :class="(realtime.change_pct >= 0 ? 'up' : 'down')">
-        {{ realtime.change_pct > 0 ? '+' : '' }}{{ realtime.change_pct.toFixed(2) }}%
-      </span>
-    </div>
-    <div ref="chartRef" style="height: 500px" />
-    <div class="legend">📊 {{ dataSource === 'backend' ? '数据来源：后端 MySQL 行情' : '数据来源：本地 IndexedDB（后端不可用时降级）' }} · 点击「获取实时」可拉取最新价</div>
-  </el-card>
+  <PageShell>
+    <PageHeader :title="securityTitle" subtitle="K 线图 · 数据可回退至本地 IndexedDB（后端不可用时降级）">
+      <template #actions>
+        <el-button v-if="route.query.code" size="small" :loading="realtimeLoading" @click="loadRealtime">获取实时</el-button>
+        <el-date-picker v-model="dateRange" type="daterange" range-separator="至" start-placeholder="开始" end-placeholder="结束" size="small" @change="loadData" />
+      </template>
+    </PageHeader>
+
+    <SectionCard>
+      <div v-if="realtime" class="realtime-bar">
+        <span class="label">实时</span>
+        <span :class="['price', realtime.change_pct == null ? '' : realtime.change_pct >= 0 ? 'up' : 'down']">
+          {{ realtime.close_price != null ? realtime.close_price.toFixed(2) : '--' }}
+        </span>
+        <span v-if="realtime.change_pct != null" :class="(realtime.change_pct >= 0 ? 'up' : 'down')">
+          {{ realtime.change_pct > 0 ? '+' : '' }}{{ realtime.change_pct.toFixed(2) }}%
+        </span>
+      </div>
+      <div ref="chartRef" style="height: 500px" />
+      <div class="legend">📊 {{ dataSource === 'backend' ? '数据来源：后端 MySQL 行情' : '数据来源：本地 IndexedDB（后端不可用时降级）' }} · 点击「获取实时」可拉取最新价</div>
+    </SectionCard>
+  </PageShell>
 </template>
 
 <script setup lang="ts">
+import PageShell from '@/components/ui/PageShell.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import SectionCard from '@/components/ui/SectionCard.vue'
 import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import dayjs from 'dayjs'

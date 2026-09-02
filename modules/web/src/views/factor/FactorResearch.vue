@@ -1,8 +1,7 @@
 <template>
-  <div class="factor-page terminal-page">
-    <el-card shadow="hover">
-      <template #header>
-        <span>因子研究面板</span>
+  <PageShell>
+    <SectionCard title="因子研究面板">
+      <template #extra>
         <el-tooltip content="V1 研究页面（截面 IC / 分桶），维持只读展示，新因子流水线见研究任务工作台" placement="top">
           <el-tag size="small" effect="plain" type="info" class="capability-tag">Legacy</el-tag>
         </el-tooltip>
@@ -85,8 +84,7 @@
           </div>
 
           <div class="grid">
-            <el-card shadow="never" class="q-card">
-              <template #header>样本漏斗</template>
+            <SectionCard class="q-card" pad="sm" title="样本漏斗">
               <div class="q-meta">
                 <span>rows_total（全截面行）：{{ snapshotResult.funnel?.rows_total ?? '—' }}</span>
                 <span>scored_valid（得分>0）：{{ snapshotResult.funnel?.scored_valid ?? '—' }}</span>
@@ -104,10 +102,9 @@
                 class="ic-note"
                 :title="snapshotResult.funnel?.tradable_note || 'EXECUTABLE 样本 = label_v2 FILLED；其余状态计入拒绝漏斗'"
               />
-            </el-card>
+            </SectionCard>
 
-            <el-card shadow="never" class="q-card">
-              <template #header>每日漏斗（覆盖/缺失）</template>
+            <SectionCard class="q-card" pad="sm" title="每日漏斗（覆盖/缺失）">
               <el-table :data="snapshotResult.daily_funnel" size="small" stripe border max-height="320">
                 <el-table-column prop="signal_date" label="信号日" min-width="110" />
                 <el-table-column prop="rows_total" label="全截面行" width="88" />
@@ -118,19 +115,17 @@
                 <el-table-column prop="labels_matched" label="标签命中" width="80" />
                 <el-table-column prop="labels_missing" label="标签缺失" width="80" />
               </el-table>
-            </el-card>
+            </SectionCard>
           </div>
 
           <div class="grid">
-            <el-card
+            <SectionCard
               v-for="(blk, scopeKey) in snapshotResult.scopes"
               :key="scopeKey"
-              shadow="never"
               class="q-card rank-ic-card"
+              pad="sm"
+              :title="`IC（${scopeKey}）· 持仓 ${snapshotResult.holding_days} 日`"
             >
-              <template #header>
-                <span>IC（{{ scopeKey }}）· 持仓 {{ snapshotResult.holding_days }} 日</span>
-              </template>
               <div class="q-meta">
                 <span>截面日：{{ blk.cross_section_days }}</span>
                 <span>观测数：{{ blk.total_observations }}</span>
@@ -166,15 +161,14 @@
                   <el-table-column prop="sample_size" label="样本数" width="80" />
                 </el-table>
               </div>
-              <el-empty
+              <EmptyState
                 v-if="!blk.grouped_returns?.length && !blk.daily_rank_ic?.length && blk.status !== 'UNAVAILABLE'"
-                description="该口径无可用观测（forward 区间未形成 / raw 缺失 / 无可执行标签）"
-                :image-size="40"
+                message="该口径无可用观测（forward 区间未形成 / raw 缺失 / 无可执行标签）"
               />
-            </el-card>
+            </SectionCard>
           </div>
         </template>
-        <el-empty v-else-if="!snapshotLoading" description="输入 snapshotId 后研究完整 PIT 截面 IC（不读 selector_result / qfq）" />
+        <EmptyState v-else-if="!snapshotLoading" message="输入 snapshotId 后研究完整 PIT 截面 IC（不读 selector_result / qfq）" />
       </div>
 
       <div v-loading="loading">
@@ -197,18 +191,16 @@
           </div>
 
           <div class="grid">
-            <el-card shadow="never" class="q-card">
-              <template #header>覆盖率</template>
+            <SectionCard class="q-card" pad="sm" title="覆盖率">
               <div class="q-meta">
                 <span>截面天数：{{ result.cross_section_days }}</span>
                 <span>总观测：{{ result.total_observations }}</span>
                 <span>有效观测（得分>0）：{{ result.valid_observations }}</span>
                 <span :class="coverageClass">{{ coverageText }}</span>
               </div>
-            </el-card>
+            </SectionCard>
 
-            <el-card shadow="never" class="q-card">
-              <template #header>得分截面分布</template>
+            <SectionCard class="q-card" pad="sm" title="得分截面分布">
               <div class="q-meta">
                 <span>最小值：{{ fmt(result.distribution.min) }}</span>
                 <span>P25：{{ fmt(result.distribution.p25) }}</span>
@@ -216,10 +208,9 @@
                 <span>P75：{{ fmt(result.distribution.p75) }}</span>
                 <span>最大值：{{ fmt(result.distribution.max) }}</span>
               </div>
-            </el-card>
+            </SectionCard>
 
-            <el-card shadow="never" class="q-card">
-              <template #header>得分分组（等数量 5 组）</template>
+            <SectionCard class="q-card" pad="sm" title="得分分组（等数量 5 组）">
               <el-table v-if="result.group_bands.length" :data="result.group_bands" size="small" stripe border>
                 <el-table-column prop="group_no" label="组" width="60" />
                 <el-table-column label="得分范围" min-width="140">
@@ -230,21 +221,17 @@
                 </el-table-column>
                 <el-table-column prop="count" label="数量" width="70" />
               </el-table>
-              <el-empty v-else description="无有效得分" :image-size="40" />
-            </el-card>
+              <EmptyState v-else message="无有效得分" />
+            </SectionCard>
 
-            <el-card shadow="never" class="q-card">
-              <template #header>研究范围</template>
+            <SectionCard class="q-card" pad="sm" title="研究范围">
               <div class="q-meta">
                 <span>策略：{{ strategyLabel(result.strategy) }}</span>
                 <span>区间：{{ result.start_date }} ~ {{ result.end_date }}</span>
               </div>
-            </el-card>
+            </SectionCard>
 
-            <el-card shadow="never" class="q-card rank-ic-card">
-              <template #header>
-                <span>Rank IC 与分组收益（持仓 {{ result.rank_ic.holding_days }} 日）</span>
-              </template>
+            <SectionCard class="q-card rank-ic-card" pad="sm" :title="`Rank IC 与分组收益（持仓 ${result.rank_ic.holding_days} 日）`">
               <div class="q-meta">
                 <span>截面日数：{{ result.rank_ic.cross_section_days }}</span>
                 <span>观测数：{{ result.rank_ic.total_observations }}</span>
@@ -277,15 +264,14 @@
                   <el-table-column prop="sample_size" label="样本数" width="80" />
                 </el-table>
               </div>
-              <el-empty
+              <EmptyState
                 v-if="!result.rank_ic.grouped_returns.length && !result.rank_ic.daily_rank_ic.length"
-                description="截面样本不足或无可用 forward 收益（信号日接近数据末端时跳过）"
-                :image-size="40"
+                message="截面样本不足或无可用 forward 收益（信号日接近数据末端时跳过）"
               />
-            </el-card>
+            </SectionCard>
           </div>
         </template>
-        <el-empty v-else-if="!loading" description="选择区间与策略后点击研究" />
+        <EmptyState v-else-if="!loading" message="选择区间与策略后点击研究" />
       </div>
 
       <!-- 多周期 IC 对比（统一因子报告） -->
@@ -344,8 +330,8 @@
           </div>
         </template>
       </div>
-    </el-card>
-  </div>
+    </SectionCard>
+  </PageShell>
 </template>
 
 <script setup lang="ts">
@@ -361,6 +347,9 @@ import {
 import { errorText } from '@/api/request'
 import { useToast } from '@/composables/useToast'
 import dayjs from 'dayjs'
+import PageShell from '@/components/ui/PageShell.vue'
+import SectionCard from '@/components/ui/SectionCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 const STRATEGY_LABELS: Record<string, string> = {
   CLASSIC_SELECTOR: '经典多因子',
@@ -531,10 +520,6 @@ onMounted(() => run())
 
 <style scoped>
 .capability-tag { margin-left: 8px; vertical-align: middle; }
-.factor-page {
-  max-width: 1200px;
-  margin: 0 auto;
-}
 .form {
   margin-bottom: 8px;
 }

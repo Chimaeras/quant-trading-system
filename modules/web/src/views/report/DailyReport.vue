@@ -1,43 +1,40 @@
 <template>
-  <div class="daily-report terminal-page">
-    <el-card shadow="hover">
-      <template #header>
-        <div class="report-header">
-          <span>选股日报（prediction snapshot 不可变投影 · MP-012）</span>
-          <div class="header-actions">
-            <el-date-picker
-              v-model="tradeDate"
-              type="date"
-              value-format="YYYY-MM-DD"
-              placeholder="留空取最新日期"
-              clearable
-              style="width: 158px"
-            />
-            <el-select v-model="horizon" style="width: 92px">
-              <el-option label="T+2" :value="2" />
-              <el-option label="T+3" :value="3" />
-            </el-select>
-            <el-select v-model="track" style="width: 116px">
-              <el-option label="规则轨" value="RULE_SCORE" />
-              <el-option label="概率轨" value="PROBABILITY" />
-            </el-select>
-            <el-select
-              v-model="publishVersion"
-              placeholder="版本"
-              clearable
-              style="width: 158px"
-            >
-              <el-option label="最新" :value="0" />
-              <el-option
-                v-for="v in versions"
-                :key="v.publish_version"
-                :label="versionLabel(v)"
-                :value="v.publish_version ?? 0"
-              />
-            </el-select>
-            <el-button type="primary" size="small" :loading="loading" @click="loadReport">生成日报</el-button>
-          </div>
-        </div>
+  <PageShell>
+    <PageHeader title="选股日报" subtitle="prediction snapshot 不可变投影（MP-012）：按日期 / 轨道 / 版本生成，P 后可到期追加 realization；下方为多日信号趋势" />
+
+    <SectionCard title="prediction snapshot 不可变投影（MP-012）">
+      <template #extra>
+        <el-date-picker
+          v-model="tradeDate"
+          type="date"
+          value-format="YYYY-MM-DD"
+          placeholder="留空取最新日期"
+          clearable
+          style="width: 158px"
+        />
+        <el-select v-model="horizon" style="width: 92px">
+          <el-option label="T+2" :value="2" />
+          <el-option label="T+3" :value="3" />
+        </el-select>
+        <el-select v-model="track" style="width: 116px">
+          <el-option label="规则轨" value="RULE_SCORE" />
+          <el-option label="概率轨" value="PROBABILITY" />
+        </el-select>
+        <el-select
+          v-model="publishVersion"
+          placeholder="版本"
+          clearable
+          style="width: 158px"
+        >
+          <el-option label="最新" :value="0" />
+          <el-option
+            v-for="v in versions"
+            :key="v.publish_version"
+            :label="versionLabel(v)"
+            :value="v.publish_version ?? 0"
+          />
+        </el-select>
+        <el-button type="primary" size="small" :loading="loading" @click="loadReport">生成日报</el-button>
       </template>
 
       <!-- V2-MP-028：查询失败给出可判定的错误态（errorId + retry），不吞成无数据/空表。 -->
@@ -94,8 +91,7 @@
           </div>
 
           <template v-if="report.status === 'PUBLISHED'">
-            <el-card v-if="report.lineage" shadow="never" class="lineage-card">
-              <template #header><span>预测 Lineage（固定，不可变）</span></template>
+            <SectionCard v-if="report.lineage" title="预测 Lineage（固定，不可变）">
               <div class="q-meta">
                 <span>prediction_run_id：{{ report.prediction_run_id }}</span>
                 <span>source_result_id：{{ report.source_result_id || '—' }}</span>
@@ -110,10 +106,9 @@
                 <span>gate：{{ report.lineage.gate_status || '—' }}（{{ report.lineage.gate_decision_id || '—' }}）</span>
                 <span>inference_chain：{{ report.lineage.inference_chain || '—' }}</span>
               </div>
-            </el-card>
+            </SectionCard>
 
-            <el-card shadow="never" class="lineage-card">
-              <template #header><span>候选（与 prediction snapshot item 一致）</span></template>
+            <SectionCard title="候选（与 prediction snapshot item 一致）">
               <el-table :data="report.items" size="small" stripe border max-height="420">
                 <el-table-column prop="rank_no" label="排名" width="70" />
                 <el-table-column prop="stock_code" label="代码" min-width="90" />
@@ -126,15 +121,12 @@
                   <template #default="{ row }">{{ reasonSummary(row.reasons) }}</template>
                 </el-table-column>
               </el-table>
-            </el-card>
+            </SectionCard>
 
-            <el-card v-if="report.industry_concentration" shadow="never" class="lineage-card">
-              <template #header>
-                <span>行业分布</span>
-                <el-tag size="small" type="info" style="margin-left: 8px">{{ report.industry_concentration.provenance }}</el-tag>
-                <el-tag v-if="report.industry_concentration.warning" size="small" type="warning" style="margin-left: 8px">
-                  集中风险
-                </el-tag>
+            <SectionCard v-if="report.industry_concentration" title="行业分布">
+              <template #extra>
+                <el-tag size="small" type="info">{{ report.industry_concentration.provenance }}</el-tag>
+                <el-tag v-if="report.industry_concentration.warning" size="small" type="warning">集中风险</el-tag>
               </template>
               <p class="note">{{ report.industry_concentration.pit_note }}</p>
               <div class="concentration-bars">
@@ -148,14 +140,11 @@
                   <span class="ind-pct">{{ ind.pct }}%</span>
                 </div>
               </div>
-            </el-card>
+            </SectionCard>
 
-            <el-card shadow="never" class="lineage-card">
-              <template #header>
-                <span>Realization（到期追加，不修改原候选）</span>
-                <el-button size="small" type="primary" :loading="realizing" style="margin-left: 8px" @click="realize">
-                  追加 / 查询 realization
-                </el-button>
+            <SectionCard title="Realization（到期追加，不修改原候选）">
+              <template #extra>
+                <el-button size="small" type="primary" :loading="realizing" @click="realize">追加 / 查询 realization</el-button>
               </template>
               <template v-if="report.realization">
                 <el-alert
@@ -200,26 +189,21 @@
                   </el-table-column>
                 </el-table>
               </template>
-              <el-empty v-else description="持有期未到期或未查询；到期后点击「追加 / 查询 realization」" :image-size="60" />
-            </el-card>
+              <EmptyState v-else message="持有期未到期或未查询；到期后点击「追加 / 查询 realization」" />
+            </SectionCard>
           </template>
         </template>
 
-        <el-empty v-else-if="!loading" description="选择日期 / 轨道 / 版本后点击「生成日报」" />
+        <EmptyState v-else-if="!loading" message="选择日期 / 轨道 / 版本后点击「生成日报」" />
       </div>
-    </el-card>
+    </SectionCard>
 
-    <el-card shadow="hover" class="trend-card">
-      <template #header>
-        <div class="report-header">
-          <span>多日信号趋势</span>
-          <div class="header-actions">
-            <el-date-picker v-model="trendStart" type="date" value-format="YYYY-MM-DD" style="width: 150px" />
-            <span style="color: var(--text-muted)">~</span>
-            <el-date-picker v-model="trendEnd" type="date" value-format="YYYY-MM-DD" style="width: 150px" />
-            <el-button type="primary" size="small" :loading="trendLoading" @click="loadTrend">查询趋势</el-button>
-          </div>
-        </div>
+    <SectionCard title="多日信号趋势">
+      <template #extra>
+        <el-date-picker v-model="trendStart" type="date" value-format="YYYY-MM-DD" style="width: 150px" />
+        <span class="date-sep">~</span>
+        <el-date-picker v-model="trendEnd" type="date" value-format="YYYY-MM-DD" style="width: 150px" />
+        <el-button type="primary" size="small" :loading="trendLoading" @click="loadTrend">查询趋势</el-button>
       </template>
 
       <div v-loading="trendLoading">
@@ -238,13 +222,17 @@
           </el-table>
           <p class="note">{{ trend.note }}</p>
         </template>
-        <el-empty v-else-if="!trendLoading" description="选择日期范围后查询多日信号趋势" />
+        <EmptyState v-else-if="!trendLoading" message="选择日期范围后查询多日信号趋势" />
       </div>
-    </el-card>
-  </div>
+    </SectionCard>
+  </PageShell>
 </template>
 
 <script setup lang="ts">
+import PageShell from '@/components/ui/PageShell.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import SectionCard from '@/components/ui/SectionCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { ref, onMounted } from 'vue'
 import {
   getDailyReport,
@@ -441,21 +429,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.daily-report {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-.report-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+.date-sep { color: var(--text-muted); }
 .report-meta {
   display: flex;
   flex-wrap: wrap;
@@ -464,12 +438,8 @@ onMounted(async () => {
   color: var(--text-secondary);
   font-size: 12px;
 }
-.report-meta .note {
-  color: var(--text-muted);
-}
-.verdict-alert {
-  margin-bottom: 16px;
-}
+.report-meta .note { color: var(--text-muted); }
+.verdict-alert { margin-bottom: 16px; }
 .q-meta {
   display: flex;
   flex-wrap: wrap;
@@ -478,26 +448,10 @@ onMounted(async () => {
   color: var(--text-secondary);
   margin-bottom: 8px;
 }
-.q-meta span {
-  white-space: nowrap;
-}
-.ic-note {
-  margin-bottom: 8px;
-}
-.lineage-card {
-  margin-bottom: 16px;
-  background: var(--surface-2);
-}
-.note {
-  margin: 0 0 8px;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-.concentration-bars {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
+.q-meta span { white-space: nowrap; }
+.ic-note { margin-bottom: 8px; }
+.note { margin: 0 0 8px; font-size: 12px; color: var(--text-muted); }
+.concentration-bars { display: flex; flex-direction: column; gap: 3px; }
 .concentration-bar {
   display: grid;
   grid-template-columns: 1fr auto auto;
@@ -505,12 +459,5 @@ onMounted(async () => {
   font-size: 12px;
   color: var(--text-secondary);
 }
-.ind-pct {
-  color: var(--text-muted);
-  min-width: 44px;
-  text-align: right;
-}
-.trend-card {
-  margin-top: 16px;
-}
+.ind-pct { color: var(--text-muted); min-width: 44px; text-align: right; }
 </style>

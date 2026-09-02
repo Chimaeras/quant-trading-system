@@ -1,24 +1,23 @@
 <template>
-  <div class="stock-detail" v-loading="loading">
-    <el-empty v-if="!route.query.code" description="请从股票浏览器选择股票查看详情" style="padding: 80px 0">
-      <el-button type="primary" @click="$router.push('/data/stocks')">去选股</el-button>
-    </el-empty>
+  <PageShell v-loading="loading">
+    <EmptyState v-if="!route.query.code" message="请从股票浏览器选择股票查看详情">
+      <template #actions>
+        <el-button type="primary" @click="$router.push('/data/stocks')">去选股</el-button>
+      </template>
+    </EmptyState>
     <template v-else>
     <!-- 顶部：股票名称、代码、最新价、涨跌幅 -->
-    <div class="stock-header">
-      <div class="stock-title">
-        <span class="name">{{ detail.stock_name || '--' }}</span>
-        <span class="code">{{ detail.stock_code }}</span>
-        <el-tag size="small" type="info" class="exchange-tag">{{ detail.exchange_type_name || detail.exchange_type || '--' }}</el-tag>
-      </div>
-      <div class="stock-price" :class="priceChangeClass">
-        <span class="price">{{ formatPrice(detail.close_price) }}</span>
-        <span class="change" v-if="detail.change_pct != null">
-          {{ formatChange(detail.close_price, detail.pre_close) }}
-          <span class="pct">({{ formatPct(detail.change_pct) }}%)</span>
-        </span>
-      </div>
-    </div>
+    <PageHeader :title="detail.stock_name || '--'" :subtitle="`${detail.stock_code} · ${detail.exchange_type_name || detail.exchange_type || '--'}`">
+      <template #actions>
+        <div class="stock-price" :class="priceChangeClass">
+          <span class="price">{{ formatPrice(detail.close_price) }}</span>
+          <span class="change" v-if="detail.change_pct != null">
+            {{ formatChange(detail.close_price, detail.pre_close) }}
+            <span class="pct">({{ formatPct(detail.change_pct) }}%)</span>
+          </span>
+        </div>
+      </template>
+    </PageHeader>
 
     <!-- 快速查股 -->
     <div class="quick-search">
@@ -85,8 +84,7 @@
     </div>
 
     <!-- 历史数据表 -->
-    <div class="history-section">
-      <div class="section-title">近期行情</div>
+    <SectionCard title="近期行情">
       <el-table :data="klineData.slice(-20).reverse()" size="small" stripe max-height="320" class="history-table">
         <el-table-column prop="date" label="日期" min-width="100" />
         <el-table-column prop="open" label="开盘" min-width="85" align="right">
@@ -112,10 +110,9 @@
           <template #default="{ row }">{{ formatVolume(row.volume) }}</template>
         </el-table-column>
       </el-table>
-    </div>
+    </SectionCard>
 
-    <div class="analysis-section">
-      <div class="section-title">持仓技术分析（次日建议）</div>
+    <SectionCard title="持仓技术分析（次日建议）">
       <el-form inline>
         <el-form-item label="持仓股数">
           <el-input-number v-model="analysisForm.holdingQty" :min="0" :step="100" />
@@ -149,9 +146,9 @@
           </ul>
         </el-descriptions-item>
       </el-descriptions>
-    </div>
+    </SectionCard>
     </template>
-  </div>
+  </PageShell>
 </template>
 
 <script setup lang="ts">
@@ -162,6 +159,10 @@ import type { EChartsOption } from 'echarts'
 import { marketApi, type StockDetail, type KLineItem, type StockAnalysisResult } from '@/api/market'
 import dayjs from 'dayjs'
 import { useToast } from '@/composables/useToast'
+import PageShell from '@/components/ui/PageShell.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import SectionCard from '@/components/ui/SectionCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -470,26 +471,13 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.stock-detail {
-  background: var(--surface-2);
-  border-radius: 8px;
-  padding: 20px;
-  min-height: 600px;
-  border: 1px solid var(--glass-border);
+.stock-price {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 28px;
+  font-weight: 600;
 }
-.stock-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--glass-border);
-}
-.stock-title { display: flex; align-items: center; gap: 12px; }
-.stock-title .name { font-size: 22px; font-weight: 600; color: var(--text-primary); }
-.stock-title .code { font-size: 14px; color: var(--text-secondary); }
-.exchange-tag { margin-left: 4px; }
-.stock-price { font-size: 28px; font-weight: 600; }
 .stock-price.up { color: var(--up); }
 .stock-price.down { color: var(--down); }
 .stock-price .change { font-size: 16px; margin-left: 12px; }
@@ -522,9 +510,6 @@ onBeforeUnmount(() => {
 .info-row .val.up { color: var(--up); }
 .info-row .val.down { color: var(--down); }
 
-.history-section { margin-top: 24px; }
-.analysis-section { margin-top: 24px; }
-.section-title { font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px; }
 .history-table { background: transparent; border-radius: 8px; overflow: hidden; }
 .text-up { color: var(--up); }
 .text-down { color: var(--down); }

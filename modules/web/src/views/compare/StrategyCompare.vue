@@ -1,22 +1,22 @@
 <template>
-  <div class="compare-page terminal-page">
-    <el-card shadow="hover">
-      <template #header>
-        <span>策略对比工作台</span>
+  <PageShell>
+    <PageHeader title="策略对比工作台" subtitle="同交易日多策略候选并排比较，重合度最高的标的为多策略共识最强">
+      <template #actions>
+        <el-form inline class="compare-form" @submit.prevent>
+          <el-form-item label="交易日">
+            <el-date-picker v-model="tradeDate" type="date" value-format="YYYY-MM-DD" placeholder="选择交易日" />
+          </el-form-item>
+          <el-form-item label="TopN">
+            <el-input-number v-model="topN" :min="1" :max="100" :step="5" controls-position="right" style="width: 120px" />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="loading" @click="runCompare">对比</el-button>
+          </el-form-item>
+        </el-form>
       </template>
+    </PageHeader>
 
-      <el-form inline class="form">
-        <el-form-item label="交易日">
-          <el-date-picker v-model="tradeDate" type="date" value-format="YYYY-MM-DD" placeholder="选择交易日" />
-        </el-form-item>
-        <el-form-item label="TopN">
-          <el-input-number v-model="topN" :min="1" :max="100" :step="5" controls-position="right" style="width: 120px" />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" :loading="loading" @click="runCompare">对比</el-button>
-        </el-form-item>
-      </el-form>
-
+    <SectionCard>
       <div v-loading="loading">
         <template v-if="result">
           <el-alert
@@ -61,13 +61,17 @@
             </el-card>
           </div>
         </template>
-        <el-empty v-else-if="!loading" description="选择交易日与 TopN 后点击对比" />
+        <EmptyState v-else-if="!loading" message="选择交易日与 TopN 后点击对比" />
       </div>
-    </el-card>
-  </div>
+    </SectionCard>
+  </PageShell>
 </template>
 
 <script setup lang="ts">
+import PageShell from '@/components/ui/PageShell.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import SectionCard from '@/components/ui/SectionCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { ref, onMounted } from 'vue'
 import { compareStrategies, type CompareResponse } from '@/api/compare'
 import { errorText } from '@/api/request'
@@ -116,24 +120,17 @@ onMounted(() => runCompare())
 </script>
 
 <style scoped>
-.compare-page {
-  max-width: 1400px;
-  margin: 0 auto;
+.compare-form {
+  margin: 0;
 }
-.form {
-  margin-bottom: 8px;
+.compare-form :deep(.el-form-item) {
+  margin-bottom: 0;
 }
 .verdict-alert {
   margin-bottom: 16px;
 }
 .overlap-section {
   margin-bottom: 20px;
-}
-.section-title {
-  font-size: 14px;
-  font-weight: 600;
-  margin: 0 0 10px;
-  color: var(--text-primary);
 }
 .grid {
   display: grid;

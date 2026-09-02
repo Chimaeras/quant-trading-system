@@ -1,20 +1,22 @@
 <template>
-  <div class="portfolio-page terminal-page">
-    <el-card shadow="hover">
-      <template #header>
-        <span>
-          组合回测
-          <el-tag size="small" type="danger" class="beta-tag">Beta</el-tag>
-        </span>
+  <PageShell>
+    <PageHeader
+      title="组合回测"
+      subtitle="事件驱动组合回测（MP-005 现金因果 + raw-only 成交 + 最低佣金 + T+1）。"
+    >
+      <template #actions>
+        <el-tag size="small" type="danger" class="beta-tag">Beta</el-tag>
       </template>
+    </PageHeader>
 
-      <el-alert
-        type="warning"
-        :closable="false"
-        show-icon
-        class="note-alert"
-        title="Beta 页面 —— 事件驱动组合回测（MP-005 现金因果 + raw-only 成交 + 最低佣金 + T+1）；订单/NAV/持仓已规范化落子表，长区间订单分页读取。选择已发布 prediction run 可闭环验证「预测 → 组合结果」且资金守恒。"
-      />
+    <SectionCard title="运行参数">
+    <el-alert
+      type="warning"
+      :closable="false"
+      show-icon
+      class="note-alert"
+      title="Beta 页面 —— 事件驱动组合回测（MP-005 现金因果 + raw-only 成交 + 最低佣金 + T+1）；订单/NAV/持仓已规范化落子表，长区间订单分页读取。选择已发布 prediction run 可闭环验证「预测 → 组合结果」且资金守恒。"
+    />
 
       <el-form inline class="form">
         <el-form-item label="信号源">
@@ -88,9 +90,10 @@
       </el-form>
 
       <el-alert v-if="errorMsg" type="error" show-icon class="run-alert" :title="errorMsg" />
+    </SectionCard>
 
-      <template v-if="currentRunId">
-        <el-divider content-position="left"><span>当前运行：{{ currentRunId }}</span></el-divider>
+    <template v-if="currentRunId">
+    <SectionCard :title="`当前运行：${currentRunId}`">
         <div class="status-line">
           <span>run_id：{{ currentRunId }}</span>
           <el-tag :type="statusTagType" size="small">{{ status?.status || '...' }}</el-tag>
@@ -126,8 +129,7 @@
           </div>
 
           <div class="grid">
-            <el-card shadow="never" class="q-card">
-              <template #header>净值概览</template>
+            <SectionCard title="净值概览" pad="sm" class="q-card">
               <div class="q-meta">
                 <span>期末 NAV：<b>{{ fmt4(detail.final_nav) }}</b></span>
                 <span>总收益：<b :class="pctClass(detail.total_return)">{{ fmtPct(detail.total_return) }}</b></span>
@@ -137,10 +139,9 @@
                 <span>期末持仓：{{ detail.final_position_count }}</span>
                 <span>未实现盈亏：{{ fmt4(detail.unrealized_pnl) }}</span>
               </div>
-            </el-card>
+            </SectionCard>
 
-            <el-card shadow="never" class="q-card">
-              <template #header>资金守恒审计（V2-MP-020）</template>
+            <SectionCard title="资金守恒审计（V2-MP-020）" pad="sm" class="q-card">
               <el-alert
                 v-if="cashAudit"
                 :type="cashAudit.balanced === false ? 'error' : 'success'"
@@ -156,18 +157,16 @@
                 <span>推算期末现金：{{ fmt4(cashAudit.computed_final_cash) }}</span>
                 <span>实际期末现金：{{ fmt4(cashAudit.actual_final_cash) }}</span>
               </div>
-            </el-card>
+            </SectionCard>
           </div>
 
-          <el-card shadow="never" class="q-card chart-card">
-            <template #header>NAV 曲线</template>
+          <SectionCard title="NAV 曲线" pad="sm" class="q-card chart-card">
             <div ref="chartRef" class="chart-box" />
             <div v-if="!detail.nav?.length" class="empty-tip">区间内无 NAV 记录</div>
-          </el-card>
+          </SectionCard>
 
           <div class="grid">
-            <el-card shadow="never" class="q-card">
-              <template #header>订单拒绝漏斗</template>
+            <SectionCard title="订单拒绝漏斗" pad="sm" class="q-card">
               <div v-if="rejectFunnelEntries.length" class="funnel-list">
                 <div v-for="[reason, cnt] in rejectFunnelEntries" :key="reason" class="funnel-row">
                   <span class="funnel-reason">{{ reason }}</span>
@@ -175,10 +174,9 @@
                 </div>
               </div>
               <div v-else class="empty-tip">无拒单</div>
-            </el-card>
+            </SectionCard>
 
-            <el-card v-if="lineage" shadow="never" class="q-card">
-              <template #header>预测 lineage（闭环信号源）</template>
+            <SectionCard v-if="lineage" title="预测 lineage（闭环信号源）" pad="sm" class="q-card">
               <div class="q-meta">
                 <span>prediction_run_id：{{ lineage.prediction_run_id }}</span>
                 <span>信号日：{{ lineage.trade_date }}</span>
@@ -189,11 +187,10 @@
                 <span>selector_result：{{ lineage.selector_result_id || '—' }}</span>
                 <span>候选数：{{ lineage.item_count }}</span>
               </div>
-            </el-card>
+            </SectionCard>
           </div>
 
-          <el-card shadow="never" class="q-card">
-            <template #header>期末持仓（{{ detail.positions_count ?? 0 }}）</template>
+          <SectionCard :title="`期末持仓（${detail.positions_count ?? 0}）`" pad="sm" class="q-card">
             <el-table :data="detail.open_positions ?? []" size="small" stripe border max-height="260">
               <el-table-column prop="stock_code" label="代码" width="90" />
               <el-table-column prop="stock_name" label="名称" width="110" />
@@ -216,12 +213,9 @@
               </el-table-column>
               <el-table-column prop="price_source" label="标记来源" width="120" />
             </el-table>
-          </el-card>
+          </SectionCard>
 
-          <el-card shadow="never" class="q-card">
-            <template #header>
-              订单明细（{{ ordersPage?.total ?? 0 }} 条，seq 升序分页）
-            </template>
+          <SectionCard :title="`订单明细（${ordersPage?.total ?? 0} 条，seq 升序分页）`" pad="sm" class="q-card">
             <el-table :data="ordersPage?.items ?? []" size="small" stripe border max-height="420">
               <el-table-column prop="seq" label="seq" width="60" />
               <el-table-column prop="action" label="方向" width="70">
@@ -267,11 +261,12 @@
               :current-page="ordersPage?.page ?? 1"
               @current-change="(p: number) => loadOrders(p)"
             />
-          </el-card>
+          </SectionCard>
         </template>
+    </SectionCard>
       </template>
 
-      <el-divider content-position="left"><span>运行历史</span></el-divider>
+    <SectionCard title="运行历史">
       <el-table :data="history?.items ?? []" size="small" stripe border max-height="360">
         <el-table-column label="run_id" width="200">
           <template #default="{ row }">
@@ -320,8 +315,8 @@
         :current-page="history?.page ?? 1"
         @current-change="(p: number) => loadHistory(p)"
       />
-    </el-card>
-  </div>
+    </SectionCard>
+  </PageShell>
 </template>
 
 <script setup lang="ts">
@@ -345,6 +340,9 @@ import {
 import { getPredictionRuns, type PredictionTrack } from '@/api/predictions'
 import { backtestApi } from '@/api/backtest'
 import { errorText } from '@/api/request'
+import PageShell from '@/components/ui/PageShell.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import SectionCard from '@/components/ui/SectionCard.vue'
 
 const ORDERS_SIZE = 50
 

@@ -1,8 +1,7 @@
 <template>
-  <el-card shadow="hover" class="terminal-page">
-    <template #header>
-      <div class="header-row">
-        <span>统一打分选股工作台</span>
+  <PageShell>
+    <PageHeader title="统一打分选股工作台" subtitle="先执行打分任务拿到评分池，再按 TopN 与最低分从结果中筛选关注清单。">
+      <template #actions>
         <el-radio-group v-model="mode" size="small" @change="onModeChange">
           <el-radio-button value="classic">经典多因子</el-radio-button>
           <el-radio-button value="oversold">超跌反弹</el-radio-button>
@@ -10,10 +9,10 @@
           <el-radio-button value="comprehensive">综合三维度</el-radio-button>
           <el-radio-button value="multi_dim">多维度v1</el-radio-button>
         </el-radio-group>
-      </div>
-    </template>
+      </template>
+    </PageHeader>
 
-    <div class="section-title">步骤1：执行打分任务</div>
+    <SectionCard title="步骤1 · 执行打分任务">
     <el-form v-if="mode === 'classic'" inline>
       <el-form-item label="交易日">
         <el-date-picker v-model="form.tradeDate" type="date" value-format="YYYY-MM-DD" />
@@ -175,7 +174,9 @@
       <span>完成时间：{{ lastTaskSummary.finishedAt }}</span>
     </div>
 
-    <div class="section-title">步骤2：从评分结果中选择关注 TopN</div>
+    </SectionCard>
+
+    <SectionCard title="步骤2 · 从评分结果中选择关注 TopN">
     <el-form inline class="focus-form">
       <el-form-item label="TopN">
         <el-input-number v-model="focusForm.topN" :min="1" :max="200" />
@@ -229,22 +230,14 @@
       :title="resultMeta.score_type_note || '当前分数为规则分数/截面百分位，非上涨概率'"
     />
 
-    <el-empty
+    <EmptyState
       v-if="!loading && resultMeta.result_id && results.length === 0"
-      description="今日无符合质量闸的候选"
-    >
-      <template v-if="resultMeta.min_total_score != null">
-        <p class="empty-tip">
-          最低综合分 {{ resultMeta.min_total_score }}，评分池 {{ resultMeta.total_scored_pool ?? 0 }} 只，合格
-          {{ resultMeta.qualified_items ?? 0 }} 只。宁可空结果，也不凑满 TopN。
-        </p>
-      </template>
-      <template v-else-if="form.horizonProfile === 'SHORT_3_5D' && form.minCodexScore > 0">
-        <p class="empty-tip">
-          Codex 短周期：最低百分位分 {{ form.minCodexScore }}，且须 F&gt;−0.5、R&gt;−1.0。可调低阈值或扩大股票池。
-        </p>
-      </template>
-    </el-empty>
+      :message="resultMeta.min_total_score != null
+        ? `今日无符合质量闸的候选：最低综合分 ${resultMeta.min_total_score}，评分池 ${resultMeta.total_scored_pool ?? 0} 只，合格 ${resultMeta.qualified_items ?? 0} 只。宁可空结果，也不凑满 TopN。`
+        : (form.horizonProfile === 'SHORT_3_5D' && form.minCodexScore > 0
+            ? `Codex 短周期：最低百分位分 ${form.minCodexScore}，且须 F&gt;−0.5、R&gt;−1.0。可调低阈值或扩大股票池。`
+            : '今日无符合质量闸的候选')"
+    />
 
     <el-table v-if="mode === 'classic' && results.length" v-loading="loading" :data="tableRows" stripe>
       <el-table-column label="排名" width="70">
@@ -323,7 +316,8 @@
     <p v-else-if="mode === 'trend'" class="tip">逻辑：趋势/乖离/量能等六维评分；服务端按最低综合分（默认45）过滤，不足 TopN 时不凑数。</p>
     <p v-else-if="mode === 'comprehensive'" class="tip">逻辑：技术面30 + 基本面40 + 情绪面30；默认质量闸55分。情绪面若无外部舆情，将标注为「技术面推导」并已打折。</p>
     <p v-else class="tip">逻辑：纯库内 K 线 + PE + 行业聚合的多维度打分 v1；默认质量闸55分。</p>
-  </el-card>
+    </SectionCard>
+  </PageShell>
 
   <el-dialog v-model="detailVisible" title="选股详情" width="720px">
     <el-descriptions :column="2" border v-if="detailRow">
@@ -392,7 +386,7 @@
       <el-table-column prop="label" label="参数" min-width="180" />
       <el-table-column prop="value" label="取值" min-width="320" show-overflow-tooltip />
     </el-table>
-    <el-empty v-else description="当前结果无 factor_snapshot" />
+    <EmptyState v-else message="当前结果无 factor_snapshot" />
     <pre v-if="hasFactorSnapshot" class="json-box snapshot-json">{{ JSON.stringify(resultMeta.factor_snapshot, null, 2) }}</pre>
   </el-dialog>
 </template>
@@ -404,6 +398,10 @@ import { selectorApi } from '@/api/selector'
 import { scoringApi, type UnifiedScoringStrategy, type UnifiedScoringTaskStatus } from '@/api/scoring'
 import { errorText } from '@/api/request'
 import { useToast } from '@/composables/useToast'
+import PageShell from '@/components/ui/PageShell.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import SectionCard from '@/components/ui/SectionCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 type ModeType = 'classic' | 'oversold' | 'trend' | 'comprehensive' | 'multi_dim'
 type TaskStatusType = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | ''
@@ -1475,19 +1473,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-.section-title {
-  margin: 2px 0 10px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
 .focus-form {
   margin-bottom: 10px;
 }
@@ -1519,13 +1504,6 @@ onBeforeUnmount(() => {
   color: var(--text-secondary);
   font-size: 12px;
   margin-top: 12px;
-}
-.empty-tip {
-  color: var(--text-secondary);
-  font-size: 13px;
-  margin: 0;
-  max-width: 420px;
-  text-align: center;
 }
 .score-type-alert {
   margin: 8px 0;

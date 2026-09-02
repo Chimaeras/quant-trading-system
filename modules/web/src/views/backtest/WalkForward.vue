@@ -1,16 +1,12 @@
 <template>
-  <div class="wf-page terminal-page">
-    <el-card shadow="hover">
-      <template #header>
-        <span>分段稳定性（非样本外 / 非 Walk-Forward）</span>
-        <el-tooltip content="V1 旧页：仅连续窗口分段收益统计，非真正 Walk-Forward / 样本外验证" placement="top">
-          <el-tag size="small" effect="plain" type="info" class="capability-tag">Legacy</el-tag>
-        </el-tooltip>
+  <PageShell>
+    <PageHeader title="分段稳定性" subtitle="非样本外 / 非 Walk-Forward · 仅连续窗口分段收益统计，不含训练 / 校准 / purge / embargo">
+      <template #actions>
+        <el-tag size="small" effect="plain" type="info" class="capability-tag">Legacy</el-tag>
       </template>
+    </PageHeader>
 
-      <el-alert type="warning" :closable="false" show-icon class="note-alert"
-        title="本页仅为连续窗口分段收益统计，不是真正的 Walk-Forward / 样本外验证。不含训练、校准、purge 或 embargo。" />
-
+    <SectionCard>
       <el-form inline class="form">
         <el-form-item label="策略">
           <el-select v-model="strategy" style="width: 180px">
@@ -63,13 +59,17 @@
 
           <p class="verdict">{{ verdict }}</p>
         </template>
-        <el-empty v-else-if="!loading" description="选择策略与区间后点击运行" />
+        <EmptyState v-else-if="!loading" message="选择策略与区间后点击运行" />
       </div>
-    </el-card>
-  </div>
+    </SectionCard>
+  </PageShell>
 </template>
 
 <script setup lang="ts">
+import PageShell from '@/components/ui/PageShell.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import SectionCard from '@/components/ui/SectionCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { ref, computed, onMounted } from 'vue'
 import { runWalkForward, type WalkForwardResponse } from '@/api/walkforward'
 import { errorText } from '@/api/request'
@@ -171,16 +171,15 @@ onMounted(() => run())
 </script>
 
 <style scoped>
-.capability-tag { margin-left: 8px; vertical-align: middle; }
-.wf-page {
-  max-width: 1200px;
-  margin: 0 auto;
-}
+.capability-tag { margin-left: 8px; }
 .form {
-  margin-bottom: 8px;
+  margin: 0 0 8px;
 }
 .note-alert {
   margin-bottom: 16px;
+}
+.toolbar-row {
+  margin-bottom: 8px;
 }
 .verdict {
   margin: 12px 0 0;

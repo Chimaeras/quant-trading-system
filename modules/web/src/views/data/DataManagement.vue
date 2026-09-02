@@ -1,15 +1,15 @@
 <template>
-  <div class="data-management terminal-page">
+  <PageShell>
+    <PageHeader title="数据管理" subtitle="数据总览、热门股票榜单与历史数据更新任务管理。" />
     <el-tabs v-model="activeDataTab" class="data-tabs" @tab-change="onDataTabChange">
       <el-tab-pane label="数据总览" name="overview" />
       <el-tab-pane label="热门股票" name="hot" />
     </el-tabs>
 
-    <div v-show="activeDataTab === 'overview'">
-    <el-card shadow="hover">
-      <template #header>
-        <span>数据概览</span>
-        <el-button type="primary" size="small" :loading="loading" @click="refresh" style="float: right">
+    <div v-show="activeDataTab === 'overview'" class="data-tab-pane">
+    <SectionCard title="数据概览">
+      <template #extra>
+        <el-button type="primary" size="small" :loading="loading" @click="refresh">
           刷新
         </el-button>
       </template>
@@ -84,11 +84,10 @@
           可回填 {{ backfillResult.backfillable ?? '—' }} 条，已补 {{ backfillResult.updated }} 条（补前缺失 {{ backfillResult.missing_before }}，补后缺失 {{ backfillResult.missing_after }}）
         </span>
       </div>
-    </el-card>
-    <el-card shadow="hover" style="margin-top: 20px">
-      <template #header>
-        <span>历史数据更新任务</span>
-        <el-button type="primary" size="small" :loading="taskLoading" style="float: right" @click="loadTasks">
+    </SectionCard>
+    <SectionCard title="历史数据更新任务">
+      <template #extra>
+        <el-button type="primary" size="small" :loading="taskLoading" @click="loadTasks">
           刷新任务列表
         </el-button>
       </template>
@@ -241,18 +240,15 @@
           </div>
         </el-dialog>
       </el-space>
-    </el-card>
+    </SectionCard>
     </div>
 
-    <div v-show="activeDataTab === 'hot'">
-      <el-card shadow="hover">
-        <template #header>
-          <div class="hot-header">
-            <span>热门股票</span>
-            <el-button type="primary" size="small" :loading="hotLoading" @click="loadHotStocks">
-              刷新榜单
-            </el-button>
-          </div>
+    <div v-show="activeDataTab === 'hot'" class="data-tab-pane">
+      <SectionCard title="热门股票">
+        <template #extra>
+          <el-button type="primary" size="small" :loading="hotLoading" @click="loadHotStocks">
+            刷新榜单
+          </el-button>
         </template>
         <el-form inline class="hot-form">
           <el-form-item label="TopN">
@@ -313,9 +309,9 @@
             </template>
           </el-table-column>
         </el-table>
-      </el-card>
+      </SectionCard>
     </div>
-  </div>
+  </PageShell>
 </template>
 
 <script setup lang="ts">
@@ -327,6 +323,9 @@ import { errorText } from '@/api/request'
 import { applyTradingDayPreset, type PresetKey } from '@/utils/tradingDays'
 import { useToast } from '@/composables/useToast'
 import { resolveSecurityName } from '@/utils/security'
+import PageShell from '@/components/ui/PageShell.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import SectionCard from '@/components/ui/SectionCard.vue'
 
 const dataStore = useDataStore()
 const toast = useToast()
@@ -667,13 +666,12 @@ onMounted(async () => {
   color: var(--text-muted);
 }
 .data-tabs {
-  margin-bottom: 12px;
+  margin-bottom: 4px;
 }
-.hot-header {
+.data-tab-pane {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: var(--sp-4);
 }
 .hot-form {
   margin-bottom: 8px;

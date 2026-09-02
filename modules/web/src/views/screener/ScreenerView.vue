@@ -1,10 +1,8 @@
 <template>
-  <div class="screener-page terminal-page">
-    <el-card shadow="hover">
-      <template #header>
-        <span>条件选股器</span>
-      </template>
+  <PageShell>
+    <PageHeader title="条件选股器" subtitle="MVP 条件选股器，基于股票基本信息筛选；实时行情过滤（涨跌幅 / 成交额）为后续扩展" />
 
+    <SectionCard>
       <el-form inline class="form">
         <el-form-item label="关键字">
           <el-input v-model="form.keyword" placeholder="代码/名称" style="width: 160px" clearable />
@@ -36,10 +34,6 @@
         </el-form-item>
       </el-form>
 
-      <p class="hint">
-        MVP 条件选股器，基于股票基本信息筛选；实时行情过滤（涨跌幅/成交额）为后续扩展，可与「选股打分」结果联动。
-      </p>
-
       <div v-loading="loading">
         <template v-if="result">
           <div class="meta">
@@ -57,7 +51,7 @@
             <el-table-column prop="list_date" label="上市日" min-width="110" />
             <el-table-column prop="listing_days" label="上市天数" min-width="90" />
           </el-table>
-          <el-empty v-if="!result.items.length" description="无符合条件的标的" />
+          <EmptyState v-if="!result.items.length" message="无符合条件的标的" />
           <el-pagination
             v-if="result.total_after_filter > pageSize"
             v-model:current-page="page"
@@ -68,35 +62,38 @@
             @current-change="run"
           />
         </template>
-        <el-empty v-else-if="!loading" description="设置条件后点击筛选" />
+        <EmptyState v-else-if="!loading" message="设置条件后点击筛选" />
       </div>
+    </SectionCard>
 
-      <el-card shadow="never" class="tpl-card">
-        <template #header>已保存模板</template>
-        <el-table :data="templates" size="small" stripe border v-loading="loadingTpl">
-          <el-table-column type="index" label="#" width="56" />
-          <el-table-column prop="name" label="名称" min-width="120" />
-          <el-table-column prop="keyword" label="关键字" min-width="100" />
-          <el-table-column prop="exchange" label="交易所" min-width="80" />
-          <el-table-column prop="industry" label="行业" min-width="90" />
-          <el-table-column prop="min_listing_days" label="上市≥天" min-width="90" />
-          <el-table-column prop="created_at" label="创建时间" min-width="150">
-            <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
-          </el-table-column>
-          <el-table-column label="操作" width="140" fixed="right">
-            <template #default="{ row }">
-              <el-button link type="primary" @click="applyTemplate(row)">加载</el-button>
-              <el-button link type="danger" :loading="deletingId === row.id" @click="removeTemplate(row)">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-        <el-empty v-if="!loadingTpl && !templates.length" description="暂无保存的模板" />
-      </el-card>
-    </el-card>
-  </div>
+    <SectionCard title="已保存模板">
+      <el-table :data="templates" size="small" stripe border v-loading="loadingTpl">
+        <el-table-column type="index" label="#" width="56" />
+        <el-table-column prop="name" label="名称" min-width="120" />
+        <el-table-column prop="keyword" label="关键字" min-width="100" />
+        <el-table-column prop="exchange" label="交易所" min-width="80" />
+        <el-table-column prop="industry" label="行业" min-width="90" />
+        <el-table-column prop="min_listing_days" label="上市≥天" min-width="90" />
+        <el-table-column prop="created_at" label="创建时间" min-width="150">
+          <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="140" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="applyTemplate(row)">加载</el-button>
+            <el-button link type="danger" :loading="deletingId === row.id" @click="removeTemplate(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <EmptyState v-if="!loadingTpl && !templates.length" message="暂无保存的模板" />
+    </SectionCard>
+  </PageShell>
 </template>
 
 <script setup lang="ts">
+import PageShell from '@/components/ui/PageShell.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import SectionCard from '@/components/ui/SectionCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { ref, reactive, onMounted } from 'vue'
 import { runScreener, saveScreenerTemplate, listScreenerTemplates, deleteScreenerTemplate, type ScreenerResponse, type ScreenerTemplate } from '@/api/screener'
 import { errorText } from '@/api/request'
@@ -217,12 +214,8 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.screener-page {
-  max-width: 1200px;
-  margin: 0 auto;
-}
 .form {
-  margin-bottom: 8px;
+  margin: 0 0 8px;
 }
 .hint {
   margin: 0 0 12px;
@@ -231,14 +224,10 @@ onMounted(() => {
 }
 .meta {
   display: flex;
+  flex-wrap: wrap;
   gap: 18px;
   margin-bottom: 10px;
   font-size: 12px;
   color: var(--text-secondary);
-}
-.tpl-card {
-  margin-top: 16px;
-  background: var(--surface-2);
-  border: 1px solid var(--hairline-strong);
 }
 </style>

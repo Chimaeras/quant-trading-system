@@ -1,16 +1,13 @@
 <template>
-  <div class="watchlist-page terminal-page">
-    <el-card shadow="hover">
-      <template #header>
-        <div class="header">
-          <span>自选股池</span>
-          <div class="header-actions">
-            <el-button size="small" :disabled="!items.length" @click="exportCsv">导出 CSV</el-button>
-            <el-button type="primary" size="small" :loading="loading" @click="loadList">刷新</el-button>
-          </div>
-        </div>
+  <PageShell>
+    <PageHeader title="自选股池" subtitle="记录关注标的；异动扫描基于最新入库行情（非实时），点击下方「异动扫描」查看当日异动信号">
+      <template #actions>
+        <el-button size="small" :disabled="!items.length" @click="exportCsv">导出 CSV</el-button>
+        <el-button type="primary" size="small" :loading="loading" @click="loadList">刷新</el-button>
       </template>
+    </PageHeader>
 
+    <SectionCard>
       <el-form inline class="add-form">
         <el-form-item label="代码">
           <el-autocomplete
@@ -71,15 +68,12 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="!loading && !items.length" description="暂无自选股，添加关注标的开始跟踪" />
-    </el-card>
+      <EmptyState v-if="!loading && !items.length" message="暂无自选股，添加关注标的开始跟踪" />
+    </SectionCard>
 
-    <el-card shadow="hover" class="alert-card">
-      <template #header>
-        <div class="header">
-          <span>异动扫描</span>
-          <el-button type="primary" size="small" :loading="scanning" @click="scanAlerts">异动扫描</el-button>
-        </div>
+    <SectionCard title="异动扫描">
+      <template #extra>
+        <el-button type="primary" size="small" :loading="scanning" @click="scanAlerts">异动扫描</el-button>
       </template>
 
       <div v-loading="scanning">
@@ -110,18 +104,15 @@
               </template>
             </el-table-column>
           </el-table>
-          <el-empty v-else-if="!scanning" :description="scan.note" />
+          <EmptyState v-else-if="!scanning" :message="scan.note" />
         </template>
-        <el-empty v-else-if="!scanning" description="点击异动扫描查看当日异动信号" />
+        <EmptyState v-else-if="!scanning" message="点击异动扫描查看当日异动信号" />
       </div>
-    </el-card>
+    </SectionCard>
 
-    <el-card shadow="hover" class="alert-card">
-      <template #header>
-        <div class="header">
-          <span>选股信号覆盖</span>
-          <el-button type="primary" size="small" :loading="coverageLoading" @click="loadCoverage">查询覆盖</el-button>
-        </div>
+    <SectionCard title="选股信号覆盖">
+      <template #extra>
+        <el-button type="primary" size="small" :loading="coverageLoading" @click="loadCoverage">查询覆盖</el-button>
       </template>
 
       <div v-loading="coverageLoading">
@@ -143,12 +134,12 @@
               </template>
             </el-table-column>
           </el-table>
-          <el-empty v-else-if="!coverageLoading" :description="coverage.note" />
+          <EmptyState v-else-if="!coverageLoading" :message="coverage.note" />
           <p class="scan-meta basis">{{ coverage.note }}</p>
         </template>
-        <el-empty v-else-if="!coverageLoading" description="点击查询自选股被选股信号命中情况" />
+        <EmptyState v-else-if="!coverageLoading" message="点击查询自选股被选股信号命中情况" />
       </div>
-    </el-card>
+    </SectionCard>
 
     <el-dialog v-model="batchDialog" title="批量导入自选股" width="520px">
       <p class="hint">每行一个代码，可选「代码,交易所」或「代码 交易所」；省略交易所时按代码前缀推断（6→沪，0/3→深，4/8→北）。</p>
@@ -163,10 +154,14 @@
         <el-button type="primary" :loading="batching" @click="doBatchAdd">导入</el-button>
       </template>
     </el-dialog>
-  </div>
+  </PageShell>
 </template>
 
 <script setup lang="ts">
+import PageShell from '@/components/ui/PageShell.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import SectionCard from '@/components/ui/SectionCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { ref, reactive, onMounted } from 'vue'
 import { listWatchlist, addWatchlist, removeWatchlist, scanWatchlistAlerts, getWatchlistSignalCoverage, batchAddWatchlist, type WatchlistItem, type WatchlistAlertScan, type SignalCoverageResponse, type BatchAddResult } from '@/api/watchlist'
 import { marketApi, type StockListItem } from '@/api/market'
@@ -375,30 +370,13 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.watchlist-page {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.header-actions {
-  display: flex;
-  gap: 8px;
-}
 .add-form {
-  margin-bottom: 8px;
+  margin: 0 0 8px;
 }
 .hint {
   margin: 0 0 12px;
   font-size: 12px;
   color: var(--text-secondary);
-}
-.alert-card {
-  margin-top: 16px;
 }
 .scan-meta {
   margin: 0 0 12px;

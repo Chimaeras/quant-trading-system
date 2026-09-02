@@ -1,11 +1,8 @@
 <template>
-  <div class="quality-page terminal-page">
-    <el-card shadow="hover">
-      <template #header>
-        <div class="header">
-          <span>数据质量驾驶舱</span>
-          <el-button type="primary" size="small" :loading="loading" @click="load">刷新</el-button>
-        </div>
+  <PageShell>
+    <SectionCard title="数据质量驾驶舱">
+      <template #extra>
+        <el-button type="primary" size="small" :loading="loading" @click="load">刷新</el-button>
       </template>
 
       <el-alert
@@ -32,8 +29,7 @@
           />
 
           <div class="grid">
-            <el-card shadow="never" class="q-card">
-              <template #header>交易日覆盖</template>
+            <SectionCard class="q-card" pad="sm" title="交易日覆盖">
               <div class="q-meta">
                 <span>区间：{{ report.earliest_date || '—' }} ~ {{ report.latest_date || '—' }}</span>
                 <span>预期交易日：{{ report.trading_days.expected }}</span>
@@ -51,10 +47,9 @@
                 </div>
               </template>
               <p class="q-note">{{ report.trading_days.note }}</p>
-            </el-card>
+            </SectionCard>
 
-            <el-card shadow="never" class="q-card">
-              <template #header>更新滞后</template>
+            <SectionCard class="q-card" pad="sm" title="更新滞后">
               <div class="q-meta">
                 <span>今日：{{ report.update_staleness.today }}</span>
                 <span>最新行情：{{ report.update_staleness.latest_date || '—' }}</span>
@@ -66,32 +61,27 @@
               <p v-if="report.update_staleness.warning" class="q-note text-danger">
                 {{ report.update_staleness.warning }}
               </p>
-            </el-card>
+            </SectionCard>
 
-            <el-card shadow="never" class="q-card">
-              <template #header>上市日缺失</template>
+            <SectionCard class="q-card" pad="sm" title="上市日缺失">
               <div class="q-meta">
                 <span>缺失数量：{{ report.list_date.missing_count }}</span>
                 <span>可回填：{{ report.list_date.backfillable_count }}</span>
               </div>
               <p class="q-note">{{ report.list_date.note }}</p>
-            </el-card>
+            </SectionCard>
 
-            <el-card shadow="never" class="q-card">
-              <template #header>复权口径</template>
+            <SectionCard class="q-card" pad="sm" title="复权口径">
               <div class="q-meta">
                 <span>当前基准：{{ report.adjust_factor.current_basis }}</span>
               </div>
               <p class="q-note">{{ report.adjust_factor.scope }}</p>
               <p class="q-note text-warning">{{ report.adjust_factor.warning }}</p>
-            </el-card>
+            </SectionCard>
 
-            <el-card shadow="never" class="q-card raw-card">
-              <template #header>
-                <div class="card-header-row">
-                  <span>不复权行情 / 复权因子覆盖</span>
-                  <el-button size="small" type="primary" @click="rawDialogVisible = true">回填不复权数据</el-button>
-                </div>
+            <SectionCard class="q-card raw-card" pad="sm" title="不复权行情 / 复权因子覆盖">
+              <template #extra>
+                <el-button size="small" type="primary" @click="rawDialogVisible = true">回填不复权数据</el-button>
               </template>
               <template v-if="report.raw_and_adjust">
                 <div class="raw-section">
@@ -116,17 +106,14 @@
                   <p class="q-note">{{ report.raw_and_adjust.adjust_factor.note }}</p>
                 </div>
               </template>
-              <el-empty v-else description="无覆盖数据" :image-size="40" />
-            </el-card>
+              <EmptyState v-else message="无覆盖数据" />
+            </SectionCard>
 
-            <el-card shadow="never" class="q-card raw-card">
-              <template #header>
-                <div class="card-header-row">
-                  <span>历史证券主数据（security_master_history）</span>
-                  <el-button size="small" type="primary" :loading="smInitLoading" @click="confirmInitSecurityMaster">
-                    从 stock_info 初始化
-                  </el-button>
-                </div>
+            <SectionCard class="q-card raw-card" pad="sm" title="历史证券主数据（security_master_history）">
+              <template #extra>
+                <el-button size="small" type="primary" :loading="smInitLoading" @click="confirmInitSecurityMaster">
+                  从 stock_info 初始化
+                </el-button>
               </template>
               <template v-if="report.security_master">
                 <div class="q-meta">
@@ -141,15 +128,12 @@
                 </div>
                 <p class="q-note">{{ report.security_master.note }}</p>
               </template>
-              <el-empty v-else description="无覆盖数据" :image-size="40" />
-            </el-card>
+              <EmptyState v-else message="无覆盖数据" />
+            </SectionCard>
 
-            <el-card shadow="never" class="q-card raw-card">
-              <template #header>
-                <div class="card-header-row">
-                  <span>真实交易日历（trading_calendar）</span>
-                  <el-button size="small" type="primary" @click="calendarDialogVisible = true">反推交易日历</el-button>
-                </div>
+            <SectionCard class="q-card raw-card" pad="sm" title="真实交易日历（trading_calendar）">
+              <template #extra>
+                <el-button size="small" type="primary" @click="calendarDialogVisible = true">反推交易日历</el-button>
               </template>
               <template v-if="report.trading_calendar">
                 <div class="q-meta">
@@ -182,15 +166,12 @@
                   </div>
                 </template>
               </template>
-              <el-empty v-else description="无覆盖数据" :image-size="40" />
-            </el-card>
+              <EmptyState v-else message="无覆盖数据" />
+            </SectionCard>
 
-            <el-card shadow="never" class="q-card raw-card">
-              <template #header>
-                <div class="card-header-row">
-                  <span>指数数据（index_quote）</span>
-                  <el-button size="small" type="primary" @click="indexDialogVisible = true">拉取指数行情</el-button>
-                </div>
+            <SectionCard class="q-card raw-card" pad="sm" title="指数数据（index_quote）">
+              <template #extra>
+                <el-button size="small" type="primary" @click="indexDialogVisible = true">拉取指数行情</el-button>
               </template>
               <template v-if="report.index_data">
                 <div class="q-meta">
@@ -210,15 +191,12 @@
                 </div>
                 <p class="q-note">{{ report.index_data.note }}</p>
               </template>
-              <el-empty v-else description="无覆盖数据" :image-size="40" />
-            </el-card>
+              <EmptyState v-else message="无覆盖数据" />
+            </SectionCard>
 
-            <el-card shadow="never" class="q-card raw-card">
-              <template #header>
-                <div class="card-header-row">
-                  <span>数据快照注册表（data_snapshot）</span>
-                  <el-button size="small" type="primary" :loading="snapshotCreating" @click="runCreateSnapshot">创建快照</el-button>
-                </div>
+            <SectionCard class="q-card raw-card" pad="sm" title="数据快照注册表（data_snapshot）">
+              <template #extra>
+                <el-button size="small" type="primary" :loading="snapshotCreating" @click="runCreateSnapshot">创建快照</el-button>
               </template>
               <template v-if="report.data_snapshot">
                 <div class="q-meta">
@@ -243,19 +221,14 @@
                   </div>
                 </template>
               </template>
-              <el-empty v-else description="无覆盖数据" :image-size="40" />
-            </el-card>
+              <EmptyState v-else message="无覆盖数据" />
+            </SectionCard>
 
-            <el-card shadow="never" class="q-card raw-card">
-              <template #header>
-                <div class="card-header-row">
-                  <span>历史重放（PIT 股票池健康）</span>
-                  <div class="card-header-actions">
-                    <el-tag size="small" type="warning" effect="plain">legacy 同步</el-tag>
-                    <el-button size="small" type="primary" link @click="goToWorkbench('research')">任务化执行</el-button>
-                    <el-button size="small" type="primary" plain :loading="replayLoading" @click="runReplay">执行重放</el-button>
-                  </div>
-                </div>
+            <SectionCard class="q-card raw-card" pad="sm" title="历史重放（PIT 股票池健康）">
+              <template #extra>
+                <el-tag size="small" type="warning" effect="plain">legacy 同步</el-tag>
+                <el-button size="small" type="primary" link @click="goToWorkbench('research')">任务化执行</el-button>
+                <el-button size="small" type="primary" plain :loading="replayLoading" @click="runReplay">执行重放</el-button>
               </template>
               <div class="replay-form">
                 <span>起始日</span>
@@ -289,19 +262,14 @@
                 </div>
                 <p class="q-note">{{ replayResult.note }}</p>
               </template>
-              <el-empty v-else-if="!replayLoading" description="点击执行重放查看股票池健康报告" :image-size="40" />
-            </el-card>
+              <EmptyState v-else-if="!replayLoading" message="点击执行重放查看股票池健康报告" />
+            </SectionCard>
 
-            <el-card shadow="never" class="q-card raw-card">
-              <template #header>
-                <div class="card-header-row">
-                  <span>T+2/T+3 标签工厂（label_snapshot）</span>
-                  <div class="card-header-actions">
-                    <el-tag size="small" type="warning" effect="plain">legacy 同步</el-tag>
-                    <el-button size="small" type="primary" link @click="goToWorkbench('research')">任务化执行</el-button>
-                    <el-button size="small" type="primary" plain :loading="labelBuilding" @click="runBuildLabels">生成标签</el-button>
-                  </div>
-                </div>
+            <SectionCard class="q-card raw-card" pad="sm" title="T+2/T+3 标签工厂（label_snapshot）">
+              <template #extra>
+                <el-tag size="small" type="warning" effect="plain">legacy 同步</el-tag>
+                <el-button size="small" type="primary" link @click="goToWorkbench('research')">任务化执行</el-button>
+                <el-button size="small" type="primary" plain :loading="labelBuilding" @click="runBuildLabels">生成标签</el-button>
               </template>
               <div class="replay-form">
                 <span>起始日</span>
@@ -340,13 +308,13 @@
                   </template>
                 </div>
               </template>
-              <el-empty v-else-if="!labelBuilding" description="点击生成标签查看成交状态分布" :image-size="40" />
-            </el-card>
+              <EmptyState v-else-if="!labelBuilding" message="点击生成标签查看成交状态分布" />
+            </SectionCard>
           </div>
         </template>
-        <el-empty v-else-if="!loading" description="点击刷新查看数据质量报告" />
+        <EmptyState v-else-if="!loading" message="点击刷新查看数据质量报告" />
       </div>
-    </el-card>
+    </SectionCard>
 
     <!-- 不复权数据回填对话框 -->
     <el-dialog v-model="rawDialogVisible" title="回填不复权行情 + 推算复权因子" width="460px">
@@ -426,7 +394,7 @@
         <el-button type="primary" :loading="indexLoading" @click="runFetchIndex">执行拉取</el-button>
       </template>
     </el-dialog>
-  </div>
+  </PageShell>
 </template>
 
 <script setup lang="ts">
@@ -439,6 +407,9 @@ import type { QualityReport } from '@/api/data'
 import { errorText } from '@/api/request'
 import { useToast } from '@/composables/useToast'
 import { resolveSecurityName } from '@/utils/security'
+import PageShell from '@/components/ui/PageShell.vue'
+import SectionCard from '@/components/ui/SectionCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 const router = useRouter()
 
@@ -718,16 +689,6 @@ onMounted(() => { load(); loadSnapshots() })
 
 <style scoped>
 .security-name { color: var(--text-secondary); min-width: 72px; display: inline-block; }
-.quality-page {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
 .health-alert {
   margin-bottom: 16px;
 }
@@ -767,16 +728,6 @@ onMounted(() => { load(); loadSnapshots() })
 .text-warning { color: var(--warning); }
 .raw-card {
   grid-column: 1 / -1;
-}
-.card-header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.card-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 .workbench-banner {
   margin-bottom: 12px;

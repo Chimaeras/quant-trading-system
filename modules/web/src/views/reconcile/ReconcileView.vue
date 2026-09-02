@@ -1,10 +1,8 @@
 <template>
-  <div class="reconcile-page terminal-page">
-    <el-card shadow="hover">
-      <template #header>
-        <span>持仓与选股信号对账</span>
-      </template>
+  <PageShell>
+    <PageHeader title="持仓与选股信号对账" subtitle="输入选股结果 ID（在「选股打分」页运行后获得），与当前模拟账户持仓比对，输出建议买入 / 卖出 / 持有差异" />
 
+    <SectionCard>
       <el-form inline class="reconcile-form">
         <el-form-item label="选股结果 ID">
           <el-input v-model="resultId" placeholder="如 US20250102xxxx" style="width: 240px" clearable />
@@ -17,10 +15,6 @@
         </el-form-item>
       </el-form>
 
-      <p class="hint">
-        输入选股结果 ID（可在「选股打分」页运行后获得），与当前模拟账户持仓比对，输出建议买入/卖出/持有差异。
-      </p>
-
       <div v-loading="loading">
         <template v-if="result">
           <div class="meta">
@@ -32,13 +26,8 @@
           <el-alert type="info" :closable="false" show-icon class="note-alert" :title="result.note" />
 
           <div class="grid">
-            <el-card shadow="never" class="section-card">
-              <template #header>
-                <div class="section-header">
-                  <span>建议买入关注</span>
-                  <el-tag type="danger" size="small">{{ result.to_buy.length }}</el-tag>
-                </div>
-              </template>
+            <SectionCard title="建议买入关注" pad="sm">
+              <template #extra><el-tag type="danger" size="small">{{ result.to_buy.length }}</el-tag></template>
               <el-table :data="result.to_buy" size="small" stripe border>
                 <el-table-column prop="rank_no" label="排名" width="70" />
                 <el-table-column prop="stock_code" label="代码" min-width="90" />
@@ -47,16 +36,11 @@
                   <template #default="{ row }">{{ formatScore(row.final_score) }}</template>
                 </el-table-column>
               </el-table>
-              <el-empty v-if="!result.to_buy.length" description="候选均已持有" :image-size="40" />
-            </el-card>
+              <EmptyState v-if="!result.to_buy.length" message="候选均已持有" />
+            </SectionCard>
 
-            <el-card shadow="never" class="section-card">
-              <template #header>
-                <div class="section-header">
-                  <span>建议减仓/退出关注</span>
-                  <el-tag type="warning" size="small">{{ result.to_sell.length }}</el-tag>
-                </div>
-              </template>
+            <SectionCard title="建议减仓 / 退出关注" pad="sm">
+              <template #extra><el-tag type="warning" size="small">{{ result.to_sell.length }}</el-tag></template>
               <el-table :data="result.to_sell" size="small" stripe border>
                 <el-table-column prop="stock_code" label="代码" min-width="90" />
                 <el-table-column prop="stock_name" label="名称" min-width="100" />
@@ -65,16 +49,11 @@
                   <template #default="{ row }">{{ formatPct(row.profit_rate) }}</template>
                 </el-table-column>
               </el-table>
-              <el-empty v-if="!result.to_sell.length" description="持仓均在候选中" :image-size="40" />
-            </el-card>
+              <EmptyState v-if="!result.to_sell.length" message="持仓均在候选中" />
+            </SectionCard>
 
-            <el-card shadow="never" class="section-card">
-              <template #header>
-                <div class="section-header">
-                  <span>已持有且在候选中</span>
-                  <el-tag type="success" size="small">{{ result.held_in_candidates.length }}</el-tag>
-                </div>
-              </template>
+            <SectionCard title="已持有且在候选中" pad="sm">
+              <template #extra><el-tag type="success" size="small">{{ result.held_in_candidates.length }}</el-tag></template>
               <el-table :data="result.held_in_candidates" size="small" stripe border>
                 <el-table-column prop="stock_code" label="代码" min-width="90" />
                 <el-table-column prop="stock_name" label="名称" min-width="100" />
@@ -83,17 +62,21 @@
                   <template #default="{ row }">{{ formatPct(row.profit_rate) }}</template>
                 </el-table-column>
               </el-table>
-              <el-empty v-if="!result.held_in_candidates.length" description="无交集" :image-size="40" />
-            </el-card>
+              <EmptyState v-if="!result.held_in_candidates.length" message="无交集" />
+            </SectionCard>
           </div>
         </template>
-        <el-empty v-else-if="!loading" description="输入选股结果 ID 后点击「对账」" />
+        <EmptyState v-else-if="!loading" message="输入选股结果 ID 后点击「对账」" />
       </div>
-    </el-card>
-  </div>
+    </SectionCard>
+  </PageShell>
 </template>
 
 <script setup lang="ts">
+import PageShell from '@/components/ui/PageShell.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import SectionCard from '@/components/ui/SectionCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { ref } from 'vue'
 import { reconcilePosition, type ReconcileResponse } from '@/api/reconcile'
 import { errorText } from '@/api/request'
@@ -132,17 +115,8 @@ async function runReconcile() {
 </script>
 
 <style scoped>
-.reconcile-page {
-  max-width: 1200px;
-  margin: 0 auto;
-}
 .reconcile-form {
-  margin-bottom: 8px;
-}
-.hint {
-  margin: 0 0 12px;
-  font-size: 12px;
-  color: var(--text-secondary);
+  margin: 0 0 8px;
 }
 .meta {
   display: flex;
@@ -159,15 +133,5 @@ async function runReconcile() {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 16px;
-}
-.section-card {
-  background: var(--surface-2);
-  border: 1px solid var(--hairline-strong);
-}
-.section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
 }
 </style>

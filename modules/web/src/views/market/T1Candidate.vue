@@ -1,10 +1,8 @@
 <template>
-  <div class="t1-page terminal-page">
-    <el-card shadow="hover">
-      <template #header>
-        <span>T+1 次日候选（涨停基因 · 规则轨优先）</span>
-      </template>
+  <PageShell>
+    <PageHeader title="T+1 次日候选（涨停基因 · 规则轨优先）" subtitle="基于信号日生成次日候选，核销后回填次日表现；含市场情绪快照与历史累计绩效" />
 
+    <SectionCard>
       <el-alert type="info" :closable="false" show-icon class="note-alert"
         :title="result?.score_type === 'CALIBRATED_PROBABILITY' || result?.score_type === 'probability'
           ? ('已按校准概率排序（champion 模型 ' + (result.score_model ?? '') + '）')
@@ -113,7 +111,7 @@
         </el-table-column>
       </el-table>
 
-      <el-empty v-if="!loading && !result" description="选择信号日并点击生成候选" />
+      <EmptyState v-if="!loading && !result" message="选择信号日并点击生成候选" />
 
       <!-- 最近清单 -->
       <template v-if="recent.length">
@@ -177,11 +175,15 @@
         </el-table>
         <p class="note-line" v-if="stats.note">{{ stats.note }}</p>
       </template>
-    </el-card>
-  </div>
+    </SectionCard>
+  </PageShell>
 </template>
 
 <script setup lang="ts">
+import PageShell from '@/components/ui/PageShell.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import SectionCard from '@/components/ui/SectionCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { computed, onMounted, ref } from 'vue'
 import { generateT1Candidates, settleT1Candidates, getT1Candidates, getT1Recent, getT1Stats, type T1CandidatesResponse, type T1StatsResponse } from '@/api/research'
 import { errorText } from '@/api/request'
@@ -338,7 +340,6 @@ onMounted(loadRecent)
 </script>
 
 <style scoped>
-.t1-page { max-width: 1280px; margin: 0 auto; }
 .note-alert { margin-bottom: 14px; }
 .ecology-row { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; }
 .reason-tag { margin-right: 4px; }

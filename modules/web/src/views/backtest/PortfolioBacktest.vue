@@ -608,10 +608,16 @@ onMounted(async () => {
   } catch {
     // 保持默认策略列表
   }
+  window.addEventListener('resize', onResize)
 })
+
+function onResize() {
+  chart?.resize()
+}
 
 onBeforeUnmount(() => {
   stopPolling()
+  window.removeEventListener('resize', onResize)
   chart?.dispose()
 })
 </script>

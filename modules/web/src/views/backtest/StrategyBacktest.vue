@@ -236,9 +236,15 @@ onMounted(async () => {
   } catch {
     // keep defaults
   }
+  window.addEventListener('resize', onResize)
 })
 
+function onResize() {
+  chart?.resize()
+}
+
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', onResize)
   chart?.dispose()
 })
 </script>

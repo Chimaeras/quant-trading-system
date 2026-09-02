@@ -16,39 +16,39 @@
       </template>
     </PageHeader>
 
-    <SectionCard>
-      <div v-loading="loading">
-        <template v-if="result">
-          <el-alert
-            :type="result.overlap_summary.overlap_count > 0 ? 'success' : 'info'"
-            :closable="false"
-            show-icon
-            class="verdict-alert"
-            :title="result.overlap_summary.verdict"
-          />
+    <div v-loading="loading">
+      <template v-if="result">
+        <el-alert
+          :type="result.overlap_summary.overlap_count > 0 ? 'success' : 'info'"
+          :closable="false"
+          show-icon
+          class="verdict-alert"
+          :title="result.overlap_summary.verdict"
+        />
 
-          <div v-if="result.overlap_stocks.length" class="overlap-section">
-            <div class="section-title">多策略重合标的（共识最强）</div>
-            <el-table :data="result.overlap_stocks" size="small" stripe border>
-              <el-table-column prop="stock_code" label="代码" min-width="90" />
-              <el-table-column prop="stock_name" label="名称" min-width="100" />
-              <el-table-column prop="hit_count" label="命中策略数" width="110" />
-              <el-table-column label="命中策略" min-width="240">
-                <template #default="{ row }">
-                  <el-tag v-for="s in row.hit_strategies" :key="s" size="small" class="tag">{{ strategyLabel(s) }}</el-tag>
-                </template>
-              </el-table-column>
-            </el-table>
-          </div>
+        <SectionCard v-if="result.overlap_stocks.length" title="多策略重合标的（共识最强）">
+          <el-table :data="result.overlap_stocks" size="small" stripe border>
+            <el-table-column prop="stock_code" label="代码" min-width="90" />
+            <el-table-column prop="stock_name" label="名称" min-width="100" />
+            <el-table-column prop="hit_count" label="命中策略数" width="110" />
+            <el-table-column label="命中策略" min-width="240">
+              <template #default="{ row }">
+                <el-tag v-for="s in row.hit_strategies" :key="s" size="small" class="tag">{{ strategyLabel(s) }}</el-tag>
+              </template>
+            </el-table-column>
+          </el-table>
+        </SectionCard>
 
-          <div class="section-title">各策略候选并排</div>
+        <SectionCard title="各策略候选并排">
           <div class="grid">
-            <el-card v-for="s in result.strategies" :key="s.strategy" shadow="never" class="strategy-card">
-              <template #header>
-                <div class="card-header">
-                  <span>{{ strategyLabel(s.strategy) }}</span>
-                  <el-tag size="small">{{ s.returned_items }} 只</el-tag>
-                </div>
+            <SectionCard
+              v-for="s in result.strategies"
+              :key="s.strategy"
+              :title="strategyLabel(s.strategy)"
+              pad="sm"
+            >
+              <template #extra>
+                <el-tag size="small">{{ s.returned_items }} 只</el-tag>
               </template>
               <el-table :data="s.top_items" size="small" stripe border>
                 <el-table-column prop="rank_no" label="排名" width="60" />
@@ -58,12 +58,12 @@
                   <template #default="{ row }">{{ formatScore(row.final_score) }}</template>
                 </el-table-column>
               </el-table>
-            </el-card>
+            </SectionCard>
           </div>
-        </template>
-        <EmptyState v-else-if="!loading" message="选择交易日与 TopN 后点击对比" />
-      </div>
-    </SectionCard>
+        </SectionCard>
+      </template>
+      <EmptyState v-else-if="!loading" message="选择交易日与 TopN 后点击对比" />
+    </div>
   </PageShell>
 </template>
 
@@ -129,23 +129,10 @@ onMounted(() => runCompare())
 .verdict-alert {
   margin-bottom: 16px;
 }
-.overlap-section {
-  margin-bottom: 20px;
-}
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 16px;
-}
-.strategy-card {
-  background: var(--surface-2);
-  border: 1px solid var(--hairline-strong);
-}
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
 }
 .tag {
   margin-right: 4px;

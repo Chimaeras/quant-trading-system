@@ -244,6 +244,13 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.section-title {
+  margin: 18px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.2px;
+}
 .capability-tag { margin-left: 8px; }
 .meta { display: flex; gap: 16px; flex-wrap: wrap; margin: 12px 0; color: var(--text-secondary); font-size: 13px; }
 .security-name { color: var(--text-secondary); min-width: 72px; display: inline-block; }

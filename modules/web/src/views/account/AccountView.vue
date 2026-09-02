@@ -477,6 +477,13 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.section-title {
+  margin: 18px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.2px;
+}
 .header-meta { display: flex; align-items: center; gap: 8px; }
 .security-name { color: var(--text-secondary); min-width: 72px; display: inline-block; }
 .session-banner {

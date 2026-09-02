@@ -399,7 +399,7 @@ const universeRows = computed(() => {
         code: e.code,
         name: eventName(e),
         last: (e.detail as any).last,
-        pct: (e.detail as any).pct_chg
+        pct: (e.detail as any).pct_chg == null ? undefined : Number((e.detail as any).pct_chg)
       })
     } else if (e.type === 'ERROR' && e.code && (e.detail as any).scope === 'KLINE_DISABLED' && !rows.has(e.code)) {
       rows.set(e.code, { code: e.code, name: eventName(e), disabled: String((e.detail as any).message || 'KLINE_DISABLED') })

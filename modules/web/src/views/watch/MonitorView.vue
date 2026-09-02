@@ -902,7 +902,7 @@ onBeforeUnmount(() => {
 }
 
 .status-item .label {
-  color: var(--text-secondary, #909399);
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -1062,7 +1062,7 @@ onBeforeUnmount(() => {
 .event-detail pre {
   margin: var(--sp-1) 0 0;
   padding: var(--sp-2);
-  background: var(--bg-secondary, #f5f7fa);
+  background: var(--bg-2);
   border-radius: var(--r-md, 8px);
   font-size: 12px;
   max-height: 240px;

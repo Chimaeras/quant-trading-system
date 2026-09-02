@@ -84,6 +84,7 @@
 
   /* ===== 字体 Typography ===== */
   --font-ui: "Segoe UI", "SF Pro Text", -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --fz-xs: 12px;
   --fz-sm: 13px;
   --fz-md: 14px;

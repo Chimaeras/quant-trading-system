@@ -7,6 +7,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AppTopBar: typeof import('./../components/ui/AppTopBar.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
     ElAutocomplete: typeof import('element-plus/es')['ElAutocomplete']
     ElButton: typeof import('element-plus/es')['ElButton']
@@ -42,9 +43,17 @@ declare module 'vue' {
     ElTabs: typeof import('element-plus/es')['ElTabs']
     ElTag: typeof import('element-plus/es')['ElTag']
     ElTooltip: typeof import('element-plus/es')['ElTooltip']
+    EmptyState: typeof import('./../components/ui/EmptyState.vue')['default']
+    PageHeader: typeof import('./../components/ui/PageHeader.vue')['default']
+    PageShell: typeof import('./../components/ui/PageShell.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    SectionCard: typeof import('./../components/ui/SectionCard.vue')['default']
+    SegmentedNav: typeof import('./../components/ui/SegmentedNav.vue')['default']
+    StatCard: typeof import('./../components/ui/StatCard.vue')['default']
+    StatGrid: typeof import('./../components/ui/StatGrid.vue')['default']
     StatusBadge: typeof import('./../components/ui/StatusBadge.vue')['default']
+    SubNav: typeof import('./../components/ui/SubNav.vue')['default']
     ToastContainer: typeof import('./../components/ui/ToastContainer.vue')['default']
     WatchAccountPanel: typeof import('./../components/WatchAccountPanel.vue')['default']
   }

@@ -79,7 +79,8 @@ textarea:focus-visible {
   background: var(--shell-bg);
 }
 
-.shell > * {
+/* 内容容器置于 ambient 网格之上；网格保持 z-index:0 作为背景装饰 */
+.shell > .panel {
   position: relative;
   z-index: 1;
 }

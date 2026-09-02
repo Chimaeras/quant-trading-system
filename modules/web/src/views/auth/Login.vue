@@ -1,11 +1,13 @@
 <template>
-  <div class="login-page">
-    <div class="login-card glass">
+  <div class="shell login-shell">
+    <div class="ambient-grid" />
+    <div class="login-panel">
+      <div class="login-card glass">
       <div class="login-header">
         <span class="brand-mark">Q</span>
         <div>
           <h1 class="login-title">量化选股系统</h1>
-          <p class="login-subtitle">Quant Trading Terminal</p>
+          <p class="login-subtitle">QUANT TRADING TERMINAL</p>
         </div>
       </div>
       <el-form @submit.prevent="submit" label-position="top">
@@ -21,6 +23,7 @@
         </div>
       </el-form>
       <p class="tip">默认账户 admin / admin123（首次启动自动创建）。鉴权默认关闭，可在 application.yml 开启 quant.auth.enabled。</p>
+    </div>
     </div>
   </div>
 </template>
@@ -77,8 +80,12 @@ async function register() {
 </script>
 
 <style scoped>
-.login-page {
+.login-shell {
   min-height: 100vh;
+}
+
+.login-panel {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -89,7 +96,9 @@ async function register() {
   width: 420px;
   max-width: 100%;
   padding: var(--sp-7);
-  border-radius: var(--r-lg);
+  border-radius: var(--r-xl);
+  animation: riseIn var(--dur-mid) var(--ease) both;
+  box-shadow: var(--shadow-soft);
 }
 
 .login-header {
@@ -102,15 +111,15 @@ async function register() {
 .brand-mark {
   width: 48px;
   height: 48px;
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg);
   background: var(--accent-grad);
-  color: #032237;
+  color: #07101f;
   font-weight: 800;
   font-size: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 6px 18px rgba(88, 185, 255, 0.35);
+  box-shadow: 0 6px 18px rgba(96, 165, 250, 0.35);
   flex-shrink: 0;
 }
 

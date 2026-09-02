@@ -31,29 +31,34 @@ const { toasts, remove } = useToast()
   display: flex;
   align-items: center;
   gap: 8px;
-  border-radius: var(--r-sm);
-  border: 1px solid rgba(145, 196, 255, 0.32);
-  background: rgba(9, 18, 34, 0.95);
+  border-radius: var(--r-md);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg-strong);
   color: var(--text-primary);
   box-shadow: var(--shadow-soft);
   padding: 10px 12px;
+  backdrop-filter: blur(var(--blur));
 }
 
 .dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #58b9ff;
+  background: var(--brand);
+  box-shadow: 0 0 8px var(--brand);
 }
 
 .toast-item[data-type="success"] .dot {
-  background: #1cd6a6;
+  background: var(--ok);
+  box-shadow: 0 0 8px var(--ok);
 }
 .toast-item[data-type="error"] .dot {
-  background: #ff6b7a;
+  background: var(--danger);
+  box-shadow: 0 0 8px var(--danger);
 }
 .toast-item[data-type="warning"] .dot {
-  background: #f4c15d;
+  background: var(--warning);
+  box-shadow: 0 0 8px var(--warning);
 }
 
 .msg {

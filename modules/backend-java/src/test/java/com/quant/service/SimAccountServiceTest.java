@@ -4,6 +4,7 @@ import com.quant.entity.MarketData;
 import com.quant.entity.PositionInfo;
 import com.quant.entity.PositionLot;
 import com.quant.entity.UserAccount;
+import com.quant.exception.BusinessException;
 import com.quant.repository.MarketDataRepository;
 import com.quant.repository.MarketPriceRawRepository;
 import com.quant.repository.PositionInfoRepository;
@@ -23,6 +24,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -216,5 +218,44 @@ class SimAccountServiceTest {
         account.setStatus(1);
         account.setAvailableCash(BigDecimal.valueOf(cash));
         return account;
+    }
+
+    // ---------- 客户端入参解析：非法日期/金额必须报业务错，不得冒泡成 500 ----------
+
+    @Test
+    void createSessionRejectsMalformedStartDate() {
+        when(userAccountRepository.findFirstByUserIdAndStatus(1L, 1)).thenReturn(Optional.of(accountWithCash(100_000)));
+
+        // "2026-6-30" 不是 ISO yyyy-MM-dd，旧实现 LocalDate.parse 直接抛 DateTimeParseException → 500
+        assertThatThrownBy(() -> service.createSession(1L, Map.of("startDate", "2026-6-30")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("日期格式非法");
+    }
+
+    @Test
+    void createSessionRejectsNonNumericCash() {
+        when(userAccountRepository.findFirstByUserIdAndStatus(1L, 1)).thenReturn(Optional.of(accountWithCash(100_000)));
+        when(tradingCalendarService.isTradingDay(any(LocalDate.class))).thenReturn(true);
+
+        assertThatThrownBy(() -> service.createSession(1L, Map.of("startDate", "2026-06-30", "cash", "十万")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("cash")
+                .hasMessageContaining("不是合法数字");
+    }
+
+    @Test
+    void placeOrderRejectsNonNumericPrice() {
+        when(userAccountRepository.findFirstByUserIdAndStatus(1L, 1)).thenReturn(Optional.of(accountWithCash(100_000)));
+
+        Map<String, Object> result = service.placeOrder(1L, Map.of(
+                "stockCode", "000001",
+                "exchangeType", "SZSE",
+                "action", "buy",
+                "volume", 100,
+                "price", "十元"
+        ));
+        assertThat(result.get("status")).isEqualTo("REJECTED");
+        assertThat(String.valueOf(result.get("reject_code"))).isEqualTo("PRICE_RESOLVE_FAILED");
+        assertThat(String.valueOf(result.get("reject_reason"))).contains("不是合法数字");
     }
 }

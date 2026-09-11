@@ -81,6 +81,68 @@ def test_tradability_empty():
     assert not ok and "无数据" in reason
 
 
+def test_tradability_nan_limit_flags_are_not_blocking():
+    """回归：标志列以 NaN/NA 表示「该行不适用」时不得被当成锁定。
+
+    bool(float('nan')) 为 True、bool(pd.NA) 抛 TypeError，旧实现会把整段行情误杀成
+    「一字涨停不可买入」。只有显式为真的标志才应拦截。
+    """
+    for flag in (np.nan, pd.NA, None):
+        df = _synthetic_df(n=300, seed=7)
+        df["limit_up"] = flag
+        df["limit_down"] = flag
+        ok, reason = tradability_check(df)
+        assert ok and reason == "可交易"
+
+    df = _synthetic_df(n=300, seed=8)
+    df["limit_up"] = [pd.NA] * (len(df) - 1) + [True]
+    ok, reason = tradability_check(df)
+    assert not ok and "涨停" in reason
+
+
+def _shape_last_30(df: pd.DataFrame, first_half: float, second_half: float, last5: float, prev5: float) -> pd.DataFrame:
+    """把最后 30 根 bar 的价格/量能改写成指定形状。
+
+    close 前 15 根=10、后 15 根=9 → end < start（下跌）；volume 按 30/15/5 三段给定，
+    用于精确命中 volumePriceType 的放量 / 中段 / 缩量分支。
+    """
+    df = df.copy()
+    df.iloc[-30:-15, df.columns.get_loc("close")] = 10.0
+    df.iloc[-15:, df.columns.get_loc("close")] = 9.0
+    df.iloc[-30:-15, df.columns.get_loc("volume")] = first_half
+    df.iloc[-15:, df.columns.get_loc("volume")] = second_half
+    df.iloc[-10:-5, df.columns.get_loc("volume")] = prev5
+    df.iloc[-5:, df.columns.get_loc("volume")] = last5
+    return df
+
+
+def test_volume_price_type_mid_band_matches_java():
+    """回归：下跌且量能处在中段（既未放量也未缩量）时，Java 归为
+    DOWN_VOL_SHRINK_THEN_WARM_EXPAND(+5)。Python 旧实现落到 DOWN_VOL_SHRINK(0 分)，
+    与 Java 差 5 分，会污染跨端打分对拍。
+    """
+    df = _shape_last_30(_synthetic_df(n=300, seed=9), 1_000_000, 1_000_000, 1_000_000, 1_000_000)
+    r = score_oversold_rebound(df)
+    assert r is not None
+    assert r.detail["volume_price_type"] == "DOWN_VOL_SHRINK_THEN_WARM_EXPAND"
+
+
+def test_volume_price_type_shrink_without_warm_expand():
+    """下跌 + 后段缩量但末 5 日未回暖 → DOWN_VOL_SHRINK（不加 5 分）。"""
+    df = _shape_last_30(_synthetic_df(n=300, seed=10), 1_000_000, 900_000, 900_000, 900_000)
+    r = score_oversold_rebound(df)
+    assert r is not None
+    assert r.detail["volume_price_type"] == "DOWN_VOL_SHRINK"
+
+
+def test_volume_price_type_expand_when_second_half_heavier():
+    """下跌 + 后段放量 >5% → DOWN_VOL_EXPAND（+10 分）。"""
+    df = _shape_last_30(_synthetic_df(n=300, seed=11), 1_000_000, 1_200_000, 1_200_000, 1_200_000)
+    r = score_oversold_rebound(df)
+    assert r is not None
+    assert r.detail["volume_price_type"] == "DOWN_VOL_EXPAND"
+
+
 def test_volume_confirmation_window_pinned_to_java():
     """回归：prev10 必须为 n-13..n-4 含端（10 值），与 Java avg(n-13,n-4) 对齐。
 

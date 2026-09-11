@@ -27,9 +27,11 @@ def _iir_first_order(x: np.ndarray, alpha: float, seed: float) -> np.ndarray:
     if n == 0:
         return out
     if _HAS_SCIPY:
-        # lfilter: y[n] = b0*x[n] - a1*y[n-1]；b=[alpha], a=[1, -(1-alpha)]
-        # zi=[seed] 使首项 = alpha*x[0] + (1-alpha)*seed
-        out, _ = _lfilter([alpha], [1.0, -(1.0 - alpha)], x, zi=[seed])
+        # lfilter: y[n] = b0*x[n] + z[n-1]，状态更新 z[n] = -a1*y[n]。
+        # 初值 z[-1] = -a1*seed = (1-alpha)*seed，故 zi 必须是 (1-alpha)*seed，
+        # 才能得到 y[0] = alpha*x[0] + (1-alpha)*seed，与下方回退口径一致。
+        # （若写成 zi=[seed]，首项会多出 alpha*seed，EMA/MACD/RSI 全体漂移。）
+        out, _ = _lfilter([alpha], [1.0, -(1.0 - alpha)], x, zi=[(1.0 - alpha) * seed])
         return out
     one_minus = 1.0 - alpha
     out[0] = alpha * x[0] + one_minus * seed
@@ -91,7 +93,9 @@ def rsi(series: pd.Series, period: int = 14) -> pd.Series:
     - 前置不足 period 的位置返回 50（与 Java `Arrays.fill(out, 50.0)` 一致）。
     - 首个 RSI（index=period）用前 period 个 delta 的 SMA 初始化 avgGain/avgLoss。
     - 之后用 Wilder 递推：avg = (prev*(period-1) + cur) / period。
-    - 边界：avgLoss≈0（<1e-12）→ 100；avgGain≈0（<1e-12）→ 0；否则 100-100/(1+avgGain/avgLoss)。
+    - 边界：avgGain≈0 且 avgLoss≈0（横盘/停牌复牌，完全无波动）→ 50（中性，与 Java
+      TechnicalIndicators.rsi 的首个分支一致，不应判为超买）；avgLoss≈0（<1e-12）→ 100；
+      avgGain≈0（<1e-12）→ 0；否则 100-100/(1+avgGain/avgLoss)。
 
     实现：avgGain/avgLoss 的 Wilder 递推是一阶 IIR（c=(period-1)/period, d=1/period），
     用 _iir_first_order 向量化后，三分支用 np.where 组装（loss 分支最后应用以保持优先级）。
@@ -132,12 +136,13 @@ def rsi(series: pd.Series, period: int = 14) -> pd.Series:
 
 
 def _rsi_branch(avg_gain: np.ndarray, avg_loss: np.ndarray) -> np.ndarray:
-    """RSI 三分支：avgLoss<1e-12→100（优先）；avgGain<1e-12→0；否则 Wilder 公式。
-
-    loss 分支最后应用，确保两者同时≈0 时返回 100（与 Java if/elif 顺序一致）。
+    """RSI 三分支：avgGain≈0 且 avgLoss≈0 → 50（中性，同 Java 首个分支）；
+    avgLoss<1e-12 → 100；avgGain<1e-12 → 0；否则 Wilder 公式。
     """
     with np.errstate(divide="ignore", invalid="ignore"):
         default = 100.0 - 100.0 / (1.0 + avg_gain / avg_loss)
     res = np.where(avg_gain < 1e-12, 0.0, default)
-    res = np.where(avg_loss < 1e-12, 100.0, res)  # loss 优先，最后覆盖
+    res = np.where(avg_loss < 1e-12, 100.0, res)  # loss 优先
+    # 两者同时≈0（横盘/停牌复牌）→ 50 中性，最后应用以覆盖上面两个分支，与 Java 一致
+    res = np.where((avg_gain < 1e-12) & (avg_loss < 1e-12), 50.0, res)
     return res

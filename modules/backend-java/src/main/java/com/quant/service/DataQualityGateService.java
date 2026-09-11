@@ -106,7 +106,10 @@ public class DataQualityGateService {
         String resolvedSnapshotId = resolveSnapshotId(req.snapshotId());
 
         List<Map<String, Object>> checks = new ArrayList<>();
-        checks.add(checkSnapshot(resolvedSnapshotId, normalizedPurpose));
+        // 传「原始」snapshotId：checkSnapshot 靠「空值」判定 fail-closed（概率任务 MP-002
+        // 要求显式快照，禁止自动兜底为「最新」）。若传已解析的 resolvedSnapshotId，
+        // 只要库里有任意快照该分支就永不可达，概率门禁会被静默替换为「最新」而失效。
+        checks.add(checkSnapshot(req.snapshotId(), normalizedPurpose));
         checks.add(checkTradingCalendar());
         checks.add(checkRawAndQfq(normalizedPurpose));
         checks.add(checkSecurityMaster(normalizedPurpose));

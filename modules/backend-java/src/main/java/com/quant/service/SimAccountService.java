@@ -15,6 +15,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 
 /**
@@ -162,7 +163,7 @@ public class SimAccountService {
         BigDecimal baseCash;
         Object cashObj = request.get("cash");
         if (cashObj != null && !String.valueOf(cashObj).isBlank()) {
-            baseCash = new BigDecimal(String.valueOf(cashObj).trim());
+            baseCash = parseRequiredDecimal(cashObj, "cash");
         } else {
             baseCash = nz(account.getAvailableCash());
         }
@@ -487,7 +488,7 @@ public class SimAccountService {
      */
     private PriceResolve resolvePrice(String stockCode, String exchange, Object priceObj, LocalDate operationDate) {
         if (priceObj != null && !String.valueOf(priceObj).isBlank()) {
-            return new PriceResolve(new BigDecimal(String.valueOf(priceObj)), "CLIENT_SPECIFIED", operationDate);
+            return new PriceResolve(parseRequiredDecimal(priceObj, "price"), "CLIENT_SPECIFIED", operationDate);
         }
         if (operationDate == null) {
             throw new BusinessException("未指定 price 时必须提供 tradeDate（禁止静默使用未标注的最新价）");
@@ -725,7 +726,21 @@ public class SimAccountService {
         if (raw == null || String.valueOf(raw).isBlank()) {
             return null;
         }
-        return LocalDate.parse(String.valueOf(raw).trim());
+        try {
+            return LocalDate.parse(String.valueOf(raw).trim());
+        } catch (DateTimeParseException e) {
+            // 客户端传了非法日期：报 400，而不是让 DateTimeParseException 冒泡成 500
+            throw new BusinessException("日期格式非法（应为 yyyy-MM-dd）：" + raw);
+        }
+    }
+
+    /** 客户端金额/价格解析：非法数字报 400，避免 NumberFormatException 冒泡成 500。 */
+    private static BigDecimal parseRequiredDecimal(Object raw, String field) {
+        try {
+            return new BigDecimal(String.valueOf(raw).trim());
+        } catch (NumberFormatException e) {
+            throw new BusinessException(field + " 不是合法数字：" + raw);
+        }
     }
 
     private record PriceResolve(BigDecimal price, String source, LocalDate tradeDate) {}

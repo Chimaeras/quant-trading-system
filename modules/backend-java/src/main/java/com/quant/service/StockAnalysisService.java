@@ -43,6 +43,13 @@ public class StockAnalysisService {
             volume.add(b.getVolume() != null ? b.getVolume().doubleValue() : 0d);
         }
 
+        // 长度守卫必须基于「过滤后」的有效 close：bars 里可能大量 closePrice 为 null，
+        // 仅按 bars.size() 判断会漏过，后续 ma60 就会在不足 60 根有效收盘上用 avg 的
+        // 内部 clamp 静默降级（把 50 根均值当 MA60 输出），评分/建议随之基于错误口径。
+        if (close.size() < 60) {
+            return insufficientDataResponse(stockCode, exchange, latest);
+        }
+
         double lastClose = close.get(close.size() - 1);
         double ma20 = avg(close, close.size() - 20, close.size() - 1);
         double ma60 = avg(close, close.size() - 60, close.size() - 1);
@@ -140,7 +147,7 @@ public class StockAnalysisService {
         out.put("confidence", 0);
         out.put("message", "历史数据不足，无法分析");
         out.put("data_insufficient", true);
-        out.put("summary", "当前可用K线数据不足70个交易日，无法完成技术面综合评分与结构化建议。请先补充或同步历史行情后再试。");
+        out.put("summary", "当前可用K线数据不足（需至少 70 个交易日且其中 ≥60 根有收盘价），无法完成技术面综合评分与结构化建议。请先补充或同步历史行情后再试。");
         out.put("risk_points", List.of("数据样本不足，无法可靠评估波动率、止损位与回撤风险"));
         out.put("opportunity_points", List.of("历史数据补齐后，可重新生成趋势、动能与量价信号"));
         out.put("tags", List.of("数据不足"));

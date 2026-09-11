@@ -173,12 +173,23 @@ def score_oversold_rebound(df: pd.DataFrame) -> Optional[ScoreResult]:
     v_prev5 = float(volume.iloc[-10:-5].mean())
 
     down = end < start
-    if down and v_second > v_first * 1.05:
-        volume_score += 10
-        vp_type = "DOWN_VOL_EXPAND"
-    elif down and (v_second < v_first * 0.95) and (v_last5 > v_prev5 * 1.05):
-        volume_score += 5
-        vp_type = "DOWN_VOL_SHRINK_THEN_WARM_EXPAND"
+    if down:
+        if v_second > v_first * 1.05:
+            volume_score += 10
+            vp_type = "DOWN_VOL_EXPAND"
+        else:
+            shrink = v_second < v_first * 0.95
+            warm_expand = v_last5 > v_prev5 * 1.05
+            if shrink and warm_expand:
+                volume_score += 5
+                vp_type = "DOWN_VOL_SHRINK_THEN_WARM_EXPAND"
+            elif shrink:
+                vp_type = "DOWN_VOL_SHRINK"
+            else:
+                # 中段（既未放量也未缩量）：Java volumePriceType 归为
+                # SHRINK_THEN_WARM_EXPAND(+5)，此处必须一致，否则两端差 5 分。
+                volume_score += 5
+                vp_type = "DOWN_VOL_SHRINK_THEN_WARM_EXPAND"
     else:
         vp_type = "DOWN_VOL_SHRINK"
 

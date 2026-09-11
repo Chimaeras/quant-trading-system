@@ -13,6 +13,20 @@ from typing import Tuple
 import pandas as pd
 
 
+def _flag_is_true(value) -> bool:
+    """把可选布尔标志安全归一为 bool：None/NaN/NA → False，其余按真值判定。
+
+    必要性：bool(float('nan')) 为 True（会把「不适用」误判为「锁定」），
+    bool(pd.NA) 直接抛 TypeError。标志列在真实行情里常以 NaN 表示该行不适用。
+    """
+    try:
+        if value is None or pd.isna(value):
+            return False
+    except (TypeError, ValueError):
+        return False
+    return bool(value)
+
+
 def tradability_check(df: pd.DataFrame) -> Tuple[bool, str]:
     """检查 df 最后一根 bar 是否可交易。
 
@@ -44,10 +58,12 @@ def tradability_check(df: pd.DataFrame) -> Tuple[bool, str]:
         if vol_raw is None or pd.isna(vol_raw) or float(vol_raw) <= 0:
             return False, "停牌或无成交"
 
-    # 可选列：一字涨跌停锁定（数据源若提供则启用）
-    if "limit_up" in df.columns and bool(last.get("limit_up", False)):
+    # 可选列：一字涨跌停锁定（数据源若提供则启用）。
+    # 标志常为 NaN/NA（该行不适用），必须先归一，只把「显式为真」视为锁定，
+    # 否则 NaN 会把每一行都误杀成一字涨跌停。
+    if "limit_up" in df.columns and _flag_is_true(last.get("limit_up")):
         return False, "一字涨停不可买入"
-    if "limit_down" in df.columns and bool(last.get("limit_down", False)):
+    if "limit_down" in df.columns and _flag_is_true(last.get("limit_down")):
         return False, "一字跌停"
 
     return True, "可交易"

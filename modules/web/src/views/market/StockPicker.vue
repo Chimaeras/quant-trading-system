@@ -833,17 +833,15 @@ function applyResult(data: Record<string, any>) {
   }
   applyQualityMeta(data)
   const incoming = Array.isArray(data.items) ? data.items : Array.isArray(data.list) ? data.list : []
-  const merged = new Map<string, Record<string, any>>()
-  for (const row of results.value) {
-    const key = `${String(row.stock_code || '')}|${String(row.exchange_type || '')}`
-    if (key !== '|') merged.set(key, row)
-  }
+  // 每次结果都是 page=1 的完整快照（result_id 与 meta 已整体替换），必须「替换」而非与
+  // 上一轮求并集；否则换策略 / 改 topN / 换日期重跑会残留上一轮的陈旧行，且成功提示条数虚高。
+  const byKey = new Map<string, Record<string, any>>()
   for (const row of incoming) {
     const key = `${String(row.stock_code || '')}|${String(row.exchange_type || '')}`
     if (key === '|') continue
-    merged.set(key, { ...(merged.get(key) || {}), ...row })
+    byKey.set(key, row)
   }
-  results.value = Array.from(merged.values()).sort((a, b) => {
+  results.value = Array.from(byKey.values()).sort((a, b) => {
     const ar = Number(a.rank_no ?? Number.MAX_SAFE_INTEGER)
     const br = Number(b.rank_no ?? Number.MAX_SAFE_INTEGER)
     if (ar !== br) return ar - br
@@ -1016,7 +1014,6 @@ async function loadHistoryTask(taskId: string) {
   try {
     const t = await scoringApi.getUnifiedScoringTask(taskId)
     setTaskState(t)
-    taskId = t.task_id ?? taskId
     if (t.result_id) {
       resultMeta.result_id = t.result_id
       queryResultId.value = t.result_id

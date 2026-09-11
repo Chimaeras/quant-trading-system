@@ -531,6 +531,10 @@ async function runBackfillRaw() {
     toast.warning('请填写股票代码与起止日期')
     return
   }
+  if (rawForm.startDate > rawForm.endDate) {
+    toast.warning('起始日不能晚于截止日')
+    return
+  }
   rawLoading.value = true
   try {
     const res = await dataApi.backfillRaw({
@@ -576,6 +580,10 @@ async function runInitCalendar() {
     toast.warning('请填写起止日期')
     return
   }
+  if (calendarForm.startDate > calendarForm.endDate) {
+    toast.warning('起始日不能晚于截止日')
+    return
+  }
   calendarLoading.value = true
   try {
     const res = await dataApi.initTradingCalendar({
@@ -595,6 +603,10 @@ async function runInitCalendar() {
 async function runFetchIndex() {
   if (!indexForm.startDate || !indexForm.endDate) {
     toast.warning('请填写起止日期')
+    return
+  }
+  if (indexForm.startDate > indexForm.endDate) {
+    toast.warning('起始日不能晚于截止日')
     return
   }
   indexLoading.value = true
@@ -637,6 +649,10 @@ async function runReplay() {
     toast.warning('请填写起止日期')
     return
   }
+  if (replayForm.startDate > replayForm.endDate) {
+    toast.warning('起始日不能晚于截止日')
+    return
+  }
   replayLoading.value = true
   try {
     replayResult.value = await dataApi.runReplay({
@@ -662,6 +678,10 @@ async function runBuildLabels() {
   }
   if (!labelForm.dataSnapshotId) {
     toast.warning('请先选择/创建数据快照（新研究必须绑定快照）')
+    return
+  }
+  if (labelForm.startDate > labelForm.endDate) {
+    toast.warning('起始日不能晚于截止日')
     return
   }
   labelBuilding.value = true

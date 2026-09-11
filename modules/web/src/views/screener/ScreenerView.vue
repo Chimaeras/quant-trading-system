@@ -190,7 +190,9 @@ function applyTemplate(t: ScreenerTemplate) {
   form.minListingDays = t.min_listing_days || 60
   form.excludeSt = t.exclude_st ?? true
   toast.success('已加载模板：' + t.name)
-  run()
+  // 模板换了筛选条件，页码必须回到第 1 页；否则会带着上一条件的页码去请求，
+  // 轻则空结果，重则切页时报出的总数与实际条件不符。
+  resetPageAndRun()
 }
 
 async function removeTemplate(t: ScreenerTemplate) {

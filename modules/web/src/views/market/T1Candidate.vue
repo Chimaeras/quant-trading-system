@@ -331,6 +331,10 @@ async function loadStats() {
     toast.warning('请选择绩效统计区间')
     return
   }
+  if (statsStart.value > statsEnd.value) {
+    toast.warning('起始日不能晚于截止日')
+    return
+  }
   statsLoading.value = true
   try {
     stats.value = await getT1Stats({ startDate: statsStart.value, endDate: statsEnd.value })

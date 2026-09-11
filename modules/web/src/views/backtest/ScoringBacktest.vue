@@ -1204,6 +1204,10 @@ function onResize() {
 }
 
 async function runTurnover() {
+  if (form.startDate > form.endDate) {
+    toast.warning('开始日期不能晚于结束日期')
+    return
+  }
   turnoverLoading.value = true
   try {
     turnover.value = await analyzeTurnover({
@@ -1222,6 +1226,10 @@ async function runTurnover() {
 async function runStability() {
   if (!form.strategyType) {
     toast.warning('请先选择策略类型')
+    return
+  }
+  if (form.startDate > form.endDate) {
+    toast.warning('开始日期不能晚于结束日期')
     return
   }
   stabilityLoading.value = true

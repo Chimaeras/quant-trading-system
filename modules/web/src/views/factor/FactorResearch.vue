@@ -447,6 +447,10 @@ async function runUnified() {
     toast.warning('请选择起止日期')
     return
   }
+  if (startDate.value > endDate.value) {
+    toast.warning('起始日不能晚于截止日')
+    return
+  }
   unifiedLoading.value = true
   try {
     unifiedResult.value = await getUnifiedFactorReport({

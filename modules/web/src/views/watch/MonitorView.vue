@@ -57,8 +57,62 @@
       </div>
     </el-card>
 
+    <!-- ② 策略推荐：置顶全宽，避免被右侧账户区挤没 -->
+    <el-card shadow="never" class="panel recommend-panel">
+      <template #header>
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>策略推荐（{{ recommendRows.length }}）</span>
+            <span class="panel-hint">买卖信号始终展示；仓位/板块拦截只标状态，不隐藏</span>
+          </div>
+          <el-tag v-if="adviceError" type="danger" size="small">推荐数据加载失败，将自动重试</el-tag>
+          <el-tag v-else-if="!recommendRows.length && serviceUp" type="info" size="small">暂无买卖信号</el-tag>
+        </div>
+      </template>
+      <div ref="recommendHostRef" class="table-host">
+        <el-table
+          class="watch-table recommend-table"
+          :height="hostHeights.recommend"
+          :data="recommendRows"
+          size="small"
+          empty-text="暂无买卖信号（有信号时会显示在这里）"
+          @row-click="(row: any) => openDetail(row)"
+        >
+          <el-table-column prop="ts" label="时间" min-width="96">
+            <template #default="{ row }">{{ row.ts.slice(11) }}</template>
+          </el-table-column>
+          <el-table-column prop="code" label="代码" min-width="78">
+            <template #default="{ row }">
+              <el-link type="primary" :underline="false">{{ row.code }}</el-link>
+            </template>
+          </el-table-column>
+          <el-table-column prop="name" label="名称" min-width="100" show-overflow-tooltip />
+          <el-table-column label="方向" min-width="56">
+            <template #default="{ row }">
+              <span :class="row.action === 'buy' ? 'up' : 'down'">{{ row.action === 'buy' ? '买' : '卖' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="strategy" label="策略" min-width="88" show-overflow-tooltip />
+          <el-table-column label="建议量" min-width="72" align="right">
+            <template #default="{ row }">{{ row.qty ?? '—' }}</template>
+          </el-table-column>
+          <el-table-column label="参考价" min-width="78" align="right">
+            <template #default="{ row }">{{ fmtPrice(row.price) }}</template>
+          </el-table-column>
+          <el-table-column label="参考状态" min-width="150">
+            <template #default="{ row }">
+              <el-tag :type="row.statusType" size="small">{{ row.statusLabel }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="触发" min-width="160" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.reasons }}</template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </el-card>
+
     <div class="main-grid">
-      <!-- ② 观察池 -->
+      <!-- ③ 观察池 -->
       <el-card shadow="never" class="panel universe-panel">
         <template #header>
           <div class="panel-header pool-header">
@@ -73,8 +127,8 @@
             </div>
           </div>
         </template>
-        <div class="table-host">
-          <el-table class="watch-table pool-table" :data="universeRows" size="small" @row-click="openDetail" highlight-current-row>
+        <div ref="poolHostRef" class="table-host">
+          <el-table class="watch-table pool-table" :height="hostHeights.pool" :data="universeRows" size="small" @row-click="openDetail" highlight-current-row>
           <el-table-column prop="code" label="代码" min-width="84">
             <template #default="{ row }">
               <el-link type="primary" :underline="false">{{ row.code }}</el-link>
@@ -121,7 +175,7 @@
         </div>
       </el-card>
 
-      <!-- ③ 分析过程流 -->
+      <!-- ④ 分析过程流 -->
       <el-card shadow="never" class="panel events-panel">
         <template #header>
           <div class="panel-header">
@@ -135,12 +189,13 @@
               </el-select>
               <el-input v-model="codeFilter" placeholder="代码" clearable size="small" style="width: 100px" />
               <el-switch v-model="hideNoise" active-text="隐藏行情噪音" size="small" />
+              <el-switch v-model="signalsOnly" active-text="只看买卖信号" size="small" />
               <el-switch v-model="tradesOnly" active-text="只看成交" size="small" />
             </div>
           </div>
         </template>
-        <div class="table-host">
-          <el-table class="watch-table events-table" :data="filteredEvents" size="small" border :row-key="(r: any) => r.seq">
+        <div ref="eventsHostRef" class="table-host">
+          <el-table class="watch-table events-table" :height="hostHeights.events" :data="filteredEvents" size="small" border :row-key="(r: any) => r.seq">
           <el-table-column prop="ts" label="时间" min-width="106">
             <template #default="{ row }">{{ row.ts.slice(11) }}</template>
           </el-table-column>
@@ -177,7 +232,7 @@
       </el-card>
 
       <div class="right-column">
-        <!-- ④ 交易动作 -->
+        <!-- ⑤ 成交记录 -->
         <el-card shadow="never" class="panel submits-panel">
           <template #header>
             <div class="panel-header">
@@ -187,8 +242,8 @@
               </div>
             </div>
           </template>
-          <div class="table-host">
-            <el-table class="watch-table submits-table" :data="tradeActionRows" size="small">
+          <div ref="submitsHostRef" class="table-host">
+            <el-table class="watch-table submits-table" :height="hostHeights.submits" :data="tradeActionRows" size="small">
             <el-table-column prop="ts" label="时间" min-width="100">
               <template #default="{ row }">{{ row.ts.slice(11) }}</template>
             </el-table-column>
@@ -227,7 +282,7 @@
           </div>
         </el-card>
 
-        <!-- ⑤ 统一盯盘账户投影 -->
+        <!-- ⑥ 统一盯盘账户投影 -->
         <WatchAccountPanel :trade-date="selectedDate" />
       </div>
     </div>
@@ -256,7 +311,7 @@
 
 <script setup lang="ts">
 import WatchAccountPanel from '@/components/WatchAccountPanel.vue'
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, nextTick } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, nextTick } from 'vue'
 import {
   addWatchPoolMember,
   fetchDays,
@@ -278,6 +333,8 @@ const MAX_EVENTS = 500
 /** 表格只渲染最近 N 条，避免 el-table 全量重绘卡死主线程 */
 const DISPLAY_EVENTS = 80
 const DISPLAY_SUBMITS = 100
+const DISPLAY_RECOMMENDS = 80
+const MAX_ADVICE = 3000
 const REFRESH_MS = 5000
 const POOL_REFRESH_TICKS = 6
 const MARKET_QUOTE_LIMIT = 200
@@ -285,12 +342,17 @@ const NAME_LOOKUP_RETRY_MS = 5 * 60 * 1000
 /** 行情类事件默认折叠，减少过程流噪音与 DOM 压力 */
 const NOISE_TYPES = new Set(['QUOTE', 'QUOTE_FAIL', 'QUOTE_QUALITY'])
 const TRADE_EVENT_QUERY = 'SUBMIT,FILL'
+const ADVICE_EVENT_QUERY = 'SIGNAL,SIZING,RISK_GATE'
+const ADVICE_TYPES = new Set(['SIGNAL', 'SIZING', 'RISK_GATE'])
 
 const days = shallowRef<string[]>([])
 const selectedDate = ref('')
 // 接口数据按快照整体替换；使用 shallowRef 避免 Vue 深度代理大型事件 detail。
 const events = shallowRef<WatchEvent[]>([])
 const tradeEvents = shallowRef<WatchEvent[]>([])
+/** 独立缓存买卖信号链路，避免被行情噪音事件挤出 MAX_EVENTS 窗口 */
+const adviceEvents = shallowRef<WatchEvent[]>([])
+const adviceError = ref(false)
 const state = shallowRef<Awaited<ReturnType<typeof fetchState>> | null>(null)
 const marketSnapshot = shallowRef<WatchMarketSnapshot | null>(null)
 const watchPool = shallowRef<WatchPoolResponse | null>(null)
@@ -303,6 +365,7 @@ const adding = ref(false)
 const typeFilter = ref('')
 const codeFilter = ref('')
 const tradesOnly = ref(false)
+const signalsOnly = ref(false)
 const hideNoise = ref(true)
 const typeOptions = ['CYCLE', 'READINESS', 'MARKET_DATA', 'ACTIVE_POOL', 'QUOTE', 'QUOTE_FAIL', 'QUOTE_QUALITY', 'BAR_CLOSED', 'SIGNAL', 'SIZING', 'RISK_GATE', 'ORDER', 'SUBMIT', 'FILL', 'CANCEL', 'ACCOUNT', 'ERROR']
 let refreshTick = 0
@@ -313,6 +376,17 @@ const detailName = ref('')
 const securityNames = shallowRef<Record<string, string>>({})
 const nameLookupAt = new Map<string, number>()
 const chartRef = ref<HTMLElement | null>(null)
+const recommendHostRef = ref<HTMLElement | null>(null)
+const poolHostRef = ref<HTMLElement | null>(null)
+const eventsHostRef = ref<HTMLElement | null>(null)
+const submitsHostRef = ref<HTMLElement | null>(null)
+const hostHeights = reactive({
+  recommend: 200,
+  pool: 320,
+  events: 320,
+  submits: 180,
+})
+const hostObservers: ResizeObserver[] = []
 type ChartRuntime = typeof import('@/utils/echartsTheme')
 type ChartInstance = ReturnType<ChartRuntime['echarts']['init']>
 let chartRuntimePromise: Promise<ChartRuntime> | null = null
@@ -323,6 +397,21 @@ let refreshEpoch = 0
 let refreshSequence = 0
 let lastAppliedRefresh = 0
 let disposed = false
+
+function bindHostHeight(el: HTMLElement | null, key: keyof typeof hostHeights, fallback: number) {
+  if (!el || typeof ResizeObserver === 'undefined') {
+    hostHeights[key] = fallback
+    return
+  }
+  const apply = () => {
+    const next = Math.max(120, Math.floor(el.clientHeight))
+    if (next > 0 && next !== hostHeights[key]) hostHeights[key] = next
+  }
+  apply()
+  const observer = new ResizeObserver(apply)
+  observer.observe(el)
+  hostObservers.push(observer)
+}
 
 const lastCycle = computed(() => {
   for (let i = events.value.length - 1; i >= 0; i -= 1) {
@@ -425,6 +514,35 @@ function isBuyOrSellSignal(event: WatchEvent): boolean {
   return action === 'buy' || action === 'sell'
 }
 
+function mergeEventsBySeq(existing: WatchEvent[], incoming: WatchEvent[], limit: number): WatchEvent[] {
+  const bySeq = new Map<number, WatchEvent>()
+  for (const event of existing) bySeq.set(event.seq, event)
+  for (const event of incoming) bySeq.set(event.seq, event)
+  return [...bySeq.values()].sort((left, right) => left.seq - right.seq).slice(-limit)
+}
+
+function riskStatusMeta(result: string, reason: string): { label: string; type: 'success' | 'warning' | 'info' | 'danger' } {
+  const normalized = String(result || '').toUpperCase()
+  const code = String(reason || '').trim()
+  if (normalized === 'PASS') return { label: '风控通过', type: 'success' }
+  const labels: Record<string, string> = {
+    TOTAL_WEIGHT_EXCEEDED: '仓位已满·仅供参考',
+    BOARD_BLOCKED_CHINEXT: '创业板受限·仅供参考',
+    BOARD_BLOCKED_STAR: '科创板受限·仅供参考',
+    LIMIT_UP_NOT_BUYABLE: '涨停买不进·仅供参考',
+    NEAR_LIMIT_UP: '临近涨停·仅供参考',
+    FUNDS: '资金不足·仅供参考',
+    CASH_RESERVE_FLOOR: '现金留存·仅供参考',
+    MAX_TRADES_PER_DAY: '日成交上限·仅供参考',
+    MAX_TRADES_PER_CYCLE: '轮次上限·仅供参考',
+    COOLDOWN: '冷却中·仅供参考',
+    HALT: '停牌/熔断·仅供参考',
+  }
+  if (code && labels[code]) return { label: labels[code], type: 'warning' }
+  if (code) return { label: `${code}·仅供参考`, type: 'warning' }
+  return { label: '风控拦截·仅供参考', type: 'warning' }
+}
+
 const filteredEvents = computed(() => {
   const result: Array<WatchEvent & { name: string }> = []
   for (let i = events.value.length - 1; i >= 0 && result.length < DISPLAY_EVENTS; i -= 1) {
@@ -434,6 +552,7 @@ const filteredEvents = computed(() => {
     if (typeFilter.value && event.type !== typeFilter.value) continue
     if (codeFilter.value && event.code !== codeFilter.value) continue
     if (tradesOnly.value && !isFinalFillEvent(event)) continue
+    if (signalsOnly.value && !(event.type === 'SIGNAL' && isBuyOrSellSignal(event))) continue
     result.push({ ...event, name: eventName(event) })
   }
   return result
@@ -458,6 +577,69 @@ function isSupersededKlineEvent(event: WatchEvent): boolean {
   const latest = latestKlineEvents.value.get(event.code)
   return Boolean(latest && latest.seq !== event.seq)
 }
+
+const recommendRows = computed(() => {
+  // 优先用独立 advice 缓存；若首次加载失败，回退到主事件流中的买卖信号
+  const primary = adviceEvents.value
+  const fallback = events.value.filter((event) => ADVICE_TYPES.has(event.type))
+  const list = primary.length ? primary : fallback
+  const rows: Array<{
+    seq: number
+    ts: string
+    code: string
+    name: string
+    action: string
+    strategy: string
+    qty?: number
+    price?: number
+    statusLabel: string
+    statusType: 'success' | 'warning' | 'info' | 'danger'
+    reasons: string
+  }> = []
+  for (let i = list.length - 1; i >= 0 && rows.length < DISPLAY_RECOMMENDS; i -= 1) {
+    const event = list[i]
+    if (event.type !== 'SIGNAL' || !event.code) continue
+    const detail = event.detail as any
+    const action = String(detail.action || '').trim().toLowerCase()
+    if (action !== 'buy' && action !== 'sell') continue
+
+    let sizing: WatchEvent | null = null
+    let risk: WatchEvent | null = null
+    for (let j = i + 1; j < list.length && j <= i + 40; j += 1) {
+      const next = list[j]
+      if (next.code !== event.code || next.cycle !== event.cycle) continue
+      if (next.type === 'SIZING' && !sizing) sizing = next
+      if (next.type === 'RISK_GATE' && !risk) risk = next
+      if (sizing && risk) break
+    }
+
+    const sizingDetail = (sizing?.detail || {}) as any
+    const riskDetail = (risk?.detail || {}) as any
+    const qtyRaw = Number(sizingDetail.final_qty ?? riskDetail.qty)
+    const priceRaw = Number(sizingDetail.last ?? riskDetail.limit_price)
+    const status = risk
+      ? riskStatusMeta(String(riskDetail.result || ''), String(riskDetail.reject_reason || ''))
+      : { label: '待风控确认', type: 'info' as const }
+    const reasons = Array.isArray(detail.reason_codes)
+      ? detail.reason_codes.join(',')
+      : String(detail.reason || detail.strategy || '—')
+
+    rows.push({
+      seq: event.seq,
+      ts: event.ts,
+      code: event.code,
+      name: eventName(event),
+      action,
+      strategy: String(detail.strategy || '—'),
+      qty: Number.isFinite(qtyRaw) && qtyRaw > 0 ? qtyRaw : undefined,
+      price: Number.isFinite(priceRaw) && priceRaw > 0 ? priceRaw : undefined,
+      statusLabel: status.label,
+      statusType: status.type,
+      reasons: reasons || '—',
+    })
+  }
+  return rows
+})
 
 const tradeActionRows = computed(() => {
   const orderPrices = new Map<string, number>()
@@ -639,6 +821,7 @@ function onDateChange() {
   refreshEpoch += 1
   events.value = []
   tradeEvents.value = []
+  adviceEvents.value = []
   cursor = 0
   void refresh(true)
 }
@@ -653,9 +836,12 @@ async function refresh(full = false) {
   try {
     refreshTick += 1
     if (full) {
-      const [{ events: all }, { events: trades }, st, market, pool, tickData] = await Promise.all([
+      const [allRes, tradesRes, adviceRes, st, market, pool, tickData] = await Promise.all([
         fetchEvents(requestDate, 0, { limit: MAX_EVENTS, latest: true }),
         fetchEvents(requestDate, 0, { type: TRADE_EVENT_QUERY, limit: DISPLAY_SUBMITS, latest: true }),
+        fetchEvents(requestDate, 0, { type: ADVICE_EVENT_QUERY, limit: MAX_ADVICE, latest: true })
+          .then((res) => ({ ok: true as const, res }))
+          .catch((error) => ({ ok: false as const, error })),
         fetchState(requestDate),
         fetchMarket(requestDate, MARKET_QUOTE_LIMIT),
         fetchWatchPool(),
@@ -665,22 +851,35 @@ async function refresh(full = false) {
         disposed || requestEpoch !== refreshEpoch || requestDate !== selectedDate.value
         || requestId < lastAppliedRefresh
       ) return
-      events.value = all
-      tradeEvents.value = trades
+      events.value = allRes.events
+      tradeEvents.value = tradesRes.events
+      if (adviceRes.ok) {
+        adviceEvents.value = adviceRes.res.events
+        adviceError.value = false
+        void ensureSecurityNames(adviceRes.res.events)
+      } else {
+        adviceError.value = true
+      }
       eventsChanged = true
-      cursor = all.length ? all[all.length - 1].seq : 0
+      cursor = allRes.events.length ? allRes.events[allRes.events.length - 1].seq : 0
       state.value = st
       marketSnapshot.value = market
       watchPool.value = pool
       ticks.value = tickData.ticks
       lastAppliedRefresh = requestId
-      void ensureSecurityNames(all)
+      void ensureSecurityNames(allRes.events)
     } else {
       const refreshSnapshot = refreshTick % 2 === 0
       const refreshPool = refreshTick % POOL_REFRESH_TICKS === 0
+      const refreshAdvice = refreshTick % 3 === 0 || adviceError.value || adviceEvents.value.length === 0
       // 事件与快照并发拉取，避免代理耗时串联；观察池低频刷新即可。
-      const [{ events: inc }, st, market, pool, tickData] = await Promise.all([
+      const [{ events: inc }, adviceRes, st, market, pool, tickData] = await Promise.all([
         fetchEvents(requestDate, requestCursor, { limit: 200 }),
+        refreshAdvice
+          ? fetchEvents(requestDate, 0, { type: ADVICE_EVENT_QUERY, limit: MAX_ADVICE, latest: true })
+              .then((res) => ({ ok: true as const, res }))
+              .catch((error) => ({ ok: false as const, error }))
+          : Promise.resolve(null),
         refreshSnapshot ? fetchState(requestDate) : Promise.resolve(state.value),
         refreshSnapshot ? fetchMarket(requestDate, MARKET_QUOTE_LIMIT) : Promise.resolve(marketSnapshot.value),
         refreshPool ? fetchWatchPool() : Promise.resolve(watchPool.value),
@@ -696,12 +895,24 @@ async function refresh(full = false) {
         events.value = [...events.value, ...inc].slice(-MAX_EVENTS)
         const tradeInc = inc.filter((event) => event.type === 'SUBMIT' || event.type === 'FILL')
         if (tradeInc.length) {
-          const bySeq = new Map([...tradeEvents.value, ...tradeInc].map((event) => [event.seq, event]))
-          tradeEvents.value = [...bySeq.values()].sort((left, right) => left.seq - right.seq).slice(-DISPLAY_SUBMITS)
+          tradeEvents.value = mergeEventsBySeq(tradeEvents.value, tradeInc, DISPLAY_SUBMITS)
+        }
+        const adviceInc = inc.filter((event) => ADVICE_TYPES.has(event.type))
+        if (adviceInc.length) {
+          adviceEvents.value = mergeEventsBySeq(adviceEvents.value, adviceInc, MAX_ADVICE)
         }
         eventsChanged = true
         cursor = inc[inc.length - 1].seq
         void ensureSecurityNames(inc)
+      }
+      if (adviceRes) {
+        if (adviceRes.ok) {
+          adviceEvents.value = adviceRes.res.events
+          adviceError.value = false
+          eventsChanged = true
+        } else {
+          adviceError.value = true
+        }
       }
       state.value = st
       marketSnapshot.value = market
@@ -853,6 +1064,11 @@ function onVisibilityChange() {
 
 onMounted(async () => {
   await initialLoad()
+  await nextTick()
+  bindHostHeight(recommendHostRef.value, 'recommend', 200)
+  bindHostHeight(poolHostRef.value, 'pool', 320)
+  bindHostHeight(eventsHostRef.value, 'events', 320)
+  bindHostHeight(submitsHostRef.value, 'submits', 180)
   document.addEventListener('visibilitychange', onVisibilityChange)
   scheduleRefresh()
 })
@@ -860,6 +1076,7 @@ onBeforeUnmount(() => {
   disposed = true
   document.removeEventListener('visibilitychange', onVisibilityChange)
   if (timer) window.clearTimeout(timer)
+  while (hostObservers.length) hostObservers.pop()?.disconnect()
   chart?.dispose()
   chart = null
 })
@@ -875,11 +1092,19 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: var(--sp-3);
   min-height: 0;
-  /* 页面本身只负责纵向滚动，横向滚动交给各个 table-host。 */
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-gutter: stable both-edges;
+  /* 视口内铺满：滚动只发生在各 panel 的 table-host / el-table 内，避免拖到页底才见到横滚条 */
+  overflow: hidden;
   overscroll-behavior: contain;
+}
+
+.status-bar {
+  flex: 0 0 auto;
+}
+
+.recommend-panel {
+  flex: 0 0 240px;
+  height: 240px;
+  max-height: 240px;
 }
 
 .status-bar :deep(.el-card__body) {
@@ -916,13 +1141,13 @@ onBeforeUnmount(() => {
 }
 
 .main-grid {
-  flex: 1;
+  flex: 1 1 0;
   min-height: 0;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   display: grid;
-  /* 轨道允许收缩；表格的最小可读宽度由 table-host 内部横向滚动承接。 */
+  /* 轨道允许收缩；表格的最小可读宽度由 table-host / el-table 内部横向滚动承接。 */
   grid-template-columns: minmax(0, 420px) minmax(0, 1fr) minmax(0, 430px);
   grid-template-rows: minmax(0, 1fr);
   gap: var(--sp-3);
@@ -932,25 +1157,32 @@ onBeforeUnmount(() => {
 
 .right-column {
   display: grid;
-  /* 交易动作只保留紧凑的可滚动区域，把主要空间让给账户明细。 */
-  grid-template-rows: minmax(180px, 2fr) minmax(300px, 5fr);
+  grid-template-rows: minmax(0, 2fr) minmax(0, 5fr);
   gap: var(--sp-3);
   min-height: 0;
   min-width: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .panel {
-  display: flex;
+  display: flex !important;
   flex-direction: column;
+  height: 100%;
+  max-height: 100%;
   min-height: 0;
   min-width: 0;
   overflow: hidden;
 }
 
+.panel :deep(.el-card__header) {
+  flex: 0 0 auto;
+}
+
 .panel :deep(.el-card__body) {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  flex: 1 1 0;
   min-height: 0;
   padding: var(--sp-2);
   min-width: 0;
@@ -993,53 +1225,101 @@ onBeforeUnmount(() => {
 }
 
 .table-host {
-  /* 让外层成为唯一滚动容器，避免 el-table 的 height=100% 把纵向滚动截留在内部，
-     进而把横向滚动条推到有限高度之外。 */
-  flex: 1 1 auto;
+  flex: 1 1 0;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   min-height: 0;
-  display: block;
-  scrollbar-width: thin;
-  overflow-x: auto;
-  overflow-y: auto;
+  position: relative;
+  overflow: hidden;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable both-edges;
 }
 
 .watch-table {
-  min-height: max-content;
+  width: 100%;
+  --el-table-bg-color: #111827;
+  --el-table-tr-bg-color: #111827;
+  --el-table-header-bg-color: #1e293b;
+  --el-table-text-color: #e5edf7;
+  --el-table-header-text-color: #cbd5e1;
+  --el-table-border-color: rgba(148, 163, 184, 0.22);
+  --el-table-row-hover-bg-color: rgba(37, 99, 235, 0.28);
+  --el-table-current-row-bg-color: rgba(37, 99, 235, 0.34);
+  background: #111827 !important;
+  color: #e5edf7 !important;
 }
 
-/* 给表格保留真实内容宽度，字段不再被强行压扁；窄屏通过 table-host 横向滚动查看。 */
+.watch-table :deep(.el-table__inner-wrapper),
+.watch-table :deep(.el-table__header-wrapper),
+.watch-table :deep(.el-table__body-wrapper),
+.watch-table :deep(.el-table__footer-wrapper),
+.watch-table :deep(.el-table__empty-block) {
+  background: #111827 !important;
+}
+
+.watch-table :deep(.el-table__body-wrapper) {
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  scrollbar-width: thin;
+}
+
+.watch-table :deep(.el-table__header-wrapper) {
+  overflow-x: hidden !important;
+}
+
+.watch-table :deep(th.el-table__cell) {
+  background: #1e293b !important;
+  color: #cbd5e1 !important;
+  border-bottom-color: rgba(148, 163, 184, 0.22) !important;
+}
+
+.watch-table :deep(td.el-table__cell) {
+  background: #111827 !important;
+  color: #e5edf7 !important;
+  border-bottom-color: rgba(148, 163, 184, 0.14) !important;
+}
+
+.watch-table :deep(.cell) {
+  color: inherit;
+}
+
+.watch-table :deep(tbody tr:hover > td.el-table__cell),
+.watch-table :deep(tbody tr.current-row > td.el-table__cell) {
+  background: rgba(37, 99, 235, 0.28) !important;
+  color: #e5edf7 !important;
+}
+
+.watch-table :deep(.el-table__expanded-cell),
+.signal-table :deep(td.el-table__cell),
+.signal-table :deep(th.el-table__cell) {
+  background: #1e293b !important;
+  color: #e5edf7 !important;
+}
+
+/* 列最小宽度保证字段可读；超出面板宽度时在表格内横向滚动 */
 .pool-table { min-width: 700px; }
 .events-table { min-width: 930px; }
 .submits-table { min-width: 820px; }
+.recommend-table { min-width: 960px; }
 
-.table-host::-webkit-scrollbar {
+.table-host :deep(.el-table__body-wrapper)::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 
-.table-host::-webkit-scrollbar-track {
+.table-host :deep(.el-table__body-wrapper)::-webkit-scrollbar-track {
   background: var(--surface-2);
   border-radius: var(--r-pill);
 }
 
-.table-host::-webkit-scrollbar-thumb {
+.table-host :deep(.el-table__body-wrapper)::-webkit-scrollbar-thumb {
   background: var(--accent-1);
   border: 2px solid var(--surface-2);
   border-radius: var(--r-pill);
 }
 
-.table-host::-webkit-scrollbar-thumb:hover {
+.table-host :deep(.el-table__body-wrapper)::-webkit-scrollbar-thumb:hover {
   background: var(--accent-2);
-}
-
-.table-host :deep(.el-table__body-wrapper),
-.table-host :deep(.el-table__header-wrapper) {
-  scrollbar-gutter: stable;
 }
 
 .panel-hint {
@@ -1087,6 +1367,11 @@ onBeforeUnmount(() => {
 
 .signal-table {
   margin-top: var(--sp-3);
+  --el-table-bg-color: #111827;
+  --el-table-tr-bg-color: #111827;
+  --el-table-header-bg-color: #1e293b;
+  background: #111827 !important;
+  color: #e5edf7 !important;
 }
 
 .up {
@@ -1100,9 +1385,9 @@ onBeforeUnmount(() => {
 /* 三列布局在窄屏下会让中间事件流失去可读宽度，改为纵向堆叠。 */
 @media (max-width: 1100px) {
   .watch-monitor {
-    height: auto;
+    height: 100%;
     min-width: 0;
-    min-height: 100%;
+    overflow: hidden;
   }
 
   .status-row {
@@ -1119,22 +1404,30 @@ onBeforeUnmount(() => {
     display: flex;
     flex-direction: column;
     min-width: 0;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .universe-panel,
-  .events-panel {
-    min-height: 420px;
+  .events-panel,
+  .submits-panel {
+    flex: 0 0 auto;
+    height: min(52vh, 520px);
+    max-height: min(52vh, 520px);
+  }
+
+  .recommend-panel {
+    flex: 0 0 220px;
+    height: 220px;
+    max-height: 220px;
   }
 
   .right-column {
     display: flex;
     flex-direction: column;
-    min-height: 680px;
-  }
-
-  .submits-panel {
-    min-height: 260px;
+    min-height: 0;
+    height: auto;
+    overflow: visible;
   }
 
   .filters {

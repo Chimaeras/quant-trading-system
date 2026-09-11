@@ -5,6 +5,35 @@
  * 仅覆盖外观变量与必要样式，不改变组件行为；不触及业务逻辑。
  */
 
+/* ===== Element Plus 全局 CSS 变量（避免默认白底 + 浅色字对比失效） ===== */
+:root {
+  --el-bg-color: var(--bg-1);
+  --el-bg-color-page: var(--bg-0);
+  --el-bg-color-overlay: var(--bg-2);
+  --el-text-color-primary: var(--text-primary);
+  --el-text-color-regular: var(--text-primary);
+  --el-text-color-secondary: var(--text-secondary);
+  --el-text-color-placeholder: var(--text-dim);
+  --el-text-color-disabled: var(--text-muted);
+  --el-border-color: var(--hairline-strong);
+  --el-border-color-light: var(--hairline);
+  --el-border-color-lighter: var(--hairline);
+  --el-border-color-extra-light: rgba(226, 232, 240, 0.06);
+  --el-fill-color: var(--bg-2);
+  --el-fill-color-light: rgba(30, 41, 59, 0.72);
+  --el-fill-color-lighter: rgba(30, 41, 59, 0.45);
+  --el-fill-color-blank: var(--bg-1);
+  --el-fill-color-extra-light: rgba(15, 23, 42, 0.55);
+  --el-mask-color: rgba(2, 6, 12, 0.7);
+  --el-color-primary: var(--brand);
+  --el-color-primary-light-3: #93c5fd;
+  --el-color-primary-light-5: rgba(96, 165, 250, 0.45);
+  --el-color-primary-light-7: rgba(96, 165, 250, 0.28);
+  --el-color-primary-light-8: rgba(96, 165, 250, 0.18);
+  --el-color-primary-light-9: rgba(96, 165, 250, 0.12);
+  --el-color-primary-dark-2: var(--brand-deep);
+}
+
 /* ===== Card 卡片 ===== */
 .el-card {
   --el-card-bg-color: var(--surface-1);
@@ -136,44 +165,86 @@
 
 /* ===== Table 表格 ===== */
 .el-table {
-  --el-table-bg-color: transparent;
-  --el-table-tr-bg-color: transparent;
-  --el-table-header-bg-color: var(--surface-3);
+  --el-table-bg-color: var(--bg-1);
+  --el-table-tr-bg-color: var(--bg-1);
+  --el-table-header-bg-color: var(--bg-2);
   --el-table-text-color: var(--text-primary);
   --el-table-header-text-color: var(--text-secondary);
-  --el-table-border-color: var(--hairline);
-  --el-table-row-hover-bg-color: var(--accent-soft);
+  --el-table-border-color: var(--hairline-strong);
+  --el-table-row-hover-bg-color: rgba(37, 99, 235, 0.22);
+  --el-table-current-row-bg-color: rgba(37, 99, 235, 0.28);
+  --el-table-expanded-cell-bg-color: var(--bg-2);
+  --el-table-fixed-box-shadow: 0 0 10px rgba(0, 0, 0, 0.35);
   border-radius: var(--r-sm);
   overflow: hidden;
-  background: transparent !important;
-  color: var(--text-primary);
+  background: var(--bg-1) !important;
+  color: var(--text-primary) !important;
+}
+.el-table__inner-wrapper::before,
+.el-table__inner-wrapper::after,
+.el-table__border-left-patch,
+.el-table__border-bottom-patch {
+  background-color: var(--hairline-strong) !important;
 }
 .el-table th.el-table__cell {
-  background: var(--surface-3) !important;
+  background: var(--bg-2) !important;
   font-weight: 700;
   font-size: var(--fz-xs);
   letter-spacing: 0.3px;
   color: var(--text-secondary) !important;
 }
 .el-table td.el-table__cell {
-  background: transparent !important;
+  background: var(--bg-1) !important;
   border-color: var(--hairline) !important;
-  color: var(--text-primary);
+  color: var(--text-primary) !important;
+}
+.el-table .cell {
+  color: inherit;
 }
 .el-table tbody tr:hover > td.el-table__cell {
-  background: var(--accent-soft) !important;
+  background: rgba(37, 99, 235, 0.22) !important;
+  color: var(--text-primary) !important;
+}
+.el-table tbody tr.current-row > td.el-table__cell,
+.el-table__body tr.current-row > td.el-table__cell.el-table__cell {
+  background: rgba(37, 99, 235, 0.28) !important;
+  color: var(--text-primary) !important;
 }
 .el-table--border .el-table__cell {
-  border-color: var(--hairline) !important;
+  border-color: var(--hairline-strong) !important;
 }
 .el-table__empty-block {
-  background: transparent;
+  background: var(--bg-1) !important;
 }
 .el-table__empty-text {
-  color: var(--text-dim);
+  color: var(--text-secondary) !important;
 }
 .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-  background: rgba(148, 163, 184, 0.03) !important;
+  background: rgba(30, 41, 59, 0.92) !important;
+}
+.el-table__fixed,
+.el-table__fixed-right {
+  background: var(--bg-1) !important;
+}
+.el-table__fixed-right-patch,
+.el-table__fixed-header-wrapper,
+.el-table__fixed-body-wrapper,
+.el-table__fixed-footer-wrapper {
+  background: var(--bg-1) !important;
+}
+.el-table__fixed th.el-table__cell,
+.el-table__fixed-right th.el-table__cell {
+  background: var(--bg-2) !important;
+}
+.el-table__expanded-cell {
+  background: var(--bg-2) !important;
+  color: var(--text-primary) !important;
+}
+.el-table__body-wrapper,
+.el-table__header-wrapper,
+.el-table__footer-wrapper {
+  background: var(--bg-1) !important;
+  color: var(--text-primary);
 }
 
 /* ===== Tabs 标签页 ===== */

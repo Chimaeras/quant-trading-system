@@ -44,7 +44,7 @@
       <el-tabs v-model="tab">
         <el-tab-pane label="持仓" name="positions">
           <div class="table-host">
-            <el-table :data="account.positions || []" size="small" border>
+            <el-table :data="account.positions || []" size="small" border height="100%">
               <el-table-column prop="code" label="代码" width="82" />
               <el-table-column prop="name" label="名称" min-width="100" />
               <el-table-column prop="qty" label="持仓" width="72" align="right" />
@@ -70,7 +70,7 @@
             </el-select>
           </div>
           <div class="table-host">
-            <el-table :data="filteredOrders" size="small" border>
+            <el-table :data="filteredOrders" size="small" border height="100%">
               <el-table-column prop="client_order_id" label="本地订单号" min-width="185"><template #default="{ row }">{{ row.client_order_id || '—' }}</template></el-table-column>
               <el-table-column prop="broker_order_id" label="妙想订单号" min-width="145"><template #default="{ row }">{{ row.broker_order_id || '—' }}</template></el-table-column>
               <el-table-column prop="code" label="代码" width="82" />
@@ -90,7 +90,7 @@
 
         <el-tab-pane label="成交" name="fills">
           <div class="table-host">
-            <el-table :data="fills" size="small" border>
+            <el-table :data="fills" size="small" border height="100%">
               <el-table-column prop="filled_at" label="成交时间" min-width="155" />
               <el-table-column prop="code" label="代码" width="82" />
               <el-table-column prop="name" label="名称" min-width="100" />
@@ -106,7 +106,7 @@
         <el-tab-pane label="收益" name="pnl">
           <el-alert v-if="pnl?.errors?.length" type="info" :closable="false" :title="pnl.errors.join('；')" />
           <div class="table-host">
-            <el-table :data="pnl?.per_code || []" size="small" border>
+            <el-table :data="pnl?.per_code || []" size="small" border height="100%">
               <el-table-column prop="code" label="代码" width="82" />
               <el-table-column prop="name" label="名称" min-width="100" />
               <el-table-column prop="qty" label="持仓" width="72" align="right" />
@@ -227,20 +227,99 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 </script>
 
 <style scoped>
-.watch-account-panel { margin-bottom: 16px; }
+.watch-account-panel {
+  margin-bottom: 0;
+  height: 100%;
+  max-height: 100%;
+  display: flex !important;
+  flex-direction: column;
+  overflow: hidden;
+}
+.watch-account-panel :deep(.el-card__header) { flex: 0 0 auto; }
+.watch-account-panel :deep(.el-card__body) {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.watch-account-panel :deep(.el-tabs) {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.watch-account-panel :deep(.el-tabs__header) { flex: 0 0 auto; }
+.watch-account-panel :deep(.el-tabs__content) {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.watch-account-panel :deep(.el-tab-pane) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 .panel-head, .scope-bar, .source-line, .filter-row { display: flex; align-items: center; gap: 10px; }
 .panel-head { justify-content: space-between; flex-wrap: wrap; }
-.muted { color: var(--el-text-color-secondary); font-size: 12px; margin-left: 10px; }
-.source-line { flex-wrap: wrap; color: var(--el-text-color-secondary); font-size: 12px; margin-bottom: 12px; }
-.account-warning, .filter-row { margin-bottom: 12px; }
-.metrics { display: grid; grid-template-columns: repeat(6, minmax(110px, 1fr)); gap: 10px; margin-bottom: 14px; }
-.metric { padding: 10px; border: 1px solid var(--el-border-color-lighter); border-radius: 6px; display: flex; flex-direction: column; gap: 5px; }
-.metric span { color: var(--el-text-color-secondary); font-size: 12px; }
-.metric strong { font-size: 15px; }
+.muted { color: var(--text-secondary); font-size: 12px; margin-left: 10px; }
+.source-line { flex-wrap: wrap; color: var(--text-secondary); font-size: 12px; margin-bottom: 12px; }
+.account-warning, .filter-row { margin-bottom: 12px; flex: 0 0 auto; }
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(110px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+  flex: 0 0 auto;
+}
+.metric {
+  padding: 10px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  background: var(--bg-2);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--text-primary);
+}
+.metric span { color: var(--text-secondary); font-size: 12px; }
+.metric strong { font-size: 15px; color: var(--text-primary); }
 .positive { color: var(--up); }
 .negative { color: var(--down); }
-.table-host { overflow-x: auto; }
-.table-host :deep(.el-table) { min-width: 1050px; }
+.table-host {
+  flex: 1 1 0;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+.table-host :deep(> .el-table) {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100% !important;
+  min-width: 1050px;
+  --el-table-bg-color: #111827;
+  --el-table-tr-bg-color: #111827;
+  --el-table-header-bg-color: #1e293b;
+  --el-table-text-color: #e5edf7;
+  --el-table-header-text-color: #cbd5e1;
+  background: #111827 !important;
+  color: #e5edf7 !important;
+}
+.table-host :deep(.el-table__body-wrapper) {
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+.table-host :deep(th.el-table__cell) {
+  background: #1e293b !important;
+  color: #cbd5e1 !important;
+}
+.table-host :deep(td.el-table__cell) {
+  background: #111827 !important;
+  color: #e5edf7 !important;
+}
 @media (max-width: 1100px) { .metrics { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 640px) { .metrics { grid-template-columns: repeat(2, 1fr); } }
 </style>

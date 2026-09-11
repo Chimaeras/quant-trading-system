@@ -397,6 +397,7 @@ import dayjs from 'dayjs'
 import { selectorApi } from '@/api/selector'
 import { scoringApi, type UnifiedScoringStrategy, type UnifiedScoringTaskStatus } from '@/api/scoring'
 import { errorText } from '@/api/request'
+import { FOCUS_SNAPSHOT_KEY } from '@/utils/userScope'
 import { useToast } from '@/composables/useToast'
 import PageShell from '@/components/ui/PageShell.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
@@ -1026,8 +1027,6 @@ async function loadHistoryTask(taskId: string) {
     toast.error(errorText(e))
   }
 }
-
-const FOCUS_SNAPSHOT_KEY = 'quant_stock_picker_focus_snapshot'
 
 /** 保存「结果ID + 关注清单配置」到本地，刷新后仍可回看同一结果。 */
 function saveFocusSnapshot() {

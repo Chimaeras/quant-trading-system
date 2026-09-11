@@ -167,6 +167,10 @@ public class SimAccountService {
         } else {
             baseCash = nz(account.getAvailableCash());
         }
+        // 会话起始资金是全部收益率的基准：0 会让 returnRate 除零，负数则直接给出虚假正收益。
+        if (baseCash.signum() <= 0) {
+            throw new BusinessException("演练会话初始资金必须为正数，实际 " + baseCash);
+        }
         SimulationSession s = new SimulationSession();
         s.setUserId(userId);
         s.setAccountId(account.getId());
@@ -503,19 +507,28 @@ public class SimAccountService {
      * 缺 raw 一律拒绝，禁止用 qfq 前复权价"救活"成交。禁止静默使用「最新价」而不标注来源。
      */
     private PriceResolve resolvePrice(String stockCode, String exchange, Object priceObj, LocalDate operationDate) {
+        PriceResolve resolved;
         if (priceObj != null && !String.valueOf(priceObj).isBlank()) {
-            return new PriceResolve(parseRequiredDecimal(priceObj, "price"), "CLIENT_SPECIFIED", operationDate);
-        }
-        if (operationDate == null) {
+            resolved = new PriceResolve(parseRequiredDecimal(priceObj, "price"), "CLIENT_SPECIFIED", operationDate);
+        } else if (operationDate == null) {
             throw new BusinessException("未指定 price 时必须提供 tradeDate（禁止静默使用未标注的最新价）");
+        } else {
+            Optional<MarketPriceRaw> raw = marketPriceRawRepository
+                    .findByStockCodeAndExchangeTypeAndTradeDate(stockCode, exchange, operationDate);
+            if (raw.isEmpty() || raw.get().getClosePrice() == null) {
+                throw new BusinessException("tradeDate=" + operationDate
+                        + " 无可用 market_price_raw 收盘价，拒绝按 qfq 成交（V2-MP-014）");
+            }
+            resolved = new PriceResolve(raw.get().getClosePrice(), "market_price_raw", operationDate);
         }
-        Optional<MarketPriceRaw> raw = marketPriceRawRepository
-                .findByStockCodeAndExchangeTypeAndTradeDate(stockCode, exchange, operationDate);
-        if (raw.isPresent() && raw.get().getClosePrice() != null) {
-            return new PriceResolve(raw.get().getClosePrice(), "market_price_raw", operationDate);
+        // 非正价必须拒绝：价格直接进 amount=price*volume，负价使买单 cost 变负 —— 既有的
+        // 「可用资金 < cost」判断因此恒不成立、现金反被加回；卖单同样产出负 proceeds。
+        // 费率闸门兜不住（TradingFeePolicy.breakdown 对 gross<=0 直接返零费用）。
+        // 录入口径的 price 与库内 close 同受此约束。
+        if (resolved.price().signum() <= 0) {
+            throw new BusinessException("成交价必须为正数，实际 " + resolved.price() + "（price 入参与 market_price_raw 收盘价同受此约束）");
         }
-        throw new BusinessException("tradeDate=" + operationDate
-                + " 无可用 market_price_raw 收盘价，拒绝按 qfq 成交（V2-MP-014）");
+        return resolved;
     }
 
     // ---------- 持仓批次与 T+1 ----------
@@ -537,7 +550,7 @@ public class SimAccountService {
     private void refreshSellableVolume(PositionInfo p, Long accountId, Long sessionId, LocalDate asOf) {
         int sellable = computeSellable(accountId, sessionId, p.getStockCode(), p.getExchangeType(), asOf);
         p.setAvailableVolume(sellable);
-        positionInfoRepository.save(p);
+        positionInfoRepository.updateAvailableVolume(p.getId(), sellable);
     }
 
     /**
@@ -641,7 +654,11 @@ public class SimAccountService {
             p.setProfitLoss(price.subtract(p.getAvgCost()).multiply(BigDecimal.valueOf(p.getVolume())));
             p.setProfitRate(price.subtract(p.getAvgCost()).divide(p.getAvgCost(), 4, RoundingMode.HALF_UP));
         }
-        positionInfoRepository.save(p);
+        // 定向更新这四列，不用整实体 save：后者会把读取那一刻的 volume/avgCost/可卖量
+        // 一并写回，覆盖并发下单刚提交的数量与成本（读路径丢更新）。
+        // 传入的内存值与 SQL 值完全一致，故即便实体受管、脏检查再 flush 也无分歧。
+        positionInfoRepository.updateQuoteMetrics(
+                p.getId(), p.getCurrentPrice(), p.getMarketValue(), p.getProfitLoss(), p.getProfitRate());
     }
 
     private void refreshAccountMetrics(UserAccount account) {
@@ -654,10 +671,12 @@ public class SimAccountService {
             posValue = posValue.add(nz(p.getMarketValue()));
             totalProfit = totalProfit.add(nz(p.getProfitLoss()));
         }
+        // 只定向更新展示三列：整实体 merge 会把读取那一刻的 availableCash 一起写回，
+        // 覆盖并发下单已提交的扣款（读路径丢更新）。库内 total_asset 由 SQL 侧现金算出。
         account.setPositionValue(posValue);
-        account.setTotalAsset(nz(account.getAvailableCash()).add(posValue));
         account.setTotalProfit(totalProfit);
-        userAccountRepository.save(account);
+        account.setTotalAsset(nz(account.getAvailableCash()).add(posValue));
+        userAccountRepository.updateDisplayMetrics(account.getId(), posValue, totalProfit);
     }
 
     private void refreshSessionMetrics(SimulationSession session, Long accountId) {

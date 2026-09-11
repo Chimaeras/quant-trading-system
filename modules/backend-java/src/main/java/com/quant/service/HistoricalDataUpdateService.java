@@ -406,8 +406,25 @@ public class HistoricalDataUpdateService {
             return loadUniverseTargetsFromResource();
         }
         if ("LIST".equals(mode)) {
-            @SuppressWarnings("unchecked")
-            List<String> list = (List<String>) request.getOrDefault("stockList", List.of());
+            // 反序列化后的元素类型不受控（{"stockList":[123]} 会得到 List<Integer>），
+            // 直接强转成 List<String> 只会在遍历时抛 ClassCastException → 500。
+            // 逐元素取字符串，非标量元素明确报 400。
+            List<String> list = new ArrayList<>();
+            Object rawList = request.get("stockList");
+            if (rawList instanceof List<?> items) {
+                for (Object item : items) {
+                    if (item instanceof String s) {
+                        list.add(s);
+                    } else if (item instanceof Number || item instanceof Boolean) {
+                        list.add(String.valueOf(item));
+                    } else if (item != null) {
+                        throw new IllegalArgumentException(
+                                "stockList 元素必须是字符串或数字，实际 " + item.getClass().getSimpleName());
+                    }
+                }
+            } else if (rawList != null) {
+                throw new IllegalArgumentException("stockList 必须是数组");
+            }
             if (list.isEmpty()) {
                 String stockListText = String.valueOf(request.getOrDefault("stockListText", ""));
                 if (!stockListText.isBlank()) list = Arrays.stream(stockListText.split("[,\\n;\\s]+")).toList();

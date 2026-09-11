@@ -37,9 +37,11 @@ import SubNav, { type SubNavItem } from "@/components/ui/SubNav.vue"
 import { getSystemReadiness, type SystemReadiness } from "@/api/system"
 import { errorText } from "@/api/request"
 import { authApi } from "@/api/auth"
+import { useDataStore } from "@/stores/data"
 
 const route = useRoute()
 const router = useRouter()
+const dataStore = useDataStore()
 
 // 登录态：响应用户主动登出后的导航刷新
 const loggedIn = ref(authApi.isLoggedIn())
@@ -55,6 +57,8 @@ interface GroupDef {
 function handleNav(item: NavItem) {
   if (item.action === 'logout') {
     authApi.logout()
+    // 登出不重建应用实例，Pinia 里的上一用户数据必须显式清掉。
+    dataStore.reset()
     loggedIn.value = false
     router.push('/login')
     return

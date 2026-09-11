@@ -20,7 +20,7 @@ public class SpaController {
             "/",
             "/data/**", "/market/**", "/backtest/**", "/account/**",
             "/report/**", "/compare/**", "/factor/**", "/reconcile/**",
-            "/watchlist/**", "/screener/**", "/watch/**",
+            "/watchlist/**", "/screener/**", "/watch/**", "/research/**",
             "/login"
     })
     public String index() {

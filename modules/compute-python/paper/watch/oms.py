@@ -41,6 +41,10 @@ TERMINAL_STATUSES = {
     OrderStatus.EXPIRED.value,
 }
 
+# 单向状态机（fail-closed）：未列出的边一律拒绝。因此必须以「柜台可能发出什么」为准，
+# 而不是以「我们期望的股市语义」为准 —— 漏掉一条柜台真实可达的边，代价不是丢一笔订单，
+# 而是 sync_external 抛错 → loop._live_halted 置位 → 实盘一路停到人工重启。
+# REJECTED 对 PARTIAL / CANCEL_PENDING 均可达（部成或撤单在途时柜台报废单 status=9）。
 _TRANSITIONS = {
     OrderStatus.CREATED: {OrderStatus.SUBMITTING, OrderStatus.REJECTED, OrderStatus.EXPIRED},
     OrderStatus.SUBMITTING: {
@@ -53,11 +57,11 @@ _TRANSITIONS = {
     },
     OrderStatus.PARTIAL: {
         OrderStatus.PARTIAL, OrderStatus.FILLED, OrderStatus.CANCEL_PENDING,
-        OrderStatus.CANCELLED, OrderStatus.UNKNOWN, OrderStatus.EXPIRED,
+        OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.UNKNOWN, OrderStatus.EXPIRED,
     },
     OrderStatus.CANCEL_PENDING: {
-        OrderStatus.CANCEL_PENDING, OrderStatus.CANCELLED, OrderStatus.PARTIAL,
-        OrderStatus.FILLED, OrderStatus.UNKNOWN,
+        OrderStatus.CANCEL_PENDING, OrderStatus.CANCELLED, OrderStatus.REJECTED,
+        OrderStatus.PARTIAL, OrderStatus.FILLED, OrderStatus.UNKNOWN,
     },
     OrderStatus.UNKNOWN: {
         OrderStatus.UNKNOWN, OrderStatus.SUBMITTED, OrderStatus.PARTIAL,
@@ -343,6 +347,11 @@ class OmsService:
                 # 撤单请求后的柜台快照可能仍是旧“已报”，不能把本地状态倒退。
                 target = OrderStatus.CANCEL_PENDING
             filled = max(int(match.filled_qty or 0), local.filled_qty)
+            # 柜台快照（status=1/2）本身 filled_qty 可能为 0，但本地已有成交证据：此时
+            # external_status 会给出 SUBMITTED，而本地已是 PARTIAL —— 直接照搬即为状态倒退。
+            # 以合并后的 filled 为准重导目标态。
+            if target == OrderStatus.SUBMITTED and filled > 0:
+                target = OrderStatus.PARTIAL
             fields = {
                 "broker_order_id": match.order_id,
                 "filled_qty": filled,
@@ -400,8 +409,10 @@ class OmsService:
                 "origin": "WATCH_OMS" if broker_order.order_id in linked else "EXTERNAL/UNTRACKED",
                 "code": broker_order.code,
                 "name": str((broker_order.raw or {}).get("secName", "")),
-                "exchange": "SH" if broker_order.code.startswith(("5", "6", "9")) else (
-                    "BJ" if broker_order.code.startswith(("4", "8", "92")) else "SZ"
+                # 北交所 920xxx 同样以 "9" 开头，必须先判 BJ（与 loop._exchange_for_code 一致），
+                # 否则镜像单会被标成 SH。
+                "exchange": "BJ" if broker_order.code.startswith(("4", "8", "92")) else (
+                    "SH" if broker_order.code.startswith(("5", "6", "9")) else "SZ"
                 ),
                 "side": broker_order.side,
                 "order_type": "LIMIT",

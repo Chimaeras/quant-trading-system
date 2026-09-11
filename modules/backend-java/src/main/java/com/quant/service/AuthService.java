@@ -21,6 +21,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AuthService {
 
+    /** 与 {@code user.username} 列宽（VARCHAR(50)）一致。 */
+    private static final int USERNAME_MAX_LENGTH = 50;
+
     private final UserRepository userRepository;
     private final UserAccountRepository userAccountRepository;
     private final JwtService jwtService;
@@ -51,6 +54,11 @@ public class AuthService {
     public Map<String, Object> register(String username, String password) {
         if (username == null || username.isBlank() || password == null || password.length() < 6) {
             throw new BusinessException("用户名不能为空且密码至少 6 位");
+        }
+        // 长度按列宽前置校验：/api/auth/** 免鉴权可达，超长用户名会在提交期抛
+        // DataIntegrityViolationException（未映射 → 500），本应是一个 400。
+        if (username.trim().length() > USERNAME_MAX_LENGTH) {
+            throw new BusinessException("用户名长度不能超过 " + USERNAME_MAX_LENGTH + " 个字符");
         }
         if (userRepository.existsByUsername(username.trim())) {
             throw new BusinessException("用户名已存在");

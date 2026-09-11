@@ -13,7 +13,7 @@ from pathlib import Path
 from statistics import median
 
 from .. import clock
-from ..broker_client import ACTIVE_ORDER_STATUSES, order_remaining_qty
+from ..broker_client import ACTIVE_ORDER_STATUSES, TERMINAL_ORDER_STATUSES, order_remaining_qty
 from ..config import PaperConfig
 from ..decide import in_trading_window
 from ..models import Balance, Candidate, IntentType, MxOrder, Position, QuoteValidity, SubmitRecord
@@ -959,6 +959,11 @@ class WatchLoop:
         remaining: list[dict] = []
         messages: list[str] = []
         used_order_ids: set[str] = set()
+        # 本进程提交成功过的 order_id。UNKNOWN_SUBMIT 一定没有可信 order_id，
+        # 故凡是已在册的委托都不可能是这次未知提交本身，只能是对账前既有的同参
+        # 历史单（同日同标的同向同量同价是常态）—— 认领它会以「旧单已成交/已撤」
+        # 为证据错误解除冻结。
+        known_order_ids = set(self._state.open_order_ids)
         for pending in self._state.unknown_submits:
             code = str(pending.get("stock_code", ""))
             side = str(pending.get("side", ""))
@@ -974,24 +979,40 @@ class WatchLoop:
             except (TypeError, ValueError):
                 expected_price = None
             match = None
+            filled_terminal: MxOrder | None = None
             for order in orders:
-                if order.order_id in used_order_ids:
+                if order.order_id in used_order_ids or order.order_id in known_order_ids:
                     continue
                 if (
                     order.code != code
                     or order.side != side
                     or order.qty != qty
-                    or order.status not in ACTIVE_ORDER_STATUSES
-                    or order_remaining_qty(order) <= 0
                 ):
                     continue
                 if expected_price is None or order.price is None:
                     continue
                 if abs(float(order.price) - expected_price) > 0.02:
                     continue
-                match = order
-                break
+                # 「已到达柜台」的证据有两类：仍在活动的委托，以及已终态且零成交的
+                # 委托（废单/全撤）。后者此前被判为不匹配 —— 于是一笔已经了结、
+                # 不再变化的委托反而和「柜台根本没收到」一样永久冻结实盘。
+                # 已终态但带成交的委托同样证明请求到达了柜台，但成交未被本进程
+                # 记账过，需人工核对，故只记录不解除冻结。
+                if order.status in ACTIVE_ORDER_STATUSES and order_remaining_qty(order) > 0:
+                    match = order
+                    break
+                if order.status in TERMINAL_ORDER_STATUSES:
+                    if int(order.filled_qty or 0) <= 0:
+                        match = order
+                        break
+                    if filled_terminal is None:
+                        filled_terminal = order
             if match is None:
+                if filled_terminal is not None:
+                    messages.append(
+                        f"UNKNOWN_SUBMIT_FILLED_NEEDS_MANUAL:{code}/{side}/{qty} "
+                        f"-> {filled_terminal.order_id} filled={int(filled_terminal.filled_qty or 0)}"
+                    )
                 remaining.append(pending)
                 continue
             used_order_ids.add(match.order_id)

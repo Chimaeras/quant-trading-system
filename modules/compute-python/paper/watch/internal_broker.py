@@ -262,7 +262,12 @@ class InternalPaperBroker:
             if not touched:
                 continue
             qty = min(order.remaining_qty, capacity[order.code])
-            qty = qty // 100 * 100
+            if order.side == "buy":
+                # 买单必须整手：decide_watch 的零股旁路只对卖单开放。
+                qty = qty // 100 * 100
+            # 卖单不再取整：证券规则 odd_lot_sell 允许时，decide_watch 会按「不足一手的可卖量」
+            # 直接下 available（如 50 股），risk 也明确放行；此处再取整会把它归零或截断，
+            # 该笔委托便永远等不到成交，零股永久滞留在持仓里。
             if qty <= 0:
                 continue
             capacity[order.code] -= qty

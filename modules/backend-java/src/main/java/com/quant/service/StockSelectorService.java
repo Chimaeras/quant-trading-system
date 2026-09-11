@@ -538,8 +538,15 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
         if (templateId.isBlank()) templateId = "TPL" + System.currentTimeMillis();
         String name = String.valueOf(request.getOrDefault("name", "默认模板")).trim();
         String description = String.valueOf(request.getOrDefault("description", "")).trim();
+        // 反序列化后的类型不受控（{"params":[1,2]} 会得到 List），强转成 Map 只会在
+        // t.setParams(...) 或序列化时抛 ClassCastException → 500。
+        Object rawParams = request.get("params");
+        if (rawParams != null && !(rawParams instanceof Map)) {
+            throw new IllegalArgumentException("params 必须是对象");
+        }
         @SuppressWarnings("unchecked")
-        Map<String, Object> params = (Map<String, Object>) request.getOrDefault("params", Map.of());
+        Map<String, Object> params = rawParams instanceof Map
+                ? (Map<String, Object>) rawParams : Map.of();
 
         SelectorTemplate t = selectorTemplateRepository.findByTemplateId(templateId).orElse(new SelectorTemplate());
         t.setTemplateId(templateId);

@@ -1,6 +1,7 @@
 package com.quant.controller;
 
 import com.quant.dto.ApiResponse;
+import com.quant.dto.BodyValues;
 import com.quant.security.UserIdResolver;
 import com.quant.service.WatchlistAlertService;
 import com.quant.service.WatchlistService;
@@ -29,7 +30,7 @@ public class WatchlistController {
 
     @PostMapping("/add")
     public ApiResponse<Map<String, Object>> add(@RequestBody Map<String, Object> body) {
-        Long userId = body.get("userId") != null ? Long.valueOf(String.valueOf(body.get("userId"))) : null;
+        Long userId = BodyValues.parseOptionalLong(body.get("userId"), "userId");
         String stockCode = String.valueOf(body.getOrDefault("stockCode", ""));
         String exchangeType = String.valueOf(body.getOrDefault("exchangeType", ""));
         String note = body.get("note") != null ? String.valueOf(body.get("note")) : null;
@@ -38,7 +39,7 @@ public class WatchlistController {
 
     @PostMapping("/remove")
     public ApiResponse<Map<String, Object>> remove(@RequestBody Map<String, Object> body) {
-        Long userId = body.get("userId") != null ? Long.valueOf(String.valueOf(body.get("userId"))) : null;
+        Long userId = BodyValues.parseOptionalLong(body.get("userId"), "userId");
         String stockCode = String.valueOf(body.getOrDefault("stockCode", ""));
         String exchangeType = String.valueOf(body.getOrDefault("exchangeType", ""));
         return ApiResponse.success(watchlistService.remove(userIdResolver.resolve(userId), stockCode, exchangeType));
@@ -46,7 +47,7 @@ public class WatchlistController {
 
     @PostMapping("/batch-add")
     public ApiResponse<Map<String, Object>> batchAdd(@RequestBody Map<String, Object> body) {
-        Long userId = body.get("userId") != null ? Long.valueOf(String.valueOf(body.get("userId"))) : null;
+        Long userId = BodyValues.parseOptionalLong(body.get("userId"), "userId");
         Object text = body.get("text");
         List<String[]> pairs = new java.util.ArrayList<>();
         if (text instanceof String s) {

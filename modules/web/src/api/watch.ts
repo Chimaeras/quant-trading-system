@@ -1,7 +1,9 @@
 /**
  * 盘中盯盘监控 API（交易数据只读，观察池可维护；经 /pyapi 代理到 127.0.0.1:8790）。
- * 返回为裸 JSON，不走后端 ApiResponse 包装，直接用 fetch。
+ * 返回为裸 JSON，不走后端 ApiResponse 包装；错误语义（401 跳登录、errorId 透传）
+ * 复用 request.ts 的统一出口，不另起一套。
  */
+import { AUTH_TOKEN_KEY, redirectToLoginOn401, toRequestError } from './request'
 
 export interface WatchEvent {
   seq: number
@@ -219,7 +221,7 @@ export interface WatchPnl {
 }
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = localStorage.getItem('quant_token')
+  const token = localStorage.getItem(AUTH_TOKEN_KEY)
   const headers = new Headers(init.headers)
   if (token) headers.set('Authorization', `Bearer ${token}`)
   if (init.body) headers.set('Content-Type', 'application/json')
@@ -228,8 +230,16 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers
   })
   if (!res.ok) {
-    const detail = await res.json().catch(() => ({})) as { message?: string }
-    throw new Error(detail.message || `watch-serve ${res.status}: ${path}`)
+    // /pyapi 由 Java 反向代理转发（无 ApiResponse 包装），错误体形如
+    // {ok:false,error,message} 或 {error,message}。此前只取 message 就抛普通 Error：
+    // 401 既不跳登录（页面永久停在「服务不可用」），errorId 也在这一层被丢掉，
+    // 违反「errorId 必须透传到 UI」的约束。这里与 axios 链路保持同一语义。
+    const body = await res.json().catch(() => ({})) as { message?: string; error?: string; errorId?: string; code?: number }
+    if (res.status === 401) {
+      redirectToLoginOn401()
+    }
+    const message = body.message || body.error || `watch-serve ${res.status}: ${path}`
+    throw toRequestError(message, res.status, body.code, body.errorId)
   }
   return (await res.json()) as T
 }

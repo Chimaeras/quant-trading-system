@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory, isNavigationFailure, NavigationFailureType } from 'vue-router'
+import { AUTH_TOKEN_KEY } from '@/api/request'
 
 const routes = [
   {
@@ -30,7 +31,15 @@ const routes = [
       { path: 'watch/monitor', name: 'WatchMonitor', component: () => import('@/views/watch/MonitorView.vue'), meta: { title: '盘中盯盘监控' } }
     ]
   },
-  { path: '/login', name: 'Login', component: () => import('@/views/auth/Login.vue'), meta: { title: '登录' } }
+  { path: '/login', name: 'Login', component: () => import('@/views/auth/Login.vue'), meta: { title: '登录' } },
+  // 未匹配路径兜底：此前没有 catch-all，router-view 直接渲染为空 → 整页白屏且无任何提示。
+  // public: 未登录用户拼错地址时看到 404 比被重定向到登录页再跳回更清楚。
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'NotFound',
+    component: () => import('@/views/NotFound.vue'),
+    meta: { title: '页面不存在', public: true }
+  }
 ]
 
 const router = createRouter({
@@ -45,7 +54,7 @@ router.beforeEach((to, _from, next) => {
     next()
     return
   }
-  const token = localStorage.getItem('quant_token')
+  const token = localStorage.getItem(AUTH_TOKEN_KEY)
   if (!token) {
     next({ path: '/login', query: { redirect: to.fullPath } })
     return

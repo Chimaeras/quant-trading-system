@@ -21,6 +21,8 @@ public class MarketService {
 
     /** 分页上限：/api/market/** 免鉴权，size 不封顶会被放大成全表水合。 */
     private static final int MAX_PAGE_SIZE = 200;
+    /** K 线单次返回上限：与同类的 getStockList/searchMarketData 口径一致。 */
+    private static final int MAX_KLINE_LIMIT = 2000;
 
     private final MarketDataRepository marketDataRepo;
     private final StockInfoRepository stockInfoRepo;
@@ -84,7 +86,9 @@ public class MarketService {
 
         if (startDate == null) startDate = LocalDate.now().minusYears(1);
         if (endDate == null) endDate = LocalDate.now();
+        // limit 此前只做下界：区间结果集会先整段水合再 subList，?limit=100000000 等于不设限。
         if (limit <= 0) limit = 500;
+        limit = Math.min(limit, MAX_KLINE_LIMIT);
 
         List<MarketData> list = marketDataRepo.findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
                 stockCode, ex, startDate, endDate);

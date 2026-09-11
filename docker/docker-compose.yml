@@ -45,7 +45,11 @@ services:
       mysql:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/api/data/overview || exit 1"]
+      # 探针必须打白名单内的接口：/api/data/overview 受 deny-by-default 保护，而本
+      # profile 默认 AUTH_ENABLED=true，未带 token 一律 401 → wget 非 0 → 容器永远
+      # unhealthy（任何 --wait / depends_on: service_healthy 编排都会超时）。
+      # /api/system/** 在 WebMvcConfig 白名单内，且只读，适合做存活探针。
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/api/system/readiness || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5

@@ -3,7 +3,7 @@
  */
 import dayjs from 'dayjs'
 import { getDB } from '@/utils/db'
-import request, { unwrap } from './request'
+import request, { unwrap, type ApiResponse, type RequestError } from './request'
 import type { DataOverview } from '@/types'
 
 /** Mock 数据仅在开发环境显式设置 VITE_ENABLE_MOCK_DATA=true 时启用。 */
@@ -116,29 +116,41 @@ function formatStorage(bytes: number): string {
 }
 
 export const dataApi = {
-  /** 获取数据概览 - 优先后端，失败则用 IndexedDB 真实统计。每次调用强制重新计算 */
+  /**
+   * 获取数据概览。
+   *
+   * 只有在「请求根本没到服务端」（无 HTTP 响应：离线/后端未启动）时才回退本地 IndexedDB 统计。
+   * 5xx / 401 / 业务错误必须原样抛出：此前一律 catch 后回退，页面会把本地空库统计
+   * （0 只股票、完整度 0%）当成真实概览展示，把后端故障伪装成「数据库是空的」。
+   */
   async getOverview(): Promise<DataOverview> {
+    let res: ApiResponse<DataOverview>
     try {
-      const res = await request.get<DataOverview>('/data/overview', {
+      res = await request.get<DataOverview>('/data/overview', {
         params: { _t: Date.now() },
         headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' }
       })
-      const d = unwrap(res)
-      if (d && typeof d.stock_count === 'number') {
-        return {
-          stock_count: d.stock_count,
-          earliest_date: d.earliest_date ?? '-',
-          latest_date: d.latest_date ?? '-',
-          completeness: d.completeness ?? 0,
-          storage_size: d.storage_size ?? '-',
-          list_date_missing_count: d.list_date_missing_count ?? 0,
-          list_date_backfillable_count: d.list_date_backfillable_count ?? 0
-        }
+    } catch (e) {
+      const status = (e as Partial<RequestError> | undefined)?.status
+      if (status != null) {
+        throw e
       }
-    } catch {
-      /* 后端不可用，使用 IndexedDB */
+      return this.getOverviewFromIndexedDB()
     }
-    return this.getOverviewFromIndexedDB()
+    const d = unwrap(res)
+    if (!d || typeof d.stock_count !== 'number') {
+      // 200 但结构不对同样是后端问题，回退本地统计只会掩盖它。
+      throw new Error('后端数据概览响应缺少 stock_count 字段')
+    }
+    return {
+      stock_count: d.stock_count,
+      earliest_date: d.earliest_date ?? '-',
+      latest_date: d.latest_date ?? '-',
+      completeness: d.completeness ?? 0,
+      storage_size: d.storage_size ?? '-',
+      list_date_missing_count: d.list_date_missing_count ?? 0,
+      list_date_backfillable_count: d.list_date_backfillable_count ?? 0
+    }
   },
 
   /** 从 IndexedDB 计算真实数据概览 */

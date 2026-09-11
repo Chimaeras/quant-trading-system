@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -127,7 +128,13 @@ public class StrategyBacktestService {
         if (raw == null || raw.isBlank()) {
             return fallback;
         }
-        return LocalDate.parse(raw.trim());
+        try {
+            return LocalDate.parse(raw.trim());
+        } catch (DateTimeParseException e) {
+            // 未包装的 parse 异常不在 GlobalExceptionHandler 的映射里 → 500。
+            // 这是用户可控的请求体字段，应为 400（同类接口已主动抛 IllegalArgumentException）。
+            throw new IllegalArgumentException("日期格式非法，应为 yyyy-MM-dd：" + raw);
+        }
     }
 
     private static double round(double v) {

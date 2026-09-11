@@ -1,6 +1,7 @@
 package com.quant.controller;
 
 import com.quant.dto.ApiResponse;
+import com.quant.dto.BodyValues;
 import com.quant.security.UserIdResolver;
 import com.quant.service.ScreenerService;
 import lombok.RequiredArgsConstructor;
@@ -40,13 +41,12 @@ public class ScreenerController {
     public ApiResponse<Map<String, Object>> saveTemplate(@RequestBody Map<String, Object> body) {
         // MP-010：鉴权开启时 userId 一律取自 AuthContext，忽略客户端 body 中的 userId（防 IDOR）。
         Long userId = userIdResolver.resolve(
-                body.get("userId") != null ? Long.valueOf(String.valueOf(body.get("userId"))) : null);
+                BodyValues.parseOptionalLong(body.get("userId"), "userId"));
         String name = body.get("name") != null ? String.valueOf(body.get("name")) : "";
         String keyword = body.get("keyword") != null ? String.valueOf(body.get("keyword")) : null;
         String exchange = body.get("exchange") != null ? String.valueOf(body.get("exchange")) : null;
         String industry = body.get("industry") != null ? String.valueOf(body.get("industry")) : null;
-        Integer minListingDays = body.get("minListingDays") != null
-                ? Integer.valueOf(String.valueOf(body.get("minListingDays"))) : null;
+        Integer minListingDays = BodyValues.parseOptionalInt(body.get("minListingDays"), "minListingDays");
         Boolean excludeSt = body.get("excludeSt") != null
                 ? Boolean.valueOf(String.valueOf(body.get("excludeSt"))) : null;
         return ApiResponse.success(screenerService.saveTemplate(
@@ -61,8 +61,8 @@ public class ScreenerController {
     @PostMapping("/templates/delete")
     public ApiResponse<Map<String, Object>> deleteTemplate(@RequestBody Map<String, Object> body) {
         Long userId = userIdResolver.resolve(
-                body.get("userId") != null ? Long.valueOf(String.valueOf(body.get("userId"))) : null);
-        Long id = body.get("id") != null ? Long.valueOf(String.valueOf(body.get("id"))) : 0L;
+                BodyValues.parseOptionalLong(body.get("userId"), "userId"));
+        Long id = BodyValues.parseLongOrDefault(body.get("id"), 0L, "id");
         return ApiResponse.success(screenerService.deleteTemplate(userId, id));
     }
 }

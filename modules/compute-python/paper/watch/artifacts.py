@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from ..artifacts import atomic_write_text
 from ..mx_http import sanitize_payload
 from .models import WatchTick
 
@@ -15,9 +16,11 @@ def watch_day_dir(log_base: Path, trade_date: str) -> Path:
 def write_tick(log_base: Path, tick: WatchTick) -> Path:
     out = watch_day_dir(Path(log_base), tick.trade_date) / tick.run_id
     out.mkdir(parents=True, exist_ok=True)
-    (out / "tick.json").write_text(
+    # 复用 paper.artifacts 的原子写：write_text 在进程中断/磁盘满时留下半截 JSON，
+    # 事后排查与自动化读取都会解析失败。
+    atomic_write_text(
+        out / "tick.json",
         json.dumps(sanitize_payload(tick.to_dict()), ensure_ascii=False, indent=2, default=str),
-        encoding="utf-8",
     )
     return out
 

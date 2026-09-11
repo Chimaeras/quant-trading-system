@@ -673,7 +673,17 @@ public class UnifiedScoringService {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                scheduleTask(taskId, request);
+                // afterCommit 在事务提交阶段执行，已经越过了 recoverOnStartup 方法体的
+                // try/catch。此处若把 TooManyRequestsException（排队数达上限）或
+                // TaskRejectedException（AbortPolicy 队列满）放出去，异常会从监听器冒泡并
+                // 中断 SpringApplication.run —— 表现为「积压一批 PENDING 任务后应用起不来」。
+                // 恢复是尽力而为：单个任务排不上队只记日志，不拖垮启动。
+                try {
+                    scheduleTask(taskId, request);
+                } catch (RuntimeException e) {
+                    log.warn("启动恢复排队失败，任务保持 PENDING 待下次重启或手动触发 taskId={} err={}",
+                            taskId, e.getMessage());
+                }
             }
         });
     }

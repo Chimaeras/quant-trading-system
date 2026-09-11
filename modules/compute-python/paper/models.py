@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+import math
 
 
 class QuoteValidity(str, Enum):
@@ -83,15 +84,27 @@ class Balance:
 
     @classmethod
     def from_mx(cls, data: dict) -> "Balance":
-        """从 mockTrading/balance 的 data 构建；缺关键字段抛错（fail-closed）。"""
+        """从 mockTrading/balance 的 data 构建；缺关键字段抛错（fail-closed）。
+
+        数值一律要求有限：上游 JSON 里出现 `NaN`/`Infinity`（Python 的 json.loads
+        默认接受这两个字面量）时，裸 float() 会静默放行，NaN 随后一路渗进账户规模、
+        仓位权重与风控敞口，所有比较都恒为 False。此处按 fail-closed 拒绝。
+        """
         for key in ("totalAssets", "availBalance"):
             if key not in data:
                 raise ValueError(f"balance 响应缺少字段 {key}，拒绝猜测解析")
+
+        def _finite(key: str, default: float) -> float:
+            value = float(data.get(key, default))
+            if not math.isfinite(value):
+                raise ValueError(f"balance 字段 {key} 非有限值: {data.get(key)!r}")
+            return value
+
         return cls(
-            total_assets=float(data["totalAssets"]),
-            avail_balance=float(data["availBalance"]),
-            frozen=float(data.get("frozenMoney", 0.0)),
-            market_value=float(data.get("totalPosValue", 0.0)),
+            total_assets=_finite("totalAssets", 0.0),
+            avail_balance=_finite("availBalance", 0.0),
+            frozen=_finite("frozenMoney", 0.0),
+            market_value=_finite("totalPosValue", 0.0),
             acc_name=str(data.get("accName", "")),
             acc_id=str(data.get("accID", "")),
             raw=data,

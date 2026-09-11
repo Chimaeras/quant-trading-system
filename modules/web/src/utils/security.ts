@@ -3,6 +3,15 @@ import { marketApi } from '@/api/market'
 const nameCache = new Map<string, string>()
 const pendingRequests = new Map<string, Promise<string>>()
 
+/**
+ * 清空模块级缓存。登出时必须调用：模块级 Map 不随 SPA 路由或组件卸载释放，
+ * 换用户后仍会命中上一用户的名称缓存。
+ */
+export function clearSecurityNameCache(): void {
+  nameCache.clear()
+  pendingRequests.clear()
+}
+
 /** 根据 A 股代码前缀推断交易所，供名称查询使用。 */
 export function inferExchangeType(stockCode: string): string {
   const code = stockCode.trim().split('.')[0]

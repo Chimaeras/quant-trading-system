@@ -27,5 +27,16 @@ export const useDataStore = defineStore('data', () => {
     }
   }
 
-  return { overview, loading, fetchOverview }
+  /**
+   * 清空概览。登出时必须调用：Pinia store 在 SPA 内跨路由存活，
+   * 不 reset 会让下一个登录者在首屏看到上一用户的数据。
+   */
+  function reset() {
+    // 同时让在途请求的结果失效，避免登出后旧响应把 overview 又写回来。
+    reqSeq += 1
+    overview.value = null
+    loading.value = false
+  }
+
+  return { overview, loading, fetchOverview, reset }
 })

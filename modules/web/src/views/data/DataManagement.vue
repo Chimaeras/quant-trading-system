@@ -413,6 +413,10 @@ const refresh = async () => {
   loading.value = true
   try {
     await dataStore.fetchOverview()
+  } catch (e: unknown) {
+    // 概览失败不再静默：overview 保持 null（页面显示 -），错误必须让用户看到，
+    // 否则后端故障会被误读成「库里没有数据」。
+    toast.error(errorText(e))
   } finally {
     loading.value = false
   }

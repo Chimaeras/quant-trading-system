@@ -1,4 +1,4 @@
-import axios, { type AxiosRequestConfig } from 'axios'
+import axios, { type AxiosRequestConfig, type InternalAxiosRequestConfig } from 'axios'
 
 /** 后端统一响应包装 */
 export interface ApiResponse<T = unknown> {
@@ -33,21 +33,32 @@ interface ApiClient {
 
 const TOKEN_KEY = 'quant_token'
 
+/** 供其他传输通道（/pyapi 独立客户端）复用同一 token 键。 */
+export const AUTH_TOKEN_KEY = TOKEN_KEY
+
+/** 给请求配置装上当前 token；axios 请求拦截器与 /pyapi 客户端共用。 */
+export function attachAuthHeader(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig {
+  const token = localStorage.getItem(TOKEN_KEY)
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+}
+
 const axiosInstance = axios.create({
   baseURL: '/api',
   timeout: 10000
 })
 
-axiosInstance.interceptors.request.use((config) => {
-  const token = localStorage.getItem(TOKEN_KEY)
-  if (token) {
-    config.headers = config.headers ?? {}
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-})
+axiosInstance.interceptors.request.use(attachAuthHeader)
 
-function redirectToLoginOn401() {
+/**
+ * 401 统一处理：清 token 并跳登录页（携带 redirect）。
+ *
+ * 导出供 /pyapi 客户端复用——盯盘页此前用裸 fetch，token 过期后既不清态也不跳转，
+ * 页面永久停在「服务不可用」，用户没有重新登录的入口。
+ */
+export function redirectToLoginOn401() {
   localStorage.removeItem(TOKEN_KEY)
   const path = `${window.location.pathname}${window.location.search}`
   if (path.startsWith('/login')) {
@@ -57,7 +68,7 @@ function redirectToLoginOn401() {
   window.location.href = `/login?redirect=${redirect}`
 }
 
-function toRequestError(message: string, status?: number, code?: number, errorId?: string): RequestError {
+export function toRequestError(message: string, status?: number, code?: number, errorId?: string): RequestError {
   const error = new Error(message) as RequestError
   error.status = status
   error.code = code

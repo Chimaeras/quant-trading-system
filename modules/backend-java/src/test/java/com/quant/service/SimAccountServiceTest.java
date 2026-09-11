@@ -1,6 +1,7 @@
 package com.quant.service;
 
 import com.quant.entity.MarketData;
+import com.quant.entity.MarketPriceRaw;
 import com.quant.entity.PositionInfo;
 import com.quant.entity.PositionLot;
 import com.quant.entity.UserAccount;
@@ -246,6 +247,26 @@ class SimAccountServiceTest {
     }
 
     @Test
+    void createSessionRejectsNonPositiveCash() {
+        when(tradingCalendarService.isTradingDay(any(LocalDate.class))).thenReturn(true);
+
+        // 会话起始资金是全部收益率的基准：0 会让 returnRate 除零，负数直接给出虚假正收益
+        when(userAccountRepository.findFirstByUserIdAndStatus(1L, 1)).thenReturn(Optional.of(accountWithCash(100_000)));
+        assertThatThrownBy(() -> service.createSession(1L, Map.of("startDate", "2026-06-30", "cash", 0)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("必须为正数");
+        assertThatThrownBy(() -> service.createSession(1L, Map.of("startDate", "2026-06-30", "cash", -1000)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("必须为正数");
+
+        // 未传 cash 时取账户可用资金，同样不能是 0
+        when(userAccountRepository.findFirstByUserIdAndStatus(1L, 1)).thenReturn(Optional.of(accountWithCash(0)));
+        assertThatThrownBy(() -> service.createSession(1L, Map.of("startDate", "2026-06-30")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("必须为正数");
+    }
+
+    @Test
     void placeOrderRejectsNonNumericPrice() {
         when(userAccountRepository.findAllForUpdateByUserIdAndStatus(1L, 1)).thenReturn(List.of(accountWithCash(100_000)));
 
@@ -259,6 +280,63 @@ class SimAccountServiceTest {
         assertThat(result.get("status")).isEqualTo("REJECTED");
         assertThat(String.valueOf(result.get("reject_code"))).isEqualTo("PRICE_RESOLVE_FAILED");
         assertThat(String.valueOf(result.get("reject_reason"))).contains("不是合法数字");
+    }
+
+    // ---------- R33-P1-3：非正成交价必须拒绝（负价会让买单资金校验恒不成立） ----------
+
+    @Test
+    void placeOrderRejectsNegativeClientPrice() {
+        when(userAccountRepository.findAllForUpdateByUserIdAndStatus(1L, 1)).thenReturn(List.of(accountWithCash(100_000)));
+
+        // 修复前：price=-10 → cost=-1000，availableCash.compareTo(cost)<0 恒为 false，
+        // 资金校验被绕过；TradingFeePolicy.breakdown 对 gross<=0 又直接返零费用，无第二道闸门。
+        Map<String, Object> result = service.placeOrder(1L, Map.of(
+                "stockCode", "000001",
+                "exchangeType", "SZSE",
+                "action", "buy",
+                "volume", 100,
+                "price", -10
+        ));
+        assertThat(result.get("status")).isEqualTo("REJECTED");
+        assertThat(String.valueOf(result.get("reject_code"))).isEqualTo("PRICE_RESOLVE_FAILED");
+        assertThat(String.valueOf(result.get("reject_reason"))).contains("必须为正数");
+    }
+
+    @Test
+    void placeOrderRejectsZeroClientPrice() {
+        when(userAccountRepository.findAllForUpdateByUserIdAndStatus(1L, 1)).thenReturn(List.of(accountWithCash(100_000)));
+
+        Map<String, Object> result = service.placeOrder(1L, Map.of(
+                "stockCode", "000001",
+                "exchangeType", "SZSE",
+                "action", "buy",
+                "volume", 100,
+                "price", 0
+        ));
+        assertThat(String.valueOf(result.get("reject_code"))).isEqualTo("PRICE_RESOLVE_FAILED");
+        assertThat(String.valueOf(result.get("reject_reason"))).contains("必须为正数");
+    }
+
+    @Test
+    void placeOrderRejectsNonPositiveRawClosePrice() {
+        when(userAccountRepository.findAllForUpdateByUserIdAndStatus(1L, 1)).thenReturn(List.of(accountWithCash(100_000)));
+        MarketPriceRaw raw = new MarketPriceRaw();
+        raw.setStockCode("000001");
+        raw.setExchangeType("SZSE");
+        raw.setTradeDate(LocalDate.now());
+        // 库内脏收盘价：同一道闸门必须拦住，不能因为「来自 database」就放行
+        raw.setClosePrice(BigDecimal.valueOf(-1));
+        when(marketPriceRawRepository.findByStockCodeAndExchangeTypeAndTradeDate(
+                eq("000001"), eq("SZSE"), any(LocalDate.class))).thenReturn(Optional.of(raw));
+
+        Map<String, Object> result = service.placeOrder(1L, Map.of(
+                "stockCode", "000001",
+                "exchangeType", "SZSE",
+                "action", "buy",
+                "volume", 100
+        ));
+        assertThat(String.valueOf(result.get("reject_code"))).isEqualTo("PRICE_RESOLVE_FAILED");
+        assertThat(String.valueOf(result.get("reject_reason"))).contains("必须为正数");
     }
 
     // ---------- R31-P1-2：下单须持账户行悲观锁 ----------

@@ -1,4 +1,5 @@
-import request, { unwrap } from './request'
+import request, { AUTH_TOKEN_KEY, unwrap } from './request'
+import { clearUserScopedState } from '@/utils/userScope'
 
 export interface LoginResult {
   token: string
@@ -7,7 +8,7 @@ export interface LoginResult {
   userId: number
 }
 
-const TOKEN_KEY = 'quant_token'
+const TOKEN_KEY = AUTH_TOKEN_KEY
 
 export const authApi = {
   async login(username: string, password: string) {
@@ -30,6 +31,9 @@ export const authApi = {
 
   logout() {
     localStorage.removeItem(TOKEN_KEY)
+    // 只清 token 不够：任务跟踪键、快照键、名称缓存都是用户级状态，
+    // 不清会让下一个登录者继承上一用户的上下文（Pinia 侧由调用方 reset）。
+    clearUserScopedState()
   },
 
   getToken() {

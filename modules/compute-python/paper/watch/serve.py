@@ -49,6 +49,23 @@ def _finite(value, default: float = 0.0) -> float:
     return v if math.isfinite(v) else default
 
 
+def _optional_finite(value):
+    """可空数值字段清洗：None 保持 None，非有限/非法值一律收敛为 None。
+
+    与 _finite 的区别是有「未知」这个合法取值（如 frozen_cash 上游不给）。
+    上游账户快照的原始 payload 会原样透传，而 _json_response 用 allow_nan=False：
+    一个 NaN 就会让 json.dumps 在 send_response 之前抛 ValueError，客户端只看到
+    连接被关、连 HTTP 状态码都没有。
+    """
+    if value is None:
+        return None
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return None
+    return v if math.isfinite(v) else None
+
+
 def _days(log_base: Path) -> list[str]:
     watch_dir = log_base / "watch"
     if not watch_dir.is_dir():
@@ -97,11 +114,18 @@ class BadRequestError(ValueError):
     pass
 
 
+def _infer_exchange(code: str) -> str:
+    """按代码前缀推断市场。北交所 920xxx 也以 "9" 开头，故 BJ 必须先判（同 loop._exchange_for_code）。"""
+    if code.startswith(("4", "8", "92")):
+        return "BJ"
+    return "SH" if code.startswith(("5", "6", "9")) else "SZ"
+
+
 def _pool_exchange(raw, code: str) -> str:
     value = str(raw or "").strip().upper()
     aliases = {"SSE": "SH", "SHSE": "SH", "SZSE": "SZ", "BSE": "BJ"}
     value = aliases.get(value, value)
-    inferred = "BJ" if code.startswith(("4", "8", "92")) else "SH" if code.startswith(("5", "6", "9")) else "SZ"
+    inferred = _infer_exchange(code)
     if value and value not in {"SH", "SZ", "BJ"}:
         raise BadRequestError(f"交易所非法: {value}")
     if value and value != inferred:
@@ -398,9 +422,7 @@ def _position_view(row: dict, names: dict[str, str]) -> dict:
         "day_profit": None,
         "day_profit_rate": None,
         "position_pct": None,
-        "exchange": "SH" if code.startswith(("5", "6", "9")) else (
-            "BJ" if code.startswith(("4", "8", "92")) else "SZ"
-        ),
+        "exchange": _infer_exchange(code),
         "price_source": "INTERNAL_SNAPSHOT",
         "source_updated_at": row.get("updated_at"),
     }
@@ -544,9 +566,7 @@ def _external_position_view(row: dict, names: dict[str, str], captured_at: str) 
     profit = _finite(row.get("profit"), (last - cost) * qty)
     return {
         "code": code, "name": row.get("name") or names.get(code, ""),
-        "exchange": row.get("exchange") or (
-            "SH" if code.startswith(("5", "6", "9")) else "BJ" if code.startswith(("4", "8", "92")) else "SZ"
-        ),
+        "exchange": row.get("exchange") or _infer_exchange(code),
         "qty": qty, "available_qty": int(row.get("avail_qty") or 0),
         "today_buy_qty": None, "frozen_qty": None, "avg_cost": cost,
         "last_price": last, "market_value": market_value, "profit": profit,
@@ -582,10 +602,10 @@ def _external_account(conn, channel: str, sid: str) -> dict:
     positions = [_external_position_view(row, names, captured_at)
                  for row in payload.get("positions", []) if isinstance(row, dict)]
     source_status, errors = _sync_state(conn, channel, sid, captured_at)
-    total_assets = payload.get("total_assets")
-    market_value = payload.get("market_value")
-    avail = payload.get("avail_balance")
-    frozen = payload.get("frozen_cash")
+    total_assets = _optional_finite(payload.get("total_assets"))
+    market_value = _optional_finite(payload.get("market_value"))
+    avail = _optional_finite(payload.get("avail_balance"))
+    frozen = _optional_finite(payload.get("frozen_cash"))
     unrealized = sum(_finite(row.get("profit"), 0.0) for row in positions)
     return {
         "available": True, "account_scope": f"{channel}:{sid}", "session_id": sid,
@@ -596,10 +616,10 @@ def _external_account(conn, channel: str, sid: str) -> dict:
         "avail_balance": avail, "frozen_cash": frozen, "market_value": market_value,
         "position_count": len(positions),
         "open_order_count": _open_order_count(conn, channel, sid),
-        "total_profit": payload.get("total_profit"),
-        "total_return_pct": payload.get("total_return_pct"),
-        "day_profit": payload.get("day_profit"),
-        "day_return_pct": payload.get("day_return_pct"),
+        "total_profit": _optional_finite(payload.get("total_profit")),
+        "total_return_pct": _optional_finite(payload.get("total_return_pct")),
+        "day_profit": _optional_finite(payload.get("day_profit")),
+        "day_return_pct": _optional_finite(payload.get("day_return_pct")),
         "realized_pnl": None, "unrealized_pnl": unrealized,
         "positions": positions, "errors": errors,
         "capabilities": {
@@ -618,8 +638,10 @@ def _shadow_account_projection(conn, channel: str, sid: str) -> dict:
         "execution_mode": channel, "account_source": "SHADOW",
         "source_status": "LIVE" if snapshot else "NOT_AVAILABLE",
         "captured_at": captured_at, "freshness_seconds": _freshness_seconds(captured_at),
-        "total_assets": payload.get("total_assets"), "initial_cash": payload.get("total_assets"),
-        "cash": payload.get("total_assets"), "avail_balance": payload.get("avail_balance"),
+        "total_assets": _optional_finite(payload.get("total_assets")),
+        "initial_cash": _optional_finite(payload.get("total_assets")),
+        "cash": _optional_finite(payload.get("total_assets")),
+        "avail_balance": _optional_finite(payload.get("avail_balance")),
         "frozen_cash": None, "market_value": 0.0, "position_count": 0,
         "open_order_count": 0, "total_profit": None, "total_return_pct": None,
         "day_profit": None, "day_return_pct": None, "realized_pnl": None,
@@ -1046,7 +1068,31 @@ def make_handler(log_base: Path, store_path: Path | None = None, *, max_pool_siz
             }, 403)
             return True
 
+        def _guarded(self, invoke) -> None:
+            """未预期异常兜底，保证客户端总能拿到一个带状态码的 JSON 响应。
+
+            没有这层兜底时，处理函数里任何未捕获异常都会让 BaseHTTPRequestHandler
+            直接断连：客户端看到的是「连接被关闭」，既没有 5xx 也没有错误体，排查时
+            与「服务没启动」无法区分。
+            """
+            try:
+                invoke()
+            except (BrokenPipeError, ConnectionResetError):
+                # 客户端已断开，回写必然失败，静默收场。
+                pass
+            except Exception as exc:  # noqa: BLE001 —— 兜底须覆盖全部未预期异常
+                try:
+                    _json_response(self, {
+                        "error": "internal_error",
+                        "message": type(exc).__name__,
+                    }, 500)
+                except Exception:  # noqa: BLE001 —— 响应已部分写出，无可挽回
+                    pass
+
         def do_GET(self):  # noqa: N802
+            self._guarded(self._handle_get)
+
+        def _handle_get(self) -> None:
             parsed = urlparse(self.path)
             parts = [part for part in parsed.path.split("/") if part]
 
@@ -1094,8 +1140,10 @@ def make_handler(log_base: Path, store_path: Path | None = None, *, max_pool_siz
                     return _json_response(self, {"error": "date_not_found", "date": trade_date}, 404)
                 if resource == "events":
                     try:
-                        after_seq = _query_int(query, "after_seq", 0)
-                        limit = min(_query_int(query, "limit", 2000), 10000)
+                        after_seq = max(_query_int(query, "after_seq", 0), 0)
+                        # 与 orders/fills/market 统一口径：limit 必须同时有上下界，
+                        # 否则 limit=0/-1 的返回条数取决于内部走 tail 还是全扫描。
+                        limit = max(min(_query_int(query, "limit", 2000), 10000), 1)
                     except BadRequestError as exc:
                         return _json_response(self, {"error": "bad_request", "message": str(exc)}, 400)
                     events = read_events(
@@ -1114,7 +1162,7 @@ def make_handler(log_base: Path, store_path: Path | None = None, *, max_pool_siz
                     return _json_response(self, {"date": trade_date, "ticks": _ticks(log_base, trade_date)})
                 if resource == "market":
                     try:
-                        limit = min(_query_int(query, "limit", 10000), 10000)
+                        limit = max(min(_query_int(query, "limit", 10000), 10000), 1)
                     except BadRequestError as exc:
                         return _json_response(self, {"error": "bad_request", "message": str(exc)}, 400)
                     return _json_response(
@@ -1125,6 +1173,9 @@ def make_handler(log_base: Path, store_path: Path | None = None, *, max_pool_siz
             return _json_response(self, {"error": "not_found"}, 404)
 
         def do_POST(self):  # noqa: N802
+            self._guarded(self._handle_post)
+
+        def _handle_post(self) -> None:
             if self._browser_write_forbidden():
                 return None
             parsed = urlparse(self.path)
@@ -1139,6 +1190,9 @@ def make_handler(log_base: Path, store_path: Path | None = None, *, max_pool_siz
                 return _json_response(self, {"error": "bad_request", "message": str(exc)}, 400)
 
         def do_DELETE(self):  # noqa: N802
+            self._guarded(self._handle_delete)
+
+        def _handle_delete(self) -> None:
             if self._browser_write_forbidden():
                 return None
             parsed = urlparse(self.path)

@@ -50,6 +50,8 @@ public class PredictionService {
 
     private static final String DEFAULT_STRATEGY = "CLASSIC_SELECTOR";
     private static final int DEFAULT_TOP_N = 20;
+    /** 与 {@code prediction_run.request_id} 列宽（VARCHAR(64)）一致。 */
+    private static final int REQUEST_ID_MAX_LENGTH = 64;
 
     private final PredictionRunRepository predictionRunRepository;
     private final PredictionSnapshotItemRepository predictionSnapshotItemRepository;
@@ -76,6 +78,11 @@ public class PredictionService {
         }
         long startMs = System.currentTimeMillis();
         if (requestId != null && !requestId.isBlank()) {
+            // 幂等键列宽 64：超长值会在提交期抛 DataIntegrityViolationException（未映射 → 500）。
+            // 这是用户可控入参，须前置成 400。
+            if (requestId.trim().length() > REQUEST_ID_MAX_LENGTH) {
+                throw new BusinessException("requestId 长度不能超过 " + REQUEST_ID_MAX_LENGTH + " 个字符");
+            }
             // V2-MP-030: 同 requestId 重复发布返回既有结果（幂等重放），不重复生成 publish_version
             PredictionRun existing = predictionRunRepository
                     .findFirstByRequestIdAndTradeDateAndHorizon(requestId.trim(), tradeDate, horizon)

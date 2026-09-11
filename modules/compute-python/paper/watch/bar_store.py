@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import datetime, timedelta
 
+from .. import clock
 from ..models import Quote
 from .models import BarUpdate, WatchBar
 
@@ -107,7 +108,7 @@ class BarStore:
         """写入快照；桶切换时恰好提交上一根 closed bar。"""
         if quote.last <= 0:
             raise ValueError(f"{code} quote.last 必须大于 0")
-        observed_at = now or quote.market_time or quote.received_at or datetime.now()
+        observed_at = now or quote.market_time or quote.received_at or clock.now()
         start = floor_bucket(observed_at, self.period_min)
         end = start + timedelta(minutes=self.period_min)
         current = self._forming.get(code)

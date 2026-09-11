@@ -5,6 +5,7 @@ import hashlib
 import math
 from datetime import datetime
 
+from .. import clock
 from ..config import COMMISSION_RATE, MIN_COMMISSION, STAMP_TAX_RATE, PaperConfig
 from ..models import Balance, MxOrder, Position
 from ..mx_result import MxErrorKind, MxResult
@@ -36,7 +37,7 @@ class InternalPaperBroker:
         self.store = store
         self.config = config
         self.session_id = config.paper_session_id
-        self.now_fn = now_fn or datetime.now
+        self.now_fn = now_fn or clock.now
         self.oms = OmsService(store, session_id=self.session_id, channel="INTERNAL_PAPER")
 
     def _state(self) -> tuple[dict, dict[str, dict]]:

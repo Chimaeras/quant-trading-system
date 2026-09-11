@@ -29,6 +29,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -97,7 +99,7 @@ class SimAccountServiceTest {
         position.setAvailableVolume(0);
         position.setAvgCost(BigDecimal.TEN);
 
-        when(userAccountRepository.findFirstByUserIdAndStatus(1L, 1)).thenReturn(Optional.of(account));
+        when(userAccountRepository.findAllForUpdateByUserIdAndStatus(1L, 1)).thenReturn(List.of(account));
         when(positionInfoRepository.findByAccountIdAndSessionIdAndStockCodeAndExchangeType(
                 10L, LIVE_SESSION, "000001", "SZSE")).thenReturn(Optional.of(position));
         // T+1：唯一批次建仓日 = 当日（operationDate=now），不早于 as-of → 可卖量为 0
@@ -138,7 +140,7 @@ class SimAccountServiceTest {
         prevBar.setTradeDate(today.minusDays(1));
         prevBar.setClosePrice(BigDecimal.valueOf(10));
 
-        when(userAccountRepository.findFirstByUserIdAndStatus(1L, 1)).thenReturn(Optional.of(account));
+        when(userAccountRepository.findAllForUpdateByUserIdAndStatus(1L, 1)).thenReturn(List.of(account));
         // 在线模式：传 price 时 operationDate=now()，ensureTradableAtPrice 查
         // findByStockCodeAndExchangeTypeAndTradeDate(code, ex, now())。用 any 匹配动态 today。
         when(marketDataRepository.findByStockCodeAndExchangeTypeAndTradeDate(
@@ -169,7 +171,7 @@ class SimAccountServiceTest {
         bar.setClosePrice(BigDecimal.valueOf(11));
         bar.setVolume(1_000_000L);
 
-        when(userAccountRepository.findFirstByUserIdAndStatus(1L, 1)).thenReturn(Optional.of(account));
+        when(userAccountRepository.findAllForUpdateByUserIdAndStatus(1L, 1)).thenReturn(List.of(account));
         when(marketDataRepository.findByStockCodeAndExchangeTypeAndTradeDate(
                 eq("000001"), eq("SZSE"), any(LocalDate.class))).thenReturn(Optional.of(bar));
         when(stockInfoRepository.findByStockCodeAndExchangeType("000001", "SZSE")).thenReturn(Optional.empty());
@@ -195,7 +197,7 @@ class SimAccountServiceTest {
         bar.setClosePrice(BigDecimal.TEN);
         bar.setVolume(0L);
 
-        when(userAccountRepository.findFirstByUserIdAndStatus(1L, 1)).thenReturn(Optional.of(account));
+        when(userAccountRepository.findAllForUpdateByUserIdAndStatus(1L, 1)).thenReturn(List.of(account));
         when(marketDataRepository.findByStockCodeAndExchangeTypeAndTradeDate(
                 eq("000001"), eq("SZSE"), any(LocalDate.class))).thenReturn(Optional.of(bar));
         when(stockInfoRepository.findByStockCodeAndExchangeType("000001", "SZSE")).thenReturn(Optional.empty());
@@ -245,7 +247,7 @@ class SimAccountServiceTest {
 
     @Test
     void placeOrderRejectsNonNumericPrice() {
-        when(userAccountRepository.findFirstByUserIdAndStatus(1L, 1)).thenReturn(Optional.of(accountWithCash(100_000)));
+        when(userAccountRepository.findAllForUpdateByUserIdAndStatus(1L, 1)).thenReturn(List.of(accountWithCash(100_000)));
 
         Map<String, Object> result = service.placeOrder(1L, Map.of(
                 "stockCode", "000001",
@@ -257,5 +259,25 @@ class SimAccountServiceTest {
         assertThat(result.get("status")).isEqualTo("REJECTED");
         assertThat(String.valueOf(result.get("reject_code"))).isEqualTo("PRICE_RESOLVE_FAILED");
         assertThat(String.valueOf(result.get("reject_reason"))).contains("不是合法数字");
+    }
+
+    // ---------- R31-P1-2：下单须持账户行悲观锁 ----------
+
+    @Test
+    void placeOrderResolvesAccountWithPessimisticRowLock() {
+        when(userAccountRepository.findAllForUpdateByUserIdAndStatus(1L, 1))
+                .thenReturn(List.of(accountWithCash(100_000)));
+
+        // 空代码在「账户已解析」之后被拒——足以证明取账户走的是带锁查询
+        Map<String, Object> result = service.placeOrder(1L, Map.of(
+                "symbol", "",
+                "action", "buy",
+                "volume", 100
+        ));
+
+        assertThat(String.valueOf(result.get("reject_code"))).isEqualTo("INVALID_SYMBOL");
+        verify(userAccountRepository).findAllForUpdateByUserIdAndStatus(1L, 1);
+        // 下单不得再走无锁查询：读-改-写 availableCash 无行锁会丢更新（并发委托各扣一次）
+        verify(userAccountRepository, never()).findFirstByUserIdAndStatus(anyLong(), any());
     }
 }

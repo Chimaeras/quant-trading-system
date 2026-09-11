@@ -220,7 +220,8 @@ public class SimAccountService {
 
     @Transactional
     public Map<String, Object> placeOrder(Long userId, Map<String, Object> request) {
-        UserAccount account = resolveAccount(userId);
+        // 资金/批次为读-改-写，须持账户行悲观锁，否则并发委托会丢更新（R31-P1-2）。
+        UserAccount account = resolveAccountForUpdate(userId);
         String stockCode = String.valueOf(request.getOrDefault("symbol", request.getOrDefault("stockCode", ""))).trim();
         String exchange = String.valueOf(request.getOrDefault("exchangeType", "SZSE")).trim();
         String action = String.valueOf(request.getOrDefault("action", "")).trim().toLowerCase();
@@ -480,6 +481,21 @@ public class SimAccountService {
         authService.ensureSimAccount(userId);
         return userAccountRepository.findFirstByUserIdAndStatus(userId, 1)
                 .orElseThrow(() -> new BusinessException("模拟账户不存在"));
+    }
+
+    /**
+     * 下单路径的账户读取：带 PESSIMISTIC_WRITE 行锁（R31-P1-2）。
+     *
+     * <p>锁持有到事务提交，使同一账户的并发委托串行化——否则两笔委托会读到同一 availableCash、
+     * 各自通过余额校验后分别扣减，账上现金超出实际。
+     */
+    private UserAccount resolveAccountForUpdate(Long userId) {
+        authService.ensureSimAccount(userId);
+        List<UserAccount> accounts = userAccountRepository.findAllForUpdateByUserIdAndStatus(userId, 1);
+        if (accounts.isEmpty()) {
+            throw new BusinessException("模拟账户不存在");
+        }
+        return accounts.get(0);
     }
 
     /**

@@ -7,11 +7,13 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -23,8 +25,23 @@ import java.util.Map;
 @Service
 public class RealtimeQuoteService {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    /**
+     * R31-P2-2：默认 {@code new RestTemplate()} 无超时，东财挂起会让 Tomcat 请求线程无限阻塞，
+     * 反复调用可占满 servlet 线程池；与库内其余出站客户端（IndexDataService /
+     * TradingCalendarService / HistoricalDataService）统一显式设超时。
+     */
+    private final RestTemplate restTemplate = createRestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private static final int CONNECT_TIMEOUT_MS = 5_000;
+    private static final int READ_TIMEOUT_MS = 10_000;
+
+    private static RestTemplate createRestTemplate() {
+        SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
+        f.setConnectTimeout(Duration.ofMillis(CONNECT_TIMEOUT_MS));
+        f.setReadTimeout(Duration.ofMillis(READ_TIMEOUT_MS));
+        return new RestTemplate(f);
+    }
 
     private static final String EASTMONEY_URL = "https://push2.eastmoney.com/api/qt/stock/get";
     /** 东方财富字段: f43最新价 f44最高 f45最低 f46今开 f47成交量 f48成交额 f50涨跌幅 f51涨跌额 f57代码 f58名称 f60昨收 */

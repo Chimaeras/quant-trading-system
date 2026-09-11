@@ -15,6 +15,7 @@ from dataclasses import asdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from . import clock
 from .artifacts import config_hash, run_dir, write_run
 from .broker_client import BrokerClient
 from .candidates import dedupe_candidates, load_candidates
@@ -70,7 +71,7 @@ class PaperRunner:
         self._quotes = quote_client
         self._broker = broker
         self._log_base = Path(log_base)
-        self._now = now or datetime.now()
+        self._now = now or clock.now()
         # P1-03：日历不可用时 confirm 必须阻断，禁止默认按工作日放行
         self._calendar = trading_calendar or UnavailableCalendar()
         self._run_stopped = False

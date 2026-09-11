@@ -11,6 +11,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from .. import clock
 from ..mx_http import sanitize_payload
 
 EVENT_TYPES = {
@@ -176,7 +177,7 @@ class EventLog:
     def __init__(self, log_base: Path, trade_date: str, now_fn=None):
         self.log_base = Path(log_base)
         self.trade_date = trade_date
-        self.now_fn = now_fn or datetime.now
+        self.now_fn = now_fn or clock.now
         self._seq = 0
         self._handle = None
         self._prepare()

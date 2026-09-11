@@ -7,6 +7,9 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-123456}
       MYSQL_DATABASE: quant_db
+      # 与 backend 同一时区：表中 created_at/updated_at 的 DEFAULT CURRENT_TIMESTAMP
+      # 由 DB 侧生成，DB 用 UTC 会让审计时间比业务时间早 8 小时。
+      TZ: ${TZ:-Asia/Shanghai}
     ports:
       - "3306:3306"
     volumes:
@@ -33,6 +36,9 @@ services:
       DB_HOST: mysql
       DB_USERNAME: ${DB_USERNAME:-root}
       DB_PASSWORD: ${DB_PASSWORD:-123456}
+      # 交易业务日/日切依赖本地时区（LocalDate.now()），容器默认 UTC 会让北京时间
+      # 凌晨 00:00–08:00 落到前一交易日；这里与 Dockerfile 的 -Duser.timezone 一致锚定 CST。
+      TZ: ${TZ:-Asia/Shanghai}
       # 容器部署默认开启 JWT 鉴权（本地 dev 保持关闭）；可用 AUTH_ENABLED=false 关闭
       AUTH_ENABLED: ${AUTH_ENABLED:-true}
     depends_on:

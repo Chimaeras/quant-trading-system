@@ -9,8 +9,10 @@
 """
 from __future__ import annotations
 
+import math
 from datetime import datetime
 
+from . import clock
 from .models import Quote, QuoteValidity
 
 # 指标中文名 → Quote 字段
@@ -26,6 +28,17 @@ class QuoteParseError(Exception):
     """行情解析失败（fail-closed，绝不猜字段）。"""
 
 
+def _require_finite(value: float, raw, field: str) -> float:
+    """拒绝 inf/NaN：它们能穿过 `<=0` / `==0` / 大小比较，把校验变成 fail-open。
+
+    典型后果：涨停价解析成 inf 后与委托价比大小恒成立 → 价格笼子失效；
+    最新价 inf 会直接进入下单数量与风控计算。
+    """
+    if not math.isfinite(value):
+        raise QuoteParseError(f"{field}必须为有限数值: {raw!r}")
+    return value
+
+
 def parse_pct_chg(raw: str) -> float:
     """涨跌幅归一化为百分数：0.38 / 0.0038 / 0.38% → 0.38。
 
@@ -35,7 +48,7 @@ def parse_pct_chg(raw: str) -> float:
     s = str(raw).strip().replace("%", "").replace("％", "")
     if not s or s in ("--", "-", "nan"):
         raise QuoteParseError(f"涨跌幅无法解析: {raw!r}")
-    value = float(s)
+    value = _require_finite(float(s), raw, "涨跌幅")
     # 纯小数且绝对值极小（如 0.0038）视为比例形式，转百分数
     if abs(value) < 0.01 and value != 0:
         return value * 100
@@ -54,7 +67,7 @@ def parse_volume(raw: str) -> float:
         multiplier, s = 1e8, s.rstrip("亿股")
     elif s.endswith("股"):
         s = s.rstrip("股")
-    return float(s) * multiplier
+    return _require_finite(float(s) * multiplier, raw, "成交量")
 
 
 def parse_price(raw: str) -> float:
@@ -62,7 +75,7 @@ def parse_price(raw: str) -> float:
     s = str(raw).strip().replace(",", "").replace("元", "").replace("￥", "")
     if not s or s in ("--", "-", "nan", "None"):
         raise QuoteParseError(f"价格无法解析: {raw!r}")
-    value = float(s)
+    value = _require_finite(float(s), raw, "价格")
     if value <= 0:
         raise QuoteParseError(f"价格必须为正数: {raw!r}")
     return value
@@ -114,7 +127,7 @@ def parse_query(payload: dict, code: str, *, received_at: datetime | None = None
     Raises:
         QuoteParseError: 结构不符、缺少最新价、代码不对齐等。
     """
-    received = received_at or datetime.now()
+    received = received_at or clock.now()
     try:
         tables = payload["data"]["data"]["searchDataResultDTO"]["dataTableDTOList"]
     except (KeyError, TypeError) as exc:
@@ -148,6 +161,7 @@ def parse_query(payload: dict, code: str, *, received_at: datetime | None = None
         last = float(str(last_raw).replace(",", "").rstrip("元"))
     except ValueError as exc:
         raise QuoteParseError(f"最新价无法解析: {last_raw!r}") from exc
+    last = _require_finite(last, last_raw, "最新价")
     if last <= 0:
         raise QuoteParseError(f"最新价非正数: {last}")
 
@@ -177,7 +191,9 @@ def parse_query(payload: dict, code: str, *, received_at: datetime | None = None
             elif attr == "volume":
                 quote.volume = parse_volume(raw)
             else:
-                quote.volume_ratio = float(str(raw).replace(",", ""))
+                quote.volume_ratio = _require_finite(
+                    float(str(raw).replace(",", "")), raw, "量比"
+                )
         except (ValueError, QuoteParseError):
             # 非核心指标解析失败不致命，保持 None
             continue

@@ -6,6 +6,7 @@ import time
 
 import requests
 
+from .. import clock
 from ..config import PaperConfig
 from ..eastmoney_http import EASTMONEY_HEADERS, eastmoney_get
 from ..mx_result import MxErrorKind, MxResult
@@ -331,7 +332,7 @@ class KlineClient:
         as_of: datetime | None = None,
         exchange: str | None = None,
     ) -> tuple[list[WatchBar] | None, MxResult]:
-        current = as_of or datetime.now()
+        current = as_of or clock.now()
         source = self._config.kline_source
         if source in {"eastmoney", "auto"}:
             # auto 只表示使用东方财富分钟 K 线，并不把妙想普通行情查询

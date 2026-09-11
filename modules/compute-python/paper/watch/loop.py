@@ -12,6 +12,7 @@ from hashlib import sha256
 from pathlib import Path
 from statistics import median
 
+from .. import clock
 from ..broker_client import ACTIVE_ORDER_STATUSES, order_remaining_qty
 from ..config import PaperConfig
 from ..decide import in_trading_window
@@ -33,7 +34,7 @@ from .bar_store import BarStore
 from .cooldown import CooldownBook
 from .decide_watch import build_watch_intent
 from .events import EventLog
-from .execution import create_execution_adapter
+from .execution import PreSendRejected, create_execution_adapter
 from .size import sizing_detail
 from .models import WatchTick
 from .oms import ACTIVE_STATUSES as OMS_ACTIVE_STATUSES, LocalOrder, OmsService, OrderStatus, external_status
@@ -99,7 +100,7 @@ class WatchLoop:
         self.broker = broker
         self.kline_client = kline_client
         self.log_base = Path(log_base)
-        self.now_fn = now_fn or datetime.now
+        self.now_fn = now_fn or clock.now
         self.sleep_fn = sleep_fn
         self.bar_store = BarStore(config.bar_period_min)
         self.adapter = SignalAdapter(
@@ -1024,6 +1025,19 @@ class WatchLoop:
         try:
             result = self.execution_adapter.submit_order(
                 intent, run_id=run_id, local_order=local_order
+            )
+        except PreSendRejected as exc:
+            # 发送前确定性拒单：服务端从未受理，既不是 unknown（无需对账、不冻结
+            # live），也不是网关拒单。按 REJECTED 记录并让循环继续。
+            return SubmitRecord(
+                stock_code=intent.stock_code,
+                side=intent.side,
+                qty=intent.qty,
+                price=intent.limit_price,
+                ok=False,
+                status="REJECTED",
+                error_code=exc.code,
+                error_message=exc.message,
             )
         except Exception as exc:
             return SubmitRecord(

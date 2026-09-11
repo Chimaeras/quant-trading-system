@@ -13,7 +13,10 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "prediction_run", uniqueConstraints = {
         @UniqueConstraint(columnNames = {"run_id"}),
-        @UniqueConstraint(columnNames = {"trade_date", "horizon", "track", "publish_version"})
+        @UniqueConstraint(columnNames = {"trade_date", "horizon", "track", "publish_version"}),
+        // 一次 generate 写 RULE_SCORE + PROBABILITY 两条 run 且共用同一 requestId，
+        // 故幂等键唯一性落在 (request_id, track) 上（Flyway V22）。
+        @UniqueConstraint(columnNames = {"request_id", "track"})
 })
 public class PredictionRun {
 
@@ -59,8 +62,9 @@ public class PredictionRun {
     @Column(length = 32)
     private String selectorResultId;
 
-    /** 幂等键：同 requestId 重复发布返回既有结果，不重复生成 publish_version（V2-MP-030）。 */
-    @Column(unique = true, length = 64)
+    /** 幂等键：同 requestId 重复发布返回既有结果，不重复生成 publish_version（V2-MP-030）。
+     *  唯一性为 (request_id, track) 复合——见类级 uniqueConstraints 与 Flyway V22。 */
+    @Column(length = 64)
     private String requestId;
 
     @Column(columnDefinition = "LONGTEXT")

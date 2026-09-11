@@ -16,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Protocol
 
+from .. import clock
 from .models import WatchBar
 
 
@@ -477,7 +478,7 @@ class SqliteWatchStore:
                 INSERT INTO schema_meta(id, version, updated_at) VALUES(1, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET version=excluded.version, updated_at=excluded.updated_at
                 """,
-                (SCHEMA_VERSION, datetime.now().isoformat()),
+                (SCHEMA_VERSION, clock.now().isoformat()),
             )
         except sqlite3.Error as exc:
             raise WatchStoreError(f"运行库迁移失败: {type(exc).__name__}:{exc}") from exc
@@ -673,7 +674,7 @@ class SqliteWatchStore:
         closed_bars: Iterable[WatchBar],
         forming_checkpoints: Iterable[dict],
     ) -> None:
-        now = datetime.now().isoformat()
+        now = clock.now().isoformat()
         bar_rows = [
             (
                 bar.code, bar.period_min, bar.start_ts.isoformat(), bar.end_ts.isoformat(),
@@ -751,7 +752,7 @@ class SqliteWatchStore:
     # ------------------------- strategy/runtime state ---------------------
 
     def save_strategy_progress(self, rows: Iterable[dict]) -> None:
-        now = datetime.now().isoformat()
+        now = clock.now().isoformat()
         values = [
             (
                 str(row["code"]), str(row["strategy"]), str(row["parameter_hash"]),
@@ -794,7 +795,7 @@ class SqliteWatchStore:
                         payload_json=excluded.payload_json,
                         updated_at=excluded.updated_at
                     """,
-                    (state_key, trade_date, encoded, datetime.now().isoformat()),
+                    (state_key, trade_date, encoded, clock.now().isoformat()),
                 )
         except (TypeError, ValueError, sqlite3.Error) as exc:
             raise WatchStoreError(f"保存运行状态失败: {type(exc).__name__}:{exc}") from exc
@@ -840,7 +841,7 @@ class SqliteWatchStore:
     # ------------------------- market data plane -------------------------
 
     def save_market_data_batch(self, batch: dict, quality_rows: Iterable[dict]) -> None:
-        now = datetime.now().isoformat()
+        now = clock.now().isoformat()
         rows = list(quality_rows)
         try:
             encoded = json.dumps(batch, ensure_ascii=False, sort_keys=True, default=str)
@@ -919,7 +920,7 @@ class SqliteWatchStore:
         values = list(rows)
         if not values:
             return
-        now = datetime.now().isoformat()
+        now = clock.now().isoformat()
         try:
             with self._transaction():
                 self._conn.executemany(
@@ -1052,7 +1053,7 @@ class SqliteWatchStore:
             raise WatchStoreError(f"读取活跃池失败: {type(exc).__name__}:{exc}") from exc
 
     def save_security_rules(self, trade_date: str, rows: Iterable[dict]) -> None:
-        now = datetime.now().isoformat()
+        now = clock.now().isoformat()
         values = list(rows)
         try:
             with self._transaction():
@@ -1107,7 +1108,7 @@ class SqliteWatchStore:
                     """,
                     (
                         universe_hash, trade_date, source, len(values), payload,
-                        datetime.now().isoformat(),
+                        clock.now().isoformat(),
                     ),
                 )
         except (TypeError, ValueError, sqlite3.Error) as exc:
@@ -1118,7 +1119,7 @@ class SqliteWatchStore:
     def sync_default_watch_pool(self, rows: Iterable[dict], *, max_size: int = 200) -> None:
         """刷新启动默认热门股；人工加入的成员始终保留，且不挤占热门 TopN 名额。"""
         values = list(rows)
-        now = datetime.now().isoformat()
+        now = clock.now().isoformat()
         try:
             with self._transaction():
                 self._conn.execute("DELETE FROM watch_pool_member WHERE manual=0")
@@ -1173,7 +1174,7 @@ class SqliteWatchStore:
         exchange = str(row.get("exchange", "")).strip()
         if not code or not exchange:
             raise WatchStoreError("人工观察池成员缺少 code/exchange")
-        now = datetime.now().isoformat()
+        now = clock.now().isoformat()
         try:
             with self._transaction():
                 self._conn.execute(
@@ -1238,7 +1239,7 @@ class SqliteWatchStore:
         missing = [key for key in required if order.get(key) in (None, "")]
         if missing:
             raise WatchStoreError(f"创建本地订单缺字段: {','.join(missing)}")
-        now = str(order.get("updated_at") or datetime.now().isoformat())
+        now = str(order.get("updated_at") or clock.now().isoformat())
         try:
             with self._transaction():
                 existing = self._conn.execute(
@@ -1329,7 +1330,7 @@ class SqliteWatchStore:
         invalid = set(values) - allowed
         if invalid:
             raise WatchStoreError(f"本地订单更新字段非法: {','.join(sorted(invalid))}")
-        values["updated_at"] = datetime.now().isoformat()
+        values["updated_at"] = clock.now().isoformat()
         try:
             with self._transaction():
                 assignments = ", ".join(f"{key}=?" for key in values)
@@ -1375,7 +1376,7 @@ class SqliteWatchStore:
                 if cursor.rowcount == 0:
                     return False
                 values = dict(order_fields)
-                values["updated_at"] = datetime.now().isoformat()
+                values["updated_at"] = clock.now().isoformat()
                 assignments = ", ".join(f"{key}=?" for key in values)
                 changed = self._conn.execute(
                     f"UPDATE local_order SET {assignments} WHERE client_order_id=?",
@@ -1419,7 +1420,7 @@ class SqliteWatchStore:
         if not normalized_session:
             raise WatchStoreError("session_id 不能为空")
         account_scope = f"{normalized_channel}:{normalized_session}"
-        now = datetime.now().isoformat()
+        now = clock.now().isoformat()
         try:
             with self._transaction():
                 unsafe = self._conn.execute(
@@ -1454,7 +1455,7 @@ class SqliteWatchStore:
             raise WatchStoreError(f"绑定账户作用域失败: {type(exc).__name__}:{exc}") from exc
 
     def save_account_sync_state(self, state: dict) -> None:
-        now = datetime.now().isoformat()
+        now = clock.now().isoformat()
         try:
             with self._transaction():
                 self._conn.execute(
@@ -1585,7 +1586,7 @@ class SqliteWatchStore:
                     (
                         str(snapshot["channel"]), str(snapshot["session_id"]),
                         str(snapshot["captured_at"]), str(snapshot["captured_at"]),
-                        datetime.now().isoformat(),
+                        clock.now().isoformat(),
                     ),
                 )
         except (KeyError, TypeError, ValueError, sqlite3.Error) as exc:
@@ -1606,7 +1607,7 @@ class SqliteWatchStore:
             raise WatchStoreError(f"读取内部模拟账户失败: {type(exc).__name__}:{exc}") from exc
 
     def save_simulation(self, account: dict, positions: Iterable[dict]) -> None:
-        now = datetime.now().isoformat()
+        now = clock.now().isoformat()
         position_rows = list(positions)
         try:
             with self._transaction():
@@ -1671,7 +1672,7 @@ class SqliteWatchStore:
         }
         if set(order_fields) - allowed:
             raise WatchStoreError("内部执行的订单更新字段非法")
-        now = datetime.now().isoformat()
+        now = clock.now().isoformat()
         position_rows = list(positions)
         try:
             with self._transaction():

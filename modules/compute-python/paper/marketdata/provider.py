@@ -5,6 +5,7 @@ import secrets
 from datetime import datetime
 from typing import Protocol
 
+from .. import clock
 from ..models import Quote
 from .models import BatchQuoteResult, MarketDataCapability, ProviderHealth
 
@@ -36,7 +37,7 @@ class LegacyMarketDataRouter:
     def snapshot_all(
         self, candidates: list, *, run_id: str, received_at: datetime
     ) -> BatchQuoteResult:
-        started = datetime.now()
+        started = clock.now()
         batch_id = f"{run_id}-l1-{secrets.token_hex(3)}"
         raw = self._client.snapshot_many(
             candidates, run_id=run_id, received_at=received_at
@@ -56,7 +57,7 @@ class LegacyMarketDataRouter:
         missing = [str(item.stock_code) for item in candidates if str(item.stock_code) not in quotes]
         meta = getattr(self._client, "last_batch_meta", {})
         duplicates = list(meta.get("duplicate_codes", [])) if isinstance(meta, dict) else []
-        finished = datetime.now()
+        finished = clock.now()
         status = "OK" if not missing and not duplicates else "DEGRADED"
         quality_reasons: list[str] = []
         if isinstance(meta, dict):
@@ -98,7 +99,7 @@ class LegacyMarketDataRouter:
             provider=self.name,
             ok=bool(caps),
             capabilities=caps,
-            checked_at=datetime.now(),
+            checked_at=clock.now(),
             message="公开 HTTP 批量轮询；仅外部 live 下单前补查妙想执行级行情；不声明盘口 SLA",
             recommended_interval_sec=60,
         )

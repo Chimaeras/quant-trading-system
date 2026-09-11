@@ -19,6 +19,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from .. import clock
 from .events import _tail_lines, events_path, read_events
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -159,7 +160,7 @@ def _add_watch_pool_member(store_path: Path, payload: dict, *, max_size: int = 2
     name = str(payload.get("name", payload.get("stock_name", ""))).strip() or code
     if len(name) > 100:
         raise BadRequestError("证券名称不得超过 100 个字符")
-    now = datetime.now().isoformat()
+    now = clock.now().isoformat()
     # 热门 TopN 占满 max_size；人工标的允许叠加，绝对上限留 50 余量。
     absolute_cap = int(max_size) + 50
     try:
@@ -491,7 +492,7 @@ def _account(store_path: Path, session_id: str, execution_mode: str = "") -> dic
 def _freshness_seconds(captured_at) -> float | None:
     try:
         captured = datetime.fromisoformat(str(captured_at))
-        return max((datetime.now() - captured).total_seconds(), 0.0)
+        return max((clock.now() - captured).total_seconds(), 0.0)
     except (TypeError, ValueError):
         return None
 

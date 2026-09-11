@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 from datetime import date, datetime, timedelta
-from pathlib import Path
 
 import pytest
 
@@ -329,3 +328,64 @@ class TestT1SourceBlocked:
                                         preview_run_id=preview.run_id)
         assert abort == "DATA_SOURCE_BLOCKED"
         assert broker.trade_calls == []
+
+
+class TestR31Clock:
+    """R31-P2-3：决策时钟必须锚定北京时间，不随宿主 TZ 平移。
+
+    宿主机/容器 TZ 不是 CST 时，`datetime.now()` 会让交易时段窗口、报价新鲜度、
+    委托 TTL 整体平移，且没有 fail-closed 信号；统一走 paper.clock。
+    """
+
+    def test_now_is_naive_beijing_time(self):
+        from paper import clock
+
+        current = clock.now()
+        assert current.tzinfo is None, "调用方按 naive datetime 比较/序列化"
+        delta = current - datetime.now(clock.CN_TZ).replace(tzinfo=None)
+        assert abs(delta.total_seconds()) < 1
+
+    def test_now_uses_fixed_utc_offset(self):
+        from paper import clock
+
+        assert clock.CN_TZ.utcoffset(None) == timedelta(hours=8)
+
+    def test_from_timestamp_returns_beijing_wall_clock(self):
+        from paper import clock
+
+        # 2026-08-19 02:00:00 UTC == 10:00:00 北京时间
+        epoch = datetime(2026, 8, 19, 2, 0, 0, tzinfo=clock.CN_TZ.__class__(timedelta(0))).timestamp()
+        assert clock.from_timestamp(epoch) == datetime(2026, 8, 19, 10, 0, 0)
+
+    def test_absent_now_fn_resolves_to_beijing_clock(self, tmp_path):
+        """未注入 now_fn 的对象必须落到 paper.clock，而不是宿主本地时间。"""
+        from paper import clock
+        from paper.watch.events import EventLog
+        from paper.watch.internal_broker import InternalPaperBroker
+
+        assert EventLog(tmp_path, "2026-08-19").now_fn is clock.now
+
+        import inspect
+
+        default = inspect.signature(InternalPaperBroker.__init__).parameters["now_fn"].default
+        assert default is None
+        assert "clock.now" in inspect.getsource(InternalPaperBroker.__init__)
+
+    def test_bar_bucket_and_event_stamp_follow_injected_clock(self, tmp_path, monkeypatch):
+        """stub paper.clock.now 后，bar 时间桶与事件时间戳必须跟随北京时间。"""
+        from paper import clock
+        from paper.watch.bar_store import BarStore
+        from paper.watch.events import EventLog
+
+        frozen = datetime(2026, 8, 19, 15, 30, 0)
+        monkeypatch.setattr(clock, "now", lambda: frozen)
+
+        quote = _quote(market_time=None, received_at=None)
+        update = BarStore(5).update_snapshot("600519", quote)
+        assert update.forming.start_ts == frozen
+
+        log = EventLog(tmp_path, "2026-08-19")
+        log.emit("CYCLE")
+        log.close()
+        lines = (tmp_path / "watch" / "2026-08-19" / "events.jsonl").read_text(encoding="utf-8").strip().splitlines()
+        assert json.loads(lines[-1])["ts"] == frozen.isoformat(timespec="seconds")

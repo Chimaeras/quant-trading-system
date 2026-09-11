@@ -5,9 +5,9 @@ import json
 import os
 import tempfile
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
 
+from .. import clock
 from .cooldown import CooldownBook
 
 
@@ -31,12 +31,12 @@ class WatchState:
             "cooldowns": self.cooldowns,
             "open_order_ids": self.open_order_ids,
             "unknown_submits": self.unknown_submits,
-            "updated_at": self.updated_at or datetime.now().isoformat(),
+            "updated_at": self.updated_at or clock.now().isoformat(),
         }
 
     def save(self, path: Path, cooldown: CooldownBook) -> None:
         self.cooldowns = cooldown.to_dict()
-        self.updated_at = datetime.now().isoformat()
+        self.updated_at = clock.now().isoformat()
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = json.dumps(self.to_dict(), ensure_ascii=False, indent=2)
         temp_name = ""

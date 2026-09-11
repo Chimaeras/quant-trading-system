@@ -9,6 +9,7 @@ import time
 
 import requests
 
+from . import clock
 from .config import PaperConfig
 from .eastmoney_http import EASTMONEY_HEADERS, eastmoney_get
 from .mx_http import MxHttpClient, raw_hash
@@ -65,7 +66,7 @@ def _market_timestamp(value) -> datetime | None:
     if timestamp <= 0:
         return None
     try:
-        return datetime.fromtimestamp(timestamp)
+        return clock.from_timestamp(timestamp)
     except (OSError, OverflowError, ValueError):
         return None
 
@@ -316,7 +317,7 @@ class QuoteClient:
             )
             # 每批使用「本批到达时间」，避免整轮扫描耗时数分钟后，
             # 后半批 market_time 相对扫描起点被误判为 FUTURE_TIMESTAMP。
-            batch_received_at = datetime.now()
+            batch_received_at = clock.now()
             if received_at is not None and batch_received_at < received_at:
                 batch_received_at = received_at
             self._ingest_ulist_rows(
@@ -360,7 +361,7 @@ class QuoteClient:
         该快照负责监控轮询和 L1/L2 粗筛；只有外部 live 真正产生买卖
         意图时，WatchLoop 才会补查妙想 /query。
         """
-        current = received_at or datetime.now()
+        current = received_at or clock.now()
         result_by_code: dict[str, tuple[Quote | None, MxResult]] = {}
         candidate_by_code = {str(item.stock_code): item for item in candidates}
         if not candidate_by_code:

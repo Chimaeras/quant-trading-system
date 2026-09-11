@@ -10,9 +10,9 @@ from __future__ import annotations
 import argparse
 import sys
 from dataclasses import replace
-from datetime import datetime
 from pathlib import Path
 
+from . import clock
 from .config import PaperConfig
 
 # 默认审计根目录：compute-python/logs
@@ -357,7 +357,7 @@ def cmd_watch_once(args: argparse.Namespace) -> int:
     override = _watch_override(args)
     loop = _watch_loop(config, args)
     _print_watch_startup(config, args)
-    signal_date = args.signal_date or datetime.now().strftime("%Y-%m-%d")
+    signal_date = args.signal_date or clock.now().strftime("%Y-%m-%d")
     try:
         tick = loop.run_once(
             signal_date,
@@ -377,7 +377,7 @@ def cmd_watch(args: argparse.Namespace) -> int:
     override = _watch_override(args)
     loop = _watch_loop(config, args)
     _print_watch_startup(config, args)
-    signal_date = args.signal_date or datetime.now().strftime("%Y-%m-%d")
+    signal_date = args.signal_date or clock.now().strftime("%Y-%m-%d")
     try:
         ticks = loop.run(
             signal_date,

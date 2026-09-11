@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 
+from .. import clock
 from ..models import MxOrder
 from .store import WatchStore, WatchStoreError
 
@@ -208,7 +209,7 @@ class OmsService:
         metadata: dict | None = None,
         now: datetime | None = None,
     ) -> tuple[LocalOrder, bool]:
-        current = now or datetime.now()
+        current = now or clock.now()
         key = order_fingerprint(
             session_id=self.session_id,
             channel=self.channel,
@@ -312,7 +313,7 @@ class OmsService:
 
     def sync_external(self, broker_orders: list[MxOrder], now: datetime | None = None) -> list[dict]:
         """用柜台证据推进本地状态；无唯一匹配时保持 UNKNOWN。"""
-        current = now or datetime.now()
+        current = now or clock.now()
         changes: list[dict] = []
         used: set[str] = set()
         linked: dict[str, str] = {}

@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.Set;
 
@@ -576,6 +577,14 @@ public class UnifiedScoringService {
 
             Map<String, Object> result = run(req);
 
+            // 取消是并发发生的（cancelTaskInternal 直接改库并置中断标志），本方法的 task 是
+            // 方法开头的旧快照；若已取消仍回写，会把 CANCELLED 覆盖回 RUNNING/SUCCESS
+            // （R31-P1-3）。与下方 catch 分支同一口径：先重读库内状态再落终态。
+            if (isCancelledInDb(taskId)) {
+                log.info("统一打分任务已取消，放弃完成态回写 taskId={}", taskId);
+                return;
+            }
+
             task.setProgressPct(90);
             task.setMessage("计算完成，整理结果中");
             task.setResultId(String.valueOf(result.getOrDefault("result_id", "")));
@@ -586,6 +595,10 @@ public class UnifiedScoringService {
             }
             unifiedScoringTaskRepository.save(task);
 
+            if (isCancelledInDb(taskId)) {
+                log.info("统一打分任务在收口前被取消，保持取消态 taskId={}", taskId);
+                return;
+            }
             task.setStatus("SUCCESS");
             task.setProgressPct(100);
             task.setFinishedAt(LocalDateTime.now());
@@ -622,8 +635,20 @@ public class UnifiedScoringService {
         if (!queuedOrRunningTaskIds.add(taskId)) {
             return;
         }
-        Future<?> future = unifiedTaskExecutor.submit(() -> runTask(taskId, request));
+        // 先构造并登记 FutureTask 再提交：若先 submit 后 put，任务可能在 put 之前跑完，
+        // worker 的 finally remove 落空 → 该 taskId 的已完成 Future 永久残留（R31-P3-1）。
+        FutureTask<Void> future = new FutureTask<Void>(() -> {
+            runTask(taskId, request);
+            return null;
+        });
         taskFutures.put(taskId, future);
+        try {
+            unifiedTaskExecutor.execute(future);
+        } catch (RuntimeException e) {
+            taskFutures.remove(taskId);
+            queuedOrRunningTaskIds.remove(taskId);
+            throw e;
+        }
     }
 
     private void scheduleTaskAfterCommit(String taskId, Map<String, Object> request) {
@@ -676,6 +701,16 @@ public class UnifiedScoringService {
             future.cancel(true);
         }
         return true;
+    }
+
+    /** 重读库内状态判定任务是否已被取消（R31-P1-3：成功路径禁止用旧快照覆盖 CANCELLED）。 */
+    private boolean isCancelledInDb(String taskId) {
+        if (Thread.currentThread().isInterrupted()) {
+            return true;
+        }
+        return unifiedScoringTaskRepository.findByTaskId(taskId)
+                .map(t -> "CANCELLED".equalsIgnoreCase(String.valueOf(t.getStatus())))
+                .orElse(false);
     }
 
     private static boolean isCancellationException(Exception e) {

@@ -993,6 +993,75 @@ def test_submit_classifies_rejected_vs_unknown(tmp_path: Path):
     assert missing_id.error_code == "NO_ORDER_ID"
 
 
+class _PreSendBroker(_WatchBroker):
+    """模拟 BrokerClient.trade 的发送前入参校验：请求从未离开进程。"""
+
+    def trade(self, *args, **kwargs):
+        self.trade_calls.append((args, kwargs))
+        raise ValueError("qty 非法: 50（须为正的整百）")
+
+
+def test_external_adapter_wraps_pre_send_validation_as_reject(tmp_path: Path):
+    """R31-P1-5：adapter 必须把发送前校验失败标记为 PreSendRejected。
+
+    MxHttpClient.post 把网络/解析异常转成 MxResult 返回、从不抛出，因此
+    trade() 抛出的 ValueError 只可能是发送前校验，不能当成「提交结果未知」。
+    """
+    from paper.watch.execution import PreSendRejected, create_execution_adapter
+
+    broker = _PreSendBroker()
+    adapter = create_execution_adapter("EXTERNAL_PAPER", broker)
+    intent = Intent("600519", IntentType.BUY_LIMIT, side="buy", qty=50, limit_price=10.0)
+
+    error = None
+    try:
+        adapter.submit_order(intent, run_id="t-presend")
+    except PreSendRejected as exc:
+        error = exc
+    assert error is not None, "发送前校验失败必须抛 PreSendRejected"
+    assert error.code == "CLIENT_REJECTED"
+    assert broker.trade_calls, "adapter 仍应把委托交给 broker 做入参校验"
+
+
+def test_submit_maps_pre_send_reject_without_unknown(tmp_path: Path):
+    """R31-P1-5：发送前拒单按 REJECTED 记录，不得进入 unknown 对账（否则永久冻结 live）。
+
+    零股卖出（证券规则允许 odd_lot_sell）会稳定触发这条路径：服务端从未受理，
+    orders 对账永远匹配不到，旧实现下 live 无法自动解除冻结。
+    """
+    intent = Intent("600519", IntentType.SELL_LIMIT, side="sell", qty=50, limit_price=10.0)
+    loop = WatchLoop(
+        _config(watch_execution_mode="EXTERNAL_PAPER"), _WatchQuote(), _PreSendBroker(),
+        log_base=tmp_path, seed_bars={},
+    )
+
+    record = loop._submit(intent, "t-presend")
+
+    assert record.status == "REJECTED"
+    assert record.error_code == "CLIENT_REJECTED"
+    assert "qty 非法" in record.error_message
+
+
+def test_submit_keeps_unknown_for_unclassified_exception(tmp_path: Path):
+    """R31-P1-5：非发送前异常仍按 unknown 处理——OOM/落盘失败无法证明服务端未受理。"""
+
+    class _BrokenBroker(_WatchBroker):
+        def trade(self, *args, **kwargs):
+            self.trade_calls.append((args, kwargs))
+            raise OSError("disk full")
+
+    intent = Intent("600519", IntentType.BUY_LIMIT, side="buy", qty=100, limit_price=10.0)
+    loop = WatchLoop(
+        _config(watch_execution_mode="EXTERNAL_PAPER"), _WatchQuote(), _BrokenBroker(),
+        log_base=tmp_path, seed_bars={},
+    )
+
+    record = loop._submit(intent, "t-unknown")
+
+    assert record.status == "UNKNOWN_SUBMIT"
+    assert record.error_code == "CLIENT_EXCEPTION"
+
+
 def _trade_result(*, ok=True, code="200", order_id=None):
     from paper.mx_result import MxResult
 

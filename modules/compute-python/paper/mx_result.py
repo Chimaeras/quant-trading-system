@@ -10,8 +10,9 @@ P1-09：非字典 payload 统一 PARSE_ERROR，不抛未捕获异常；
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
+
+from . import clock
 
 
 class MxErrorKind(str, Enum):
@@ -59,7 +60,7 @@ class MxResult:
     data: object = None
     kind: MxErrorKind = MxErrorKind.OK
     request_id: str = ""
-    received_at: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
+    received_at: str = field(default_factory=lambda: clock.now().isoformat(timespec="seconds"))
     retry_count: int = 0
     raw: dict = field(default_factory=dict)
     raw_path: str = ""  # 脱敏原文落盘路径

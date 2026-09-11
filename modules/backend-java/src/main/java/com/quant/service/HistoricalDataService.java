@@ -69,6 +69,9 @@ public class HistoricalDataService {
     private static final int SOHU_CHUNK_MAX_DAYS = 500;
     private static final int MAX_ATTEMPTS = 4;
     private static final int INSERT_BATCH_SIZE = 500;
+    /** 出站 HTTP 超时（R31-P1-4）：两条抓取路径（RestTemplate / 裸 HttpURLConnection）共用同一口径。 */
+    private static final int CONNECT_TIMEOUT_MS = 20_000;
+    private static final int READ_TIMEOUT_MS = 120_000;
     /** fields2: f51日期 f52开 f53收 f54高 f55低 f56成交量 f57成交额 f58振幅 f59涨跌幅 f60涨跌额 f61换手率 */
     private static final String FIELDS2 = "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61";
 
@@ -238,12 +241,18 @@ public class HistoricalDataService {
 
     /**
      * 与 StockInfo {@code UpdateUtil.sendGetRequest} 一致：HttpURLConnection GET，无自定义 UA，非 200 时打印 response code。
+     *
+     * <p>R31-P1-4：须显式设超时。默认无限超时下对端接受连接后 stall，worker 会永久阻塞在 socket 读上——
+     * {@code Thread.interrupt()} 打不断阻塞读，任务既停不掉又占着线程（事务路径下还占着连接）。
+     * 口径与本类 RestTemplate 路径一致（connect 20s / read 120s）。
      */
     private static String sendGetRequestStockInfoStyle(String urlString) {
         try {
             URL obj = new URL(urlString);
             HttpURLConnection con = (HttpURLConnection) obj.openConnection();
             con.setRequestMethod("GET");
+            con.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            con.setReadTimeout(READ_TIMEOUT_MS);
 
             int responseCode = con.getResponseCode();
             if (responseCode == 200) {
@@ -297,8 +306,8 @@ public class HistoricalDataService {
 
     private static RestTemplate createRestTemplate() {
         SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
-        f.setConnectTimeout(Duration.ofSeconds(20));
-        f.setReadTimeout(Duration.ofSeconds(120));
+        f.setConnectTimeout(Duration.ofMillis(CONNECT_TIMEOUT_MS));
+        f.setReadTimeout(Duration.ofMillis(READ_TIMEOUT_MS));
         return new RestTemplate(f);
     }
 

@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.RejectedExecutionException;
 
 @Slf4j
@@ -113,10 +114,17 @@ public class HistoricalDataUpdateService {
         final long delayBetween = delayMs;
         final boolean stockInfoStyleMainBoard = "MAIN_BOARD".equals(mode);
         try {
-            Future<?> future = dataUpdateTaskExecutor.submit(() -> runTask(task.getTaskId(), targetsForRun, s, e, delayBetween, stockInfoStyleMainBoard));
+            // 先登记后提交：先 submit 后 put 时任务可能在 put 前跑完，worker 的 finally
+            // remove 落空 → 已完成 Future 永久残留（R31-P3-1）。
+            FutureTask<Void> future = new FutureTask<Void>(() -> {
+                runTask(task.getTaskId(), targetsForRun, s, e, delayBetween, stockInfoStyleMainBoard);
+                return null;
+            });
             taskFutures.put(task.getTaskId(), future);
+            dataUpdateTaskExecutor.execute(future);
         } catch (RejectedExecutionException ex) {
-            // executor 饱和或关闭时 submit 抛异常，须将 PENDING 任务标记为 FAILED 避免孤儿
+            // executor 饱和或关闭时提交抛异常，须将 PENDING 任务标记为 FAILED 避免孤儿
+            taskFutures.remove(task.getTaskId());
             task.setStatus("FAILED");
             task.setMessage("executor rejected task: " + ex.getMessage());
             dataUpdateTaskRepository.save(task);
@@ -204,9 +212,14 @@ public class HistoricalDataUpdateService {
         dataUpdateTaskRepository.save(retry);
 
         try {
-            Future<?> future = dataUpdateTaskExecutor.submit(() -> runTask(retry.getTaskId(), targets, retry.getStartDate(), retry.getEndDate(), 150L, false));
+            FutureTask<Void> future = new FutureTask<Void>(() -> {
+                runTask(retry.getTaskId(), targets, retry.getStartDate(), retry.getEndDate(), 150L, false);
+                return null;
+            });
             taskFutures.put(retry.getTaskId(), future);
+            dataUpdateTaskExecutor.execute(future);
         } catch (RejectedExecutionException ex) {
+            taskFutures.remove(retry.getTaskId());
             retry.setStatus("FAILED");
             retry.setMessage("executor rejected task: " + ex.getMessage());
             dataUpdateTaskRepository.save(retry);

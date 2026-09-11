@@ -19,6 +19,11 @@ RUN mvn clean package -DskipTests -B
 
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
+# 业务日/交易日判定全部基于 LocalDate.now()：容器默认 UTC，北京时间 00:00–08:00
+# 会回退到前一天（模拟账户 HISTORICAL_SESSION_REQUIRED、日报 T+N 等）。显式锚定 CST。
+RUN apk add --no-cache tzdata && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+    && echo "Asia/Shanghai" > /etc/timezone
+ENV TZ=Asia/Shanghai
 COPY --from=build /app/modules/backend-java/target/*.jar app.jar
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-Duser.timezone=Asia/Shanghai", "-jar", "app.jar"]

@@ -15,6 +15,17 @@ public interface LabelSnapshotRepository extends JpaRepository<LabelSnapshot, Lo
     Optional<LabelSnapshot> findByLabelVersionAndSignalDateAndStockCodeAndExchangeTypeAndHorizon(
             String labelVersion, LocalDate signalDate, String stockCode, String exchangeType, Integer horizon);
 
+    /**
+     * R31-P2-1：单个信号日「已存在标签」的 (code, exchange, horizon) 三元组。
+     *
+     * <p>标签生成原实现按「股票 × horizon」逐条查存在性（一年约 5000×3×250 ≈ 375 万次 SELECT）。
+     * 改为按日一次取回该日全部已有键、循环内做集合命中判断：每天的查询数从约 1.5 万降到 1。
+     */
+    @Query("SELECT l.stockCode, l.exchangeType, l.horizon FROM LabelSnapshot l " +
+            "WHERE l.labelVersion = :version AND l.signalDate = :signalDate")
+    List<Object[]> findExistingKeysByVersionAndSignalDate(
+            @Param("version") String labelVersion, @Param("signalDate") LocalDate signalDate);
+
     @Query("SELECT COUNT(l) FROM LabelSnapshot l WHERE l.labelVersion = :version")
     long countByVersion(@Param("version") String labelVersion);
 

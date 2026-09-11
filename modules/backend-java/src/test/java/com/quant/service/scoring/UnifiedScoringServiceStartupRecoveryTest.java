@@ -66,8 +66,8 @@ class UnifiedScoringServiceStartupRecoveryTest {
         assertThat(runningTask.getStatus()).isEqualTo("FAILED");
         verify(taskRepo).save(runningTask);
 
-        // PENDING → 重新排队（submit 到 executor）
-        verify(executor).submit(any(Runnable.class));
+        // PENDING → 重新排队（提交到 executor；R31-P3-1 后为「先登记 FutureTask 再 execute」）
+        verify(executor).execute(any(Runnable.class));
     }
 
     @Test

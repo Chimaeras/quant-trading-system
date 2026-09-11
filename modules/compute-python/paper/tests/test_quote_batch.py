@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+from paper.clock import CN_TZ
 from paper.config import PaperConfig
 from paper.models import Candidate, QuoteValidity
 from paper.quote_client import EASTMONEY_ULIST_ENDPOINT, QuoteClient, _EASTMONEY_ULIST_BATCH
@@ -35,7 +36,8 @@ def _row(code: str, *, pct=-2.5, timestamp: datetime = NOW):
         "f12": code,
         "f13": 1 if code.startswith("6") else 0,
         "f14": f"股票{code}",
-        "f124": int(timestamp.timestamp()),
+        # f124 是绝对秒级时间戳；按北京时间折算，测试结果不随宿主 TZ 变化。
+        "f124": int(timestamp.replace(tzinfo=CN_TZ).timestamp()),
     }
 
 
@@ -50,13 +52,7 @@ def _client(**config):
 def _patch_eastmoney(monkeypatch, fake_get):
     monkeypatch.setattr("paper.quote_client.eastmoney_get", fake_get)
     monkeypatch.setattr("paper.quote_client.time.sleep", lambda *_args, **_kwargs: None)
-
-    class _Now(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return NOW
-
-    monkeypatch.setattr("paper.quote_client.datetime", _Now)
+    monkeypatch.setattr("paper.quote_client.clock.now", lambda: NOW)
 
 
 def test_snapshot_many_keeps_negative_pct_and_provider_time(monkeypatch):
@@ -211,17 +207,9 @@ def test_snapshot_many_batch_received_at_avoids_future_false_positive(monkeypatc
     def fake_get(url, *, params=None, headers=None, timeout=None, proxies=None, **kwargs):
         return _Response(_payload([_row("600519", timestamp=later_market)]))
 
-    class _FrozenDatetime(datetime):
-        _calls = 0
-
-        @classmethod
-        def now(cls, tz=None):
-            cls._calls += 1
-            # 第一次（批到达）返回扫描后 3 分钟，模拟长耗时拉取。
-            return later_market if cls._calls >= 1 else scan_start
-
     monkeypatch.setattr("paper.quote_client.eastmoney_get", fake_get)
-    monkeypatch.setattr("paper.quote_client.datetime", _FrozenDatetime)
+    # 批到达时间晚于扫描起点 3 分钟，模拟长耗时拉取。
+    monkeypatch.setattr("paper.quote_client.clock.now", lambda: later_market)
     monkeypatch.setattr("paper.quote_client.time.sleep", lambda *_args, **_kwargs: None)
     quote, _ = _client().snapshot_many(
         [Candidate("600519", "贵州茅台", "SH")],

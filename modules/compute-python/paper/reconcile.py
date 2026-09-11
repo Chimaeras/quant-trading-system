@@ -23,19 +23,29 @@ _STATUS_CLASS = {
 }
 
 
-def _load_submits(log_base: Path, trade_date: str) -> list[dict]:
-    """汇总当日全部 run 的 submits。"""
+def _load_submits(log_base: Path, trade_date: str) -> tuple[list[dict], list[str]]:
+    """汇总当日全部 run 的 submits。
+
+    返回 (submits, unreadable)。某个 submits.json 损坏（进程中断留下半截文件）时，
+    不能整条对账命令崩掉，也不能当作"该 run 没提交过"静默忽略——那会低估风险敞口。
+    读不出来的文件路径收进 unreadable，由调用方强制判 BLOCKED。
+    """
     day_dir = log_base / "paper" / trade_date
     submits: list[dict] = []
+    unreadable: list[str] = []
     if not day_dir.exists():
-        return submits
+        return submits, unreadable
     for run_path in sorted(day_dir.iterdir()):
         f = run_path / "submits.json"
         if f.exists():
-            data = json.loads(f.read_text(encoding="utf-8"))
+            try:
+                data = json.loads(f.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                unreadable.append(str(f))
+                continue
             if isinstance(data, list):
                 submits.extend(data)
-    return submits
+    return submits, unreadable
 
 
 def classify_submit(submit: dict, order: dict | None) -> str:
@@ -62,7 +72,7 @@ def reconcile_day(broker, log_base: Path, trade_date: str) -> dict:
          partial_count, rejected_count, canceled_count, unknown_count,
          query_error_count, differences, ...}
     """
-    submits = _load_submits(log_base, trade_date)
+    submits, unreadable = _load_submits(log_base, trade_date)
     balance, _b = broker.balance()
     orders, o_result = broker.orders()
 
@@ -78,11 +88,11 @@ def reconcile_day(broker, log_base: Path, trade_date: str) -> dict:
             "partial_count": 0,
             "rejected_count": 0,
             "canceled_count": 0,
-            "unknown_count": len(submits),
+            "unknown_count": len(submits) + len(unreadable),
             "query_error_count": 1,
             "total_assets": balance.total_assets if balance else None,
             "avail_balance": balance.avail_balance if balance else None,
-            "differences": ["orders 查询/解析失败，无法对账"],
+            "differences": ["orders 查询/解析失败，无法对账"] + _unreadable_diffs(unreadable),
         }
 
     by_id = {o.order_id: o for o in orders if o.order_id}
@@ -114,10 +124,12 @@ def reconcile_day(broker, log_base: Path, trade_date: str) -> dict:
             )
     if balance is None:
         differences.append("balance 查询失败，无法核对资金")
+    # 有读不出来的 submits 文件 → 无法确认本地提交全集，只能 BLOCKED。
+    differences.extend(_unreadable_diffs(unreadable))
 
     ok = (counts["unknown_count"] == 0 and counts["rejected_count"] == 0
           and counts["canceled_count"] == 0 and counts["partial_count"] == 0
-          and balance is not None)
+          and balance is not None and not unreadable)
     return {
         "trade_date": trade_date,
         "status": "OK" if ok else "BLOCKED",
@@ -126,11 +138,16 @@ def reconcile_day(broker, log_base: Path, trade_date: str) -> dict:
         "matched": counts["success_count"],
         **counts,
         "query_error_count": 0 if balance is not None else 1,
+        "unreadable_submits": unreadable,
         "total_assets": balance.total_assets if balance else None,
         "avail_balance": balance.avail_balance if balance else None,
         "results": results,
         "differences": differences,
     }
+
+
+def _unreadable_diffs(unreadable: list[str]) -> list[str]:
+    return [f"submits 文件损坏无法解析: {p}（本地提交集合不完整，须人工核对）" for p in unreadable]
 
 
 def asdict_order(order) -> dict:

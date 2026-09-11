@@ -402,7 +402,8 @@ public class ScoringBacktestService {
 
             double avgWin = returns.stream().filter(r -> r > 0).mapToDouble(Double::doubleValue).average().orElse(0);
             double avgLoss = returns.stream().filter(r -> r < 0).mapToDouble(Double::doubleValue).average().orElse(0);
-            double profitLossRatio = avgLoss < 0 ? avgWin / Math.abs(avgLoss) : 0;
+            // 无亏损样本时比值无定义（不是 0）：置 null，避免前端把"全胜"显示成"盈亏比 0"。
+            Double profitLossRatio = avgLoss < 0 ? avgWin / Math.abs(avgLoss) : null;
 
             holdingPeriodStats.put(h, PeriodStat.builder()
                     .winRate(filledWinRate)

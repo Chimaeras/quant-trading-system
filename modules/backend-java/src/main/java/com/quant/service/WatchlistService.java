@@ -85,8 +85,12 @@ public class WatchlistService {
     /**
      * 批量添加自选股：接收「代码,交易所」对列表，逐个幂等添加。
      * 交易所可省略，省略时按代码前缀推断（6→SSE，0/3→SZSE，4/8/92→BSE）。
+     *
+     * <p>刻意不加类/方法级 @Transactional：批量是"部分成功"语义（返回 added/skipped/errors），
+     * 若整批共用一个事务，任一标的落库失败会把该事务标记为 rollback-only，提交时抛
+     * UnexpectedRollbackException 并回滚已成功的标的，而响应里的 added 计数却说成功。
+     * 去掉批量事务后，每个 repository 调用各自提交，失败项只进 errors，成功项落库。
      */
-    @Transactional
     public Map<String, Object> batchAdd(Long userId, List<String[]> pairs) {
         int added = 0;
         int skipped = 0;

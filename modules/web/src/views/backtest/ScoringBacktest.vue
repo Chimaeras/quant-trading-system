@@ -113,7 +113,7 @@
                 </div>
                 <div class="vm">
                   <span class="vm-label">盈亏比</span>
-                  <b :class="v.profitLossRatio >= 1 ? 'text-success' : 'text-danger'">{{ v.profitLossRatio.toFixed(2) }}</b>
+                  <b :class="ratioClass(v.profitLossRatio)">{{ fmtRatio(v.profitLossRatio) }}</b>
                 </div>
                 <div class="vm">
                   <span class="vm-label">样本数</span>
@@ -180,8 +180,8 @@
                 </div>
                 <div class="stat-item">
                   <span class="stat-label">盈亏比（赚/亏）</span>
-                  <span class="stat-value" :class="stat.profitLossRatio >= 1 ? 'text-success' : 'text-danger'">
-                    {{ stat.profitLossRatio.toFixed(2) }}
+                  <span class="stat-value" :class="ratioClass(stat.profitLossRatio)">
+                    {{ fmtRatio(stat.profitLossRatio) }}
                   </span>
                 </div>
                 <div class="stat-item">
@@ -512,7 +512,7 @@
                 <template #default="{ row }">{{ (row.win_rate * 100).toFixed(2) }}%</template>
               </el-table-column>
               <el-table-column label="盈亏比" min-width="90">
-                <template #default="{ row }">{{ row.profit_loss_ratio.toFixed(2) }}</template>
+                <template #default="{ row }">{{ fmtRatio(row.profit_loss_ratio) }}</template>
               </el-table-column>
             </el-table>
             <!-- 基准对照 + 牛/熊市场分段 -->
@@ -589,6 +589,16 @@ const form = reactive({
 function pct(v: number) { return Number.isFinite(v) ? (v * 100).toFixed(2) + '%' : '—' }
 function pct1(v: number) { return Number.isFinite(v) ? (v * 100).toFixed(1) + '%' : '—' }
 
+// 盈亏比：后端在"无亏损样本"时下发 null（比值无定义，不等于 0），此时显示 "--"，
+// 绝不能落到 toFixed 上（会抛错）或显示成 0.00（含义正好相反）。
+function fmtRatio(v: number | null | undefined) {
+  return typeof v === 'number' && Number.isFinite(v) ? v.toFixed(2) : '--'
+}
+function ratioClass(v: number | null | undefined) {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return 'text-muted'
+  return v >= 1 ? 'text-success' : 'text-danger'
+}
+
 // IC 业务判定：<0.02 几乎无预测力 / <0.05 较弱 / <0.1 有效 / >=0.1 强
 function icVerdict(ic: number): { text: string; type: 'success' | 'warning' | 'danger' | 'info' } {
   if (!Number.isFinite(ic)) return { text: '数据不足', type: 'info' }
@@ -620,21 +630,26 @@ const periodVerdicts = computed(() => {
     const wr = s.winRate
     const ar = s.avgReturn
     const plr = s.profitLossRatio
+    // 盈亏比为 null 表示样本内没有亏损（比值无定义）——对"赚/亏"判定按满足处理，
+    // 但文案要说清是"无亏损样本"，不能显示一个数字。
+    const noLossSample = plr == null && s.totalObservations > 0 && s.avgLoss === 0
+    const plrOk = plr == null ? noLossSample : plr >= 1
+    const plrText = plr == null ? (noLossSample ? '无亏损样本' : '样本不足') : `盈亏比 ${plr.toFixed(2)}`
     let verdictLabel = '表现一般'
     let verdictType: 'success' | 'warning' | 'danger' | 'info' = 'info'
     let conclusion = ''
-    if (ar > 0 && wr >= 0.5 && plr >= 1) {
+    if (ar > 0 && wr >= 0.5 && plrOk) {
       verdictLabel = '表现较好'
       verdictType = 'success'
-      conclusion = `持有 ${d} 个交易日后，选出的股票整体盈利：平均赚 ${pct(ar)}，${(wr * 100).toFixed(0)}% 的股票上涨，盈亏比 ${plr.toFixed(2)}（赚的比亏的多）。`
+      conclusion = `持有 ${d} 个交易日后，选出的股票整体盈利：平均赚 ${pct(ar)}，${(wr * 100).toFixed(0)}% 的股票上涨，${plrText}（赚的比亏的多）。`
     } else if (ar <= 0) {
       verdictLabel = '表现不佳'
       verdictType = 'danger'
-      conclusion = `持有 ${d} 个交易日后，选出的股票整体亏损：平均 ${pct(ar)}，仅 ${(wr * 100).toFixed(0)}% 上涨，盈亏比 ${plr.toFixed(2)}。`
+      conclusion = `持有 ${d} 个交易日后，选出的股票整体亏损：平均 ${pct(ar)}，仅 ${(wr * 100).toFixed(0)}% 上涨，${plrText}。`
     } else {
       verdictLabel = '表现一般'
       verdictType = 'warning'
-      conclusion = `持有 ${d} 个交易日后平均收益 ${pct(ar)}，历史样本胜率 ${(wr * 100).toFixed(0)}%，盈亏比 ${plr.toFixed(2)}，表现中规中矩。`
+      conclusion = `持有 ${d} 个交易日后平均收益 ${pct(ar)}，历史样本胜率 ${(wr * 100).toFixed(0)}%，${plrText}，表现中规中矩。`
     }
     return { day: d, ...s, verdictLabel, verdictType, conclusion }
   })

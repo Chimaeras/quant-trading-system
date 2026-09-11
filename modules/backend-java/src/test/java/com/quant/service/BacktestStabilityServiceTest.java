@@ -33,7 +33,7 @@ class BacktestStabilityServiceTest {
     private static ScoringBacktestResponse resp(int signalDays, double avgReturn, double winRate, int obs) {
         PeriodStat stat = PeriodStat.builder()
                 .avgReturn(avgReturn).winRate(winRate).totalObservations(obs)
-                .medianReturn(0).maxReturn(0).minReturn(0).avgWin(0).avgLoss(0).profitLossRatio(0)
+                .medianReturn(0).maxReturn(0).minReturn(0).avgWin(0).avgLoss(0).profitLossRatio(0.0)
                 .build();
         return ScoringBacktestResponse.builder()
                 .totalTradingDays(signalDays)

@@ -2,6 +2,7 @@ package com.quant.service.scoring;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.quant.exception.TooManyRequestsException;
 import com.quant.repository.SelectorResultItemRepository;
 import com.quant.repository.SelectorResultRepository;
 import com.quant.repository.UnifiedScoringTaskRepository;
@@ -50,6 +51,13 @@ import java.util.Set;
 public class UnifiedScoringService {
 
     private static final int MAX_ITEMS = 500;
+    /**
+     * 排队/执行中任务数上限。单线程执行器队列容量为 1000，若不加准入上限，
+     * 队列打满后由拒绝策略决定行为——此前是 CallerRunsPolicy，会由 Tomcat 请求线程
+     * 内联跑完整个打分任务，既与 worker 并发破坏"顺序执行"语义，又把重计算绑在 HTTP 线程上。
+     * 这里显式限流并返回 429，使拒绝策略在准入范围内不可达。
+     */
+    private static final int MAX_QUEUED_TASKS = 200;
     private static final Set<String> RESULT_RESUMABLE_STATUSES = Set.of("RUNNING", "PARTIAL", "FAILED", "CANCELLED");
 
     private final StockTrendScoringService trendScoringService;
@@ -632,6 +640,12 @@ public class UnifiedScoringService {
     }
 
     private void scheduleTask(String taskId, Map<String, Object> request) {
+        // 准入限流：超过上限直接 429，不要把任务塞到"队列满 → 由 Tomcat 线程内联执行"的路径上
+        if (queuedOrRunningTaskIds.size() >= MAX_QUEUED_TASKS
+                && !queuedOrRunningTaskIds.contains(taskId)) {
+            throw new TooManyRequestsException(
+                    "打分任务排队数已达上限 " + MAX_QUEUED_TASKS + "，请稍后重试");
+        }
         if (!queuedOrRunningTaskIds.add(taskId)) {
             return;
         }

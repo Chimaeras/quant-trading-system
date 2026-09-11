@@ -669,14 +669,15 @@ class ScoringBacktestServiceTest {
         assertThat(response.getFormulaAudit()).isNotNull();
         assertThat(response.getFormulaAudit().get("strategy_type")).isEqualTo("CLASSIC_SELECTOR");
 
-        // 胜率盈亏比：topN=3，3 个标的全部盈利（exit=80+rank，entry=80），应 avgWin>0、avgLoss=0、profitLossRatio=0
+        // 胜率盈亏比：topN=3，3 个标的全部盈利（exit=80+rank，entry=80），应 avgWin>0、avgLoss=0。
+        // 无亏损样本时盈亏比无定义，接口下发 null（历史实现给 0，会把"全胜"显示成"盈亏比 0"）。
         ScoringBacktestResponse.PeriodStat stat = response.getHoldingPeriodStats().get(5);
         assertThat(stat).isNotNull();
         assertThat(stat.getTotalObservations()).isEqualTo(3);
         assertThat(stat.getWinRate()).isEqualTo(1.0);
         assertThat(stat.getAvgWin()).isGreaterThan(0);
         assertThat(stat.getAvgLoss()).isEqualTo(0.0);
-        assertThat(stat.getProfitLossRatio()).isEqualTo(0.0);
+        assertThat(stat.getProfitLossRatio()).isNull();
     }
 
     @Test

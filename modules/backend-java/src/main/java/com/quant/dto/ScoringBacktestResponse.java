@@ -139,8 +139,13 @@ public class ScoringBacktestResponse {
         private double avgWin;
         /** 平均亏损收益率（仅收益<0 样本，负数） */
         private double avgLoss;
-        /** 胜率盈亏比 = avgWin / |avgLoss|；无亏损样本时为 0 */
-        private double profitLossRatio;
+        /**
+         * 盈亏比 = avgWin / |avgLoss|。
+         * 无亏损样本（avgLoss == 0）时该比值在数学上无定义，返回 null 而非 0——
+         * 返回 0 会被误读为"盈亏比为零/毫无优势"，与"样本内没有亏损"完全相反。
+         * 前端遇到 null 渲染为 "--"。
+         */
+        private Double profitLossRatio;
     }
 
     @Data

@@ -26,7 +26,8 @@ export interface PeriodStat {
   skippedCount?: number
   avgWin: number
   avgLoss: number
-  profitLossRatio: number
+  /** 盈亏比 = avgWin / |avgLoss|；无亏损样本时后端下发 null（无定义），UI 渲染为 "--" */
+  profitLossRatio: number | null
 }
 
 export interface StockReturn {
@@ -229,7 +230,8 @@ export interface StabilitySegment {
   signal_days: number
   avg_return: number
   win_rate: number
-  profit_loss_ratio: number
+  /** 盈亏比；该分段无亏损样本时为 null，UI 渲染为 "--" */
+  profit_loss_ratio: number | null
   observations: number
 }
 

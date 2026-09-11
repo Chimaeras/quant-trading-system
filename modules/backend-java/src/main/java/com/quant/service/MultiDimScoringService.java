@@ -180,37 +180,41 @@ public class MultiDimScoringService {
                 t.setDaemon(true);
                 return t;
             });
-            CompletionService<Void> cs = new ExecutorCompletionService<>(pool);
-            final boolean finalExcludeST = excludeST;
-            final int finalMinListingDays = minListingDays;
-            final double finalMinAvgAmount = minAvgAmount;
-            final MarketEnvironmentAnalyzer.MarketIndicators finalMarketIndicators = marketIndicators;
-            for (String key : keys) {
-                cs.submit(() -> {
-                    int p = key.indexOf('|');
-                    String stockCode = p > 0 ? key.substring(0, p) : key;
-                    String exchangeType = p > 0 ? key.substring(p + 1) : "";
-                    try {
-                        scoreAndAdd(key, stockCode, exchangeType, tradeDate, grouped.getOrDefault(key, List.of()),
-                                mdToday.get(key), infoByKey.get(key), indAvgs, sim, rows, skipped, finalExcludeST, finalMinListingDays, finalMinAvgAmount, finalMarketIndicators);
-                    } catch (Exception e) {
-                        failed.incrementAndGet();
-                        failedKeys.add(key);
-                        log.warn("多维度打分个股任务失败: {} - {}", e.getCause() != null ? e.getCause().getMessage() : e.getMessage(), e.getClass().getSimpleName());
-                    }
-                    return null;
-                });
-            }
-            for (int i = 0; i < keys.size(); i++) {
-                try {
-                    cs.take().get();
-                } catch (Exception e) {
-                    // 正常情况下任务内部已捕获；此处兜底仅为防中断被静默。
-                    failed.incrementAndGet();
-                    log.warn("多维度打分任务异常: {}", e.getCause() != null ? e.getCause().getMessage() : e.getMessage());
+            // shutdown 走 finally：submit 或消费环节抛未捕获异常时不能把池留在线程里。
+            try {
+                CompletionService<Void> cs = new ExecutorCompletionService<>(pool);
+                final boolean finalExcludeST = excludeST;
+                final int finalMinListingDays = minListingDays;
+                final double finalMinAvgAmount = minAvgAmount;
+                final MarketEnvironmentAnalyzer.MarketIndicators finalMarketIndicators = marketIndicators;
+                for (String key : keys) {
+                    cs.submit(() -> {
+                        int p = key.indexOf('|');
+                        String stockCode = p > 0 ? key.substring(0, p) : key;
+                        String exchangeType = p > 0 ? key.substring(p + 1) : "";
+                        try {
+                            scoreAndAdd(key, stockCode, exchangeType, tradeDate, grouped.getOrDefault(key, List.of()),
+                                    mdToday.get(key), infoByKey.get(key), indAvgs, sim, rows, skipped, finalExcludeST, finalMinListingDays, finalMinAvgAmount, finalMarketIndicators);
+                        } catch (Exception e) {
+                            failed.incrementAndGet();
+                            failedKeys.add(key);
+                            log.warn("多维度打分个股任务失败: {} - {}", e.getCause() != null ? e.getCause().getMessage() : e.getMessage(), e.getClass().getSimpleName());
+                        }
+                        return null;
+                    });
                 }
+                for (int i = 0; i < keys.size(); i++) {
+                    try {
+                        cs.take().get();
+                    } catch (Exception e) {
+                        // 正常情况下任务内部已捕获；此处兜底仅为防中断被静默。
+                        failed.incrementAndGet();
+                        log.warn("多维度打分任务异常: {}", e.getCause() != null ? e.getCause().getMessage() : e.getMessage());
+                    }
+                }
+            } finally {
+                ExecutorLifecycle.shutdownGracefully(pool);
             }
-            ExecutorLifecycle.shutdownGracefully(pool);
         }
 
         List<StockMultiDimScore> toSave = dedupe(rows);

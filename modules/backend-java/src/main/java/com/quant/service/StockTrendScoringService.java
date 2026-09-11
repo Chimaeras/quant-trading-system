@@ -185,34 +185,39 @@ public class StockTrendScoringService {
                     t.setDaemon(true);
                     return t;
                 });
-                CompletionService<Optional<StockTrendScore>> cs = new ExecutorCompletionService<>(pool);
+                // finally 收敛线程池：submit 抛 RejectedExecutionException 或消费环节抛未捕获
+                // 异常时，裸调用 shutdown 会被跳过，池与无界队列随请求泄漏（每请求一个池）。
+                try {
+                    CompletionService<Optional<StockTrendScore>> cs = new ExecutorCompletionService<>(pool);
 
-                for (String key : keys) {
-                    cs.submit(() -> {
-                        int p = key.indexOf('|');
-                        String stockCode = p > 0 ? key.substring(0, p) : key;
-                        String exchangeType = p > 0 ? key.substring(p + 1) : "";
-                        List<MarketData> bars = grouped.getOrDefault(key, List.of());
-                        return scoreOne(stockCode, exchangeType, tradeDate, bars, nameCache, listDateRef, statusRef, minListingDaysFinal,
-                                minAvgAmountFinal, biasThreshold, excludeST, skippedNoBarOnTradeDate);
-                    });
-                }
-
-                int k = 0;
-                for (int i = 0; i < keys.size(); i++) {
-                    try {
-                        Optional<StockTrendScore> r = cs.take().get();
-                        if (r.isPresent()) rows.add(r.get());
-                        else k++;
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        k++;
-                    } catch (ExecutionException e) {
-                        k++;
+                    for (String key : keys) {
+                        cs.submit(() -> {
+                            int p = key.indexOf('|');
+                            String stockCode = p > 0 ? key.substring(0, p) : key;
+                            String exchangeType = p > 0 ? key.substring(p + 1) : "";
+                            List<MarketData> bars = grouped.getOrDefault(key, List.of());
+                            return scoreOne(stockCode, exchangeType, tradeDate, bars, nameCache, listDateRef, statusRef, minListingDaysFinal,
+                                    minAvgAmountFinal, biasThreshold, excludeST, skippedNoBarOnTradeDate);
+                        });
                     }
+
+                    int k = 0;
+                    for (int i = 0; i < keys.size(); i++) {
+                        try {
+                            Optional<StockTrendScore> r = cs.take().get();
+                            if (r.isPresent()) rows.add(r.get());
+                            else k++;
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            k++;
+                        } catch (ExecutionException e) {
+                            k++;
+                        }
+                    }
+                    skipped = k;
+                } finally {
+                    ExecutorLifecycle.shutdownGracefully(pool);
                 }
-                ExecutorLifecycle.shutdownGracefully(pool);
-                skipped = k;
             }
         } else if (threads <= 1) {
             dbMode = "per_stock_queries_single_thread";
@@ -247,43 +252,47 @@ public class StockTrendScoringService {
                 t.setDaemon(true);
                 return t;
             });
-            CompletionService<Optional<StockTrendScore>> cs = new ExecutorCompletionService<>(pool);
+            // 同 bulk 分支：shutdown 必须走 finally，避免异常路径泄漏线程池。
+            try {
+                CompletionService<Optional<StockTrendScore>> cs = new ExecutorCompletionService<>(pool);
 
-            int submitted = 0;
-            for (Object[] pair : pairs) {
-                if (pair == null || pair.length < 2) continue;
-                String stockCode = String.valueOf(pair[0]);
-                String exchangeType = String.valueOf(pair[1]);
-                submitted++;
-                cs.submit(() -> {
-                    List<MarketData> bars = marketDataRepository
-                            .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
-                                    stockCode, exchangeType, rangeStart, tradeDate);
-                    return scoreOne(stockCode, exchangeType, tradeDate, bars, nameCache, listDateRef, statusRef, minListingDaysFinal,
-                            minAvgAmountFinal, biasThreshold, excludeST, skippedNoBarOnTradeDate);
-                });
-            }
+                int submitted = 0;
+                for (Object[] pair : pairs) {
+                    if (pair == null || pair.length < 2) continue;
+                    String stockCode = String.valueOf(pair[0]);
+                    String exchangeType = String.valueOf(pair[1]);
+                    submitted++;
+                    cs.submit(() -> {
+                        List<MarketData> bars = marketDataRepository
+                                .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
+                                        stockCode, exchangeType, rangeStart, tradeDate);
+                        return scoreOne(stockCode, exchangeType, tradeDate, bars, nameCache, listDateRef, statusRef, minListingDaysFinal,
+                                minAvgAmountFinal, biasThreshold, excludeST, skippedNoBarOnTradeDate);
+                    });
+                }
 
-            int s = submitted;
-            int k = 0;
-            for (int i = 0; i < submitted; i++) {
-                try {
-                    Optional<StockTrendScore> r = cs.take().get();
-                    if (r.isPresent()) {
-                        rows.add(r.get());
-                    } else {
+                int s = submitted;
+                int k = 0;
+                for (int i = 0; i < submitted; i++) {
+                    try {
+                        Optional<StockTrendScore> r = cs.take().get();
+                        if (r.isPresent()) {
+                            rows.add(r.get());
+                        } else {
+                            k++;
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        k++;
+                    } catch (ExecutionException e) {
                         k++;
                     }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    k++;
-                } catch (ExecutionException e) {
-                    k++;
                 }
+                scanned = s;
+                skipped = k;
+            } finally {
+                ExecutorLifecycle.shutdownGracefully(pool);
             }
-            ExecutorLifecycle.shutdownGracefully(pool);
-            scanned = s;
-            skipped = k;
         }
         long tScore1 = System.nanoTime();
 

@@ -2,6 +2,7 @@ package com.quant.controller;
 
 import com.quant.dto.ApiResponse;
 import com.quant.entity.StockFinancialSnapshot;
+import com.quant.exception.BusinessException;
 import com.quant.exception.ResourceNotFoundException;
 import com.quant.service.ConcurrencyGuard;
 import com.quant.service.ConflictRetry;
@@ -188,7 +189,7 @@ public class DataController {
                 }
             }
             if (secId == null) {
-                return ApiResponse.error(400, "不支持的指数代码：" + indexCode);
+                throw new BusinessException("不支持的指数代码：" + indexCode);
             }
             return ApiResponse.success(indexDataService.fetchAndPersist(secId, indexCode, name, startDate, endDate));
         }
@@ -327,7 +328,8 @@ public class DataController {
             return ApiResponse.success(Map.of("saved", 0, "updated", 0, "skipped", 0));
         }
         if (items.size() > MAX_BULK_IMPORT_SIZE) {
-            return ApiResponse.error(400, "批量导入条数超上限: " + MAX_BULK_IMPORT_SIZE);
+            // 真实 HTTP 400（由全局处理器产出）；返回 200 + body code=400 会让网关/脚本误判成功
+            throw new BusinessException("批量导入条数超上限: " + MAX_BULK_IMPORT_SIZE);
         }
         int saved = 0;
         int updated = 0;
@@ -377,7 +379,8 @@ public class DataController {
             return ApiResponse.success(Map.of("saved", 0, "updated", 0, "skipped", 0));
         }
         if (items.size() > MAX_BULK_IMPORT_SIZE) {
-            return ApiResponse.error(400, "批量导入条数超上限: " + MAX_BULK_IMPORT_SIZE);
+            // 真实 HTTP 400（由全局处理器产出）；返回 200 + body code=400 会让网关/脚本误判成功
+            throw new BusinessException("批量导入条数超上限: " + MAX_BULK_IMPORT_SIZE);
         }
         int saved = 0;
         int updated = 0;

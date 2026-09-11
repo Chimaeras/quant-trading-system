@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from . import clock
-from .artifacts import config_hash, run_dir, write_run
+from .artifacts import atomic_write_text, config_hash, run_dir, write_run
 from .broker_client import BrokerClient
 from .candidates import dedupe_candidates, load_candidates
 from .config import PaperConfig
@@ -77,6 +77,8 @@ class PaperRunner:
         self._run_stopped = False
         self._stop_reason = ""
         self._preview: dict | None = None
+        # 本轮开始前就已存在的委托号：orders 匹配时必须排除，否则会把旧委托误认成本单。
+        self._preexisting_order_ids: set[str] = set()
 
     # ------------------------------------------------------------------ prepare
 
@@ -153,6 +155,7 @@ class PaperRunner:
         self._balance = balance
         self._positions_qty = {p.code: p.qty for p in positions}
         self._open_orders = orders
+        self._preexisting_order_ids = {o.order_id for o in orders if o.order_id}
         self._account_fingerprint = _account_fingerprint(positions, orders)
 
         # 研判
@@ -209,6 +212,11 @@ class PaperRunner:
             "config_hash": config_hash(self._config),
             "candidate_hash": _hash_json(run.candidates),
             "quote_hash": _hash_json(run.quotes),
+            # 行情原文必须落盘：confirm 明确"不重新查询行情"，而风控闸 6 要求 quote 有效、
+            # 闸 7a 要求有可靠涨停价。只放内存的话，换进程按 preview_run_id 加载时
+            # _quotes 为空 → 每笔都判 QUOTE_NOT_VALID → 整轮 BLOCKED。
+            # 这些是公开行情字段，无凭据信息。
+            "quotes": run.quotes,
             "account_hash": self._account_fingerprint,
             "candidate_source": run.candidate_source,
             "intents": run.intents,
@@ -217,12 +225,11 @@ class PaperRunner:
             "confirm_token": secrets.token_hex(8),
             "used": False,
         }
-        (out / "preview.json").write_text(
-            json.dumps(preview, ensure_ascii=False, indent=2, default=str), encoding="utf-8"
+        atomic_write_text(
+            out / "preview.json",
+            json.dumps(preview, ensure_ascii=False, indent=2, default=str),
         )
         self._preview = preview
-        # 内存态附行情原文（不落盘），confirm 阶段重建 Quote 跑风控闸
-        self._preview["_quotes"] = dict(run.quotes)
         return run, None
 
     def preview_token(self) -> str:
@@ -311,6 +318,7 @@ class PaperRunner:
         self._balance = balance
         self._positions_qty = {p.code: p.qty for p in positions}
         self._open_orders = orders
+        self._preexisting_order_ids = {o.order_id for o in orders if o.order_id}
         intents = [self._intent_from_dict(d) for d in preview["intents"]]
         run.intents = [d.copy() for d in preview["intents"]]
         whitelist = {c["stock_code"] for c in run.candidates} if run.candidates else {
@@ -414,7 +422,7 @@ class PaperRunner:
     def _quote_from_preview(self, preview: dict, code: str):
         from .models import Quote as QuoteModel, QuoteValidity
 
-        payload = (preview.get("_quotes") or {}).get(code)
+        payload = (preview.get("_quotes") or preview.get("quotes") or {}).get(code)
         if not payload:
             return None
         q = QuoteModel(**{k: v for k, v in payload.items() if k in QuoteModel.__dataclass_fields__})
@@ -449,8 +457,10 @@ class PaperRunner:
                 preview = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 continue
-            # 磁盘 preview 不含行情原文，quote 对象由 preview intents 内字段重建
-            preview.setdefault("_quotes", {})
+            # 磁盘 preview 的行情原文取持久化的 quotes 字段；缺失则确实无行情可用
+            # （老的、未含 quotes 的 preview 文件），此时风控闸会按 QUOTE_NOT_VALID 拒绝，
+            # 属于 fail-closed，不会误下单。
+            preview.setdefault("_quotes", preview.get("quotes") or {})
             return preview
         return None
 
@@ -464,7 +474,9 @@ class PaperRunner:
             try:
                 on_disk = json.loads(path.read_text(encoding="utf-8"))
                 on_disk["used"] = True
-                path.write_text(json.dumps(on_disk, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+                atomic_write_text(
+                    path, json.dumps(on_disk, ensure_ascii=False, indent=2, default=str)
+                )
             except (OSError, ValueError):
                 continue
 
@@ -516,11 +528,28 @@ class PaperRunner:
         return record
 
     def _match_recent_order(self, intent: Intent, run: PaperRun) -> str | None:
-        """按代码+数量在 orders 中找唯一匹配的最近委托。"""
+        """按代码+方向+数量在 orders 中找唯一匹配的新委托（排除本轮之前已存在的与本轮已记账的）。
+
+        两处必须排除，否则会把别人的委托认成自己这一单：
+        - 方向：只比 code+qty 时，同代码同数量的反向委托（如原有的买单）会被当成刚发出的卖单，
+          于是把一笔可能根本没到交易所的卖单记成 SUBMITTED，跳过 UNKNOWN_SUBMIT 冻结。
+        - 本轮之前已存在 / 本轮已记账的委托号：这些委托不是本次提交产生的。
+        排除后仍不唯一（0 条或 ≥2 条）一律返回 None，由调用方按 UNKNOWN_SUBMIT 冻结，不猜。
+        """
         orders, _ = self._broker.orders(run.run_id)
         if not orders:
             return None
-        matches = [o for o in orders if o.code == intent.stock_code and o.qty == intent.qty]
+        claimed = self._preexisting_order_ids | {
+            str(s.get("order_id")) for s in run.submits if s.get("order_id")
+        }
+        matches = [
+            o for o in orders
+            if o.code == intent.stock_code
+            and o.qty == intent.qty
+            and getattr(o, "side", None) == intent.side
+            and o.order_id
+            and str(o.order_id) not in claimed
+        ]
         if len(matches) == 1:
             return matches[0].order_id
         return None

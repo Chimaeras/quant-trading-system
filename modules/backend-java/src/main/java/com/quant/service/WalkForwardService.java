@@ -6,7 +6,6 @@ import com.quant.dto.ScoringBacktestResponse.PeriodStat;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -41,7 +40,14 @@ public class WalkForwardService {
     private final ScoringBacktestService scoringBacktestService;
     private final TradingCalendarService tradingCalendarService;
 
-    @Transactional(readOnly = true)
+    /**
+     * 滚动窗口稳定性回测。
+     *
+     * <p>刻意不加 @Transactional：这里要在一次调用内跑 w 个（最多 12）完整回测，
+     * Hibernate 6 的连接是"首次取用即绑定、事务结束才归还"，包在一个事务里会让单个
+     * 请求在整个多窗口跑批期间独占一个池连接（dev 池仅 10），并发几个请求就把连接池打穿。
+     * 每次 run/查询各自的事务已经足够，窗口之间无需原子性。
+     */
     public Map<String, Object> run(String strategy, LocalDate startDate, LocalDate endDate,
                                    Integer windows, Integer topN, Integer holdingDay) {
         int w = clamp(windows, MIN_WINDOWS, MAX_WINDOWS, DEFAULT_WINDOWS);

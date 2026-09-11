@@ -102,7 +102,10 @@ class MxHttpClient:
         """
         url = self._endpoint_url(endpoint)
         headers = {"apikey": self._config.api_key, "Content-Type": "application/json"}
-        attempts = self._config.max_retry if retryable else 1
+        # max(1, ...)：attempts 为 0 时循环体一次都不执行，last 保持 None，就会走到下面的
+        # 断言（-O 下断言被剥离则直接返回 None，让调用方在 result.ok 上 AttributeError）。
+        # 配置层已要求 max_retry>=1，这里是最后一道防线。
+        attempts = max(1, self._config.max_retry) if retryable else 1
         last: MxResult | None = None
         for attempt in range(attempts):
             started = time.monotonic()

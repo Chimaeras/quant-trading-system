@@ -55,7 +55,11 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         // 只读行情与公开查询（登录页/未登录态可浏览）
                         "/api/market/**",
                         "/api/analysis/**",
-                        "/api/report/**",
+                        // 日报：只放行只读端点。此前整体放行 /api/report/**，把
+                        // POST /api/report/daily/realize（追加 realization 落库）也暴露成免登录写接口。
+                        "/api/report/daily",
+                        "/api/report/daily/versions",
+                        "/api/report/trend",
                         // V2-MP-028：系统就绪度（只读聚合，顶栏健康在任何鉴权态可观测）
                         "/api/system/**");
     }

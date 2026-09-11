@@ -4,11 +4,15 @@ import com.quant.dto.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.apache.catalina.connector.ClientAbortException;
 
@@ -98,6 +102,30 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Void> handleClientAbort(ClientAbortException e) {
         log.warn("客户端中止连接(响应可能未完整送达): {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+    }
+
+    /**
+     * Spring MVC 的客户端错误异常必须显式映射：本类注册了 {@code Exception} 兜底，
+     * 而 ExceptionHandlerExceptionResolver 优先级高于 DefaultHandlerExceptionResolver，
+     * 若不显式处理，缺参/类型不符/坏 JSON/方法不支持都会落到兜底变成 500，
+     * 客户端据此把「参数错误」当服务端故障，重试与提示逻辑全部失效。
+     */
+    @ExceptionHandler({
+            MissingServletRequestParameterException.class,
+            MethodArgumentTypeMismatchException.class,
+            HttpMessageNotReadableException.class
+    })
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleBadRequest(Exception e) {
+        log.warn("请求参数错误: {}", e.getMessage());
+        return error(400, "请求参数错误");
+    }
+
+    /** 资源存在但方法不支持（如对只读端点发 POST）→ 真实 405，而非 500。 */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
+    public ApiResponse<Void> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
+        return error(405, "请求方法不支持: " + e.getMethod());
     }
 
     @ExceptionHandler(Exception.class)

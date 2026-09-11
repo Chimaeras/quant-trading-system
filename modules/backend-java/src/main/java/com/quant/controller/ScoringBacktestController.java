@@ -2,6 +2,7 @@ package com.quant.controller;
 
 import com.quant.dto.ApiResponse;
 import com.quant.dto.ScoringBacktestRequest;
+import com.quant.exception.BusinessException;
 import com.quant.exception.ResourceNotFoundException;
 import com.quant.dto.ScoringBacktestResponse;
 import com.quant.service.ScoringBacktestService;
@@ -22,7 +23,8 @@ public class ScoringBacktestController {
     public ApiResponse<ScoringBacktestResponse> run(@RequestBody(required = false) ScoringBacktestRequest request) {
         ScoringBacktestRequest req = request != null ? request : new ScoringBacktestRequest();
         if (req.getStartDate() == null || req.getEndDate() == null) {
-            return ApiResponse.error(400, "startDate 和 endDate 为必填项");
+            // 抛业务异常由全局处理器产出真实 HTTP 400；不要返回 200 + body code=400
+            throw new BusinessException("startDate 和 endDate 为必填项");
         }
         return ApiResponse.success(scoringBacktestService.run(req));
     }

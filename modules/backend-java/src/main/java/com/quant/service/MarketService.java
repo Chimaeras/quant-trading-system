@@ -19,6 +19,9 @@ import java.util.*;
 @RequiredArgsConstructor
 public class MarketService {
 
+    /** 分页上限：/api/market/** 免鉴权，size 不封顶会被放大成全表水合。 */
+    private static final int MAX_PAGE_SIZE = 200;
+
     private final MarketDataRepository marketDataRepo;
     private final StockInfoRepository stockInfoRepo;
 
@@ -111,7 +114,8 @@ public class MarketService {
     /** 获取股票列表(分页、搜索) */
     public Map<String, Object> getStockList(String keyword, String exchangeType, int page, int size) {
         int p = Math.max(0, page - 1);
-        int pageSize = Math.max(1, size);
+        // /api/market/** 免鉴权，size 必须封顶：否则 size=2147483647 会全量水合 stock_info
+        int pageSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
         String k = keyword != null ? keyword.trim() : null;
         String ex = exchangeType != null ? exchangeType.trim() : null;
 

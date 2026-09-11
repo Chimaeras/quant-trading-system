@@ -2,7 +2,7 @@ package com.quant.controller;
 
 import com.quant.dto.ApiResponse;
 import com.quant.entity.ExperimentRun;
-import com.quant.exception.BusinessException;
+import com.quant.exception.ResourceNotFoundException;
 import com.quant.research.ExperimentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -63,7 +63,8 @@ public class ExperimentController {
     public ApiResponse<Map<String, Object>> get(@PathVariable("id") String id) {
         ExperimentRun run = experimentService.getById(id);
         if (run == null) {
-            throw new BusinessException("实验不存在: " + id);
+            // 资源不存在用 404（与其它详情接口一致）；BusinessException 会被映射成 400
+            throw new ResourceNotFoundException("实验不存在: " + id);
         }
         Map<String, Object> summary = experimentService.toSummary(run);
         summary.put("gates", experimentService.evaluatePromoteGates(id));

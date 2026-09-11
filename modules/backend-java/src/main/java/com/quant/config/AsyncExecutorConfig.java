@@ -86,6 +86,11 @@ public class AsyncExecutorConfig {
     /**
      * 单线程执行器
      * 用于需要顺序执行的任务队列
+     *
+     * <p>拒绝策略必须是 AbortPolicy：CallerRunsPolicy 在队列打满时会让提交线程
+     * （Tomcat 请求线程）内联跑完整个任务，既与 worker 并发、破坏"顺序执行"语义，
+     * 又把长耗时计算绑在 HTTP 线程上直到结束。调用方（UnifiedScoringService）已在
+     * 提交前做准入限流，队列不会被填满，此处只做最后一道 fail-fast。
      */
     @Bean(name = "singleThreadExecutor")
     public ThreadPoolTaskExecutor singleThreadExecutor() {
@@ -94,7 +99,7 @@ public class AsyncExecutorConfig {
         executor.setMaxPoolSize(1);
         executor.setQueueCapacity(1000);
         executor.setThreadNamePrefix("quant-single-");
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(300);
         executor.initialize();

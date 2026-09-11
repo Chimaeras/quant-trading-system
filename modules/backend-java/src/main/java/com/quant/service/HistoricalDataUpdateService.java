@@ -338,6 +338,25 @@ public class HistoricalDataUpdateService {
                 task.setMessage(String.format("处理%d只，成功%d，失败%d", processed, success, failed));
                 dataUpdateTaskRepository.save(task);
             }
+        } catch (Exception e) {
+            // 兜底：runTask 跑在 worker 线程里，异常一旦逃逸（例如任务行读取失败、saveItem
+            // 自身抛错、targets 为 null），任务会永远停在 RUNNING 且没有 finishedAt，
+            // 前端按状态轮询就再也不会结束。这里把它落成 FAILED 并带上原因。
+            log.error("历史数据更新任务异常终止 taskId={}", taskId, e);
+            try {
+                dataUpdateTaskRepository.findByTaskId(taskId).ifPresent(t -> {
+                    if (!"STOPPED".equalsIgnoreCase(t.getStatus())) {
+                        t.setStatus("FAILED");
+                        t.setFinishedAt(LocalDateTime.now());
+                        t.setMessage("任务异常终止: "
+                                + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
+                        dataUpdateTaskRepository.save(t);
+                    }
+                });
+            } catch (Exception inner) {
+                // 兜底再失败就只能记日志，不能让它盖掉原始异常。
+                log.error("标记历史数据更新任务失败状态时再次异常 taskId={}", taskId, inner);
+            }
         } finally {
             taskFutures.remove(taskId);
             cancelRequestedTaskIds.remove(taskId);

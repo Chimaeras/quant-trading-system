@@ -124,8 +124,10 @@ class PaperConfig:
             raise ValueError(f"quote_stale_sec 必须大于 0，当前 {self.quote_stale_sec}")
         if self.slippage_bps < 0:
             raise ValueError(f"slippage_bps 不能为负，当前 {self.slippage_bps}")
-        if self.max_retry < 0:
-            raise ValueError(f"max_retry 不能为负，当前 {self.max_retry}")
+        # max_retry=0 会让 mx_http 的 attempts=0（range(0) 不进入循环）→ 返回 None 或断言失败，
+        # 而不是"不重试"。要求至少 1 次尝试；要禁重试应让调用方传 retryable=False。
+        if self.max_retry < 1:
+            raise ValueError(f"max_retry 必须大于等于 1，当前 {self.max_retry}")
         if not (1 <= self.quote_batch_workers <= 8):
             raise ValueError("quote_batch_workers 必须在 [1,8]")
         if self.quote_request_timeout_sec <= 0:

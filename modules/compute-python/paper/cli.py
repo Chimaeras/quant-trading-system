@@ -140,18 +140,29 @@ def cmd_account(_args: argparse.Namespace) -> int:
     if balance is None:
         print(f"[paper] balance 失败: {result.message}", file=sys.stderr)
         return 1
+    # positions()/orders() 在查询或解析失败时返回 (None, result)（官方字段严格解析，
+    # malformed 一律阻断）。直接把 None 交给 len() 会 TypeError 崩掉整个命令。
+    exit_code = 0
     print("[paper][模拟] 账户快照")
     print(f"  总资产 {balance.total_assets:,.2f}  可用 {balance.avail_balance:,.2f}  "
           f"冻结 {balance.frozen:,.2f}  持仓市值 {balance.market_value:,.2f}")
     positions, pos_result = broker.positions()
-    print(f"  持仓 {len(positions)} 条 (查询 {'OK' if pos_result.ok else pos_result.message})")
-    for p in positions:
-        print(f"    {p.code} {p.name} 数量 {p.qty} 可用 {p.avail_qty} 市值 {p.market_value:,.2f} 盈亏 {p.profit:,.2f}")
+    if positions is None:
+        print(f"  持仓查询失败: {pos_result.message}", file=sys.stderr)
+        exit_code = 1
+    else:
+        print(f"  持仓 {len(positions)} 条")
+        for p in positions:
+            print(f"    {p.code} {p.name} 数量 {p.qty} 可用 {p.avail_qty} 市值 {p.market_value:,.2f} 盈亏 {p.profit:,.2f}")
     orders, ord_result = broker.orders()
-    print(f"  委托 {len(orders)} 条 (查询 {'OK' if ord_result.ok else ord_result.message})")
-    for o in orders:
-        print(f"    {o.order_id} {o.code} {o.side} 价 {o.price} 量 {o.qty} 状态 {o.status}")
-    return 0
+    if orders is None:
+        print(f"  委托查询失败: {ord_result.message}", file=sys.stderr)
+        exit_code = 1
+    else:
+        print(f"  委托 {len(orders)} 条")
+        for o in orders:
+            print(f"    {o.order_id} {o.code} {o.side} 价 {o.price} 量 {o.qty} 状态 {o.status}")
+    return exit_code
 
 
 def _runner(config: PaperConfig, now=None):
@@ -253,8 +264,10 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
 
     report = reconcile_day(broker, LOG_BASE, args.trade_date)
     print(f"[paper][模拟] 对账 {args.trade_date}: {report['status']}")
+    # 键名必须是 unknown_count：reconcile_day 两条返回路径都只产出 unknown_count，
+    # 早先这里读 report['unknown'] 会让 reconcile 命令 100% KeyError 崩溃。
     print(f"  本地提交 {report['local_submits']} 笔，外部委托 {report['external_orders']} 条，"
-          f"匹配 {report['matched']} 笔，未知 {report['unknown']} 笔")
+          f"匹配 {report['matched']} 笔，未知 {report['unknown_count']} 笔")
     for diff in report["differences"]:
         print(f"  差异: {diff}")
     return 0 if report["status"] == "OK" else 1

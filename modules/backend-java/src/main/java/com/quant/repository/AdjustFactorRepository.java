@@ -17,6 +17,19 @@ public interface AdjustFactorRepository extends JpaRepository<AdjustFactor, Long
     List<AdjustFactor> findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
             String stockCode, String exchangeType, LocalDate startDate, LocalDate endDate);
 
+    /**
+     * 区间内已存在因子的交易日投影，供批量推算一次性做幂等去重。
+     * 只取 1 列，取代"每根 bar 一条 point query"的 N+1 写法。
+     */
+    @Query("SELECT a.tradeDate FROM AdjustFactor a " +
+            "WHERE a.stockCode = :stockCode AND a.exchangeType = :exchangeType " +
+            "AND a.tradeDate BETWEEN :startDate AND :endDate")
+    List<LocalDate> findTradeDatesInRange(
+            @Param("stockCode") String stockCode,
+            @Param("exchangeType") String exchangeType,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
+
     long countByStockCodeAndExchangeTypeAndTradeDateBetween(
             String stockCode, String exchangeType, LocalDate startDate, LocalDate endDate);
 

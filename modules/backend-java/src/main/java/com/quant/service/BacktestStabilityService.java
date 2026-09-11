@@ -165,7 +165,13 @@ public class BacktestStabilityService {
      * 基准 H 日 forward return 算术平均：与策略 avgReturn（H 日单票 forward return 均值）同口径。
      *
      * <p>对每个信号日 signalDate：entry = 信号日次日，exit = entry 后第 holdingDay 个交易日，
-     * 基准收益 = indexClose[exit] / indexClose[signalDate] - 1。
+     * 基准收益 = indexClose[exit] / indexClose[entry] - 1。
+     *
+     * <p>基准的建仓基准必须是 entry 日收盘，而不是 signalDate 日收盘：策略口径是
+     * entry = 信号日次日开盘、exit = entry 后第 holdingDay 个交易日收盘（见
+     * ScoringBacktestService 的 assumptions）。若用 signalDate 收盘作分母，基准实际持有
+     * holdingDay+1 个交易日，比策略多赚/多亏一天，benchmark_avg_return 与 outperform
+     * 会被系统性带偏。
      * 缺失指数收盘的日期跳过（不计入分母）。
      */
     private double benchmarkForwardReturnAvg(ScoringBacktestResponse full, int holdingDay,
@@ -180,10 +186,6 @@ public class BacktestStabilityService {
             if (signalDate == null) {
                 continue;
             }
-            Double signalClose = indexCloseByDate.get(signalDate);
-            if (signalClose == null || signalClose <= 0) {
-                continue;
-            }
             // entry = 信号日次日，exit = entry 后第 holdingDay 个交易日
             LocalDate entry = tradingCalendarService.nextTradingDay(signalDate).orElse(null);
             if (entry == null) {
@@ -193,11 +195,15 @@ public class BacktestStabilityService {
             if (exit == null) {
                 continue;
             }
+            Double entryClose = indexCloseByDate.get(entry);
+            if (entryClose == null || entryClose <= 0) {
+                continue;
+            }
             Double exitClose = indexCloseByDate.get(exit);
             if (exitClose == null || exitClose <= 0) {
                 continue;
             }
-            sum += exitClose / signalClose - 1;
+            sum += exitClose / entryClose - 1;
             count++;
         }
         return count > 0 ? sum / count : 0;
@@ -226,12 +232,14 @@ public class BacktestStabilityService {
         if (stat != null) {
             m.put("avg_return", round4(stat.getAvgReturn()));
             m.put("win_rate", round4(stat.getWinRate()));
-            m.put("profit_loss_ratio", round4(stat.getProfitLossRatio()));
+            // 盈亏比可空（无亏损样本时无定义），保持 null 下发，前端渲染 "--"。
+            m.put("profit_loss_ratio", stat.getProfitLossRatio() != null
+                    ? round4(stat.getProfitLossRatio()) : null);
             m.put("observations", stat.getTotalObservations());
         } else {
             m.put("avg_return", 0.0);
             m.put("win_rate", 0.0);
-            m.put("profit_loss_ratio", 0.0);
+            m.put("profit_loss_ratio", null);
             m.put("observations", 0);
         }
         return m;

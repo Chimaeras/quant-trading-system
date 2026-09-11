@@ -39,6 +39,13 @@ public interface SecurityMasterHistoryRepository extends JpaRepository<SecurityM
     Optional<SecurityMasterHistory> findByStockCodeAndExchangeTypeAndValidFrom(
             String stockCode, String exchangeType, LocalDate validFrom);
 
+    /**
+     * 全部 (stock_code, exchange_type, valid_from) 三元组投影，供批量导入做一次性幂等去重。
+     * 只取 3 列，取代"每只股票一条 point query 并水合整行"的 N+1 写法。
+     */
+    @Query("SELECT h.stockCode, h.exchangeType, h.validFrom FROM SecurityMasterHistory h")
+    List<Object[]> findAllKeys();
+
     @Query("SELECT COUNT(DISTINCT h.stockCode || '|' || h.exchangeType) FROM SecurityMasterHistory h")
     long countDistinctStocks();
 

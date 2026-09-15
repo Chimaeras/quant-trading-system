@@ -16,17 +16,40 @@ public final class FactorResearchEngine {
     public record CrossSectionObservation(double score, double forwardReturn) {}
 
     /**
-     * 单个分组的收益统计。
+     * **聚合面**（跨截面日）单个分组的收益统计。
      *
      * @param avgReturn 该组收益均值；<b>该组无观测时无定义，为 {@code null}</b>（{@code observations == 0}），
      *                  不得写成 0——0 的语义是「该组均值恰为 0」，两者不可混同（Q-R006-04 / Q-R013-02）
-     * @param observations 参与该组均值聚合的观测数；0 表示无观测（与 {@code avgReturn = null} 并存）
+     * @param observations <b>参与该组均值聚合的截面日数（单位：天）</b>——本类按日先算「日级组均值」，
+     *                     每组每天恰好贡献 1 个数，故该计数等于「有观测的天数」而**不是**成分股数；
+     *                     0 表示无观测（与 {@code avgReturn = null} 并存）。
+     *                     日级面的同名量已按裁定 B 改名为 {@link DailyGroupReturnStat#nameCount()}（单位：只）
      */
     public record GroupReturnStat(
             int groupNo,
             String label,
             Double avgReturn,
             int observations
+    ) {}
+
+    /**
+     * 单个分组在**单一截面日**内的收益统计（**日级面**）。
+     *
+     * <p>与聚合面的 {@link GroupReturnStat} **不是同一个量**（Q-R014-03，裁定 B「改名字」）：
+     * 本记录的 {@code nameCount} 单位是「**只**」（该组当日的成分股数），
+     * {@link GroupReturnStat#observations()} 单位是「**天**」（该组参与聚合的截面日数）。
+     * 两者此前共用字段名 {@code observations}、含义随聚合层级改变而名字不变，故日级面改用本记录并改名。
+     *
+     * @param avgReturn 该组当日收益均值；当日该组无观测（{@code nameCount == 0}）时为 {@code null}，
+     *                  不得写成 0——0 的语义是「该组当日均值恰为 0」
+     * @param nameCount 该组**当日的成分股数**（单位：只；score/forwardReturn 非有限的观测已剔除）；
+     *                  0 表示该组当日无观测，与 {@code avgReturn = null} 并存
+     */
+    public record DailyGroupReturnStat(
+            int groupNo,
+            String label,
+            Double avgReturn,
+            int nameCount
     ) {}
 
     /**
@@ -47,10 +70,12 @@ public final class FactorResearchEngine {
      * {@code daysNonFiniteIc}（IC 不可计算丢弃日）、{@code excludedNonFiniteObservations}（非有限观测数）、
      * {@code groupsWithObservations}（有观测的分组数）、{@code pearsonSupportDays}（Pearson IC 支撑日数）。
      *
-     * <p><b>单位陷阱（Q-R014-03）</b>：{@code groupedReturns} 里的 {@code observations} 是
-     * **参与该组均值聚合的截面日数**（本类按日聚合「日级组均值」，每组每天贡献 1 个数），
-     * 而 {@link #groupedAverageReturns} 返回的逐行 {@code observations} 是**该组的成分观测数**——
-     * 同名字段、两处含义不同（载荷侧以 {@code grouped_returns_observations_basis} 声明）。
+     * <p><b>单位陷阱（Q-R014-03，裁定 B 改名后）</b>：{@code groupedReturns}（类型
+     * {@link GroupReturnStat}）里的 {@code observations} 是**参与该组均值聚合的截面日数**（单位「天」：
+     * 本类按日聚合「日级组均值」，每组每天贡献 1 个数）；{@link #groupedAverageReturns} 返回的日级面
+     * （类型 {@link DailyGroupReturnStat}）用 {@code nameCount}，是**当日成分股数**（单位「只」）。
+     * 两处曾是同名字段、含义随聚合层级改变，故日级面已改名（载荷侧仍以
+     * {@code grouped_returns_observations_basis} 声明聚合面单位）。
      *
      * @param rankIcMean Rank IC 均值；无任何可用截面日（{@code crossSectionDays = 0}）时**无定义**，为 {@code null}。
      *                   0 是合法的 IC 取值，不得用 0 表示「无数据」（Q-R006-05 / D-R009-02）
@@ -157,9 +182,9 @@ public final class FactorResearchEngine {
      *
      * <p>非有限（NaN/±Inf）的 score 或 forwardReturn 观测**不参与**均值与计数：
      * 排序会把 NaN 排到极值端，从而伪造出并不存在的极值组。此类观测被排除后
-     * {@code observations} 即「参与了本次均值计算的观测数」。
+     * {@code nameCount} 即「参与了本次均值计算的观测数」。
      */
-    public static List<GroupReturnStat> groupedAverageReturns(
+    public static List<DailyGroupReturnStat> groupedAverageReturns(
             List<CrossSectionObservation> observations,
             int groupCount
     ) {
@@ -188,13 +213,14 @@ public final class FactorResearchEngine {
             int bucket = Math.min(g - 1, (int) ((long) i * g / n));
             buckets.get(bucket).add(sorted.get(i).forwardReturn());
         }
-        List<GroupReturnStat> out = new ArrayList<>(g);
+        List<DailyGroupReturnStat> out = new ArrayList<>(g);
         for (int i = 0; i < g; i++) {
             List<Double> rets = buckets.get(i);
             // 空组无观测 ⟹ 均值无定义，写 null 而不是占位 0.0（0 会被当成真实均值参与极差与方向断言，Q-R006-04）
+            // 计数字段是 name_count（当日成分股数，单位「只」），不是聚合面的 observations（截面日数，单位「天」）
             Double avg = rets.isEmpty() ? null
                     : rets.stream().mapToDouble(Double::doubleValue).average().orElse(0);
-            out.add(new GroupReturnStat(i + 1, groupLabel(i + 1, g), avg, rets.size()));
+            out.add(new DailyGroupReturnStat(i + 1, groupLabel(i + 1, g), avg, rets.size()));
         }
         return out;
     }
@@ -262,8 +288,8 @@ public final class FactorResearchEngine {
             }
             totalObs += usable.size();
 
-            List<GroupReturnStat> dayGroups = groupedAverageReturns(usable, groupCount);
-            for (GroupReturnStat gs : dayGroups) {
+            List<DailyGroupReturnStat> dayGroups = groupedAverageReturns(usable, groupCount);
+            for (DailyGroupReturnStat gs : dayGroups) {
                 // 该组当日无观测 ⟹ 日级组均值为 null：不把 null 塞进聚合序列（null 参与求和会 NPE 且语义上
                 // 等于「该日给该组贡献了一个值」，与「无观测」相悖）。
                 if (gs.avgReturn() != null) {

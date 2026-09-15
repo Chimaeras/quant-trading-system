@@ -146,10 +146,50 @@ class FactorResearchEngineDisclosureTest {
         assertThat(s.groupedReturns().stream()
                 .mapToInt(FactorResearchEngine.GroupReturnStat::observations)).containsOnly(2);
         assertThat(s.groupsWithObservations()).isEqualTo(5);
-        // 逐日分组（引擎内部函数）的 observations 才是成分股数：当日 8 个可用观测分 5 组
-        List<FactorResearchEngine.GroupReturnStat> dayGroups =
+        // 逐日分组（引擎内部函数）的 name_count 才是成分股数：当日 8 个可用观测分 5 组
+        // （裁定 B 改名：日级面字段名是 nameCount，聚合面才是 observations）
+        List<FactorResearchEngine.DailyGroupReturnStat> dayGroups =
                 FactorResearchEngine.groupedAverageReturns(day1, 5);
         assertThat(dayGroups.stream()
-                .mapToInt(FactorResearchEngine.GroupReturnStat::observations).sum()).isEqualTo(8);
+                .mapToInt(FactorResearchEngine.DailyGroupReturnStat::nameCount).sum()).isEqualTo(8);
+    }
+
+    /**
+     * 裁定 B（D-R014-03）：日级面与聚合面的计数**字段名必须不同**，且各自的量纲可被判据复算。
+     *
+     * <p>面板取「3 个截面日 × 每组 2 只」：若两处同义，日级面读数应等于聚合面读数；
+     * 实际日级面 = 2（只/日）、聚合面 = 3（天），**必须不相等**——这正是「同名不同量」的可判据形态。
+     */
+    @Test
+    void dayLevelCountIsNameCountAndAggregateCountIsDayCountAndTheFieldNamesDiffer() {
+        // 组名守卫：日级面只有 nameCount、聚合面只有 observations，任一侧出现对方的字段名即判据失败
+        List<String> dayComponents = java.util.Arrays.stream(
+                        FactorResearchEngine.DailyGroupReturnStat.class.getRecordComponents())
+                .map(java.lang.reflect.RecordComponent::getName).toList();
+        List<String> aggregateComponents = java.util.Arrays.stream(
+                        FactorResearchEngine.GroupReturnStat.class.getRecordComponents())
+                .map(java.lang.reflect.RecordComponent::getName).toList();
+        assertThat(dayComponents).contains("nameCount").doesNotContain("observations");
+        assertThat(aggregateComponents).contains("observations").doesNotContain("nameCount");
+
+        // 量纲守卫：3 个截面日 × 每组 2 只
+        Map<String, List<FactorResearchEngine.CrossSectionObservation>> byDate = new LinkedHashMap<>();
+        byDate.put("2025-02-03", increasing(4));
+        byDate.put("2025-02-04", increasing(4));
+        byDate.put("2025-02-05", increasing(4));
+
+        FactorResearchEngine.FactorResearchSummary s =
+                FactorResearchEngine.summarize(byDate, 1, 2, 4, "note");
+        assertThat(s.crossSectionDays()).isEqualTo(3);
+
+        List<Integer> aggregateCounts = s.groupedReturns().stream()
+                .map(FactorResearchEngine.GroupReturnStat::observations).toList();
+        List<Integer> dayNameCounts = FactorResearchEngine.groupedAverageReturns(increasing(4), 2).stream()
+                .map(FactorResearchEngine.DailyGroupReturnStat::nameCount).toList();
+
+        // 聚合面数「天」= 3；日级面数「只」= 2；两组读数必须不同（同名同义时会相等而判据失效）
+        assertThat(aggregateCounts).containsOnly(3);
+        assertThat(dayNameCounts).containsOnly(2);
+        assertThat(aggregateCounts).isNotEqualTo(dayNameCounts);
     }
 }

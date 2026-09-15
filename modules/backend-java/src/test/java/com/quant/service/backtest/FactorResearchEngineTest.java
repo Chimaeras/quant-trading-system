@@ -35,7 +35,7 @@ class FactorResearchEngineTest {
                 new FactorResearchEngine.CrossSectionObservation(40, 0.04),
                 new FactorResearchEngine.CrossSectionObservation(50, 0.05)
         );
-        List<FactorResearchEngine.GroupReturnStat> groups =
+        List<FactorResearchEngine.DailyGroupReturnStat> groups =
                 FactorResearchEngine.groupedAverageReturns(obs, 5);
         assertThat(groups).hasSize(5);
         assertThat(groups.get(0).avgReturn()).isLessThan(groups.get(4).avgReturn());
@@ -317,11 +317,11 @@ class FactorResearchEngineTest {
         List<FactorResearchEngine.CrossSectionObservation> observations = List.of(
                 obs(10, 0.01), obs(20, 0.02), obs(30, 0.03), obs(40, 0.04),
                 obs(Double.NaN, 0.05), obs(60, Double.POSITIVE_INFINITY));
-        List<FactorResearchEngine.GroupReturnStat> groups =
+        List<FactorResearchEngine.DailyGroupReturnStat> groups =
                 FactorResearchEngine.groupedAverageReturns(observations, 3);
         // 修复前 NaN / +Inf 参与排序（NaN 排到极值端）与均值 ⟹ 极值组均值 = NaN，且组内计数虚高（Q-R014-06）
         assertThat(groups).hasSize(3);
-        assertThat(groups.stream().mapToInt(FactorResearchEngine.GroupReturnStat::observations).sum())
+        assertThat(groups.stream().mapToInt(FactorResearchEngine.DailyGroupReturnStat::nameCount).sum())
                 .isEqualTo(4);
         assertThat(groups).allMatch(g -> Double.isFinite(g.avgReturn()));
     }

@@ -117,7 +117,11 @@ export interface FactorGroupReturn {
   label: string
   /** 组均值；**该组无观测（observations = 0）时为 null**，不得渲染成 0 */
   avg_return: number | null
-  /** 单位取决于聚合层级：载荷内为**参与聚合的截面日数**，不是成分股数（见 grouped_returns_observations_basis） */
+  /**
+   * **参与聚合的截面日数**（单位「天」，不是成分股数；见 `grouped_returns_observations_basis`）。
+   * D-R014-03 裁定 B：日级面的同名量已改名 `nameCount`（单位「只」，当日成分股数），
+   * 载荷里的本字段只出现在聚合面。
+   */
   observations: number
   /** 空组标记：avg_return = null 表示无观测、不参与方向断言与极差 */
   empty?: boolean

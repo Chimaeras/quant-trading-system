@@ -131,7 +131,9 @@ public class ScoringBacktestResponse {
         private Double rankIcPositiveRate;
         private List<DailyRankIc> dailyRankIc;
         /**
-         * 分组收益；{@code observations} 为**参与聚合的截面日数**（不是成分股数，Q-R014-03），
+         * 分组收益（**聚合面**）；{@code observations} 为**参与聚合的截面日数**——单位「天」，
+         * 不是成分股数（Q-R014-03；日级面的成分股数已按裁定 B 改名为
+         * {@code FactorResearchEngine.DailyGroupReturnStat.nameCount}，单位「只」）。
          * 空组以 {@code observations = 0} 标记且其 {@code avgReturn = null}（无观测、不参与极差），
          * 不得写成 0.0。
          */
@@ -176,6 +178,13 @@ public class ScoringBacktestResponse {
         private int sampleSize;
     }
 
+    /**
+     * **聚合面**（跨截面日）单个分组的收益统计。
+     *
+     * <p>单位陷阱（Q-R014-03）：本类的 {@code observations} 单位是「**天**」（该组参与聚合的截面日数）；
+     * 引擎日级面 {@code FactorResearchEngine.groupedAverageReturns} 的计数字段已按裁定 B 改名为
+     * {@code nameCount}（单位「只」，当日成分股数）。两者曾是同名字段、含义随聚合层级改变。
+     */
     @Data
     @Builder
     @NoArgsConstructor
@@ -188,6 +197,12 @@ public class ScoringBacktestResponse {
          * 不得写成 0.0（0 的语义是「该组均值恰为 0」）。
          */
         private Double avgReturn;
+        /**
+         * 参与该组均值聚合的**截面日数（单位：天）**——引擎按日先算「日级组均值」，每组每天恰好贡献
+         * 1 个数，故本计数等于「该组有观测的天数」，**不是成分股数**（Q-R014-03）。
+         * 0 表示该组无观测，与 {@link #avgReturn} = {@code null} 并存（空组不参与方向断言与极差）。
+         * 日级面的成分股数在引擎侧叫 {@code DailyGroupReturnStat.nameCount}（单位「只」）。
+         */
         private int observations;
     }
 

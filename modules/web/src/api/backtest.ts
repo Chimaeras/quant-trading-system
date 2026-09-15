@@ -64,7 +64,10 @@ export interface FactorAnalysis {
   /** IC 为正的截面日占比；无可用截面日时为 null；真为 0 时仍为 0 */
   rankIcPositiveRate: number | null
   dailyRankIc: Array<{ tradeDate: string; rankIc: number; sampleSize: number }>
-  /** groupedReturns[].observations = 参与聚合的**截面日数**（不是成分股数）；空组 avgReturn = null */
+  /**
+   * groupedReturns[].observations = 参与聚合的**截面日数**（单位「天」，不是成分股数；D-R014-03 裁定 B：
+   * 日级面的成分股数在引擎侧已改名为 `DailyGroupReturnStat.nameCount`，单位「只」）；空组 avgReturn = null
+   */
   groupedReturns: Array<{ groupNo: number; label: string; avgReturn: number | null; observations: number }>
   /** 两腿价差 = 最高组均值 − 最低组均值，本面为**净价差**（观测收益已扣费）；口径看 longShortSpreadCostBasis；无非空分组时为 null */
   longShortSpread: number | null

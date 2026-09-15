@@ -241,10 +241,10 @@
                   <div class="stat-body">
                     <div class="stat-item">
                       <span class="stat-label">稳定性（ICIR）</span>
-                      <span class="stat-value">{{ response.factorAnalysis.rankIcIr.toFixed(3) }}</span>
+                      <span class="stat-value">{{ fmtIcIr(response.factorAnalysis.rankIcIr) }}</span>
                     </div>
                     <div class="stat-item">
-                      <span class="stat-label">业务判定</span>
+                      <span class="stat-label" title="IC 序列无离散度（截面日不足 2）时 ICIR 无定义，不判方向">业务判定</span>
                       <el-tag :type="icirVerdict(response.factorAnalysis.rankIcIr).type" size="small">
                         {{ icirVerdict(response.factorAnalysis.rankIcIr).text }}
                       </el-tag>
@@ -259,7 +259,7 @@
                   <div class="stat-header">高分 vs 低分收益差</div>
                   <div class="stat-body">
                     <div class="stat-item">
-                      <span class="stat-label">多空收益差</span>
+                      <span class="stat-label" title="高分组均值 − 低分组均值（两个多头腿之差），口径 = 成本后近似净收益，非美元中性多空、非超额收益">多空收益差（高−低）</span>
                       <span class="stat-value" :class="response.factorAnalysis.longShortSpread >= 0 ? 'text-success' : 'text-danger'">
                         {{ (response.factorAnalysis.longShortSpread * 100).toFixed(2) }}%
                       </span>
@@ -271,8 +271,18 @@
                       </span>
                     </div>
                     <div class="stat-item">
+                      <span class="stat-label">口径</span>
+                      <span class="stat-value small-text">
+                        持有 {{ response.factorAnalysis.holdingDays }} 日 · 单期非年化 · 成本后近似（未减基准/无风险利率）
+                      </span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-label" title="分组收益方向：零区分度 = 各组收益全相等，既非上升也非下降；不可判定 = 可用组不足 2">分组单调性</span>
+                      <span class="stat-value small-text">{{ monoLabel(response.factorAnalysis.monotonicity) }}</span>
+                    </div>
+                    <div class="stat-item">
                       <span class="stat-label">样本覆盖</span>
-                      <span class="stat-value">{{ response.factorAnalysis.crossSectionDays }} 个截面日 / {{ response.factorAnalysis.totalObservations }} 个观测</span>
+                      <span class="stat-value">{{ response.factorAnalysis.crossSectionDays }} 个截面日 / {{ response.factorAnalysis.totalObservations }} 个截面日观测</span>
                     </div>
                   </div>
                 </div>
@@ -375,7 +385,11 @@
                     </span>
                   </template>
                 </el-table-column>
-                <el-table-column prop="observations" label="截面日观测" />
+                <el-table-column label="截面日数" width="100">
+                  <template #default="{ row }">
+                    <span title="参与该组均值聚合的截面日数，不是成分股数">{{ row.observations }}</span>
+                  </template>
+                </el-table-column>
               </el-table>
 
               <template v-if="icByHoldingRows.length">
@@ -389,7 +403,7 @@
                     </template>
                   </el-table-column>
                   <el-table-column label="稳定性" width="90">
-                    <template #default="{ row }">{{ row.rankIcIr.toFixed(3) }}</template>
+                    <template #default="{ row }">{{ fmtIcIr(row.rankIcIr) }}</template>
                   </el-table-column>
                   <el-table-column label="高分减低分收益差" width="130">
                     <template #default="{ row }">
@@ -481,14 +495,37 @@
           <template v-if="turnover">
             <div class="turnover-meta">
               <span>信号日：{{ turnover.signal_days }}</span>
-              <span>平均换手：{{ (turnover.avg_turnover * 100).toFixed(2) }}%</span>
+              <span title="单向替换率 = 1 − 相邻日 TopN 交集 / 请求 top_n；若按 Σ|Δw| 双向口径计约为本值 2 倍">
+                平均换手（单向替换率）：{{ (turnover.avg_turnover * 100).toFixed(2) }}%
+              </span>
               <span>最高：{{ (turnover.max_turnover * 100).toFixed(2) }}%</span>
               <span>最低：{{ (turnover.min_turnover * 100).toFixed(2) }}%</span>
+              <span
+                v-if="turnover.turnover_status === 'INSUFFICIENT_SIGNAL_DAYS'"
+                class="text-warning"
+                title="信号日不足 2 天，换手率无定义；上面的 0.00% 是占位值，不是「真的 0 换手」"
+              >换手率无定义（信号日 &lt; 2）</span>
+              <span
+                v-else-if="turnover.grouped_by_strategy === false"
+                class="text-warning"
+                title="未按策略过滤/分组：同一天不同策略的结果会被当作相邻交易日配对"
+              >未按策略分组</span>
             </div>
             <el-table v-if="turnover.daily_turnover?.length" :data="turnover.daily_turnover" size="small" stripe border max-height="320">
               <el-table-column prop="trade_date" label="信号日" min-width="110" />
               <el-table-column label="换手率" min-width="100">
-                <template #default="{ row }">{{ (row.turnover * 100).toFixed(2) }}%</template>
+                <template #default="{ row }">
+                  <span :title="row.short_handed ? '短员日：分母仍为请求 top_n，不是当日实际规模' : undefined">
+                    {{ (row.turnover * 100).toFixed(2) }}%
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column label="前日/当日候选" min-width="120">
+                <template #default="{ row }">
+                  <span :class="row.short_handed ? 'text-warning' : undefined">
+                    {{ row.prev_size ?? '—' }} / {{ row.curr_size ?? '—' }}{{ row.short_handed ? '（短员）' : '' }}
+                  </span>
+                </template>
               </el-table-column>
               <el-table-column prop="new_count" label="新进数" min-width="80" />
               <el-table-column prop="exit_count" label="退出数" min-width="80" />
@@ -610,11 +647,38 @@ function icVerdict(ic: number): { text: string; type: 'success' | 'warning' | 'd
 }
 
 // ICIR 业务判定：<0.3 不稳定 / <0.5 一般 / >=0.5 较稳定
-function icirVerdict(icir: number): { text: string; type: 'success' | 'warning' | 'danger' | 'info' } {
-  if (!Number.isFinite(icir)) return { text: '数据不足', type: 'info' }
+function icirVerdict(icir: number | null | undefined): { text: string; type: 'success' | 'warning' | 'danger' | 'info' } {
+  // null = IC 序列无离散度（截面日不足 2）⟹ ICIR 无定义。既不能判成「不稳定」（那是负数结论），
+  // 也不能显示 0（会被读成「IR 恰为 0」）
+  if (icir === null || icir === undefined || !Number.isFinite(icir)) {
+    return { text: '不可用（IC 无离散度）', type: 'info' }
+  }
   if (icir < 0.3) return { text: '不稳定', type: 'danger' }
   if (icir < 0.5) return { text: '一般', type: 'warning' }
   return { text: '较稳定', type: 'success' }
+}
+
+/** ICIR 展示：无定义时给明确文字，不落到 0.000 */
+function fmtIcIr(icir: number | null | undefined): string {
+  return icir === null || icir === undefined || !Number.isFinite(icir) ? '不可用' : icir.toFixed(3)
+}
+
+/** 分组单调性标签的中文展示（NO_DISPERSION = 零区分度，README 见 factor.ts 的 MonotonicityLabel） */
+function monoLabel(v: string | null | undefined): string {
+  switch (v) {
+    case 'MONOTONIC_INCREASING':
+      return '单调递增'
+    case 'MONOTONIC_DECREASING':
+      return '单调递减'
+    case 'NON_MONOTONIC':
+      return '非单调'
+    case 'NO_DISPERSION':
+      return '零区分度（各组收益全相等）'
+    case 'N/A':
+      return '不可判定（可用组不足 2）'
+    default:
+      return v || '—'
+  }
 }
 
 function codexFactorLabel(f: string): string {
@@ -1516,6 +1580,7 @@ onBeforeUnmount(() => {
   font-size: 12px;
   color: var(--text-secondary);
 }
+.turnover-meta .text-warning { color: var(--warning); }
 .turnover-note {
   margin: 8px 0 0;
   font-size: 12px;

@@ -1,5 +1,55 @@
 import request, { unwrap } from './request'
 
+/**
+ * 分组单调性标签。
+ * `NO_DISPERSION` = 各组收益**全相等**（零区分度）：既不是上升也不是下降，
+ * 不得当作任一方向（后端 Q-R006-07 / Q-R013-01）。`N/A` = 可用组不足 2 或组均值非有限。
+ */
+export type MonotonicityLabel =
+  | 'MONOTONIC_INCREASING'
+  | 'MONOTONIC_DECREASING'
+  | 'NON_MONOTONIC'
+  | 'NO_DISPERSION'
+  | 'N/A'
+
+/**
+ * HAC/bootstrap 区间状态：
+ * `INSUFFICIENT_N` = 截面日不足 2（区间零宽且 hac_std = 0，不可读作「精确估计」）；
+ * `ZERO_WIDTH` = 下界不小于上界；`OK` = 正常。
+ */
+export type CiStatus = 'OK' | 'INSUFFICIENT_N' | 'ZERO_WIDTH'
+
+/** 三口径族共用的**纯增量**披露字段（命中率/丢弃计数/构造规则；后端未改任何既有键语义）。 */
+export interface FactorIcDisclosure {
+  /** 本口径的价格基准：legacy/snapshot 毛收益面为 qfq 前复权 / raw 不复权，跨面比较前必看 */
+  price_basis?: string
+  /** 口径状态：OK / NO_OBSERVATIONS / UNAVAILABLE */
+  status?: string
+  /** 净收益口径是否真的有数据（false 时其 0.0 是占位，不是「成本后恰为 0」） */
+  data_available?: boolean
+  min_cross_section_size?: number
+  /** 规模闸的比较基准：INPUT_ROWS = 按输入行数（剔除非有限观测前） */
+  min_cross_section_size_basis?: string
+  input_cross_section_days?: number
+  days_dropped_below_min_cross_section?: number
+  days_dropped_non_finite_ic?: number
+  excluded_non_finite_observations?: number
+  groups_with_observations?: number
+  pearson_support_days?: number
+  rank_ic_std_basis?: string
+  rank_ic_std_basis_note?: string
+  group_boundary_rule?: string
+  group_boundary_rule_note?: string
+  rounding_rule?: string
+  rounding_rule_note?: string
+  ci_status?: CiStatus
+  long_short_spread_basis?: string
+  long_short_spread_basis_note?: string
+  /** 聚合面 grouped_returns[].observations 的单位（截面日数，不是成分股数） */
+  grouped_returns_observations_basis?: string
+  grouped_returns_observations_basis_note?: string
+}
+
 export interface FactorDistribution {
   min: number
   p25: number
@@ -20,16 +70,25 @@ export interface FactorDailyRankIc {
   trade_date: string
   rank_ic: number
   sample_size: number
+  /** 该日被剔除的非有限观测数（不参与计算，披露用） */
+  excluded_observations?: number
+  /** 未取整 Rank IC（`rank_ic` 为 4 位小数四舍五入结果） */
+  rank_ic_exact?: number
 }
 
 export interface FactorGroupReturn {
   group_no: number
   label: string
   avg_return: number
+  /** 单位取决于聚合层级：载荷内为**参与聚合的截面日数**，不是成分股数（见 grouped_returns_observations_basis） */
   observations: number
+  /** 空组标记：avg_return = 0.0 是占位、不参与方向断言与极差 */
+  empty?: boolean
+  /** 未取整组均值 */
+  avg_return_exact?: number
 }
 
-export interface FactorRankIc {
+export interface FactorRankIc extends FactorIcDisclosure {
   holding_days: number
   group_count: number
   basis_note: string
@@ -42,8 +101,15 @@ export interface FactorRankIc {
   total_observations: number
   rank_ic_mean: number
   rank_ic_std: number
-  rank_ic_ir: number
+  /** ICIR；IC 序列无离散度（std = 0）时**无定义**，为 null（≠「IR 恰为 0」） */
+  rank_ic_ir: number | null
   rank_ic_positive_rate: number
+  /** 线性 IC 均值；**无 Pearson 可定义样本时本字段为占位 0.0**，须同时看 `pearson_support_days`（= 0 即不可用） */
+  pearson_ic_mean: number
+  monotonicity: MonotonicityLabel
+  hac_std: number
+  ci_lower: number
+  ci_upper: number
   long_short_spread: number
   daily_rank_ic: FactorDailyRankIc[]
   grouped_returns: FactorGroupReturn[]
@@ -51,11 +117,29 @@ export interface FactorRankIc {
 
 export interface FactorResearchFunnel {
   universe_count?: number
+  /** 有 cross_section_count 快照的截面日数（universe_count 是这些日的加总） */
+  universe_days_with_snapshot?: number
+  /** 该行的漏斗截面日数（= 去重后的信号日数） */
+  cross_section_days?: number
+  /** universe_count 的来源；为 FALLBACK_TOTAL_OBSERVATIONS 时该值**不可**读作真实候选池规模 */
+  universe_count_source?: string
+  universe_count_fallback?: boolean
+  universe_count_note?: string
+  universe_source?: string
   feature_valid_count?: number
+  valid_observations?: number
   selector_item_count?: number
+  total_observations?: number
+  /** 键别名说明（feature_valid_count ≡ valid_observations 等：同一变量两个键名，不是两个量） */
+  key_alias_note?: string
+  /** 数值取整规则（本载荷为 4 位小数四舍五入，同名的 *_exact 键给出未取整值） */
+  rounding_rule?: string
   tradable_count?: number | null
   tradable_status?: string
+  tradable_note?: string
   metric_scope?: string
+  /** metric_scope 的继承说明：本块的 COST_APPROX 是家族继承值，块内只有样本覆盖口径数值 */
+  metric_scope_note?: string
   note?: string
 }
 
@@ -95,9 +179,8 @@ export async function getFactorResearch(params: {
 // 输入 MP-016 feature snapshot，输出必含 snapshot/schema/label/metricScope/sample funnel；
 // EXECUTABLE 口径仅对 label_v2 execStatus=FILLED 样本给出；不读 selector_result / qfq。
 
-export interface SnapshotScopeIc {
+export interface SnapshotScopeIc extends FactorIcDisclosure {
   metric_scope?: string
-  status?: string
   basis_note?: string
   embargo_note?: string
   universe_note?: string
@@ -105,10 +188,11 @@ export interface SnapshotScopeIc {
   total_observations: number
   rank_ic_mean: number
   rank_ic_std: number
-  rank_ic_ir: number
+  /** ICIR；IC 序列无离散度时为 null（≠ 0） */
+  rank_ic_ir: number | null
   rank_ic_positive_rate: number
   pearson_ic_mean: number
-  monotonicity: string
+  monotonicity: MonotonicityLabel
   hac_std: number
   ci_lower: number
   ci_upper: number
@@ -187,7 +271,7 @@ export async function getSnapshotFactorResearch(params: {
 }
 
 /** 统一因子报告：T+1/2/3/5 多周期并列（Pearson/Rank IC/ICIR/单调性/多空 spread + 成本后近似 IC）。 */
-export interface UnifiedReportHorizonRow {
+export interface UnifiedReportHorizonRow extends FactorIcDisclosure {
   holding_days: number
   basis_note?: string
   net_basis_note?: string
@@ -196,10 +280,11 @@ export interface UnifiedReportHorizonRow {
   total_observations: number
   rank_ic_mean: number
   rank_ic_std: number
-  rank_ic_ir: number
+  /** ICIR；IC 序列无离散度时为 null（≠ 0） */
+  rank_ic_ir: number | null
   rank_ic_positive_rate: number
   pearson_ic_mean: number
-  monotonicity: string
+  monotonicity: MonotonicityLabel
   hac_std: number
   ci_lower: number
   ci_upper: number
@@ -210,11 +295,16 @@ export interface UnifiedReportHorizonRow {
     total_observations: number
     rank_ic_mean: number
     rank_ic_std: number
-    rank_ic_ir: number
+    rank_ic_ir: number | null
     rank_ic_positive_rate: number
     pearson_ic_mean: number
     long_short_spread: number
-  }
+    /** false 时上面的 0.0 是占位（本口径无数据），不是「成本后恰为 0」 */
+    data_available?: boolean
+    status?: string
+    group_count?: number
+    grouped_returns?: FactorGroupReturn[]
+  } & FactorIcDisclosure
 }
 
 export interface UnifiedFactorReport {

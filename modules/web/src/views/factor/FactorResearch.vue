@@ -128,15 +128,23 @@
             >
               <div class="q-meta">
                 <span>截面日：{{ blk.cross_section_days }}</span>
-                <span>观测数：{{ blk.total_observations }}</span>
-                <span>Rank IC 均值：{{ fmt4(blk.rank_ic_mean) }}</span>
-                <span>IC 标准差：{{ fmt4(blk.rank_ic_std) }}</span>
-                <span>ICIR：{{ fmt4(blk.rank_ic_ir) }}</span>
-                <span>IC 正率：{{ pct(blk.rank_ic_positive_rate) }}</span>
-                <span>Pearson IC：{{ fmt4(blk.pearson_ic_mean) }}</span>
-                <span>单调性：{{ blk.monotonicity }}</span>
-                <span>多空 spread：{{ pct4(blk.long_short_spread) }}</span>
-                <span>HAC 95%CI：{{ fmt4(blk.ci_lower) }} ~ {{ fmt4(blk.ci_upper) }}</span>
+                <span title="参与 IC 计算的有限观测总数（已剔除非有限值）">截面日观测：{{ blk.total_observations }}</span>
+                <span title="信号日得分与 forward return 的秩相关均值；raw 口径">Rank IC 均值：{{ fmt4(blk.rank_ic_mean) }}</span>
+                <span>Rank IC 标准差：{{ fmt4(blk.rank_ic_std) }}</span>
+                <span title="IC 序列无离散度（std = 0，含截面日不足 2）时无定义，显示「—」而不是 0">ICIR：{{ fmt4(blk.rank_ic_ir) }}</span>
+                <span>Rank IC 正率：{{ pct(blk.rank_ic_positive_rate) }}</span>
+                <span title="线性 IC 均值；无可定义样本时为占位 0.0，须看 Pearson 支撑日数">Pearson IC：{{ fmt4(blk.pearson_ic_mean) }}</span>
+                <span>单调性：{{ monoLabel(blk.monotonicity) }}</span>
+                <span title="高分组均值 − 低分组均值（两个多头腿之差，非美元中性多空）">多空 spread（高−低）：{{ pct4(blk.long_short_spread) }}</span>
+                <span title="名义 95% 水平，未做多重检验校正；ci_status = INSUFFICIENT_N 时为零宽区间，不可读作精确估计">HAC 95%CI：{{ fmt4(blk.ci_lower) }} ~ {{ fmt4(blk.ci_upper) }}</span>
+                <span v-if="blk.pearson_support_days !== undefined" title="Pearson IC 可定义的截面日数（Spearman 与 Pearson 的有限性不等价）">
+                  Pearson 支撑日：{{ blk.pearson_support_days }}
+                </span>
+                <span v-if="blk.input_cross_section_days !== undefined" title="入参截面日数 = 计入日 + 规模不足丢弃日 + IC 不可算丢弃日">
+                  入参日数：{{ blk.input_cross_section_days }}（规模不足丢弃 {{ blk.days_dropped_below_min_cross_section ?? 0 }} / IC 不可算 {{ blk.days_dropped_non_finite_ic ?? 0 }} / 剔除观测 {{ blk.excluded_non_finite_observations ?? 0 }}）
+                </span>
+                <span v-if="blk.ci_status" title="区间状态：INSUFFICIENT_N = 截面日不足 2；ZERO_WIDTH = 零宽">CI 状态：{{ blk.ci_status }}</span>
+                <span v-if="blk.price_basis" title="价格基准：legacy/snapshot 毛收益面的复权方式不同，跨面比较前必看">价格基准：{{ blk.price_basis }}</span>
               </div>
               <el-alert type="info" :closable="false" show-icon class="ic-note" :title="blk.basis_note" />
               <el-alert v-if="blk.status === 'UNAVAILABLE'" type="warning" :closable="false" show-icon class="ic-note" :title="blk.note || '口径不可用'" />
@@ -146,9 +154,13 @@
                   <el-table-column prop="group_no" label="组" width="60" />
                   <el-table-column prop="label" label="分组" min-width="120" />
                   <el-table-column label="平均收益" min-width="100">
-                    <template #default="{ row }">{{ pct4(row.avg_return) }}</template>
+                    <template #default="{ row }">{{ row.empty ? '空组（无观测）' : pct4(row.avg_return) }}</template>
                   </el-table-column>
-                  <el-table-column prop="observations" label="观测数" width="80" />
+                  <el-table-column label="截面日数" width="90">
+                    <template #default="{ row }">
+                      <span title="参与该组均值聚合的截面日数，不是成分股数">{{ row.observations }}</span>
+                    </template>
+                  </el-table-column>
                 </el-table>
               </div>
               <div v-if="blk.daily_rank_ic?.length" class="ic-section">
@@ -158,7 +170,16 @@
                   <el-table-column label="Rank IC" min-width="100">
                     <template #default="{ row }">{{ fmt4(row.rank_ic) }}</template>
                   </el-table-column>
-                  <el-table-column prop="sample_size" label="样本数" width="80" />
+                  <el-table-column label="样本数" width="90">
+                    <template #default="{ row }">
+                      <span title="参与该日计算的有限观测数（非有限值已剔除）">{{ row.sample_size }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="剔除" width="70">
+                    <template #default="{ row }">
+                      <span title="该日因 score/forward return 非有限而被剔除的观测数">{{ row.excluded_observations ?? '—' }}</span>
+                    </template>
+                  </el-table-column>
                 </el-table>
               </div>
               <EmptyState
@@ -234,12 +255,22 @@
             <SectionCard class="q-card rank-ic-card" pad="sm" :title="`Rank IC 与分组收益（持仓 ${result.rank_ic.holding_days} 日）`">
               <div class="q-meta">
                 <span>截面日数：{{ result.rank_ic.cross_section_days }}</span>
-                <span>观测数：{{ result.rank_ic.total_observations }}</span>
-                <span>IC 均值：{{ fmt4(result.rank_ic.rank_ic_mean) }}</span>
-                <span>IC 标准差：{{ fmt4(result.rank_ic.rank_ic_std) }}</span>
-                <span>ICIR：{{ fmt4(result.rank_ic.rank_ic_ir) }}</span>
-                <span>IC 正率：{{ pct(result.rank_ic.rank_ic_positive_rate) }}</span>
-                <span>多空 spread：{{ pct4(result.rank_ic.long_short_spread) }}</span>
+                <span title="参与 IC 计算的有限观测总数（已剔除非有限值）">截面日观测：{{ result.rank_ic.total_observations }}</span>
+                <span title="信号日得分与 forward return 的秩相关均值">Rank IC 均值：{{ fmt4(result.rank_ic.rank_ic_mean) }}</span>
+                <span>Rank IC 标准差：{{ fmt4(result.rank_ic.rank_ic_std) }}</span>
+                <span title="IC 序列无离散度（含截面日不足 2）时无定义，显示「—」而不是 0">ICIR：{{ fmt4(result.rank_ic.rank_ic_ir) }}</span>
+                <span>Rank IC 正率：{{ pct(result.rank_ic.rank_ic_positive_rate) }}</span>
+                <span v-if="result.rank_ic.pearson_ic_mean !== undefined" title="线性 IC 均值；无可定义样本时为占位 0.0，须看 Pearson 支撑日数">
+                  Pearson IC：{{ fmt4(result.rank_ic.pearson_ic_mean) }}
+                </span>
+                <span v-if="result.rank_ic.monotonicity">单调性：{{ monoLabel(result.rank_ic.monotonicity) }}</span>
+                <span title="高分组均值 − 低分组均值（两个多头腿之差，非美元中性多空）">多空 spread（高−低）：{{ pct4(result.rank_ic.long_short_spread) }}</span>
+                <span v-if="result.rank_ic.input_cross_section_days !== undefined" title="入参截面日数 = 计入日 + 规模不足丢弃日 + IC 不可算丢弃日">
+                  入参日数：{{ result.rank_ic.input_cross_section_days }}（规模不足丢弃 {{ result.rank_ic.days_dropped_below_min_cross_section ?? 0 }} / IC 不可算 {{ result.rank_ic.days_dropped_non_finite_ic ?? 0 }} / 剔除观测 {{ result.rank_ic.excluded_non_finite_observations ?? 0 }}）
+                </span>
+                <span v-if="result.rank_ic.price_basis" title="价格基准：本面为 qfq 前复权 close；同名 metric_scope=RAW 在 snapshot 面是 rawClose 不复权，跨面比较前必看">
+                  价格基准：{{ result.rank_ic.price_basis }}
+                </span>
               </div>
               <el-alert type="info" :closable="false" show-icon class="ic-note" :title="result.rank_ic.basis_note" />
               <el-alert type="warning" :closable="false" show-icon class="ic-note" :title="result.rank_ic.universe_note" />
@@ -249,9 +280,13 @@
                   <el-table-column prop="group_no" label="组" width="60" />
                   <el-table-column prop="label" label="分组" min-width="120" />
                   <el-table-column label="平均收益" min-width="100">
-                    <template #default="{ row }">{{ pct4(row.avg_return) }}</template>
+                    <template #default="{ row }">{{ row.empty ? '空组（无观测）' : pct4(row.avg_return) }}</template>
                   </el-table-column>
-                  <el-table-column prop="observations" label="观测数" width="80" />
+                  <el-table-column label="截面日数" width="90">
+                    <template #default="{ row }">
+                      <span title="参与该组均值聚合的截面日数，不是成分股数">{{ row.observations }}</span>
+                    </template>
+                  </el-table-column>
                 </el-table>
               </div>
               <div v-if="result.rank_ic.daily_rank_ic.length" class="ic-section">
@@ -261,7 +296,16 @@
                   <el-table-column label="Rank IC" min-width="100">
                     <template #default="{ row }">{{ fmt4(row.rank_ic) }}</template>
                   </el-table-column>
-                  <el-table-column prop="sample_size" label="样本数" width="80" />
+                  <el-table-column label="样本数" width="90">
+                    <template #default="{ row }">
+                      <span title="参与该日计算的有限观测数（非有限值已剔除）">{{ row.sample_size }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="剔除" width="70">
+                    <template #default="{ row }">
+                      <span title="该日因 score/forward return 非有限而被剔除的观测数">{{ row.excluded_observations ?? '—' }}</span>
+                    </template>
+                  </el-table-column>
                 </el-table>
               </div>
               <EmptyState
@@ -304,23 +348,35 @@
             <el-table-column label="Pearson IC" width="100">
               <template #default="{ row }">{{ fmt4(row.pearson_ic_mean) }}</template>
             </el-table-column>
-            <el-table-column label="ICIR" width="80">
-              <template #default="{ row }">{{ fmt4(row.rank_ic_ir) }}</template>
+            <el-table-column label="ICIR" width="90">
+              <template #default="{ row }">
+                <span title="IC 序列无离散度（含截面日不足 2）时无定义，显示「—」而不是 0">{{ fmt4(row.rank_ic_ir) }}</span>
+              </template>
             </el-table-column>
             <el-table-column label="正IC率" width="80">
               <template #default="{ row }">{{ pct(row.rank_ic_positive_rate) }}</template>
             </el-table-column>
-            <el-table-column label="单调性" width="150">
-              <template #default="{ row }">{{ row.monotonicity }}</template>
+            <el-table-column label="单调性" width="170">
+              <template #default="{ row }">{{ monoLabel(row.monotonicity) }}</template>
             </el-table-column>
-            <el-table-column label="多空 spread" width="100">
-              <template #default="{ row }">{{ pct(row.long_short_spread) }}</template>
+            <el-table-column label="多空 spread（高−低）" width="140">
+              <template #default="{ row }">
+                <span title="高分组均值 − 低分组均值（两个多头腿之差，非美元中性多空）">{{ pct(row.long_short_spread) }}</span>
+              </template>
             </el-table-column>
-            <el-table-column label="净收益 IC (成本后近似)" width="130">
-              <template #default="{ row }">{{ row.cost_net_ic ? fmt4(row.cost_net_ic.rank_ic_mean) : '—' }}</template>
+            <el-table-column label="净收益 IC (成本后近似)" width="160">
+              <template #default="{ row }">
+                <span v-if="!row.cost_net_ic || row.cost_net_ic.data_available === false" title="本口径无数据（缺 raw 行情/无可执行标签），0.0 是占位而不是「成本后恰为 0」">
+                  不可用
+                </span>
+                <span v-else>{{ fmt4(row.cost_net_ic.rank_ic_mean) }}</span>
+              </template>
             </el-table-column>
-            <el-table-column label="HAC 95%CI" min-width="130">
-              <template #default="{ row }">{{ fmt4(row.ci_lower) }} ~ {{ fmt4(row.ci_upper) }}</template>
+            <el-table-column label="HAC 95%CI" min-width="150">
+              <template #default="{ row }">
+                <span title="名义 95% 水平，未做多重检验校正；INSUFFICIENT_N 时为零宽区间">{{ fmt4(row.ci_lower) }} ~ {{ fmt4(row.ci_upper) }}</span>
+                <el-tag v-if="row.ci_status === 'INSUFFICIENT_N'" size="small" type="info" class="capability-tag">N&lt;2</el-tag>
+              </template>
             </el-table-column>
           </el-table>
           <div class="unified-notes">
@@ -393,8 +449,29 @@ function fmt(v: number): string {
   return Number.isFinite(v) ? v.toFixed(2) : '—'
 }
 
-function fmt4(v: number): string {
-  return Number.isFinite(v) ? v.toFixed(4) : '—'
+function fmt4(v: number | null | undefined): string {
+  // null = 该量无定义（如 IC 序列无离散度时的 ICIR），显示「—」而不是 0
+  return v !== null && v !== undefined && Number.isFinite(v) ? v.toFixed(4) : '—'
+}
+
+/**
+ * 单调性标签的中文展示（含 NO_DISPERSION：各组收益全相等 = 零区分度，不是任何方向）
+ */
+function monoLabel(v: string | undefined): string {
+  switch (v) {
+    case 'MONOTONIC_INCREASING':
+      return '单调递增'
+    case 'MONOTONIC_DECREASING':
+      return '单调递减'
+    case 'NON_MONOTONIC':
+      return '非单调'
+    case 'NO_DISPERSION':
+      return '零区分度（各组收益全相等）'
+    case 'N/A':
+      return '不可判定（可用组不足 2）'
+    default:
+      return v || '—'
+  }
 }
 
 function pct(v: number): string {
@@ -499,15 +576,25 @@ async function runSnapshot() {
 function exportUnifiedCsv() {
   if (!unifiedResult.value || !unifiedResult.value.by_horizon.length) return
   const r = unifiedResult.value
+  // 表头须自证口径：前三列是毛收益（gross_*）、column `net_ic` 实为成本后近似净收益 Rank IC
+  // 且与毛收益窗口差一日，故带 full 名与 gross_/cost_net_ 前缀；ICIR 无定义时留空而不是 0
   const lines: string[] = [
     `strategy,${r.strategy}`,
     `range,${r.start_date} ~ ${r.end_date}`,
-    '',
-    ['holding_days', 'rank_ic', 'pearson_ic', 'icir', 'positive_rate', 'monotonicity', 'spread', 'net_ic', 'hac_std', 'ci_lower', 'ci_upper'].join(','),
+    'metric_scope,RAW(gross) unless prefixed cost_net_,COST_APPROX',
+    'icir_undefined_when,,IC 序列无离散度（std=0，含截面日 < 2）',
+    ['holding_days', 'gross_rank_ic_mean', 'gross_pearson_ic_mean', 'gross_rank_ic_ir',
+      'gross_rank_ic_positive_rate', 'monotonicity', 'gross_long_short_spread',
+      'cost_net_rank_ic_mean', 'gross_hac_std', 'gross_ci_lower', 'gross_ci_upper',
+      'ci_status', 'cross_section_days', 'input_cross_section_days', 'total_observations',
+      'pearson_support_days'].join(','),
     ...r.by_horizon.map((row) => [
-      row.holding_days, row.rank_ic_mean, row.pearson_ic_mean, row.rank_ic_ir,
-      row.rank_ic_positive_rate, row.monotonicity, row.long_short_spread,
-      row.cost_net_ic?.rank_ic_mean ?? '', row.hac_std, row.ci_lower, row.ci_upper
+      row.holding_days, row.rank_ic_mean, row.pearson_ic_mean,
+      row.rank_ic_ir ?? '', row.rank_ic_positive_rate, row.monotonicity, row.long_short_spread,
+      row.cost_net_ic?.data_available === false ? '' : (row.cost_net_ic?.rank_ic_mean ?? ''),
+      row.hac_std, row.ci_lower, row.ci_upper,
+      row.ci_status ?? '', row.cross_section_days, row.input_cross_section_days ?? '',
+      row.total_observations, row.pearson_support_days ?? ''
     ].join(','))
   ]
   const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })

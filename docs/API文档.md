@@ -374,7 +374,7 @@
 |----|----|----------|
 | 研究口径约定版本 | `research_convention_v1` | `research/ResearchConvention.java` |
 | 标签持有期 | T+2 / T+3（`LABEL_HORIZONS=[2,3]`），T+1 另轨 | 同上 |
-| 标签方向 | `y_h = 1[net_return > 0]`；入场=signal 下一交易日开盘×(1+佣金+滑点)，退出=持有期收盘×(1−印花税−滑点) | 同上 |
+| 标签方向 | `y_h = 1[net_return > 0]`；**两级乘性**（与实现同构）：入场=signal 下一交易日开盘×(1+滑点)×(1+佣金)，退出=持有期收盘×(1−滑点)×(1−佣金−印花税)。注：早期文档曾写作加法式 `×(1+佣金+滑点)` / `×(1−印花税−滑点)`，与实现不一致（漏卖出腿佣金，差值主项 = −佣金 = −3.00bp of E），已按实现更正（Q-R010-01） | 同上 |
 | 标签版本 | `label_v2`（raw 口径，生产唯一）；`label_v1`（qfq 旧口径）仅历史只读 | QP-003 / MP-002 |
 | 数据质量门禁 | `gate_v2` | `service/DataQualityGateService.java` |
 | 复权策略 | 双写并存：`market_data`（前复权）+ `market_price_raw`（不复权）+ `adjust_factor`（`source=derived_local, reliability=limited`） | QP-003 |

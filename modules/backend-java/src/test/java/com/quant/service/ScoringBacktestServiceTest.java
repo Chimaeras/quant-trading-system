@@ -660,6 +660,11 @@ class ScoringBacktestServiceTest {
 
         assertThat(response.getFactorAnalysis()).isNotNull();
         assertThat(response.getFactorAnalysis().getCrossSectionDays()).isEqualTo(1);
+        // 单截面日 ⟹ IC 序列无离散度 ⟹ ICIR 无定义（历史实现给 0.0，把「无定义」显示成「IR 恰为 0」）
+        assertThat(response.getFactorAnalysis().getRankIcIr()).isNull();
+        // 方向标签此前只存在于载荷 map 中，DTO 消费方拿不到（Q-R013-06）
+        assertThat(response.getFactorAnalysis().getMonotonicity())
+                .isIn("MONOTONIC_INCREASING", "MONOTONIC_DECREASING", "NON_MONOTONIC", "NO_DISPERSION", "N/A");
         assertThat(response.getFactorAnalysis().getHoldingDays()).isEqualTo(5);
         assertThat(response.getFactorAnalysis().getRankIcMean()).isGreaterThan(0);
         assertThat(response.getFactorAnalysis().getGroupedReturns()).hasSize(5);
@@ -811,5 +816,33 @@ class ScoringBacktestServiceTest {
 
     private static org.assertj.core.data.Offset<Double> within(double value) {
         return org.assertj.core.data.Offset.offset(value);
+    }
+
+    @Test
+    void factorIcSummarySerializesUndefinedIcIrAsJsonNull() {
+        // 与 PeriodStat.profitLossRatio 同一处理（无定义 ⟹ null）：DTO 字段不得是 primitive，
+        // 否则引擎的 null 会在装箱处 NPE 或退回 0.0，把「无定义」伪装成「IR 恰为 0」（Q-R006-05）
+        ScoringBacktestResponse.FactorIcSummary undefined = ScoringBacktestResponse.FactorIcSummary.builder()
+                .holdingDays(2)
+                .crossSectionDays(1)
+                .totalObservations(10)
+                .rankIcMean(1.0)
+                .rankIcStd(0.0)
+                .rankIcIr(null)
+                .rankIcPositiveRate(1.0)
+                .longShortSpread(0.01)
+                .build();
+
+        assertThat(undefined.getRankIcIr()).isNull();
+        assertThat(objectMapper().valueToTree(undefined).toString()).contains("\"rankIcIr\":null");
+
+        ScoringBacktestResponse.FactorAnalysis analysis = ScoringBacktestResponse.FactorAnalysis.builder()
+                .holdingDays(2)
+                .groupCount(5)
+                .crossSectionDays(3)
+                .totalObservations(30)
+                .rankIcIr(0.5)
+                .build();
+        assertThat(analysis.getRankIcIr()).isEqualTo(0.5);
     }
 }

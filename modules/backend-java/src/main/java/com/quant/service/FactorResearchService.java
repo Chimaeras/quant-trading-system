@@ -46,7 +46,10 @@ import java.util.Map;
  *   <li><b>snapshotResearch（权威，FULL_FEATURE_SNAPSHOT）</b>：输入 MP-016 feature snapshot
  *       完整 PIT 候选截面（feature_snapshot_row，topN=0 全截面），join label_v2 执行状态；
  *       forward return 只读 market_price_raw / label.netReturn，不读 selector_result、不读 qfq。
- *       metric_scope 分 RAW / COST_APPROX / EXECUTABLE 三类，EXECUTABLE 仅对 FILLED 样本给出。</li>
+ *       metric_scope 的取值域为 <b>5 值</b>：RAW / COST_APPROX / EXECUTABLE / FILLED_SAMPLE / UNAVAILABLE
+ *       （前三个为「口径类型」，UNAVAILABLE 为「该口径本面不可用」，FILLED_SAMPLE 为「仅 FILLED 样本子集」）；
+ *       EXECUTABLE 仅对 FILLED 样本给出。注意同名 metric_scope=RAW 在两个面指向**不同价格基准**（见 price_basis：
+ *       legacy = QFQ_CLOSE 前复权，snapshot = RAW_CLOSE 不复权）。</li>
  *   <li><b>research / unifiedReport（LEGACY_SELECTION_BIASED）</b>：sparse selector_result 取样，
  *       存在选择偏差，仅保留供历史对照，响应必须标注 LEGACY_SELECTION_BIASED。</li>
  * </ul>
@@ -74,15 +77,71 @@ public class FactorResearchService {
                     + "完整截面 IC 请走 snapshot-research（V2-MP-022，输入 snapshotId 读取 MP-016 feature snapshot）";
     private static final String RANK_IC_BASIS_NOTE =
             "毛收益 IC（metric_scope=RAW）：forward return = close[t+h]/close[t]-1，未计费用/滑点/涨跌停可成交性；"
-                    + "与回测成交收益口径不同，仅用于因子方向预测力评价";
+                    + "与回测成交收益口径不同，仅用于因子方向预测力评价；"
+                    + "本面（legacy selector）价格基准 = **qfq 前复权** close（price_basis=QFQ_CLOSE）——"
+                    + "与 snapshot 面同名 metric_scope=RAW 的 **rawClose 不复权**（price_basis=RAW_CLOSE）不是同一基准，"
+                    + "同名不同基准，跨面比较前必须先看 price_basis";
     private static final String RANK_IC_NET_BASIS_NOTE =
             "成本后近似净收益 IC（metric_scope=COST_APPROX）：entry = rawOpen[t+1]×(1+佣金+滑点)，"
                     + "exit = rawClose[t+1+h]×(1-佣金-印花税-滑点)，成交价只读 market_price_raw（V2-MP-014），"
                     + "缺 raw 即跳过该观测；与 ResearchConvention / LabelFactory 成交口径一致；"
-                    + "不含涨跌停/停牌拒单过滤，不得称为完整可执行 IC";
+                    + "不含涨跌停/停牌拒单过滤，不得称为完整可执行 IC；"
+                    + "**记法声明**：上式 ASCII 写法为方便阅读的**加性**写法，实现为两级**乘性**——"
+                    + "entry = rawOpen[t+1]×(1+滑点)×(1+佣金)，exit = rawClose[t+1+h]×(1−滑点)×(1−佣金−印花税)；"
+                    + "两者差为费率的二阶小量，但成本量级一律以乘性实现为准（见 ResearchConvention 与 docs/研究口径规范.md）";
     private static final String RANK_IC_EMBARGO_NOTE =
             "信号日接近数据末端（forward 区间未形成）自动跳过，不外推、不使用未来数据；"
-                    + "重叠持有期 IC 序列的显著性以 HAC 标准误与 block bootstrap CI 为准";
+                    + "重叠持有期 IC 序列的显著性以 HAC 标准误与 block bootstrap CI 为准；"
+                    + "**估计量边界**：HAC 滞后阶只由序列长度决定（lag = max(1, min(floor(n^(1/3)), n-1))），"
+                    + "与持有期 h **结构上解耦**；bootstrap 有效块长 = min(h, floor(√n), n−1)，n 小时有效块长 < h；"
+                    + "区间为**名义** 95% 水平，未做多重检验校正，重叠持有期下实测覆盖率可能显著低于 95%";
+    /**
+     * 统计量构造规则声明（Q-R006-02 / Q-R014-01 / Q-R014-09 披露项，**只声明不改数值**）。
+     */
+    private static final String RANK_IC_STD_BASIS = "POPULATION_STD_DIV_T";
+    private static final String RANK_IC_STD_BASIS_NOTE =
+            "rank_ic_std / rank_ic_ir 的分母为**总体标准差 ÷ T**，非样本标准差 ÷(T−1)；"
+                    + "两种约定的比值恒为 sqrt(T/(T−1))（T=5 时约 +11.8%）。本键只声明现状，未改任何数值；"
+                    + "rank_ic_ir 在 std = 0（含 T < 2）时无定义，序列化为 null（0 的语义是「IR 恰为 0」）";
+    private static final String GROUP_BOUNDARY_RULE = "INDEX_EQUAL_SPLIT_STABLE_SORT";
+    private static final String GROUP_BOUNDARY_RULE_NOTE =
+            "分桶规则：组内按 score 升序**稳定排序**（并列项保持输入行序）+ 下标等分 bucket = min(g−1, i·g/n)；"
+                    + "并列 score 的相对次序**不作保证**（取决于上游查询返回的行序），故分组收益在并列行序变化时"
+                    + "可能微幅改变（rank_ic 不受影响）；载荷同时给出未取整的 *_exact 值以便复核标签是否可重建";
+    private static final String ROUNDING_RULE = "ROUND_HALF_UP_4DP";
+    private static final String ROUNDING_RULE_NOTE =
+            "载荷数值为 Math.round(v×10000)/10000 的四舍五入（4 位小数）；同名的 *_exact 键给出未取整原值；"
+                    + "非有限值（NaN/±Inf）一律序列化为 **null** —— 原实现会把 NaN 写成 0.0、把 ±Inf 写成 "
+                    + "9.223372036854776E14，把「不可定义」伪装成具体数";
+    private static final String LONG_SHORT_SPREAD_BASIS =
+            "TWO_LONG_LEG_NET_DIFFERENCE";
+    private static final String LONG_SHORT_SPREAD_BASIS_NOTE =
+            "long_short_spread = 最高分组均值 − 最低分组均值，是**两个多头腿净收益之差**，"
+                    + "**不是**美元中性多空（本字段名沿用历史契约）：成本在两腿差分中结构上抵消，"
+                    + "故该值不承担空头腿成本、不减基准、不减无风险利率；按论文口径的真双腿美元中性理解会"
+                    + "系统性高估成本承受力（样本外符号可能翻转）。只读披露，未改字段语义与数值";
+    private static final String KEY_ALIAS_NOTE =
+            "键别名（同一变量两个键名，为向后兼容保留，**不是**两个量）："
+                    + "feature_valid_count ≡ valid_observations（同源变量 validObservations）；"
+                    + "selector_item_count ≡ total_observations（同源变量 totalObservations）";
+    private static final String METRIC_SCOPE_INHERITED_NOTE =
+            "本块 metric_scope 是**家族继承值**（无条件写 COST_APPROX），块内并**无**成本口径数值："
+                    + "coverage / 各计数字段是**样本覆盖口径**（候选行数、有效观测数），不得按成本近似解读。"
+                    + "同名 metric_scope 在不同面上是不同语义面（顶层与 rank_ic 块的 RAW 指价格基准，"
+                    + "snapshot funnel 块另有成本近似计数）。只读声明，未改取值域";
+    private static final String MIN_CROSS_SECTION_SIZE_BASIS = "INPUT_ROWS";
+    /**
+     * Q-R014-03：聚合面 {@code grouped_returns[].observations} 的单位声明（**只声明不改数值**）。
+     */
+    private static final String GROUPED_RETURN_OBSERVATIONS_BASIS = "DAY_LEVEL_GROUP_MEANS_PER_GROUP";
+    private static final String GROUPED_RETURN_OBSERVATIONS_BASIS_NOTE =
+            "grouped_returns[].observations = 参与该组均值聚合的**截面日数**（= 组内已聚合的日级组均值个数），"
+                    + "不是成分股数；日级分组的成分股数在引擎内部产生，不经本载荷发射。"
+                    + "同名字段在别的上下文可能指成分股数，引用前须先看本键；只读披露，未改字段语义与数值";
+    private static final String PRICE_BASIS_QFQ = "QFQ_CLOSE";
+    private static final String PRICE_BASIS_RAW = "RAW_CLOSE";
+    private static final String STATUS_OK = "OK";
+    private static final String STATUS_NO_OBSERVATIONS = "NO_OBSERVATIONS";
     private static final String METRIC_SCOPE_RAW = "RAW";
     private static final String METRIC_SCOPE_COST_APPROX = "COST_APPROX";
     private static final String METRIC_SCOPE_EXECUTABLE = "EXECUTABLE";
@@ -349,7 +408,9 @@ public class FactorResearchService {
                         rawCount++;
                     }
                 }
-                // COST_APPROX：rawOpen[t+1]×(1+c+s) 入场 → rawClose[t+1+h]×(1-s-tax-s) 退出
+                // COST_APPROX：rawOpen[t+1]×(1+滑点)×(1+佣金) 入场 → rawClose[t+1+h]×(1−滑点)×(1−佣金−印花税) 退出
+                // （乘性两级，与 ResearchConvention / LabelFactory 成交口径一致；原注释把滑点与卖出印花税
+                //  共用同一个符号 s，且写成加性式，与实现不符 —— Q-R010-03）
                 if (baseIdx != null && baseIdx + 1 + holding < prices.days().size()) {
                     LocalDate entryDate = prices.days().get(baseIdx + 1);
                     LocalDate exitDate = prices.days().get(baseIdx + 1 + holding);
@@ -522,6 +583,69 @@ public class FactorResearchService {
         return new SnapshotPriceCache(dayIndex, days, close, open);
     }
 
+    /**
+     * 三口径族共用的**标准数值键集**：保证「键集不随数据可用性变化」，消费方可静态声明类型
+     * （Q-R007-03 / Q-R009-05 / Q-R009-06 修复）。键名、语义与数值口径均沿用既有定义。
+     */
+    private static void putSummaryMetricKeys(Map<String, Object> block, FactorResearchSummary s) {
+        block.put("cross_section_days", s.crossSectionDays());
+        block.put("total_observations", s.totalObservations());
+        block.put("rank_ic_mean", round4(s.rankIcMean()));
+        block.put("rank_ic_std", round4(s.rankIcStd()));
+        block.put("rank_ic_ir", round4(s.rankIcIr()));
+        block.put("rank_ic_positive_rate", round4(s.rankIcPositiveRate()));
+        block.put("pearson_ic_mean", round4(s.pearsonIcMean()));
+        block.put("monotonicity", s.monotonicity());
+        block.put("hac_std", round4(s.hacStd()));
+        block.put("ci_lower", round4(s.ciLower()));
+        block.put("ci_upper", round4(s.ciUpper()));
+        block.put("long_short_spread", round4(s.longShortSpread()));
+        block.put("daily_rank_ic", dailyIcList(s));
+        block.put("grouped_returns", groupedReturnList(s));
+    }
+
+    /**
+     * 三口径族共用的**披露键**（纯增量）：样本漏斗计数、统计量构造规则、字段口径边界。
+     * 不改任何既有键的名字/语义/数值。
+     */
+    private static void putSummaryDisclosure(Map<String, Object> block, FactorResearchSummary s, String priceBasis) {
+        block.put("price_basis", priceBasis);
+        block.put("group_count", s.groupCount());
+        block.put("min_cross_section_size", RANK_IC_MIN_CROSS_SECTION_SIZE);
+        block.put("min_cross_section_size_basis", MIN_CROSS_SECTION_SIZE_BASIS);
+        block.put("input_cross_section_days", s.inputDays());
+        block.put("days_dropped_below_min_cross_section", s.daysBelowMinCrossSection());
+        block.put("days_dropped_non_finite_ic", s.daysNonFiniteIc());
+        block.put("excluded_non_finite_observations", s.excludedNonFiniteObservations());
+        block.put("groups_with_observations", s.groupsWithObservations());
+        block.put("pearson_support_days", s.pearsonSupportDays());
+        block.put("rank_ic_std_basis", RANK_IC_STD_BASIS);
+        block.put("rank_ic_std_basis_note", RANK_IC_STD_BASIS_NOTE);
+        block.put("group_boundary_rule", GROUP_BOUNDARY_RULE);
+        block.put("group_boundary_rule_note", GROUP_BOUNDARY_RULE_NOTE);
+        block.put("rounding_rule", ROUNDING_RULE);
+        block.put("rounding_rule_note", ROUNDING_RULE_NOTE);
+        block.put("ci_status", ciStatus(s));
+        block.put("long_short_spread_basis", LONG_SHORT_SPREAD_BASIS);
+        block.put("long_short_spread_basis_note", LONG_SHORT_SPREAD_BASIS_NOTE);
+        block.put("grouped_returns_observations_basis", GROUPED_RETURN_OBSERVATIONS_BASIS);
+        block.put("grouped_returns_observations_basis_note", GROUPED_RETURN_OBSERVATIONS_BASIS_NOTE);
+    }
+
+    /**
+     * 区间状态：{@code INSUFFICIENT_N}（T &lt; 2，与 {@code hac_std = 0} 并存）、
+     * {@code ZERO_WIDTH}（下界不小于上界，即零宽区间，不是「精确估计」）、否则 {@code OK}。
+     */
+    private static String ciStatus(FactorResearchSummary s) {
+        if (s.crossSectionDays() < 2) {
+            return "INSUFFICIENT_N";
+        }
+        if (!(s.ciUpper() > s.ciLower())) {
+            return "ZERO_WIDTH";
+        }
+        return STATUS_OK;
+    }
+
     /** 某口径的截面 IC 汇总块（含 HAC 标准误与 block bootstrap 置信区间）。 */
     private Map<String, Object> buildSnapshotScopeBlock(
             String scope, String basisNote, int holding,
@@ -530,23 +654,12 @@ public class FactorResearchService {
                 obsByDate, holding, RANK_IC_GROUP_COUNT, RANK_IC_MIN_CROSS_SECTION_SIZE, SNAPSHOT_UNIVERSE_NOTE);
         Map<String, Object> block = new LinkedHashMap<>();
         block.put("metric_scope", scope);
+        block.put("status", summary.totalObservations() > 0 ? STATUS_OK : STATUS_NO_OBSERVATIONS);
         block.put("basis_note", basisNote);
         block.put("embargo_note", RANK_IC_EMBARGO_NOTE);
         block.put("universe_note", SNAPSHOT_UNIVERSE_NOTE);
-        block.put("cross_section_days", summary.crossSectionDays());
-        block.put("total_observations", summary.totalObservations());
-        block.put("rank_ic_mean", round4(summary.rankIcMean()));
-        block.put("rank_ic_std", round4(summary.rankIcStd()));
-        block.put("rank_ic_ir", round4(summary.rankIcIr()));
-        block.put("rank_ic_positive_rate", round4(summary.rankIcPositiveRate()));
-        block.put("pearson_ic_mean", round4(summary.pearsonIcMean()));
-        block.put("monotonicity", summary.monotonicity());
-        block.put("hac_std", round4(summary.hacStd()));
-        block.put("ci_lower", round4(summary.ciLower()));
-        block.put("ci_upper", round4(summary.ciUpper()));
-        block.put("long_short_spread", round4(summary.longShortSpread()));
-        block.put("daily_rank_ic", dailyIcList(summary));
-        block.put("grouped_returns", groupedReturnList(summary));
+        putSummaryMetricKeys(block, summary);
+        putSummaryDisclosure(block, summary, PRICE_BASIS_RAW);
         if (summary.totalObservations() == 0) {
             block.put("note", "该口径无可用观测（forward 区间未形成、raw 缺失或无可执行标签），不给出 IC");
         }
@@ -555,24 +668,14 @@ public class FactorResearchService {
 
     /** 口径不可用块（如未提供 labelVersion 时 EXECUTABLE 为 UNAVAILABLE，不允许造假全截面）。 */
     private Map<String, Object> unavailableScopeBlock(String scope, String basisNote) {
+        FactorResearchSummary summary = FactorResearchEngine.summarize(
+                Map.of(), 0, RANK_IC_GROUP_COUNT, RANK_IC_MIN_CROSS_SECTION_SIZE, SNAPSHOT_UNIVERSE_NOTE);
         Map<String, Object> block = new LinkedHashMap<>();
         block.put("metric_scope", scope);
         block.put("status", "UNAVAILABLE");
         block.put("basis_note", basisNote);
-        block.put("cross_section_days", 0);
-        block.put("total_observations", 0);
-        block.put("rank_ic_mean", 0.0);
-        block.put("rank_ic_std", 0.0);
-        block.put("rank_ic_ir", 0.0);
-        block.put("rank_ic_positive_rate", 0.0);
-        block.put("pearson_ic_mean", 0.0);
-        block.put("monotonicity", "N/A");
-        block.put("hac_std", 0.0);
-        block.put("ci_lower", 0.0);
-        block.put("ci_upper", 0.0);
-        block.put("long_short_spread", 0.0);
-        block.put("daily_rank_ic", List.of());
-        block.put("grouped_returns", List.of());
+        putSummaryMetricKeys(block, summary);
+        putSummaryDisclosure(block, summary, PRICE_BASIS_RAW);
         block.put("note", basisNote);
         return block;
     }
@@ -584,6 +687,9 @@ public class FactorResearchService {
             row.put("trade_date", d.tradeDate());
             row.put("rank_ic", round4(d.rankIc()));
             row.put("sample_size", d.sampleSize());
+            // 纯增量披露：该日被剔除的非有限观测数 + 未取整 IC（供外部复核标签是否可重建）
+            row.put("excluded_observations", d.excludedObservations());
+            row.put("rank_ic_exact", d.rankIc());
             daily.add(row);
         }
         return daily;
@@ -597,6 +703,9 @@ public class FactorResearchService {
             row.put("label", g.label());
             row.put("avg_return", round4(g.avgReturn()));
             row.put("observations", g.observations());
+            // 纯增量披露：空组标记（avg_return = 0.0 是占位，不参与方向断言与极差）+ 未取整均值
+            row.put("empty", g.observations() == 0);
+            row.put("avg_return_exact", g.avgReturn());
             grouped.add(row);
         }
         return grouped;
@@ -622,6 +731,13 @@ public class FactorResearchService {
                 ? "EXECUTABLE 样本 = label_v2 execStatus=FILLED（统一执行政策产物）；其余状态分别计入拒绝漏斗"
                 : "未提供 labelVersion，无法按执行状态过滤，tradable 不可用");
         funnel.put("metric_scope", METRIC_SCOPE_COST_APPROX);
+        // 纯增量披露（Q-R011-01 / Q-R014-07 / Q-R014-09）：样本闸与取整规则原先无法从载荷读出
+        funnel.put("group_count", RANK_IC_GROUP_COUNT);
+        funnel.put("min_cross_section_size", RANK_IC_MIN_CROSS_SECTION_SIZE);
+        funnel.put("min_cross_section_size_basis", MIN_CROSS_SECTION_SIZE_BASIS);
+        funnel.put("rounding_rule", ROUNDING_RULE);
+        funnel.put("rounding_rule_note", ROUNDING_RULE_NOTE);
+        funnel.put("group_boundary_rule", GROUP_BOUNDARY_RULE);
         funnel.put("note", "完整 PIT feature snapshot 漏斗：rows_total = feature_snapshot_row 全截面行数；"
                 + "scored_valid = final_score>0；各口径观测数见 daily_funnel；FAILED/RUNNING 分区不参与");
         return funnel;
@@ -658,15 +774,15 @@ public class FactorResearchService {
         block.put("feature_snapshot_note", FEATURE_SNAPSHOT_NOTE);
 
         if (latestPerKey.isEmpty()) {
-            block.put("cross_section_days", 0);
-            block.put("total_observations", 0);
-            block.put("rank_ic_mean", 0.0);
-            block.put("rank_ic_std", 0.0);
-            block.put("rank_ic_ir", 0.0);
-            block.put("rank_ic_positive_rate", 0.0);
-            block.put("long_short_spread", 0.0);
-            block.put("daily_rank_ic", List.of());
-            block.put("grouped_returns", List.of());
+            // 该分支与正常路径发射**同一组键**（原实现只发射 10 键、缺 pearson_ic_mean /
+            // monotonicity / hac_std / ci_lower / ci_upper，而前端把 pearson_ic_mean 声明为必需，
+            // 造成类型契约层面的未定义读取；Q-R007-03 / Q-R009-05）
+            FactorResearchSummary empty = FactorResearchEngine.summarize(
+                    Map.of(), holdingDays, RANK_IC_GROUP_COUNT, RANK_IC_MIN_CROSS_SECTION_SIZE,
+                    RANK_IC_UNIVERSE_NOTE);
+            block.put("status", STATUS_NO_OBSERVATIONS);
+            putSummaryMetricKeys(block, empty);
+            putSummaryDisclosure(block, empty, PRICE_BASIS_QFQ);
             block.put("cost_net_ic", emptyNetIcBlock());
             return block;
         }
@@ -752,39 +868,10 @@ public class FactorResearchService {
                 RANK_IC_UNIVERSE_NOTE
         );
 
-        block.put("cross_section_days", summary.crossSectionDays());
-        block.put("total_observations", summary.totalObservations());
-        block.put("rank_ic_mean", round4(summary.rankIcMean()));
-        block.put("rank_ic_std", round4(summary.rankIcStd()));
-        block.put("rank_ic_ir", round4(summary.rankIcIr()));
-        block.put("rank_ic_positive_rate", round4(summary.rankIcPositiveRate()));
-        block.put("pearson_ic_mean", round4(summary.pearsonIcMean()));
-        block.put("monotonicity", summary.monotonicity());
-        block.put("hac_std", round4(summary.hacStd()));
-        block.put("ci_lower", round4(summary.ciLower()));
-        block.put("ci_upper", round4(summary.ciUpper()));
-        block.put("long_short_spread", round4(summary.longShortSpread()));
-
-        List<Map<String, Object>> daily = new ArrayList<>();
-        for (DailyRankIc d : summary.dailyRankIc()) {
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("trade_date", d.tradeDate());
-            row.put("rank_ic", round4(d.rankIc()));
-            row.put("sample_size", d.sampleSize());
-            daily.add(row);
-        }
-        block.put("daily_rank_ic", daily);
-
-        List<Map<String, Object>> grouped = new ArrayList<>();
-        for (GroupReturnStat g : summary.groupedReturns()) {
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("group_no", g.groupNo());
-            row.put("label", g.label());
-            row.put("avg_return", round4(g.avgReturn()));
-            row.put("observations", g.observations());
-            grouped.add(row);
-        }
-        block.put("grouped_returns", grouped);
+        block.put("status", summary.totalObservations() > 0 ? STATUS_OK : STATUS_NO_OBSERVATIONS);
+        putSummaryMetricKeys(block, summary);
+        // 价格基准：本面为 qfq 前复权 close（与 snapshot 面同名 metric_scope=RAW 的 rawClose 不同基准）
+        putSummaryDisclosure(block, summary, PRICE_BASIS_QFQ);
 
         // 成本后近似净收益 IC（与标签/回测成交口径对齐的对照列；不含涨跌停/停牌拒单过滤）
         block.put("cost_net_ic", buildNetIcBlock(
@@ -798,20 +885,18 @@ public class FactorResearchService {
     }
 
     private Map<String, Object> emptyNetIcBlock() {
+        FactorResearchSummary empty = FactorResearchEngine.summarize(
+                Map.of(), DEFAULT_RANK_IC_HOLDING_DAYS, RANK_IC_GROUP_COUNT,
+                RANK_IC_MIN_CROSS_SECTION_SIZE, RANK_IC_UNIVERSE_NOTE);
         Map<String, Object> net = new LinkedHashMap<>();
         net.put("basis_note", RANK_IC_NET_BASIS_NOTE);
         net.put("metric_scope", METRIC_SCOPE_COST_APPROX);
-        net.put("cross_section_days", 0);
-        net.put("total_observations", 0);
-        net.put("rank_ic_mean", 0.0);
-        net.put("rank_ic_std", 0.0);
-        net.put("rank_ic_ir", 0.0);
-        net.put("rank_ic_positive_rate", 0.0);
-        net.put("pearson_ic_mean", 0.0);
-        net.put("hac_std", 0.0);
-        net.put("ci_lower", 0.0);
-        net.put("ci_upper", 0.0);
-        net.put("long_short_spread", 0.0);
+        net.put("status", STATUS_NO_OBSERVATIONS);
+        // Q-R004-03：无 raw 行情时本块曾只以 metric_scope = COST_APPROX + long_short_spread = 0.0 表达，
+        // 「本口径无数据」与「成本后恰为 0」不可区分；此键为纯增量显式标志
+        net.put("data_available", false);
+        putSummaryMetricKeys(net, empty);
+        putSummaryDisclosure(net, empty, PRICE_BASIS_QFQ);
         net.put("note", "成本后近似净收益 IC（COST_APPROX；next-open 入场 + 持有期收盘退出 + 扣费；不含涨跌停/停牌拒单）；"
                 + "EXECUTABLE 暂不可用；与毛收益 IC 窗口差一日，并列仅作口径对照");
         return net;
@@ -821,18 +906,12 @@ public class FactorResearchService {
         Map<String, Object> net = new LinkedHashMap<>();
         net.put("basis_note", RANK_IC_NET_BASIS_NOTE);
         net.put("metric_scope", METRIC_SCOPE_COST_APPROX);
-        net.put("cross_section_days", s.crossSectionDays());
-        net.put("total_observations", s.totalObservations());
-        net.put("rank_ic_mean", round4(s.rankIcMean()));
-        net.put("rank_ic_std", round4(s.rankIcStd()));
-        net.put("rank_ic_ir", round4(s.rankIcIr()));
-        net.put("rank_ic_positive_rate", round4(s.rankIcPositiveRate()));
-        net.put("pearson_ic_mean", round4(s.pearsonIcMean()));
-        net.put("monotonicity", s.monotonicity());
-        net.put("hac_std", round4(s.hacStd()));
-        net.put("ci_lower", round4(s.ciLower()));
-        net.put("ci_upper", round4(s.ciUpper()));
-        net.put("long_short_spread", round4(s.longShortSpread()));
+        net.put("status", s.totalObservations() > 0 ? STATUS_OK : STATUS_NO_OBSERVATIONS);
+        net.put("data_available", s.totalObservations() > 0);
+        // 本块的 summary 实际使用 RANK_IC_GROUP_COUNT / RANK_IC_MIN_CROSS_SECTION_SIZE，
+        // 原实现不发射这两者，读者只能从兄弟块反推（Q-R013-07）
+        putSummaryMetricKeys(net, s);
+        putSummaryDisclosure(net, s, PRICE_BASIS_QFQ);
         net.put("note", "成本后近似净收益 IC（COST_APPROX；next-open 入场 + 持有期收盘退出 + 扣费；不含涨跌停/停牌拒单）；"
                 + "EXECUTABLE 暂不可用；与毛收益 IC 窗口差一日，并列仅作口径对照");
         return net;
@@ -856,7 +935,8 @@ public class FactorResearchService {
                 daysWithUniverse++;
             }
         }
-        if (universeCount == 0) {
+        boolean universeFallback = universeCount == 0;
+        if (universeFallback) {
             universeCount = totalObservations;
         }
         Map<String, Object> funnel = new LinkedHashMap<>();
@@ -871,7 +951,21 @@ public class FactorResearchService {
         funnel.put("tradable_status", "UNAVAILABLE");
         funnel.put("tradable_note", "EXECUTABLE tradable funnel unavailable without feature snapshot + TradabilityPolicy");
         funnel.put("universe_source", "sparse_selector_result");
+        // 纯增量披露（Q-R015-01）：universe_count 在回退路径下已被替换为 totalObservations，
+        // 而 universe_source 是常量、原 note 也不提回退 ⟹ 只看 universe_source 读不出替换
+        funnel.put("universe_count_source",
+                universeFallback ? "FALLBACK_TOTAL_OBSERVATIONS" : "CROSS_SECTION_COUNT_SUM");
+        funnel.put("universe_count_fallback", universeFallback);
+        funnel.put("universe_count_note", universeFallback
+                ? "本行 universe_count **已回退**为 total_observations（无任何 cross_section_count 快照可用），"
+                + "不得读作真实候选池规模"
+                : "universe_count = 各信号日 cross_section_count 之和");
+        funnel.put("key_alias_note", KEY_ALIAS_NOTE);
+        funnel.put("rounding_rule", ROUNDING_RULE);
         funnel.put("metric_scope", METRIC_SCOPE_COST_APPROX);
+        // Q-R015-02：本块的 metric_scope 是**家族继承值**（无条件写 COST_APPROX），而块内并无成本口径数值。
+        // 只加声明、不改取值域（是否统一属协议 §7 record-only）。
+        funnel.put("metric_scope_note", METRIC_SCOPE_INHERITED_NOTE);
         funnel.put("note", "tradable_count 需统一 TradabilityPolicy；当前仅披露 selector 候选漏斗");
         return funnel;
     }
@@ -1023,11 +1117,25 @@ public class FactorResearchService {
         return sorted.get(lo) * (1 - frac) + sorted.get(hi) * frac;
     }
 
-    private static double round2(double v) {
+    private static Double round2(Double v) {
+        if (v == null || !Double.isFinite(v)) {
+            return null;
+        }
         return Math.round(v * 100.0) / 100.0;
     }
 
-    private static double round4(double v) {
+    /**
+     * 4 位小数四舍五入；非有限值（NaN/±Inf）返回 {@code null}。
+     *
+     * <p>原实现 `Math.round(v * 10000.0) / 10000.0` 对 NaN 得 `0.0`、对 ±Inf 得
+     * `9.223372036854776E14`（`Math.round(±Inf)` = `Long.MAX_VALUE`），把「无数据/不可定义」
+     * 写成具体数；本项目已有同类约定的先例（{@code LabelFactoryService} 对 maxFav/maxAdv
+     * 刻意用包装类型而非 0.0）。
+     */
+    private static Double round4(Double v) {
+        if (v == null || !Double.isFinite(v)) {
+            return null;
+        }
         return Math.round(v * 10000.0) / 10000.0;
     }
 }

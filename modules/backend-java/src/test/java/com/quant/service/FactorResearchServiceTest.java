@@ -311,4 +311,146 @@ class FactorResearchServiceTest {
         List<Map<String, Object>> grouped = (List<Map<String, Object>>) rankIc.get("grouped_returns");
         assertThat(grouped).isNotEmpty();
     }
+
+    @Test
+    void rankIcEmptyBranchEmitsTheSameKeySetAsThePopulatedBranch() {
+        // Q-R007-03 / Q-R009-05：修复前空分支只发射 10 键，缺 pearson_ic_mean / monotonicity /
+        // hac_std / ci_lower / ci_upper，而前端把 pearson_ic_mean 声明为必需 ⟹ 类型契约层面的未定义读取。
+        LocalDate d = LocalDate.of(2025, 1, 2);
+        when(selectorResultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(d, d))
+                .thenReturn(List.of());
+
+        Map<String, Object> out = service().research(null, d, d);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> rankIc = (Map<String, Object>) out.get("rank_ic");
+        assertThat(rankIc).containsKeys(
+                "pearson_ic_mean", "monotonicity", "hac_std", "ci_lower", "ci_upper",
+                "price_basis", "status", "min_cross_section_size", "min_cross_section_size_basis",
+                "group_boundary_rule", "rounding_rule", "ci_status", "rank_ic_std_basis",
+                "groups_with_observations", "pearson_support_days", "long_short_spread_basis");
+        assertThat(rankIc.get("status")).isEqualTo("NO_OBSERVATIONS");
+        assertThat(rankIc.get("price_basis")).isEqualTo("QFQ_CLOSE");
+        assertThat(rankIc.get("monotonicity")).isEqualTo("N/A");
+        // 修复前恒为 0.0 ⟹ 与「IR 恰为 0」不可分辨
+        assertThat(rankIc.get("rank_ic_ir")).isNull();
+    }
+
+    @Test
+    void rankIcBlockDisclosesConstructionRulesAndUndefinedIr() {
+        // 与 rankIcComputedFromForwardReturns 同一 fixture：T = 1 ⟹ 范围不足、IC 序列无离散度
+        LocalDate t = LocalDate.of(2025, 1, 2);
+        LocalDate t1 = LocalDate.of(2025, 1, 3);
+        LocalDate t2 = LocalDate.of(2025, 1, 4);
+        LocalDate calEnd = t.plusDays(2 * 2L);
+        when(selectorResultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(t, t))
+                .thenReturn(List.of(result("R1", "CLASSIC_SELECTOR", t)));
+
+        List<SelectorResultItem> items = new ArrayList<>();
+        List<String> codes = List.of("000001", "000002", "000003", "000004", "000005",
+                "600519", "600518", "600517", "600516", "600515");
+        for (int i = 0; i < 10; i++) {
+            items.add(item("R1", 10.0 * (i + 1), codes.get(i), i < 5 ? "SZSE" : "SSE"));
+        }
+        when(selectorResultItemRepository.findByResultIdInOrderByRankNo(any())).thenReturn(items);
+        when(marketDataRepository.findDistinctTradeDatesBetween(eq(t), eq(calEnd)))
+                .thenReturn(List.of(t, t1, t2));
+        List<MarketData> bulkBars = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            String code = codes.get(i);
+            String ex = i < 5 ? "SZSE" : "SSE";
+            bulkBars.add(bar(code, ex, t, 10.0));
+            bulkBars.add(bar(code, ex, t2, 10.0 + i * 0.01));
+        }
+        when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(
+                eq(t), eq(calEnd)))
+                .thenReturn(bulkBars);
+        when(marketPriceRawRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(
+                eq(t), eq(calEnd)))
+                .thenReturn(List.of());
+
+        Map<String, Object> out = service().research("CLASSIC_SELECTOR", t, t, 2);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> rankIc = (Map<String, Object>) out.get("rank_ic");
+        assertThat(rankIc.get("status")).isEqualTo("OK");
+        // 本面价格基准必须显式：与 snapshot 面同名 metric_scope=RAW 的 rawClose 不同基准（Q-R012-02）
+        assertThat(rankIc.get("price_basis")).isEqualTo("QFQ_CLOSE");
+        assertThat(rankIc.get("group_count")).isEqualTo(5);
+        assertThat(rankIc.get("min_cross_section_size")).isEqualTo(10);
+        assertThat(rankIc.get("min_cross_section_size_basis")).isEqualTo("INPUT_ROWS");
+        assertThat(rankIc.get("group_boundary_rule")).isEqualTo("INDEX_EQUAL_SPLIT_STABLE_SORT");
+        assertThat(rankIc.get("rounding_rule")).isEqualTo("ROUND_HALF_UP_4DP");
+        assertThat(rankIc.get("rank_ic_std_basis")).isEqualTo("POPULATION_STD_DIV_T");
+        assertThat(rankIc.get("long_short_spread_basis")).isEqualTo("TWO_LONG_LEG_NET_DIFFERENCE");
+        // 聚合面 observations 的单位声明：截面日数，不是成分股数（Q-R014-03）
+        assertThat(rankIc.get("grouped_returns_observations_basis"))
+                .isEqualTo("DAY_LEVEL_GROUP_MEANS_PER_GROUP");
+        assertThat(rankIc.get("input_cross_section_days")).isEqualTo(1);
+        assertThat(rankIc.get("days_dropped_below_min_cross_section")).isEqualTo(0);
+        assertThat(rankIc.get("pearson_support_days")).isEqualTo(1);
+        assertThat(rankIc.get("groups_with_observations")).isEqualTo(5);
+        // T = 1 ⟹ hac_std = 0 且区间零宽 ⟹ 若只看数值会误读为「精确估计」
+        assertThat(rankIc.get("ci_status")).isEqualTo("INSUFFICIENT_N");
+        assertThat(rankIc.get("rank_ic_ir")).isNull();
+
+        // 行级披露：当日剔除计数与未取整值、空组标记
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> daily = (List<Map<String, Object>>) rankIc.get("daily_rank_ic");
+        assertThat(daily).hasSize(1);
+        assertThat(daily.get(0).get("sample_size")).isEqualTo(10);
+        assertThat(daily.get(0).get("excluded_observations")).isEqualTo(0);
+        assertThat(daily.get(0)).containsKey("rank_ic_exact");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> grouped = (List<Map<String, Object>>) rankIc.get("grouped_returns");
+        assertThat(grouped).hasSize(5);
+        assertThat(grouped).allMatch(row -> Boolean.FALSE.equals(row.get("empty")));
+        assertThat(grouped).allMatch(row -> row.containsKey("avg_return_exact"));
+
+        // 净收益口径块：无 raw 行情 ⟹ 必须显式声明「本口径无数据」，不得只给 0.0（Q-R004-03 / Q-R013-07）
+        @SuppressWarnings("unchecked")
+        Map<String, Object> net = (Map<String, Object>) rankIc.get("cost_net_ic");
+        assertThat(net.get("status")).isEqualTo("NO_OBSERVATIONS");
+        assertThat(net.get("data_available")).isEqualTo(false);
+        assertThat(net.get("group_count")).isEqualTo(5);
+        assertThat(net.get("min_cross_section_size")).isEqualTo(10);
+        assertThat(net.get("long_short_spread")).isEqualTo(0.0);
+        assertThat(net).containsKey("grouped_returns");
+    }
+
+    @Test
+    void legacyFunnelDisclosesUniverseFallbackAliasesAndInheritedMetricScope() {
+        // Q-R015-01/02/03：回退未具名、别名键无说明、funnel 的 metric_scope 无成本内容 —— 均为纯增量披露
+        LocalDate d = LocalDate.of(2025, 1, 2);
+        when(selectorResultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(d, d))
+                .thenReturn(List.of(result("R1", "CLASSIC_SELECTOR", d)));
+        when(selectorResultItemRepository.findByResultIdInOrderByRankNo(any()))
+                .thenReturn(List.of(
+                        item("R1", 60.0, "000001", "SZSE"),
+                        item("R1", 70.0, "000002", "SZSE")
+                ));
+        when(marketDataRepository.findDistinctTradeDatesBetween(eq(d), eq(d.plusDays(10))))
+                .thenReturn(List.of(d));
+        when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(
+                eq(d), eq(d.plusDays(10))))
+                .thenReturn(List.of());
+        when(marketPriceRawRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(
+                eq(d), eq(d.plusDays(10))))
+                .thenReturn(List.of());
+
+        Map<String, Object> out = service().research("CLASSIC_SELECTOR", d, d);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> funnel = (Map<String, Object>) out.get("funnel");
+        assertThat(funnel).isNotNull();
+        // 无 cross_section_count 快照 ⟹ universe_count 被回退为 total_observations，必须可读出
+        assertThat(funnel.get("universe_count_source")).isEqualTo("FALLBACK_TOTAL_OBSERVATIONS");
+        assertThat(funnel.get("universe_count_fallback")).isEqualTo(true);
+        assertThat((String) funnel.get("universe_count_note")).contains("不得读作真实候选池规模");
+        // 别名键说明与 metric_scope 继承说明原先在载荷中不存在
+        assertThat((String) funnel.get("key_alias_note")).contains("同一变量两个键名");
+        assertThat(funnel.get("metric_scope")).isEqualTo("COST_APPROX");
+        assertThat((String) funnel.get("metric_scope_note")).contains("家族继承值");
+    }
 }

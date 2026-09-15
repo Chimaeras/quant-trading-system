@@ -2,6 +2,7 @@ package com.quant.service.backtest;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -206,5 +207,151 @@ class FactorResearchEngineTest {
 
         assertThat(summary.hacStd()).isGreaterThanOrEqualTo(0);
         assertThat(summary.ciLower()).isLessThanOrEqualTo(summary.ciUpper());
+    }
+
+    // ---------------------------------------------------------------------
+    // Q-R006 / Q-R009 / Q-R013 / Q-R014 修复的守卫用例。
+    // 每个用例都对应一条「退化输入 + 占位输出 + 仍标称语义」的缺陷：断言的是**可分辨性**，
+    // 不是把结果改得更「好看」。这些用例在修复前全部失败。
+    // ---------------------------------------------------------------------
+
+    private static FactorResearchEngine.CrossSectionObservation obs(double score, double forwardReturn) {
+        return new FactorResearchEngine.CrossSectionObservation(score, forwardReturn);
+    }
+
+    private static Map<String, List<FactorResearchEngine.CrossSectionObservation>> singleDay(
+            String date, List<FactorResearchEngine.CrossSectionObservation> observations) {
+        Map<String, List<FactorResearchEngine.CrossSectionObservation>> byDate = new LinkedHashMap<>();
+        byDate.put(date, observations);
+        return byDate;
+    }
+
+    @Test
+    void pearsonCorrelationIsInvariantUnderInputScale() {
+        // Q-R009-01：修复前用**绝对**阈值 `vx < 1e-18` 判常量，量级 1e-11 的合法输入
+        // （vx ≈ 8.25e-21）被判为常量 ⟹ ρ 由 1.0 变 NaN，破坏 Pearson 相关的尺度不变性。
+        List<Double> scores = new ArrayList<>();
+        List<Double> returns = new ArrayList<>();
+        for (int i = 1; i <= 10; i++) {
+            scores.add(i * 1e-11);
+            returns.add(i * 2e-11);
+        }
+        assertThat(FactorResearchEngine.pearsonCorrelation(scores, returns)).isCloseTo(1.0, offset(1e-9));
+    }
+
+    @Test
+    void pearsonCorrelationStillReturnsNaNForConstantInput() {
+        // 反向守卫：尺度不变性不能把「真常量」也放行（一侧方差恰为 0 仍须判无定义）
+        assertThat(FactorResearchEngine.pearsonCorrelation(
+                List.of(1e-11, 1e-11, 1e-11, 1e-11, 1e-11),
+                List.of(1e-11, 2e-11, 3e-11, 4e-11, 5e-11))).isNaN();
+    }
+
+    @Test
+    void monotonicityReturnsNoDispersionWhenAllGroupsEqual() {
+        List<FactorResearchEngine.GroupReturnStat> flat = List.of(
+                new FactorResearchEngine.GroupReturnStat(1, "G1", 0.02, 10),
+                new FactorResearchEngine.GroupReturnStat(2, "G2", 0.02, 10),
+                new FactorResearchEngine.GroupReturnStat(3, "G3", 0.02, 10)
+        );
+        // 修复前 increasing 与 decreasing 同时为真、由分支顺序输出 MONOTONIC_INCREASING，
+        // 等于用「零区分度」断言了方向（Q-R006-07 / Q-R013-01）
+        assertThat(FactorResearchEngine.assessMonotonicity(flat)).isEqualTo("NO_DISPERSION");
+    }
+
+    @Test
+    void monotonicityIgnoresEmptyGroups() {
+        List<FactorResearchEngine.GroupReturnStat> grouped = new ArrayList<>();
+        for (int g = 1; g <= 10; g++) {
+            boolean empty = g <= 5;
+            grouped.add(new FactorResearchEngine.GroupReturnStat(
+                    g, "G" + g, empty ? 0.0 : 0.04 - (g - 6) * 0.01, empty ? 0 : 10));
+        }
+        // 修复前把空组占位 0.0 当观测：序列 0,0,0,0,0,0.04,0.03,0.02,0.01,0.00 ⟹ NON_MONOTONIC（Q-R006-04 / Q-R013-02）
+        assertThat(FactorResearchEngine.assessMonotonicity(grouped)).isEqualTo("MONOTONIC_DECREASING");
+    }
+
+    @Test
+    void monotonicityReturnsNaWhenGroupMeanIsNonFinite() {
+        List<FactorResearchEngine.GroupReturnStat> grouped = List.of(
+                new FactorResearchEngine.GroupReturnStat(1, "G1", 0.01, 10),
+                new FactorResearchEngine.GroupReturnStat(2, "G2", Double.NaN, 10),
+                new FactorResearchEngine.GroupReturnStat(3, "G3", 0.03, 10)
+        );
+        // 修复前 NaN 与任何数比较恒假 ⟹ 「无严格反序对」⟹ 读成 MONOTONIC_INCREASING（Q-R013-09）
+        assertThat(FactorResearchEngine.assessMonotonicity(grouped)).isEqualTo("N/A");
+    }
+
+    @Test
+    void groupedReturnsExcludeNonFiniteObservations() {
+        List<FactorResearchEngine.CrossSectionObservation> observations = List.of(
+                obs(10, 0.01), obs(20, 0.02), obs(30, 0.03), obs(40, 0.04),
+                obs(Double.NaN, 0.05), obs(60, Double.POSITIVE_INFINITY));
+        List<FactorResearchEngine.GroupReturnStat> groups =
+                FactorResearchEngine.groupedAverageReturns(observations, 3);
+        // 修复前 NaN / +Inf 参与排序（NaN 排到极值端）与均值 ⟹ 极值组均值 = NaN，且组内计数虚高（Q-R014-06）
+        assertThat(groups).hasSize(3);
+        assertThat(groups.stream().mapToInt(FactorResearchEngine.GroupReturnStat::observations).sum())
+                .isEqualTo(4);
+        assertThat(groups).allMatch(g -> Double.isFinite(g.avgReturn()));
+    }
+
+    @Test
+    void summarizeExcludesNonFiniteObservationsAndKeepsTheDay() {
+        List<FactorResearchEngine.CrossSectionObservation> observations = new ArrayList<>();
+        for (int i = 1; i <= 8; i++) {
+            observations.add(obs(i * 10.0, i * 0.01));
+        }
+        observations.add(obs(90.0, Double.NaN));
+        observations.add(obs(100.0, Double.POSITIVE_INFINITY));
+
+        // 规模闸按**输入行数**比较（10 ≥ 10），剔除 2 个非有限观测后仍有 8 个可用观测
+        FactorResearchEngine.FactorResearchSummary summary = FactorResearchEngine.summarize(
+                singleDay("2025-01-02", observations), 5, 5, 10, "test");
+
+        // 修复前 NaN/Inf 直接进秩相关 ⟹ IC = NaN ⟹ 整日被丢弃（cross_section_days = 0）
+        assertThat(summary.crossSectionDays()).isEqualTo(1);
+        assertThat(summary.totalObservations()).isEqualTo(8);
+    }
+
+    @Test
+    void summarizeSpreadIgnoresEmptyGroupsBeyondSampleSize() {
+        // group_count = 20，但当日只有 10 个观测 ⟹ 只有 G1..G10 非空，G11..G20 的 avg_return = 0.0 是占位。
+        // 修复前以最后一组（空组 0.0）当多头腿 ⟹ spread = 0.0 − 0.10 = −0.10；
+        // 正确口径为高分组 − 低分组 = 0.01 − 0.10 = −0.09（Q-R006-04 / Q-R013-02）
+        List<FactorResearchEngine.CrossSectionObservation> observations = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            observations.add(obs(10.0 * (i + 1), 0.10 - i * 0.01));
+        }
+        FactorResearchEngine.FactorResearchSummary summary = FactorResearchEngine.summarize(
+                singleDay("2025-01-02", observations), 5, 20, 10, "test");
+
+        assertThat(summary.longShortSpread()).isCloseTo(-0.09, offset(1e-12));
+        assertThat(summary.groupedReturns()).hasSize(20);
+        // 非空组严格递减；修复前空组占位 0.0 插在末尾 ⟹ NON_MONOTONIC
+        assertThat(summary.monotonicity()).isEqualTo("MONOTONIC_DECREASING");
+    }
+
+    @Test
+    void summarizeLeavesIcIrUndefinedWhenIcSeriesHasNoDispersion() {
+        List<FactorResearchEngine.CrossSectionObservation> day1 = new ArrayList<>();
+        List<FactorResearchEngine.CrossSectionObservation> day2 = new ArrayList<>();
+        for (int i = 1; i <= 10; i++) {
+            day1.add(obs(i * 10.0, i * 0.01));
+            day2.add(obs(i * 5.0, i * 0.02));
+        }
+        Map<String, List<FactorResearchEngine.CrossSectionObservation>> byDate = new LinkedHashMap<>();
+        byDate.put("2025-01-02", day1);
+        byDate.put("2025-01-03", day2);
+
+        FactorResearchEngine.FactorResearchSummary summary =
+                FactorResearchEngine.summarize(byDate, 5, 5, 10, "test");
+
+        assertThat(summary.crossSectionDays()).isEqualTo(2);
+        assertThat(summary.rankIcStd()).isEqualTo(0.0);
+        // 两日 IC 都是 1.0 ⟹ IC 序列无离散度 ⟹ ICIR 解析上趋于无穷，**无定义**。
+        // 修复前硬写 0.0，与「IR 恰为 0」不可分辨（Q-R006-05）：显式装箱以便断言 null。
+        Double rankIcIr = summary.rankIcIr();
+        assertThat(rankIcIr).isNull();
     }
 }

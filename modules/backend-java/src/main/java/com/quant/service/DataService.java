@@ -207,6 +207,10 @@ public class DataService {
             item.put("avg_volume", doubleValue(row[5]));
             item.put("avg_amount", doubleValue(row[6]));
             item.put("avg_turnover", doubleValue(row[7]));
+            // Q-R008-09：同名 avg_turnover 在回测换手率面是 0–1 的候选替换率，此处是市场换手率百分数（纯增量单位声明）
+            item.put("avg_turnover_unit", "PERCENT");
+            item.put("avg_turnover_unit_note", "本字段 = market_data.turnover_rate 的窗口均值，单位是百分数（3.5 即 3.5%）；"
+                    + "回测换手率面（/api/backtest/turnover）的同名字段是 0–1 的候选替换率，两者不是同一个量");
             item.put("volume_ratio", doubleValue(row[8]));
             item.put("up_days", longValue(row[9]));
             item.put("latest_close", doubleValue(row[10]));

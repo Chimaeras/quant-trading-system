@@ -67,7 +67,11 @@ public class ScoringBacktestResponse {
         private int totalObservations;
         private double rankIcMean;
         private double rankIcStd;
-        private double rankIcIr;
+        /**
+         * ICIR；IC 序列无离散度（std = 0，含 T &lt; 2）时**无定义**，为 {@code null}。
+         * 0 的语义是「IR 恰为 0」，两者不可混同（Q-R006-05）。
+         */
+        private Double rankIcIr;
         private double rankIcPositiveRate;
         private double longShortSpread;
     }
@@ -83,11 +87,24 @@ public class ScoringBacktestResponse {
         private int totalObservations;
         private double rankIcMean;
         private double rankIcStd;
-        private double rankIcIr;
+        /**
+         * ICIR；IC 序列无离散度（std = 0，含 T &lt; 2）时**无定义**，为 {@code null}（Q-R006-05）。
+         */
+        private Double rankIcIr;
         private double rankIcPositiveRate;
         private List<DailyRankIc> dailyRankIc;
+        /**
+         * 分组收益；{@code observations} 为**参与聚合的截面日数**（不是成分股数，Q-R014-03），
+         * 空组以 {@code observations = 0} 标记且其 {@code avgReturn = 0.0} 是占位、不参与极差。
+         */
         private List<GroupReturnStat> groupedReturns;
         private double longShortSpread;
+        /**
+         * 分组单调性标签（纯增量字段）：{@code MONOTONIC_INCREASING} / {@code MONOTONIC_DECREASING} /
+         * {@code NON_MONOTONIC} / {@code NO_DISPERSION}（各组收益全相等 = 零区分度，不是任何方向）/
+         * {@code N/A}（可用组不足 2 或组均值非有限）。此前标签只存在于载荷 map 中，DTO 消费方拿不到（Q-R013-06）。
+         */
+        private String monotonicity;
         private String universeNote;
     }
 

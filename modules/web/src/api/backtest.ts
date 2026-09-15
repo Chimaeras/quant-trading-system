@@ -1,4 +1,5 @@
 import request, { unwrap } from './request'
+import type { MonotonicityLabel } from './factor'
 
 export interface ScoringBacktestRequest {
   strategyType?: string
@@ -56,11 +57,15 @@ export interface FactorAnalysis {
   totalObservations: number
   rankIcMean: number
   rankIcStd: number
-  rankIcIr: number
+  /** ICIR；IC 序列无离散度（截面日不足 2）时**无定义**⟹ null（≠「IR 恰为 0」） */
+  rankIcIr: number | null
   rankIcPositiveRate: number
   dailyRankIc: Array<{ tradeDate: string; rankIc: number; sampleSize: number }>
+  /** groupedReturns[].observations = 参与聚合的**截面日数**（不是成分股数） */
   groupedReturns: Array<{ groupNo: number; label: string; avgReturn: number; observations: number }>
   longShortSpread: number
+  /** 分组单调性标签（含 NO_DISPERSION = 各组收益全相等，非任何方向） */
+  monotonicity?: MonotonicityLabel
   universeNote: string
 }
 
@@ -70,7 +75,8 @@ export interface FactorIcSummary {
   totalObservations: number
   rankIcMean: number
   rankIcStd: number
-  rankIcIr: number
+  /** ICIR；IC 序列无离散度时**无定义**⟹ null（≠「IR 恰为 0」） */
+  rankIcIr: number | null
   rankIcPositiveRate: number
   longShortSpread: number
 }
@@ -200,6 +206,13 @@ export interface TurnoverDaily {
   turnover: number
   new_count: number
   exit_count: number
+  /** 纯增量披露：上一日/当日的实际候选规模（min 与 top_n 之比即短员判据） */
+  prev_size?: number
+  curr_size?: number
+  /** 相邻两日 TopN 交集大小；1 - intersection_count / top_n 即本行 turnover 的未取整值 */
+  intersection_count?: number
+  /** 该日任一侧候选数少于请求 top_n（分母仍为请求参数，见 denominator_note） */
+  short_handed?: boolean
 }
 
 export interface TurnoverResponse {
@@ -213,6 +226,22 @@ export interface TurnoverResponse {
   min_turnover: number
   daily_turnover: TurnoverDaily[]
   note: string
+  /** OK | INSUFFICIENT_SIGNAL_DAYS；退化输入时 avg/max/min 仍为 0.0，须靠本键区分「无定义」与「真的 0」 */
+  turnover_status?: 'OK' | 'INSUFFICIENT_SIGNAL_DAYS'
+  /** 归一约定：当前恒为单向替换率 ONE_WAY_REPLACEMENT_RATIO */
+  turnover_basis?: string
+  turnover_basis_note?: string
+  /** 分母来源：当前恒为 REQUEST_PARAM_TOP_N（不是当日实际规模） */
+  denominator?: string
+  denominator_note?: string
+  avg_turnover_unit?: string
+  avg_turnover_unit_note?: string
+  rounding_rule?: string
+  rounding_rule_note?: string
+  /** EXACT_STRATEGY | NONE_ALL_STRATEGIES（后者不按策略分组，同日跨策略会互相配对） */
+  strategy_filter?: string
+  grouped_by_strategy?: boolean
+  strategy_filter_note?: string
 }
 
 export async function analyzeTurnover(params: {

@@ -1044,6 +1044,7 @@ public class ScoringBacktestService {
                                 .build())
                         .toList())
                 .longShortSpread(summary.longShortSpread())
+                .monotonicity(summary.monotonicity())
                 .universeNote(summary.universeNote())
                 .build();
     }

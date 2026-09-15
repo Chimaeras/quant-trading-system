@@ -337,6 +337,42 @@ class FactorResearchServiceTest {
     }
 
     @Test
+    void emptyBranchEmitsNullStatisticsNotPlaceholderZero() {
+        // 裁定 A（D-R006-05 / D-R007-01 / D-R013-02）：无可用观测时统计量一律 null，不得发 0.0。
+        // 改前 rank_ic_mean / rank_ic_std / hac_std / ci_* / long_short_spread 均为 0.0 ⟹ 本用例失败。
+        LocalDate d = LocalDate.of(2025, 1, 2);
+        when(selectorResultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(d, d))
+                .thenReturn(List.of());
+
+        Map<String, Object> out = service().research(null, d, d);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> rankIc = (Map<String, Object>) out.get("rank_ic");
+        assertThat(rankIc.get("status")).isEqualTo("NO_OBSERVATIONS");
+        assertThat(rankIc.get("rank_ic_mean")).isNull();
+        assertThat(rankIc.get("rank_ic_std")).isNull();
+        assertThat(rankIc.get("rank_ic_positive_rate")).isNull();
+        assertThat(rankIc.get("hac_std")).isNull();
+        assertThat(rankIc.get("ci_lower")).isNull();
+        assertThat(rankIc.get("ci_upper")).isNull();
+        assertThat(rankIc.get("long_short_spread")).isNull();
+        // 未取整并列键（*_exact）必须同样为 null，不得把取整差异当挡箭牌
+        assertThat(rankIc.get("rank_ic_mean_exact")).isNull();
+        assertThat(rankIc.get("hac_std_exact")).isNull();
+        assertThat(rankIc.get("long_short_spread_exact")).isNull();
+        // 状态键与 null 并存：消费方可区分「不可用」与「恰为 0」
+        assertThat(rankIc.get("ci_status")).isEqualTo("INSUFFICIENT_N");
+
+        // 成本后净收益口径块同样不得发 0.0（D-R004-03）
+        @SuppressWarnings("unchecked")
+        Map<String, Object> net = (Map<String, Object>) rankIc.get("cost_net_ic");
+        assertThat(net.get("status")).isEqualTo("NO_OBSERVATIONS");
+        assertThat(net.get("data_available")).isEqualTo(false);
+        assertThat(net.get("rank_ic_mean")).isNull();
+        assertThat(net.get("long_short_spread")).isNull();
+    }
+
+    @Test
     void rankIcBlockDisclosesConstructionRulesAndUndefinedIr() {
         // 与 rankIcComputedFromForwardReturns 同一 fixture：T = 1 ⟹ 范围不足、IC 序列无离散度
         LocalDate t = LocalDate.of(2025, 1, 2);
@@ -390,7 +426,7 @@ class FactorResearchServiceTest {
         assertThat(rankIc.get("days_dropped_below_min_cross_section")).isEqualTo(0);
         assertThat(rankIc.get("pearson_support_days")).isEqualTo(1);
         assertThat(rankIc.get("groups_with_observations")).isEqualTo(5);
-        // T = 1 ⟹ hac_std = 0 且区间零宽 ⟹ 若只看数值会误读为「精确估计」
+        // T = 1 ⟹ HAC 标准误与区间均无定义（载荷为 null）⟹ 若只看数值会误读为「精确估计」
         assertThat(rankIc.get("ci_status")).isEqualTo("INSUFFICIENT_N");
         assertThat(rankIc.get("rank_ic_ir")).isNull();
 
@@ -415,7 +451,9 @@ class FactorResearchServiceTest {
         assertThat(net.get("data_available")).isEqualTo(false);
         assertThat(net.get("group_count")).isEqualTo(5);
         assertThat(net.get("min_cross_section_size")).isEqualTo(10);
-        assertThat(net.get("long_short_spread")).isEqualTo(0.0);
+        // 裁定 A：本口径无可用观测 ⟹ 统计量为 null（0.0 会被读成「成本后恰为 0」，与「无数据」不可区分）
+        assertThat(net.get("long_short_spread")).isNull();
+        assertThat(net.get("rank_ic_mean")).isNull();
         assertThat(net).containsKey("grouped_returns");
     }
 

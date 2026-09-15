@@ -672,7 +672,10 @@ public class FactorResearchService {
         block.put("rank_ic_std_sample", round4(sampleStd));
         // 注意：不可写成 `sampleStd == null ? (Double) null : mean / sampleStd`——
         // 三元表达式一支是 double、一支是 Double 时结果类型退化为 double，null 会被拆箱成 NPE。
-        Double sampleIr = (sampleStd == null || sampleStd == 0) ? null : s.rankIcMean() / sampleStd;
+        // rankIcMean 亦为包装类型：无可用截面日时它本身即 null，此时样本口径 ICIR 同样无定义。
+        Double sampleIr = (sampleStd == null || sampleStd == 0 || s.rankIcMean() == null)
+                ? null
+                : s.rankIcMean() / sampleStd;
         block.put("rank_ic_ir_sample", round4(sampleIr));
         block.put("rank_ic_std_sample_exact", sampleStd);
     }
@@ -757,14 +760,21 @@ public class FactorResearchService {
     }
 
     /**
-     * 区间状态：{@code INSUFFICIENT_N}（T &lt; 2，与 {@code hac_std = 0} 并存）、
+     * 区间状态：{@code INSUFFICIENT_N}（T &lt; 2，HAC 标准误与区间均无定义，载荷写 {@code null}）、
+     * {@code UNAVAILABLE}（区间端点缺失/无定义，**不**谎报零宽区间）、
      * {@code ZERO_WIDTH}（下界不小于上界，即零宽区间，不是「精确估计」）、否则 {@code OK}。
      */
     private static String ciStatus(FactorResearchSummary s) {
         if (s.crossSectionDays() < 2) {
             return "INSUFFICIENT_N";
         }
-        if (!(s.ciUpper() > s.ciLower())) {
+        Double lower = s.ciLower();
+        Double upper = s.ciUpper();
+        // 区间端点为 null ⟹ 区间不可用；不得把 null 拆箱成 NPE，也不得回退成「零宽区间」的结论
+        if (lower == null || upper == null) {
+            return "UNAVAILABLE";
+        }
+        if (!(upper > lower)) {
             return "ZERO_WIDTH";
         }
         return STATUS_OK;
@@ -827,7 +837,7 @@ public class FactorResearchService {
             row.put("label", g.label());
             row.put("avg_return", round4(g.avgReturn()));
             row.put("observations", g.observations());
-            // 纯增量披露：空组标记（avg_return = 0.0 是占位，不参与方向断言与极差）+ 未取整均值
+            // 纯增量披露：空组标记（avg_return = null = 无观测，不参与方向断言与极差）+ 未取整均值
             row.put("empty", g.observations() == 0);
             row.put("avg_return_exact", g.avgReturn());
             grouped.add(row);
@@ -1017,7 +1027,8 @@ public class FactorResearchService {
         net.put("metric_scope", METRIC_SCOPE_COST_APPROX);
         net.put("status", STATUS_NO_OBSERVATIONS);
         // Q-R004-03：无 raw 行情时本块曾只以 metric_scope = COST_APPROX + long_short_spread = 0.0 表达，
-        // 「本口径无数据」与「成本后恰为 0」不可区分；此键为纯增量显式标志
+        // 「本口径无数据」与「成本后恰为 0」不可区分；此键为纯增量显式标志。
+        // 统计量本身由 emptySummary 起即为 null（rank_ic_* / long_short_spread 不再发 0.0），与 data_available 并存。
         net.put("data_available", false);
         putSummaryMetricKeys(net, empty);
         putSummaryDisclosure(net, empty, PRICE_BASIS_QFQ, SPREAD_COST_BASIS_NET);

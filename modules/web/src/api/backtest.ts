@@ -55,16 +55,19 @@ export interface FactorAnalysis {
   groupCount: number
   crossSectionDays: number
   totalObservations: number
-  rankIcMean: number
-  rankIcStd: number
+  /** Rank IC 均值；无可用截面日时不可计算 ⟹ null（不得渲染成 0） */
+  rankIcMean: number | null
+  /** Rank IC 总体标准差（÷T）；无可用截面日时为 null；真零离散度仍为 0 */
+  rankIcStd: number | null
   /** ICIR；IC 序列无离散度（截面日不足 2）时**无定义**⟹ null（≠「IR 恰为 0」） */
   rankIcIr: number | null
-  rankIcPositiveRate: number
+  /** IC 为正的截面日占比；无可用截面日时为 null；真为 0 时仍为 0 */
+  rankIcPositiveRate: number | null
   dailyRankIc: Array<{ tradeDate: string; rankIc: number; sampleSize: number }>
-  /** groupedReturns[].observations = 参与聚合的**截面日数**（不是成分股数） */
-  groupedReturns: Array<{ groupNo: number; label: string; avgReturn: number; observations: number }>
-  /** 两腿价差 = 最高组均值 − 最低组均值，本面为**净价差**（观测收益已扣费）；口径看 longShortSpreadCostBasis */
-  longShortSpread: number
+  /** groupedReturns[].observations = 参与聚合的**截面日数**（不是成分股数）；空组 avgReturn = null */
+  groupedReturns: Array<{ groupNo: number; label: string; avgReturn: number | null; observations: number }>
+  /** 两腿价差 = 最高组均值 − 最低组均值，本面为**净价差**（观测收益已扣费）；口径看 longShortSpreadCostBasis；无非空分组时为 null */
+  longShortSpread: number | null
   /** 价差成本基准：本面恒为 NET_AFTER_MODELED_COSTS；载荷毛收益块为 GROSS_BEFORE_COSTS（同名不同量） */
   longShortSpreadCostBasis?: string
   /** 净价差 → 毛价差的精确还原（longShortSpread / (1 − costPerLegRoundTrip)），跨面对齐用 */
@@ -86,13 +89,16 @@ export interface FactorIcSummary {
   holdingDays: number
   crossSectionDays: number
   totalObservations: number
-  rankIcMean: number
-  rankIcStd: number
+  /** Rank IC 均值；无可用截面日时不可计算 ⟹ null（不得渲染成 0） */
+  rankIcMean: number | null
+  /** Rank IC 总体标准差（÷T）；无可用截面日时为 null；真零离散度仍为 0 */
+  rankIcStd: number | null
   /** ICIR；IC 序列无离散度时**无定义**⟹ null（≠「IR 恰为 0」） */
   rankIcIr: number | null
-  rankIcPositiveRate: number
-  /** 两腿价差（本面为**净价差**；口径看 longShortSpreadCostBasis） */
-  longShortSpread: number
+  /** IC 为正的截面日占比；无可用截面日时为 null；真为 0 时仍为 0 */
+  rankIcPositiveRate: number | null
+  /** 两腿价差（本面为**净价差**；口径看 longShortSpreadCostBasis）；无非空分组时为 null */
+  longShortSpread: number | null
   longShortSpreadCostBasis?: string
   longShortSpreadGrossEquivalent?: number | null
   costPerLegRoundTrip?: number | null
@@ -241,12 +247,14 @@ export interface TurnoverResponse {
   end_date: string
   top_n: number
   signal_days: number
-  avg_turnover: number
-  max_turnover: number
-  min_turnover: number
+  /** 换手率；INSUFFICIENT_SIGNAL_DAYS 时不可计算 ⟹ null（不得渲染成 0%） */
+  avg_turnover: number | null
+  /** 同上：不可计算时为 null */
+  max_turnover: number | null
+  min_turnover: number | null
   daily_turnover: TurnoverDaily[]
   note: string
-  /** OK | INSUFFICIENT_SIGNAL_DAYS；退化输入时 avg/max/min 仍为 0.0，须靠本键区分「无定义」与「真的 0」 */
+  /** OK | INSUFFICIENT_SIGNAL_DAYS；退化输入时 avg/max/min 为 null，靠本键区分「无定义」与「真的 0」 */
   turnover_status?: 'OK' | 'INSUFFICIENT_SIGNAL_DAYS'
   /** 归一约定：当前恒为单向替换率 ONE_WAY_REPLACEMENT_RATIO */
   turnover_basis?: string

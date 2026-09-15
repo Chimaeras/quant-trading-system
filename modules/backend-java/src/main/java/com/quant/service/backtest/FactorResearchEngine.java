@@ -15,10 +15,17 @@ public final class FactorResearchEngine {
 
     public record CrossSectionObservation(double score, double forwardReturn) {}
 
+    /**
+     * 单个分组的收益统计。
+     *
+     * @param avgReturn 该组收益均值；<b>该组无观测时无定义，为 {@code null}</b>（{@code observations == 0}），
+     *                  不得写成 0——0 的语义是「该组均值恰为 0」，两者不可混同（Q-R006-04 / Q-R013-02）
+     * @param observations 参与该组均值聚合的观测数；0 表示无观测（与 {@code avgReturn = null} 并存）
+     */
     public record GroupReturnStat(
             int groupNo,
             String label,
-            double avgReturn,
+            Double avgReturn,
             int observations
     ) {}
 
@@ -45,29 +52,44 @@ public final class FactorResearchEngine {
      * 而 {@link #groupedAverageReturns} 返回的逐行 {@code observations} 是**该组的成分观测数**——
      * 同名字段、两处含义不同（载荷侧以 {@code grouped_returns_observations_basis} 声明）。
      *
+     * @param rankIcMean Rank IC 均值；无任何可用截面日（{@code crossSectionDays = 0}）时**无定义**，为 {@code null}。
+     *                   0 是合法的 IC 取值，不得用 0 表示「无数据」（Q-R006-05 / D-R009-02）
+     * @param rankIcStd Rank IC 的**总体**标准差（÷T，见 {@code rank_ic_std_basis}）；无可用截面日时
+     *                  **无定义**，为 {@code null}。T ≥ 2 且各组相同 IC 时 std 恰为 0，此时仍输出 0.0
+     *                  （真零与不可定义必须可区分）
      * @param rankIcIr ICIR；当 IC 序列无离散度（std = 0，含 T &lt; 2）时**无定义**，为 {@code null}，
      *                 不得写成 0（0 的语义是「IR 恰为 0」，两者不可混同）
+     * @param rankIcPositiveRate Rank IC 为正的截面日占比；无可用截面日时**无定义**，为 {@code null}。
+     *                           占比恰为 0（所有可用日 IC ≤ 0）时输出 0.0（Q-R013-01）
      * @param pearsonIcMean 线性 IC 均值；当无任何 Pearson 支撑日（`pearsonSupportDays = 0`）时**无定义**，
      *                      为 {@code null}。原实现硬写 0.0，而 0 是合法的 IC 取值，
      *                      二者在载荷上不可区分（Q-R009-02）
+     * @param hacStd Newey-West HAC 标准误；IC 序列点数不足 2（{@code crossSectionDays &lt; 2}）时
+     *               **无定义**，为 {@code null}（原实现写 0.0，会被读成「零标准误 = 精确估计」）。
+     *               与 {@code ci_status = INSUFFICIENT_N} 并存，供消费方区分成因（Q-R007-01）
+     * @param ciLower block bootstrap 95% **名义**区间下界；IC 序列点数不足 2 时**无定义**，为 {@code null}
+     *                （原实现与 ciUpper 同为 0，零宽区间会被误读作「精确估计」，Q-R007-01 / Q-R007-07）
+     * @param ciUpper 区间上界；无定义时同样为 {@code null}
+     * @param longShortSpread 高分组均值 − 低分组均值（两个多头腿之差）；无任何非空分组时**无定义**，
+     *                        为 {@code null}（原实现写 0.0 会伪造「恰好中性」，Q-R006-04 / Q-R013-02）
      */
     public record FactorResearchSummary(
             int holdingDays,
             int groupCount,
             int crossSectionDays,
             int totalObservations,
-            double rankIcMean,
-            double rankIcStd,
+            Double rankIcMean,
+            Double rankIcStd,
             Double rankIcIr,
-            double rankIcPositiveRate,
+            Double rankIcPositiveRate,
             Double pearsonIcMean,
             String monotonicity,
-            double hacStd,
-            double ciLower,
-            double ciUpper,
+            Double hacStd,
+            Double ciLower,
+            Double ciUpper,
             List<DailyRankIc> dailyRankIc,
             List<GroupReturnStat> groupedReturns,
-            double longShortSpread,
+            Double longShortSpread,
             String universeNote,
             int inputDays,
             int daysBelowMinCrossSection,
@@ -169,7 +191,9 @@ public final class FactorResearchEngine {
         List<GroupReturnStat> out = new ArrayList<>(g);
         for (int i = 0; i < g; i++) {
             List<Double> rets = buckets.get(i);
-            double avg = rets.isEmpty() ? 0 : rets.stream().mapToDouble(Double::doubleValue).average().orElse(0);
+            // 空组无观测 ⟹ 均值无定义，写 null 而不是占位 0.0（0 会被当成真实均值参与极差与方向断言，Q-R006-04）
+            Double avg = rets.isEmpty() ? null
+                    : rets.stream().mapToDouble(Double::doubleValue).average().orElse(0);
             out.add(new GroupReturnStat(i + 1, groupLabel(i + 1, g), avg, rets.size()));
         }
         return out;
@@ -240,7 +264,11 @@ public final class FactorResearchEngine {
 
             List<GroupReturnStat> dayGroups = groupedAverageReturns(usable, groupCount);
             for (GroupReturnStat gs : dayGroups) {
-                bucketReturns.computeIfAbsent(gs.groupNo(), k -> new ArrayList<>()).add(gs.avgReturn());
+                // 该组当日无观测 ⟹ 日级组均值为 null：不把 null 塞进聚合序列（null 参与求和会 NPE 且语义上
+                // 等于「该日给该组贡献了一个值」，与「无观测」相悖）。
+                if (gs.avgReturn() != null) {
+                    bucketReturns.computeIfAbsent(gs.groupNo(), k -> new ArrayList<>()).add(gs.avgReturn());
+                }
             }
         }
 
@@ -265,19 +293,38 @@ public final class FactorResearchEngine {
         List<GroupReturnStat> grouped = new ArrayList<>();
         for (int g = 1; g <= groupCount; g++) {
             List<Double> rets = bucketReturns.getOrDefault(g, List.of());
-            double avg = rets.isEmpty() ? 0 : rets.stream().mapToDouble(Double::doubleValue).average().orElse(0);
+            // 空组（observations = 0）无观测 ⟹ 均值无定义，写 null；不得用占位 0.0（Q-R006-04 / Q-R013-02）
+            Double avg = rets.isEmpty() ? null
+                    : rets.stream().mapToDouble(Double::doubleValue).average().orElse(0);
             grouped.add(new GroupReturnStat(g, groupLabel(g, groupCount), avg, rets.size()));
         }
-        // 空组（observations = 0）不得参与方向断言与极差：其占位 0.0 不是观测，
+        // 空组（observations = 0）不得参与方向断言与极差：其均值是占位而非观测，
         // 参与比较会制造出并不存在的上升/下降（Q-R006-04 / Q-R013-02）。
-        List<GroupReturnStat> nonEmpty = grouped.stream().filter(gs -> gs.observations() > 0).toList();
-        double spread = nonEmpty.isEmpty() ? 0
-                : nonEmpty.get(nonEmpty.size() - 1).avgReturn() - nonEmpty.get(0).avgReturn();
+        List<GroupReturnStat> nonEmpty = grouped.stream()
+                .filter(gs -> gs.observations() > 0 && gs.avgReturn() != null)
+                .toList();
+        // 无非空分组 ⟹ 极差无定义，写 null 而不是 0.0（0.0 会伪造「高分组与低分组恰好持平」）
+        Double spread = null;
+        if (!nonEmpty.isEmpty()) {
+            Double high = nonEmpty.get(nonEmpty.size() - 1).avgReturn();
+            Double low = nonEmpty.get(0).avgReturn();
+            spread = (high == null || low == null) ? null : high - low;
+        }
         String monotonicity = assessMonotonicity(grouped);
 
         // QP-011：HAC 标准误 + block bootstrap 置信区间（处理重叠持有期序列相关）
-        double hacStd = neweyWestHacStd(icSeries);
-        double[] ci = blockBootstrapCi(icSeries, Math.max(1, holdingDays), 1000, 42L);
+        // IC 序列点数不足 2 时两者在数值上都退化为 0（/零宽区间），会被读成「零标准误 = 精确估计」
+        // ⟹ 该情形下汇总里写 null，并保留 ci_status = INSUFFICIENT_N 说明成因（Q-R007-01）。
+        // 注意：neweyWestHacStd / blockBootstrapCi 的签名与算术**不变**（另一次授权改动会动前者）。
+        Double hacStd = null;
+        Double ciLower = null;
+        Double ciUpper = null;
+        if (icSeries.size() >= 2) {
+            hacStd = neweyWestHacStd(icSeries);
+            double[] ci = blockBootstrapCi(icSeries, Math.max(1, holdingDays), 1000, 42L);
+            ciLower = ci[0];
+            ciUpper = ci[1];
+        }
 
         return new FactorResearchSummary(
                 holdingDays,
@@ -291,8 +338,8 @@ public final class FactorResearchEngine {
                 pearsonIcMean,
                 monotonicity,
                 hacStd,
-                ci[0],
-                ci[1],
+                ciLower,
+                ciUpper,
                 daily,
                 grouped,
                 spread,
@@ -310,9 +357,11 @@ public final class FactorResearchEngine {
             int holdingDays, int groupCount, String note, int inputDays,
             int daysBelowMinCrossSection, int daysNonFiniteIc, int excludedNonFiniteObservations) {
         return new FactorResearchSummary(
+                // 无任何可用截面日 ⟹ 所有统计量均无定义，一律写 null（不得写 0.0 冒充）。
+                // 整数计数是真实计数（0 个日 / 0 个观测），照常输出数值。
                 holdingDays, groupCount, 0, 0,
-                0, 0, null, 0, null, "N/A", 0, 0, 0,
-                List.of(), List.of(), 0,
+                null, null, null, null, null, "N/A", null, null, null,
+                List.of(), List.of(), null,
                 note,
                 inputDays, daysBelowMinCrossSection, daysNonFiniteIc,
                 excludedNonFiniteObservations, 0, 0
@@ -328,7 +377,7 @@ public final class FactorResearchEngine {
      *
      * <p>三条守卫（Q-R006-04 / Q-R006-07 / Q-R013-01 / Q-R013-02 / Q-R013-09 修复）：
      * <ol>
-     *   <li>{@code observations == 0} 的空组**不参与**断言：其 {@code avgReturn = 0.0} 是占位而非观测，
+     *   <li>{@code observations == 0}（或均值 {@code null}）的空组**不参与**断言：其均值是占位而非观测，
      *       参与比较会制造出并不存在的上升/下降；可用组少于 2 个时返回 {@code "N/A"}。</li>
      *   <li>全相等（零斜率）返回 {@code "NO_DISPERSION"}：原实现下 {@code increasing} 与
      *       {@code decreasing} 同时为真、由分支顺序决定输出，等于用「零区分度」断言方向。</li>
@@ -340,8 +389,9 @@ public final class FactorResearchEngine {
         if (grouped == null || grouped.size() < 2) {
             return "N/A";
         }
+        // 均值 null（空组）与 observations == 0 等价：该组「无观测」，不可用于方向断言
         List<GroupReturnStat> usable = grouped.stream()
-                .filter(gs -> gs != null && gs.observations() > 0)
+                .filter(gs -> gs != null && gs.observations() > 0 && gs.avgReturn() != null)
                 .toList();
         if (usable.size() < 2) {
             return "N/A";

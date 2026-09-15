@@ -627,8 +627,9 @@ public class ScoringBacktestService {
             }
         }
         validation.put("codex_sub_factor_ic", t3);
-        double t3T = ic3 != null && ic3.get("T") != null ? ic3.get("T").getRankIcMean() : Double.NaN;
-        validation.put("codex_t_dominates", Double.isFinite(t3T) && t3T > 0.02);
+        Double t3IcMean = ic3 != null && ic3.get("T") != null ? ic3.get("T").getRankIcMean() : null;
+        validation.put("codex_t_dominates",
+                t3IcMean != null && Double.isFinite(t3IcMean) && t3IcMean > 0.02);
     }
 
     static Double extractReasonNumber(Map<String, Object> reasons, String key) {
@@ -660,10 +661,12 @@ public class ScoringBacktestService {
         Map<String, Object> v = new LinkedHashMap<>();
         FactorIcSummary ic3 = factorIcByHolding.get(3);
         FactorIcSummary ic5 = factorIcByHolding.get(5);
-        double ic3Mean = ic3 != null ? ic3.getRankIcMean() : Double.NaN;
-        double ic5Mean = ic5 != null ? ic5.getRankIcMean() : Double.NaN;
-        boolean predictsT3 = ic3 != null && ic3.getRankIcMean() > 0.02 && ic3.getCrossSectionDays() >= 5;
-        boolean predictsT5 = ic5 != null && ic5.getRankIcMean() > 0.02 && ic5.getCrossSectionDays() >= 5;
+        // 统计量现为包装类型：无可用截面日时 DTO 本身为 null；即便 DTO 存在，均值也可能为 null，
+        // 不得拆箱（NPE）也不得把 null 当作 0 参与阈值判定。
+        Double ic3Mean = ic3 != null ? ic3.getRankIcMean() : null;
+        Double ic5Mean = ic5 != null ? ic5.getRankIcMean() : null;
+        boolean predictsT3 = ic3Mean != null && ic3Mean > 0.02 && ic3.getCrossSectionDays() >= 5;
+        boolean predictsT5 = ic5Mean != null && ic5Mean > 0.02 && ic5.getCrossSectionDays() >= 5;
         v.put("t3_rank_ic_mean", finiteOrNull(ic3Mean));
         v.put("t5_rank_ic_mean", finiteOrNull(ic5Mean));
         v.put("t3_effective", predictsT3);
@@ -686,8 +689,8 @@ public class ScoringBacktestService {
         return v;
     }
 
-    private static Double finiteOrNull(double v) {
-        return Double.isFinite(v) ? v : null;
+    private static Double finiteOrNull(Double v) {
+        return v != null && Double.isFinite(v) ? v : null;
     }
 
     public List<String> getAvailableStrategies() {
@@ -1232,8 +1235,10 @@ public class ScoringBacktestService {
      * 能给出的是它的毛价差等价物（见 {@link FactorResearchEngine#grossSpreadFromNet}）。
      * 同名字段在 {@code FactorResearchService} 载荷的毛收益块里是**毛**价差——跨面引用前先读
      * {@code long_short_spread_cost_basis} / {@code longShortSpreadCostBasis}。
+     *
+     * @param netSpread 净价差；为 {@code null}（无可用分组，不可计算）时返回 {@code null}，不得还原成 0
      */
-    static Double grossEquivalentOfNetSpread(double netSpread) {
+    static Double grossEquivalentOfNetSpread(Double netSpread) {
         return FactorResearchEngine.grossSpreadFromNet(netSpread, perLegRoundTripCost());
     }
 
@@ -1244,12 +1249,13 @@ public class ScoringBacktestService {
                 .toList());
     }
 
-    /** 由样本标准差口径算出的 ICIR；分母为 0 或无定义时为 null（0 的语义是「IR 恰为 0」）。 */
+    /** 由样本标准差口径算出的 ICIR；分母为 0 或分子/分母无定义时为 null（0 的语义是「IR 恰为 0」）。 */
     static Double sampleIcIr(FactorResearchSummary summary) {
         Double sampleStd = sampleStdDivTMinusOne(summary);
-        if (sampleStd == null || sampleStd == 0) {
+        Double mean = summary.rankIcMean();
+        if (sampleStd == null || sampleStd == 0 || mean == null) {
             return null;
         }
-        return summary.rankIcMean() / sampleStd;
+        return mean / sampleStd;
     }
 }

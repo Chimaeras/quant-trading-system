@@ -79,7 +79,10 @@ class BacktestTurnoverServiceTest {
 
         Map<String, Object> out = service().analyze("CLASSIC_SELECTOR", d, d, 10);
         assertThat(out.get("signal_days")).isEqualTo(1);
-        assertThat(out.get("avg_turnover")).isEqualTo(0.0);
+        // 裁定 A（D-R008-03）：信号日不足 2 ⟹ 换手率不可计算，avg/max/min 一律 null（改前为 0.0）
+        assertThat(out.get("avg_turnover")).isNull();
+        assertThat(out.get("max_turnover")).isNull();
+        assertThat(out.get("min_turnover")).isNull();
         assertThat((List<Map<String, Object>>) out.get("daily_turnover")).isEmpty();
     }
 
@@ -91,7 +94,29 @@ class BacktestTurnoverServiceTest {
 
         Map<String, Object> out = service().analyze(null, d, d, null);
         assertThat(out.get("signal_days")).isEqualTo(0);
+        // 无信号日 ⟹ 无定义，null（不得以 0.0 冒充「真的 0 换手」）
+        assertThat(out.get("avg_turnover")).isNull();
+    }
+
+    @Test
+    void identicalConsecutiveDaysStillReportGenuineZeroTurnover() {
+        // 防止过度置空：两日候选完全相同 ⟹ 换手率真的为 0，必须是 0.0 而不是 null
+        LocalDate d1 = LocalDate.of(2025, 1, 2);
+        LocalDate d2 = LocalDate.of(2025, 1, 3);
+        when(selectorResultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(d1, d2))
+                .thenReturn(List.of(result("R2", "CLASSIC_SELECTOR", d2), result("R1", "CLASSIC_SELECTOR", d1)));
+        when(selectorResultItemRepository.findByResultIdInOrderByRankNo(any()))
+                .thenReturn(List.of(
+                        item("R1", 1, "A"), item("R1", 2, "B"),
+                        item("R2", 1, "A"), item("R2", 2, "B")
+                ));
+
+        Map<String, Object> out = service().analyze("CLASSIC_SELECTOR", d1, d2, 2);
+
+        assertThat(out.get("turnover_status")).isEqualTo("OK");
         assertThat(out.get("avg_turnover")).isEqualTo(0.0);
+        assertThat(out.get("max_turnover")).isEqualTo(0.0);
+        assertThat(out.get("min_turnover")).isEqualTo(0.0);
     }
 
     // ---- Q-R008-02/03/04/05/06/07/09：增量披露字段（数值与既有键零变化） ----
@@ -156,9 +181,11 @@ class BacktestTurnoverServiceTest {
 
         Map<String, Object> out = service().analyze("CLASSIC_SELECTOR", d, d, 3);
 
-        // 退化输入下 avg/max/min 仍是历史行为的 0.0，但新增机器可读标记与「真的 0」区分
+        // 退化输入下 avg/max/min 改为 null（无定义），靠 turnover_status 与「真的 0」区分（裁定 A）
         assertThat(out.get("turnover_status")).isEqualTo("INSUFFICIENT_SIGNAL_DAYS");
-        assertThat(out.get("avg_turnover")).isEqualTo(0.0);
+        assertThat(out.get("avg_turnover")).isNull();
+        assertThat(out.get("max_turnover")).isNull();
+        assertThat(out.get("min_turnover")).isNull();
         assertThat(out.get("turnover_basis")).isEqualTo("ONE_WAY_REPLACEMENT_RATIO");
         assertThat(out.get("denominator")).isEqualTo("REQUEST_PARAM_TOP_N");
         assertThat(out.get("avg_turnover_unit")).isEqualTo("RATIO_0_1");

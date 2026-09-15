@@ -14,10 +14,11 @@ export type MonotonicityLabel =
 
 /**
  * HAC/bootstrap 区间状态：
- * `INSUFFICIENT_N` = 截面日不足 2（区间零宽且 hac_std = 0，不可读作「精确估计」）；
+ * `INSUFFICIENT_N` = 截面日不足 2（HAC 标准误与区间端点均为 null，不可读作「精确估计」）；
+ * `UNAVAILABLE` = 区间端点缺失/无定义（不得谎报零宽区间）；
  * `ZERO_WIDTH` = 下界不小于上界；`OK` = 正常。
  */
-export type CiStatus = 'OK' | 'INSUFFICIENT_N' | 'ZERO_WIDTH'
+export type CiStatus = 'OK' | 'INSUFFICIENT_N' | 'ZERO_WIDTH' | 'UNAVAILABLE'
 
 /** 三口径族共用的**纯增量**披露字段（命中率/丢弃计数/构造规则；后端未改任何既有键语义）。 */
 export interface FactorIcDisclosure {
@@ -114,13 +115,14 @@ export interface FactorDailyRankIc {
 export interface FactorGroupReturn {
   group_no: number
   label: string
-  avg_return: number
+  /** 组均值；**该组无观测（observations = 0）时为 null**，不得渲染成 0 */
+  avg_return: number | null
   /** 单位取决于聚合层级：载荷内为**参与聚合的截面日数**，不是成分股数（见 grouped_returns_observations_basis） */
   observations: number
-  /** 空组标记：avg_return = 0.0 是占位、不参与方向断言与极差 */
+  /** 空组标记：avg_return = null 表示无观测、不参与方向断言与极差 */
   empty?: boolean
   /** 未取整组均值 */
-  avg_return_exact?: number
+  avg_return_exact?: number | null
 }
 
 export interface FactorRankIc extends FactorIcDisclosure {
@@ -134,21 +136,27 @@ export interface FactorRankIc extends FactorIcDisclosure {
   feature_snapshot_note?: string
   cross_section_days: number
   total_observations: number
-  rank_ic_mean: number
-  rank_ic_std: number
+  /** Rank IC 均值；无可用截面日时不可计算，为 null（不得渲染成 0） */
+  rank_ic_mean: number | null
+  /** Rank IC 总体标准差（÷T）；无可用截面日时为 null；真零离散度仍为 0 */
+  rank_ic_std: number | null
   /** ICIR；IC 序列无离散度（std = 0）时**无定义**，为 null（≠「IR 恰为 0」） */
   rank_ic_ir: number | null
-  rank_ic_positive_rate: number
+  /** IC 为正的截面日占比；无可用截面日时为 null；真为 0 时仍为 0 */
+  rank_ic_positive_rate: number | null
   /**
    * 线性（Pearson）IC 均值。**不可定义时为 null**（样本不足、任一侧无区分度等），
    * 不再以占位 0.0 冒充「线性 IC 恰为 0」；null 时同时看 `pearson_support_days`。
    */
   pearson_ic_mean: number | null
   monotonicity: MonotonicityLabel
-  hac_std: number
-  ci_lower: number
-  ci_upper: number
-  long_short_spread: number
+  /** HAC 标准误；截面日不足 2 时无定义，为 null（配 `ci_status = INSUFFICIENT_N`） */
+  hac_std: number | null
+  /** 名义 95% 区间下界；与 `hac_std` 同为 null 时不得渲染成 0/零宽区间 */
+  ci_lower: number | null
+  ci_upper: number | null
+  /** 高分组均值 − 低分组均值；无非空分组时为 null（不得渲染成「恰好中性」） */
+  long_short_spread: number | null
   daily_rank_ic: FactorDailyRankIc[]
   grouped_returns: FactorGroupReturn[]
 }
@@ -224,18 +232,24 @@ export interface SnapshotScopeIc extends FactorIcDisclosure {
   universe_note?: string
   cross_section_days: number
   total_observations: number
-  rank_ic_mean: number
-  rank_ic_std: number
+  /** Rank IC 均值；无可用截面日时不可计算，为 null（不得渲染成 0） */
+  rank_ic_mean: number | null
+  /** Rank IC 总体标准差（÷T）；无可用截面日时为 null；真零离散度仍为 0 */
+  rank_ic_std: number | null
   /** ICIR；IC 序列无离散度时为 null（≠ 0） */
   rank_ic_ir: number | null
-  rank_ic_positive_rate: number
+  /** IC 为正的截面日占比；无可用截面日时为 null；真为 0 时仍为 0 */
+  rank_ic_positive_rate: number | null
   /** 线性（Pearson）IC 均值；**不可定义时为 null**（不再以占位 0.0 冒充） */
   pearson_ic_mean: number | null
   monotonicity: MonotonicityLabel
-  hac_std: number
-  ci_lower: number
-  ci_upper: number
-  long_short_spread: number
+  /** HAC 标准误；截面日不足 2 时无定义，为 null（配 `ci_status = INSUFFICIENT_N`） */
+  hac_std: number | null
+  /** 名义 95% 区间下界；与 `hac_std` 同为 null 时不得渲染成 0/零宽区间 */
+  ci_lower: number | null
+  ci_upper: number | null
+  /** 高分组均值 − 低分组均值；无非空分组时为 null（不得渲染成「恰好中性」） */
+  long_short_spread: number | null
   daily_rank_ic: FactorDailyRankIc[]
   grouped_returns: FactorGroupReturn[]
   note?: string
@@ -317,30 +331,38 @@ export interface UnifiedReportHorizonRow extends FactorIcDisclosure {
   embargo_note?: string
   cross_section_days: number
   total_observations: number
-  rank_ic_mean: number
-  rank_ic_std: number
+  /** Rank IC 均值；无可用截面日时不可计算，为 null（不得渲染成 0） */
+  rank_ic_mean: number | null
+  /** Rank IC 总体标准差（÷T）；无可用截面日时为 null；真零离散度仍为 0 */
+  rank_ic_std: number | null
   /** ICIR；IC 序列无离散度时为 null（≠ 0） */
   rank_ic_ir: number | null
-  rank_ic_positive_rate: number
+  /** IC 为正的截面日占比；无可用截面日时为 null；真为 0 时仍为 0 */
+  rank_ic_positive_rate: number | null
   /** 线性（Pearson）IC 均值；**不可定义时为 null**（不再以占位 0.0 冒充） */
   pearson_ic_mean: number | null
   monotonicity: MonotonicityLabel
-  hac_std: number
-  ci_lower: number
-  ci_upper: number
-  long_short_spread: number
+  /** HAC 标准误；截面日不足 2 时无定义，为 null（配 `ci_status = INSUFFICIENT_N`） */
+  hac_std: number | null
+  /** 名义 95% 区间下界；与 `hac_std` 同为 null 时不得渲染成 0/零宽区间 */
+  ci_lower: number | null
+  ci_upper: number | null
+  /** 高分组均值 − 低分组均值；无非空分组时为 null（不得渲染成「恰好中性」） */
+  long_short_spread: number | null
   /** 成本后近似 IC（尚未接入涨跌停/停牌拒单，勿称为完整可执行） */
   cost_net_ic?: {
     cross_section_days: number
     total_observations: number
-    rank_ic_mean: number
-    rank_ic_std: number
+    /** 无可用截面日时为 null（不得渲染成 0） */
+    rank_ic_mean: number | null
+    rank_ic_std: number | null
     rank_ic_ir: number | null
-    rank_ic_positive_rate: number
+    rank_ic_positive_rate: number | null
     /** 不可定义时为 null（原实现写占位 0.0） */
     pearson_ic_mean: number | null
-    long_short_spread: number
-    /** false 时上面的 0.0 是占位（本口径无数据），不是「成本后恰为 0」 */
+    /** 无非空分组时为 null（不得渲染成「恰好中性」） */
+    long_short_spread: number | null
+    /** false 时上列统计量为 null（本口径无数据），不是「成本后恰为 0」 */
     data_available?: boolean
     status?: string
     group_count?: number

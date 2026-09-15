@@ -65,21 +65,27 @@ public class ScoringBacktestResponse {
         private int holdingDays;
         private int crossSectionDays;
         private int totalObservations;
-        private double rankIcMean;
-        private double rankIcStd;
+        /**
+         * Rank IC 均值；**无可用截面日时为 {@code null}**（不可计算，不得写成 0.0——0 是合法的 IC 取值）。
+         */
+        private Double rankIcMean;
+        /** Rank IC 总体标准差（÷T）；无可用截面日时为 {@code null}；真零离散度仍为 {@code 0.0}。 */
+        private Double rankIcStd;
         /**
          * ICIR；IC 序列无离散度（std = 0，含 T &lt; 2）时**无定义**，为 {@code null}。
          * 0 的语义是「IR 恰为 0」，两者不可混同（Q-R006-05）。
          */
         private Double rankIcIr;
-        private double rankIcPositiveRate;
+        /** IC 为正的截面日占比；无可用截面日时为 {@code null}；占比真为 0 时仍为 {@code 0.0}。 */
+        private Double rankIcPositiveRate;
         /**
          * 两腿价差 = 最高分组均值 − 最低分组均值。本面（打分回测）的因子观测用
          * {@code periodResult.ret()}，**已扣费**，故本字段是**净价差**；同名字段在
          * {@code FactorResearchService} 载荷的毛收益块里是**毛价差**（同名不同量）。
          * 判定口径一律读 {@link #longShortSpreadCostBasis}（Q-R003-01 / Q-R004-01）。
+         * **无可用分组时不可计算，为 {@code null}**（不得以 0.0 冒充「恰好中性」）。
          */
-        private double longShortSpread;
+        private Double longShortSpread;
         /**
          * 两腿价差的成本基准（纯增量）：本 DTO 面恒为 {@code NET_AFTER_MODELED_COSTS}；
          * 载荷毛收益块为 {@code GROSS_BEFORE_COSTS}。消费方**不必靠字段名猜口径**。
@@ -113,25 +119,29 @@ public class ScoringBacktestResponse {
         private int groupCount;
         private int crossSectionDays;
         private int totalObservations;
-        private double rankIcMean;
-        private double rankIcStd;
+        /** Rank IC 均值；无可用截面日时不可计算，为 {@code null}（不得写 0.0）。 */
+        private Double rankIcMean;
+        /** Rank IC 总体标准差（÷T）；无可用截面日时为 {@code null}；真零离散度仍为 {@code 0.0}。 */
+        private Double rankIcStd;
         /**
          * ICIR；IC 序列无离散度（std = 0，含 T &lt; 2）时**无定义**，为 {@code null}（Q-R006-05）。
          */
         private Double rankIcIr;
-        private double rankIcPositiveRate;
+        /** IC 为正的截面日占比；无可用截面日时为 {@code null}；真为 0 时仍为 {@code 0.0}。 */
+        private Double rankIcPositiveRate;
         private List<DailyRankIc> dailyRankIc;
         /**
          * 分组收益；{@code observations} 为**参与聚合的截面日数**（不是成分股数，Q-R014-03），
-         * 空组以 {@code observations = 0} 标记且其 {@code avgReturn = 0.0} 是占位、不参与极差。
+         * 空组以 {@code observations = 0} 标记且其 {@code avgReturn = null}（无观测、不参与极差），
+         * 不得写成 0.0。
          */
         private List<GroupReturnStat> groupedReturns;
         /**
          * 两腿价差 = 最高分组均值 − 最低分组均值，本面为**净价差**（观测收益已扣费）；
          * 与 {@code HoldingPeriodStat.ret()} 同属净收益家族，但**不是**美元中性多空。见
-         * {@link #longShortSpreadCostBasis}。
+         * {@link #longShortSpreadCostBasis}。无可用分组时不可计算，为 {@code null}。
          */
-        private double longShortSpread;
+        private Double longShortSpread;
         /** 两腿价差的成本基准（纯增量，Q-R003-01/Q-R004-01）：本面恒为 NET_AFTER_MODELED_COSTS。 */
         private String longShortSpreadCostBasis;
         /** 净价差 → 毛价差的精确还原（{@code longShortSpread / (1 − costPerLegRoundTrip)}）。 */
@@ -173,7 +183,11 @@ public class ScoringBacktestResponse {
     public static class GroupReturnStat {
         private int groupNo;
         private String label;
-        private double avgReturn;
+        /**
+         * 该组收益均值；**该组无观测（{@code observations == 0}）时为 {@code null}**，
+         * 不得写成 0.0（0 的语义是「该组均值恰为 0」）。
+         */
+        private Double avgReturn;
         private int observations;
     }
 

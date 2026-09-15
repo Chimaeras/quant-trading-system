@@ -164,9 +164,11 @@ public class BacktestTurnoverService {
 
         if (daily.size() < 2) {
             out.put("turnover_status", "INSUFFICIENT_SIGNAL_DAYS");
-            out.put("avg_turnover", 0.0);
-            out.put("max_turnover", 0.0);
-            out.put("min_turnover", 0.0);
+            // 信号日不足 2 ⟹ 换手率不可计算：avg/max/min 写 null，不得写 0.0
+            // （0.0 会被读成「真的 0 换手」，与「无定义」不可区分；与 turnover_status 并存）
+            out.put("avg_turnover", null);
+            out.put("max_turnover", null);
+            out.put("min_turnover", null);
             // 并列口径：无配对 ⟹ 无定义（null，不是 0.0），与 legacy 占位物理上可区分
             out.put("avg_turnover_actual_denominator", null);
             out.put("max_turnover_actual_denominator", null);

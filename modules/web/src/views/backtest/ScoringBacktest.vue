@@ -220,8 +220,8 @@
                   <div class="stat-body">
                     <div class="stat-item">
                       <span class="stat-label">准确度（Rank IC）</span>
-                      <span class="stat-value" :class="response.factorAnalysis.rankIcMean >= 0 ? 'text-success' : 'text-danger'">
-                        {{ response.factorAnalysis.rankIcMean.toFixed(4) }}
+                      <span class="stat-value" :class="numClass(response.factorAnalysis.rankIcMean)">
+                        {{ fmt4(response.factorAnalysis.rankIcMean) }}
                       </span>
                     </div>
                     <div class="stat-item">
@@ -232,7 +232,7 @@
                     </div>
                     <div class="stat-item">
                       <span class="stat-label">预测有效天数占比</span>
-                      <span class="stat-value">{{ (response.factorAnalysis.rankIcPositiveRate * 100).toFixed(1) }}%</span>
+                      <span class="stat-value">{{ pct1(response.factorAnalysis.rankIcPositiveRate) }}</span>
                     </div>
                   </div>
                 </div>
@@ -251,7 +251,7 @@
                     </div>
                     <div class="stat-item">
                       <span class="stat-label">波动幅度</span>
-                      <span class="stat-value">{{ response.factorAnalysis.rankIcStd.toFixed(4) }}</span>
+                      <span class="stat-value">{{ fmt4(response.factorAnalysis.rankIcStd) }}</span>
                     </div>
                   </div>
                 </div>
@@ -259,15 +259,17 @@
                   <div class="stat-header">高分 vs 低分收益差</div>
                   <div class="stat-body">
                     <div class="stat-item">
-                      <span class="stat-label" title="高分组均值 − 低分组均值（两个多头腿之差），口径 = 成本后近似净收益，非美元中性多空、非超额收益">多空收益差（高−低）</span>
-                      <span class="stat-value" :class="response.factorAnalysis.longShortSpread >= 0 ? 'text-success' : 'text-danger'">
-                        {{ (response.factorAnalysis.longShortSpread * 100).toFixed(2) }}%
+                      <span class="stat-label" title="高分组均值 − 低分组均值（两个多头腿之差），口径 = 成本后近似净收益，非美元中性多空、非超额收益；无有效分组时为「—」">多空收益差（高−低）</span>
+                      <span class="stat-value" :class="numClass(response.factorAnalysis.longShortSpread)">
+                        {{ pct2(response.factorAnalysis.longShortSpread) }}
                       </span>
                     </div>
                     <div class="stat-item">
                       <span class="stat-label">业务含义</span>
                       <span class="stat-value small-text">
-                        {{ response.factorAnalysis.longShortSpread >= 0 ? '高分组合收益高于低分组合（仅方向，不等于已验证有效）' : '高分组合反而跑输低分组合，选股方向需警惕' }}
+                        {{ response.factorAnalysis.longShortSpread == null
+                          ? '不可用：本面无有效分组，无法判定方向'
+                          : (response.factorAnalysis.longShortSpread >= 0 ? '高分组合收益高于低分组合（仅方向，不等于已验证有效）' : '高分组合反而跑输低分组合，选股方向需警惕') }}
                       </span>
                     </div>
                     <div class="stat-item">
@@ -399,8 +401,8 @@
                 <el-table-column prop="label" label="分组" width="120" />
                 <el-table-column label="平均收益" width="120">
                   <template #default="{ row }">
-                    <span :class="row.avgReturn >= 0 ? 'text-success' : 'text-danger'">
-                      {{ (row.avgReturn * 100).toFixed(2) }}%
+                    <span :class="numClass(row.avgReturn)" title="该组无观测时为空值，不参与极差">
+                      {{ pct2(row.avgReturn) }}
                     </span>
                   </template>
                 </el-table-column>
@@ -418,7 +420,7 @@
                   <el-table-column prop="label" label="持有期" width="90" />
                   <el-table-column label="选股准确度" width="110">
                     <template #default="{ row }">
-                      <span :class="row.rankIcMean >= 0 ? 'text-success' : 'text-danger'">{{ row.rankIcMean.toFixed(4) }}</span>
+                      <span :class="numClass(row.rankIcMean)">{{ fmt4(row.rankIcMean) }}</span>
                     </template>
                   </el-table-column>
                   <el-table-column label="稳定性" width="90">
@@ -426,8 +428,8 @@
                   </el-table-column>
                   <el-table-column label="高分减低分收益差" width="130">
                     <template #default="{ row }">
-                      <span :class="row.longShortSpread >= 0 ? 'text-success' : 'text-danger'">
-                        {{ (row.longShortSpread * 100).toFixed(2) }}%
+                      <span :class="numClass(row.longShortSpread)">
+                        {{ pct2(row.longShortSpread) }}
                       </span>
                     </template>
                   </el-table-column>
@@ -515,14 +517,14 @@
             <div class="turnover-meta">
               <span>信号日：{{ turnover.signal_days }}</span>
               <span title="单向替换率 = 1 − 相邻日 TopN 交集 / 请求 top_n；若按 Σ|Δw| 双向口径计约为本值 2 倍">
-                平均换手（单向替换率）：{{ (turnover.avg_turnover * 100).toFixed(2) }}%
+                平均换手（单向替换率）：{{ pct2(turnover.avg_turnover) }}
               </span>
-              <span>最高：{{ (turnover.max_turnover * 100).toFixed(2) }}%</span>
-              <span>最低：{{ (turnover.min_turnover * 100).toFixed(2) }}%</span>
+              <span>最高：{{ pct2(turnover.max_turnover) }}</span>
+              <span>最低：{{ pct2(turnover.min_turnover) }}</span>
               <span
                 v-if="turnover.turnover_status === 'INSUFFICIENT_SIGNAL_DAYS'"
                 class="text-warning"
-                title="信号日不足 2 天，换手率无定义；上面的 0.00% 是占位值，不是「真的 0 换手」"
+                title="信号日不足 2 天，换手率不可计算；显示「—」而不是 0%，0% 与「无定义」含义相反"
               >换手率无定义（信号日 &lt; 2）</span>
               <span
                 v-else-if="turnover.grouped_by_strategy === false"
@@ -642,8 +644,18 @@ const form = reactive({
 })
 
 // ===== 业务化格式化 =====
-function pct(v: number) { return Number.isFinite(v) ? (v * 100).toFixed(2) + '%' : '—' }
-function pct1(v: number) { return Number.isFinite(v) ? (v * 100).toFixed(1) + '%' : '—' }
+// 可空数值统一走这里：null/undefined/非有限 → 「—」，绝不落成 0（0 与「无定义」含义相反）
+function pct(v: number | null | undefined) { return v !== null && v !== undefined && Number.isFinite(v) ? (v * 100).toFixed(2) + '%' : '—' }
+function pct1(v: number | null | undefined) { return v !== null && v !== undefined && Number.isFinite(v) ? (v * 100).toFixed(1) + '%' : '—' }
+/** 4 位小数展示（Rank IC / std 等）；null = 不可计算，显示「—」 */
+function fmt4(v: number | null | undefined) {
+  return v !== null && v !== undefined && Number.isFinite(v) ? v.toFixed(4) : '—'
+}
+/** 数值正负着色；null/非有限 → 中性色（不得按「负数」上色，那是错误结论） */
+function numClass(v: number | null | undefined) {
+  if (v === null || v === undefined || !Number.isFinite(v)) return 'text-muted'
+  return v >= 0 ? 'text-success' : 'text-danger'
+}
 /** null = 该量无定义（如毛价差等价物不可还原、Pearson 无可定义样本），显示「—」而不是 0 */
 function pct2(v: number | null | undefined) {
   return v !== null && v !== undefined && Number.isFinite(v) ? (v * 100).toFixed(2) + '%' : '—'
@@ -667,8 +679,9 @@ function ratioClass(v: number | null | undefined) {
 }
 
 // IC 业务判定：<0.02 几乎无预测力 / <0.05 较弱 / <0.1 有效 / >=0.1 强
-function icVerdict(ic: number): { text: string; type: 'success' | 'warning' | 'danger' | 'info' } {
-  if (!Number.isFinite(ic)) return { text: '数据不足', type: 'info' }
+// null/非有限 = 无可用统计量（不可计算），不得判成任何方向
+function icVerdict(ic: number | null | undefined): { text: string; type: 'success' | 'warning' | 'danger' | 'info' } {
+  if (ic === null || ic === undefined || !Number.isFinite(ic)) return { text: '不可用（无有效统计量）', type: 'info' }
   const a = Math.abs(ic)
   if (a < 0.02) return { text: '几乎无预测力', type: 'danger' }
   if (a < 0.05) return { text: '预测力较弱', type: 'warning' }
@@ -924,7 +937,9 @@ function renderFactorChart() {
       formatter: (params: any[]) => {
         const p = params[0]
         const g = groups[p.dataIndex]
-        return [`<b>${g.label}</b>`, `平均收益：${(g.avgReturn * 100).toFixed(2)}%`, `截面日：${g.observations}`].join('<br/>')
+        // avgReturn 为 null = 该组无观测：显示「—」，不得写成 0.00%
+        const avgText = pct2(g.avgReturn)
+        return [`<b>${g.label}</b>`, `平均收益：${avgText}`, `截面日：${g.observations}`].join('<br/>')
       }
     },
     grid: { left: '8%', right: '8%', top: '10%', bottom: '10%' },
@@ -942,11 +957,12 @@ function renderFactorChart() {
       {
         name: '平均收益',
         type: 'bar',
-        data: groups.map((g) => +(g.avgReturn * 100).toFixed(2)),
+        // 空组（avgReturn = null）留空，不用 0 充数（0.00% 会被读成「该组恰好持平」）
+        data: groups.map((g) => (g.avgReturn == null ? null : +(g.avgReturn * 100).toFixed(2))),
         itemStyle: {
           color: (params: { dataIndex: number }) => {
             const v = groups[params.dataIndex].avgReturn
-            return v >= 0 ? CHART_UP : CHART_DOWN
+            return v == null ? '#909399' : (v >= 0 ? CHART_UP : CHART_DOWN)
           }
         },
         barWidth: '50%',
@@ -987,14 +1003,15 @@ function renderIcByHoldingChart() {
       {
         name: '选股准确度',
         type: 'bar',
-        data: rows.map((r) => +r.rankIcMean.toFixed(4)),
+        // null = 该持仓期无可用统计量：留空，不落成 0（0 会被读成「准确度恰为 0」）
+        data: rows.map((r) => (r.rankIcMean == null ? null : +r.rankIcMean.toFixed(4))),
         barWidth: '35%'
       },
       {
         name: '高分减低分收益差',
         type: 'line',
         yAxisIndex: 1,
-        data: rows.map((r) => +(r.longShortSpread * 100).toFixed(2)),
+        data: rows.map((r) => (r.longShortSpread == null ? null : +(r.longShortSpread * 100).toFixed(2))),
         lineStyle: { width: 2 }
       }
     ]

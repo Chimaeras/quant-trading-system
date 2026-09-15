@@ -159,6 +159,89 @@ class ScoringBacktestServiceTest {
         assertThat(recalled.getStrategyType()).isEqualTo("CLASSIC_SELECTOR");
     }
 
+    /**
+     * `D-R010-06`：每行落库都必须带**公式版本标记**。
+     * 三个费率不足以判读历史净收益（加法式与两级乘性在库里长得一样），故版本位是必需列而非元数据。
+     */
+    @Test
+    void persistedRunIsStampedWithNetCostConventionVersion() {
+        SelectorResultRepository resultRepository = mock(SelectorResultRepository.class);
+        SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
+        MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
+        BacktestRunRepository runRepository = mock(BacktestRunRepository.class);
+        ScoringBacktestService service =
+                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                        mock(com.quant.repository.MarketPriceRawRepository.class),
+                        runRepository, objectMapper());
+
+        LocalDate signalDate = LocalDate.of(2025, 1, 2);
+        LocalDate entryDate = LocalDate.of(2025, 1, 3);
+        LocalDate exitDate = LocalDate.of(2025, 1, 6);
+        SelectorResult result = new SelectorResult();
+        result.setResultId("R1");
+        result.setTradeDate(signalDate);
+        result.setStrategyType("CLASSIC_SELECTOR");
+        SelectorResultItem item = new SelectorResultItem();
+        item.setResultId("R1");
+        item.setRankNo(1);
+        item.setStockCode("000001");
+        item.setExchangeType("SZSE");
+        item.setStockName("测试股票");
+        item.setFinalScore(80.0);
+
+        when(resultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(any(), any()))
+                .thenReturn(List.of(result));
+        when(itemRepository.findByResultIdInOrderByRankNo(any())).thenReturn(List.of(item));
+        when(marketDataRepository.findDistinctTradeDatesBetween(any(), any()))
+                .thenReturn(List.of(signalDate, entryDate, exitDate));
+        when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
+                .thenReturn(List.of(bar(signalDate, 100, 100), bar(entryDate, 80, 88), bar(exitDate, 88, 88)));
+        when(marketDataRepository.findMaxTradeDate()).thenReturn(java.util.Optional.of(exitDate));
+
+        ScoringBacktestRequest request = new ScoringBacktestRequest();
+        request.setStrategyType("CLASSIC_SELECTOR");
+        request.setStartDate(signalDate);
+        request.setEndDate(signalDate);
+        request.setTopN(5);
+
+        service.run(request);
+
+        ArgumentCaptor<BacktestRun> captor = ArgumentCaptor.forClass(BacktestRun.class);
+        verify(runRepository).save(captor.capture());
+        assertThat(captor.getValue().getNetCostConventionVersion())
+                .as("新落库的行必须标注公式版本，否则历史净收益无法判读（D-R010-06）")
+                .isEqualTo(com.quant.research.ResearchConvention.NET_COST_CONVENTION_VERSION);
+    }
+
+    /**
+     * 版本标记的三处一致性守卫：常量 ↔ V28 DDL 的列与注释字面量 ↔ 实体字段名。
+     *
+     * <p>三者任一漂移都会让「库里写着 v1、代码里是 v2」变成静默事实，而 `ddl-auto=validate`
+     * 只校验列存在、不校验列注释里的版本字面量，故必须在此钉死。
+     */
+    @Test
+    void netCostConventionVersionAgreesAcrossConstantDdlAndEntity() throws Exception {
+        String ddl;
+        try (java.io.InputStream in = getClass().getClassLoader()
+                .getResourceAsStream("db/migration/V28__backtest_run_net_cost_convention_version.sql")) {
+            assertThat(in).as("V28 迁移必须存在于 classpath（列与版本字面量的 DDL 侧真相源）").isNotNull();
+            ddl = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        }
+
+        assertThat(BacktestRun.class.getDeclaredField("netCostConventionVersion"))
+                .as("实体字段名 netCostConventionVersion 是 JPA 默认命名策略映射到列 net_cost_convention_version 的唯一依据")
+                .isNotNull();
+        assertThat(ddl)
+                .as("V28 必须真的新增 net_cost_convention_version 列")
+                .contains("net_cost_convention_version");
+        assertThat(ddl)
+                .as("V28 的列注释必须写明本版常量字面量，否则库里的标记无权威解释")
+                .contains(com.quant.research.ResearchConvention.NET_COST_CONVENTION_VERSION);
+        assertThat(com.quant.research.ResearchConvention.NET_COST_CONVENTION_VERSION)
+                .as("版本号长度须在 VARCHAR(40) 以内")
+                .hasSizeLessThanOrEqualTo(40);
+    }
+
     @Test
     void holdingPeriodOneExitsOnNextTradingDayCloseNotSameDay() {
         SelectorResultRepository resultRepository = mock(SelectorResultRepository.class);

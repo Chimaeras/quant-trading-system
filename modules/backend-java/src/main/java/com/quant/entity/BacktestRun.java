@@ -56,6 +56,15 @@ public class BacktestRun {
     @Column(precision = 20, scale = 8)
     private BigDecimal slippageRate;
 
+    /**
+     * `D-R010-06`：本行净收益按哪一版成本口径算出。
+     *
+     * <p>取值 {@code ResearchConvention.NET_COST_CONVENTION_VERSION}；
+     * {@code NULL} = 早于标记的历史行（旧公式或未标注，**不回填**）。
+     */
+    @Column(length = 40)
+    private String netCostConventionVersion;
+
     /** 本次计算使用的数据截止日（= market_data 最新交易日）。 */
     private LocalDate latestDataDate;
 

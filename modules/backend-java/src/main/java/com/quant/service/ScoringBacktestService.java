@@ -537,6 +537,9 @@ public class ScoringBacktestService {
             run.setCommissionRate(BigDecimal.valueOf(effectiveParams.commissionRate()));
             run.setSellTaxRate(BigDecimal.valueOf(effectiveParams.sellTaxRate()));
             run.setSlippageRate(BigDecimal.valueOf(effectiveParams.slippageRate()));
+            // D-R010-06：标注本行所用**公式版本**。三个费率不足以判读历史净收益（加法式与两级乘性
+            // 在库里长得一样），故每行必带版本位；历史行保持 NULL = 早于本标记。
+            run.setNetCostConventionVersion(ResearchConvention.NET_COST_CONVENTION_VERSION);
             run.setLatestDataDate(marketDataRepo.findMaxTradeDate().orElse(null));
             run.setAssumptions(toJson(response.getExecutionAssumptions()));
             Map<String, Object> summary = new LinkedHashMap<>();

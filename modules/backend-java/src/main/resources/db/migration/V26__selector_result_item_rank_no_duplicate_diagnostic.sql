@@ -1,0 +1,40 @@
+-- V26__selector_result_item_rank_no_duplicate_diagnostic.sql
+-- 裁定来源：research/paper_loop/decisions/decision_batch3_2026-09-15.md §4 裁定 D「做」
+-- 条目：D-R008-10（并列 rankNo 的成因核实 → 视结果再加唯一约束；**先**在载荷侧显式排序；
+--       未解除 B-R008-02 前不加约束）
+--
+-- ⚠️ 本文件**按设计的空操作**：不含任何 DDL/DML（Flyway 会记录一条空迁移，用于留痕）。
+--    加唯一约束的条件尚未满足（见下），故此处**不**建约束。
+--
+-- ── 成因核实（裁定要求的第一步）：只读实测（本地 quant_db，2026-09-15，仅 SELECT）──
+--   SELECT COUNT(*) items, COUNT(DISTINCT CONCAT(result_id,':',rank_no)) uniq_pairs,
+--          COUNT(DISTINCT result_id) results FROM selector_result_item;
+--        -> 5156 / 5156 / 36        ⟹ **并列 0 组**（(result_id, rank_no) 现为实际唯一）
+--   SELECT result_id, rank_no, COUNT(*) c, COUNT(DISTINCT stock_code) dsc
+--     FROM selector_result_item GROUP BY result_id, rank_no HAVING c > 1 LIMIT 20;   -> 空集
+--
+-- 结论：本库**没有**并列 rankNo 需要归因；「成因未核实」的空档只存在于 B-R008-02（行为面：并列时如何取值），
+--       不在数据面。R014 审计构造出的「同多重集换行序 ⟹ 组均值变」仍是**真实的机制性缺陷**
+--       （它只需要并列行**可能**存在，不需要本库当前存在并列）。
+--
+-- ── 已在本次裁定中完成的对应处置 ───────────────────────────────────────────────
+-- 裁定同时要求「**先**在载荷侧显式排序」。已完成（同批，见 `D-R014-02`）：
+--   * SelectorResultItemRepository 两个单结果读取 + 批量截面读取：`ORDER BY ... rankNo, id`（钉到唯一键）；
+--   * PredictionSnapshotItemRepository 两个读取：同上（同族读取同一处理）。
+--   ⟹ 分组/截取的输入行序不再依赖 DB 物理行序。
+--
+-- ── 唯一约束草案（**已注释**，不得在条件满足前启用）────────────────────────────
+-- 启用条件（三条同时满足）：
+--   (1) 至少在目标环境重跑上方诊断，确认 0 并列（本库已确认，但生产库未确认）；
+--   (2) `B-R008-02` 解除（并列时的取值/展示语义已定）；
+--   (3) 载荷侧显式排序已随版本发布（本批已完成，需随发布生效）。
+--   ALTER TABLE selector_result_item
+--       ADD UNIQUE KEY uk_selector_result_item_result_rank (result_id, rank_no);
+--   现状不放约束的理由：写入方（ProgressiveResultWriter.replaceResultItems、
+--   OversoldReboundScoringService、StockSelectorService）都是 deleteByResultId 后 1..N 重新编号，
+--   当前代码不应产生并列；此刻加约束会把**未暴露的成因**直接变成写入失败，
+--   先于成因核实封口，属「用约束掩盖问题」。
+--
+-- ── 回滚 ─────────────────────────────────────────────────────────────────────
+--   若将来启用上述约束：ALTER TABLE selector_result_item DROP INDEX uk_selector_result_item_result_rank;
+--   本空迁移无需回滚（无 schema 变更）。

@@ -1,0 +1,67 @@
+-- V25__selector_result_item_avg_amount20_nullable.sql
+-- 裁定来源：research/paper_loop/decisions/decision_batch3_2026-09-15.md §4 裁定 D「做」
+-- 条目：D-R005-02（占位 0 → NULL：含回填 + 代码写入路径；**须先核实 0 的分布**）
+--
+-- 本文件只做「能表达不可用」的机制（列放开 NOT NULL + 注释重写）；回填见文末（**已注释**）。
+--
+-- ── 第一步：0 的分布核实（裁定要求的先决条件）────────────────────────────────
+-- 只读实测（本地 quant_db，2026-09-15，MySQL 8.0.41，仅 SELECT）：
+--   SELECT COUNT(*) total, SUM(avg_amount20=0) z, SUM(avg_amount20 IS NULL) n FROM selector_result_item;
+--        -> 5156 行 / 0 值 2204 行（42.8%）/ NULL 0 行（列 CURRENTLY NOT NULL）
+--   分类判据（是否存在「真·孤立 0」）：
+--   SELECT COUNT(*) FROM selector_result_item
+--    WHERE avg_amount20=0 AND (ret20<>0 OR ret60<>0 OR volatility20<>0 OR max_drawdown60<>0);   -> 0
+--   SELECT COUNT(*) FROM selector_result_item
+--    WHERE avg_amount20=0 AND ret20=0 AND ret60=0 AND volatility20=0 AND max_drawdown60=0;      -> 2204
+--   SELECT COUNT(*) FROM selector_result_item
+--    WHERE avg_amount20<>0 AND ret20=0 AND ret60=0 AND volatility20=0 AND max_drawdown60=0;     -> 0
+--   块状 0 的策略分布：
+--   SELECT r.strategy_type, COUNT(*) FROM selector_result_item i JOIN selector_result r USING(result_id)
+--    WHERE i.ret20=0 AND i.ret60=0 AND i.volatility20=0 AND i.max_drawdown60=0
+--    GROUP BY r.strategy_type;   -> TREND 2050 / MULTI_DIM 130 / COMPREHENSIVE 24
+-- 反向复算（market_data 重建 20 根 bar，复刻 ScoringUtils.avgAmount20：跳过显式零成交、NULL amount 记 0、最多 20 根）：
+--   对照行（CLASSIC_SELECTOR 2026-07-07，000021.SZSE）stored=939644.14 复算=939644.1430 —— 精确到分吻合，说明复刻口径等同于生产口径；
+--   0 值行（TREND 2026-08-24，000001.SZSE）stored=0.0 复算=131889.1110（万元）—— **底层数据存在且可用**。
+--
+-- 结论（写进注释的判据）：本库 0 值**不是**「数据缺失」造成的占位 0，而是这些策略写入方**根本没算这块特征**
+--   （5 列同 0、跨 2204 行零例外）；真实测量值恰好为 0 的行在本库**一条也没有**。
+--   ⟹ NULL 表示「不可用/未计算」在语义上与现状一致，且不会抹掉任何真实测量值；
+--      而**不能**把 0 继续留着当「真实值」——它会被研究侧当特征读走（FeatureSchemaRegistry.avg_amount20）。
+--   ⟹ 同时登记一条**新缺陷**（不属本迁移范围，见文末 FOLLOW-UP）：TREND/MULTI_DIM/COMPREHENSIVE 写入方
+--      把未计算的特征写成 0，5 列同病；本轮只处理 avg_amount20（裁定的条目范围），其余四列另立条目。
+--
+-- ── 回滚（注释保留）──────────────────────────────────────────────────────────
+--   ALTER TABLE selector_result_item MODIFY COLUMN avg_amount20 DOUBLE NOT NULL;
+--   （仅在任何 NULL 写入之前有效；已有 NULL 时必须先回填 0 才能恢复 NOT NULL）
+
+ALTER TABLE selector_result_item
+    MODIFY COLUMN avg_amount20 DOUBLE DEFAULT NULL
+        COMMENT '20日日均成交额(万元)；NULL=不可用/未计算（占位0已弃用，D-R005-02）；0 仅当 20 根有效 bar 的均值确为 0 时成立——本库现有 0 行经核实无一属于此类';
+
+-- 只读核实（迁移后执行）：
+--   SELECT SUM(avg_amount20 IS NULL) nulls, SUM(avg_amount20=0) zeros, COUNT(*) total
+--     FROM selector_result_item;   -- 迁移后仍应为 nulls=0（本迁移只改列定义，不动数据）
+--   SELECT IS_NULLABLE, COLUMN_TYPE, COLUMN_COMMENT FROM information_schema.COLUMNS
+--    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='selector_result_item' AND COLUMN_NAME='avg_amount20';
+
+-- BLOCKED 回填（**已注释**：本仓约定不在迁移里写业务 DML；且必须等本迁移先应用，列才可写 NULL）
+--   BLOCKED: needs V25 applied first (列在应用前是 NOT NULL，UPDATE ... = NULL 会报错)。
+--   回填谓词（**精确到「整块未计算」**，不得简化为 WHERE avg_amount20 = 0）：
+--   -- UPDATE selector_result_item
+--   --    SET avg_amount20 = NULL
+--   --  WHERE avg_amount20 = 0
+--   --    AND ret20 = 0 AND ret60 = 0 AND volatility20 = 0 AND max_drawdown60 = 0;   -- 预期影响 2204 行
+--   影响行数核对（执行前/后各跑一次，只读）：
+--   -- SELECT COUNT(*) FROM selector_result_item WHERE avg_amount20 = 0;                                  -- 执行前 2204 / 执行后 0
+--   -- SELECT COUNT(*) FROM selector_result_item WHERE avg_amount20 IS NULL;                              -- 执行前 0    / 执行后 2204
+--   -- SELECT COUNT(*) FROM selector_result_item WHERE avg_amount20 = 0 AND ret20 <> 0;                    -- 必须恒为 0（无真·孤立 0 被误改）
+--   回滚：
+--   -- UPDATE selector_result_item SET avg_amount20 = 0
+--   --  WHERE avg_amount20 IS NULL AND ret20 = 0 AND ret60 = 0 AND volatility20 = 0 AND max_drawdown60 = 0;
+--
+-- FOLLOW-UP（本轮不做，需另立条目/评审）：
+--   1) ret20 / ret60 / volatility20 / max_drawdown60 四列与 avg_amount20 同病（同一批 2204 行同 0），
+--      且同列 NOT NULL 使写入方无法表达「未计算」；是否一并放开 + 回填须单独裁定（逐列各自的「整块」谓词不同）。
+--   2) 写入方（TREND / MULTI_DIM / COMPREHENSIVE）应改为写 NULL 而非 0，属**生产代码改**，须单独 commit + 测试。
+--   3) 这 2204 行的底层数据在 market_data 里是齐全的 ⟹ 理论上可**重算**而非标 NULL；
+--      重算属研究数据改写（须版本化 + 前后对照），不在本迁移内。

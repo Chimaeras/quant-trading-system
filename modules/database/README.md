@@ -107,3 +107,16 @@ python modules/database/migrate_stock_daily.py --dry-run
 ## 后续扩展
 
 可在此目录新增脚本，建议命名：04_xxx.sql, 05_xxx.sql ...
+
+## 裁定 D 的迁移落在哪里（**单一真相源**）
+
+裁定 `decision_batch3_2026-09-15.md` §4 裁定 D 的迁移 **不放在本目录**，而是直接落在运行时唯一权威执行点：
+
+- `modules/backend-java/src/main/resources/db/migration/V24..V28__*.sql`
+  （`V24` 运行权威性标记、`V25` `avg_amount20` 放开 NULL、`V26` 并列 `rank_no` 诊断=空操作、
+  `V27` 死列 `ic_value` 注释、`V28` 成本口径版本标记）。
+- 每个文件内含：SQL + 只读实测证据 + 只读核实查询 + 回滚（注释块）+ BLOCKED 说明；
+- **不**在本目录留副本：两份同样的 DDL 会形成 schema 双真相源，正是本项目已明令禁止的形态；
+- 需人工执行的数据回填（D-R005-02）另见本目录 `backfill_005_02_avg_amount20_null.sql`，
+  且**必须等 V25 应用后**才能跑（应用前列仍是 `NOT NULL`）；
+- 详见 `docs/运维与迁移runbook.md` §1.3：**禁止手工改历史 `V*.sql`**（Flyway checksum）。

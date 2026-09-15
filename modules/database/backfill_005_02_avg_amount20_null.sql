@@ -1,0 +1,57 @@
+-- backfill_005_02_avg_amount20_null.sql
+-- 人工运维脚本（**不在 Flyway 迁移内**，遵循本仓「迁移不含业务 DML」的约定）
+-- 条目：D-R005-02（占位 0 → NULL）；裁定 D「做」，2026-09-15
+--
+-- ⚠️ 执行前置条件（缺一不可）：
+--   1) `V25__selector_result_item_avg_amount20_nullable.sql` 已被 Flyway 应用
+--      （否则 avg_amount20 仍是 NOT NULL，SET NULL 会报 1048 Column cannot be null）；
+--   2) 在目标库重跑下方「判据」两条查询，结果与本地实测一致
+--      （本地 2026-09-15：0 值 2204 行、无 NULL、块状 0 2204 行、孤立 0 = 0 行）；
+--   3) 备份或可回滚窗口（回滚语句见文末）。
+--
+-- 判据（只读；决定「能不能把 0 判为未计算」）：
+--   -- 有没有「只有 amount 是 0、其他特征非 0」的行？必须为 0，否则禁止执行本脚本：
+--   SELECT COUNT(*) AS isolated_zero FROM selector_result_item
+--    WHERE avg_amount20 = 0
+--      AND (ret20 <> 0 OR ret60 <> 0 OR volatility20 <> 0 OR max_drawdown60 <> 0);
+--   -- 待改行数（应为「块状 0」的总数）：
+--   SELECT COUNT(*) AS block_zero FROM selector_result_item
+--    WHERE avg_amount20 = 0 AND ret20 = 0 AND ret60 = 0 AND volatility20 = 0 AND max_drawdown60 = 0;
+--
+-- 依据（本地实测摘要，完整推演见 V25 头注）：2204 个 0 值与「5 列同 0」逐行等价（两个方向都零例外），
+--   且全部集中在 TREND(2050)/MULTI_DIM(130)/COMPREHENSIVE(24) 三个写入方；
+--   用 market_data 复算这些行的 avgAmount20 得到正数（例：000001.SZSE @2026-08-24 = 131889.1110 万元），
+--   而对照行复算值与库内值精确到分吻合 ⟹ 0 是「未计算」，不是「无数据」，也不是「真的 0」。
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 执行（写操作：仅此一条；谓词必须保持「整块未计算」，**不得**简化成 WHERE avg_amount20 = 0）
+-- ─────────────────────────────────────────────────────────────────────────────
+-- UPDATE selector_result_item
+--    SET avg_amount20 = NULL
+--  WHERE avg_amount20 = 0
+--    AND ret20 = 0 AND ret60 = 0 AND volatility20 = 0 AND max_drawdown60 = 0;
+-- 预期影响行数：2204（本地库 @2026-09-15）
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 执行后只读核实
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SELECT SUM(avg_amount20 = 0) AS zeros, SUM(avg_amount20 IS NULL) AS nulls, COUNT(*) AS total
+--   FROM selector_result_item;          -- 预期 zeros=0, nulls=2204, total=5156
+-- SELECT COUNT(*) FROM selector_result_item
+--  WHERE avg_amount20 = 0 AND ret20 <> 0;  -- 必须恒为 0（没有误伤真值）
+-- SELECT r.strategy_type, COUNT(*) FROM selector_result_item i JOIN selector_result r USING (result_id)
+--  WHERE i.avg_amount20 IS NULL GROUP BY r.strategy_type;   -- 预期仍是 TREND/MULTI_DIM/COMPREHENSIVE 三家
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 回滚（把被标 NULL 的整块 0 行写回 0）
+-- ─────────────────────────────────────────────────────────────────────────────
+-- UPDATE selector_result_item SET avg_amount20 = 0
+--  WHERE avg_amount20 IS NULL
+--    AND ret20 = 0 AND ret60 = 0 AND volatility20 = 0 AND max_drawdown60 = 0;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 本脚本**不做**的事（范围边界）
+-- ─────────────────────────────────────────────────────────────────────────────
+-- * 不回填 ret20 / ret60 / volatility20 / max_drawdown60（同病四列，须另立条目与逐列谓词）；
+-- * 不重算这 2204 行的真实值（数据在 market_data 里齐全，重算属研究数据改写，须版本化 + 前后对照）；
+-- * 不改写入方代码（应改为写 NULL 而非 0，属生产代码改，须单独 commit + 测试）。

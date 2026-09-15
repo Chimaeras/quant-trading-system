@@ -124,7 +124,7 @@ public class DataService {
                         COUNT(*) AS trade_days,
                         AVG(COALESCE(m.volume, 0)) AS avg_volume,
                         AVG(COALESCE(m.amount, 0)) AS avg_amount,
-                        AVG(COALESCE(m.turnover_rate, 0)) AS avg_turnover,
+                        AVG(COALESCE(m.turnover_rate, 0)) AS avg_turnover_pct,
                         SUM(CASE WHEN COALESCE(m.change_pct, 0) > 0 THEN 1 ELSE 0 END) AS up_days
                     FROM market_data m
                     INNER JOIN recent_dates d ON d.trade_date = m.trade_date
@@ -165,7 +165,7 @@ public class DataService {
                     r.trade_days,
                     ROUND(r.avg_volume, 0) AS avg_volume,
                     ROUND(r.avg_amount, 2) AS avg_amount,
-                    ROUND(r.avg_turnover, 2) AS avg_turnover,
+                    ROUND(r.avg_turnover_pct, 2) AS avg_turnover_pct,
                     ROUND(COALESCE(r.avg_volume / NULLIF(b.base_avg_volume, 0), 1), 2) AS volume_ratio,
                     r.up_days,
                     ROUND(l.close_price, 2) AS latest_close,
@@ -174,7 +174,7 @@ public class DataService {
                     (SELECT end_date FROM bounds) AS end_date,
                     ROUND(100 * (
                         0.35 * LEAST(LOG10(GREATEST(r.avg_amount, 0) + 1) / 9, 1) +
-                        0.25 * LEAST(GREATEST(r.avg_turnover, 0) / 12, 1) +
+                        0.25 * LEAST(GREATEST(r.avg_turnover_pct, 0) / 12, 1) +
                         0.25 * LEAST(GREATEST(COALESCE(r.avg_volume / NULLIF(b.base_avg_volume, 0), 1), 0) / 3, 1) +
                         0.15 * LEAST(GREATEST(r.up_days / NULLIF(r.trade_days, 0), 0), 1)
                     ), 2) AS hot_score
@@ -206,11 +206,13 @@ public class DataService {
             item.put("trade_days", longValue(row[4]));
             item.put("avg_volume", doubleValue(row[5]));
             item.put("avg_amount", doubleValue(row[6]));
-            item.put("avg_turnover", doubleValue(row[7]));
-            // Q-R008-09：同名 avg_turnover 在回测换手率面是 0–1 的候选替换率，此处是市场换手率百分数（纯增量单位声明）
-            item.put("avg_turnover_unit", "PERCENT");
-            item.put("avg_turnover_unit_note", "本字段 = market_data.turnover_rate 的窗口均值，单位是百分数（3.5 即 3.5%）；"
-                    + "回测换手率面（/api/backtest/turnover）的同名字段是 0–1 的候选替换率，两者不是同一个量");
+            item.put("avg_turnover_pct", doubleValue(row[7]));
+            // D-R008-09（裁定 B 改名）：市场换手率百分数 = avg_turnover_pct；回测换手率面的候选替换率另行命名为
+            // avg_turnover_ratio，两者键名不再相同，量纲直接写在键名里
+            item.put("avg_turnover_pct_unit", "PERCENT");
+            item.put("avg_turnover_pct_unit_note", "本字段 = market_data.turnover_rate 的窗口均值，单位是百分数（3.5 即 3.5%）；"
+                    + "回测换手率面（/api/backtest/turnover）的 avg_turnover_ratio 是 0–1 的**候选替换率**，"
+                    + "两者不是同一个量。改名后两处键名已不相干（_pct 对 _ratio），本键保留作双保险");
             item.put("volume_ratio", doubleValue(row[8]));
             item.put("up_days", longValue(row[9]));
             item.put("latest_close", doubleValue(row[10]));

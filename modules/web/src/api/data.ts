@@ -15,7 +15,7 @@ export interface HotStockItem {
   trade_days: number
   avg_volume: number
   avg_amount: number
-  avg_turnover: number
+  avg_turnover_pct: number
   volume_ratio: number
   up_days: number
   latest_close: number

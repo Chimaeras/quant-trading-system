@@ -516,11 +516,11 @@
           <template v-if="turnover">
             <div class="turnover-meta">
               <span>信号日：{{ turnover.signal_days }}</span>
-              <span title="单向替换率 = 1 − 相邻日 TopN 交集 / 请求 top_n；若按 Σ|Δw| 双向口径计约为本值 2 倍">
-                平均换手（单向替换率）：{{ pct2(turnover.avg_turnover) }}
+              <span title="候选替换率（比例 0–1）= 1 − 相邻日 TopN 交集 / 请求 top_n；若按 Σ|Δw| 双向口径计约为本值 2 倍">
+                平均替换率：{{ pct2(turnover.avg_turnover_ratio) }}
               </span>
-              <span>最高：{{ pct2(turnover.max_turnover) }}</span>
-              <span>最低：{{ pct2(turnover.min_turnover) }}</span>
+              <span>最高：{{ pct2(turnover.max_turnover_ratio) }}</span>
+              <span>最低：{{ pct2(turnover.min_turnover_ratio) }}</span>
               <span
                 v-if="turnover.turnover_status === 'INSUFFICIENT_SIGNAL_DAYS'"
                 class="text-warning"
@@ -534,10 +534,10 @@
             </div>
             <el-table v-if="turnover.daily_turnover?.length" :data="turnover.daily_turnover" size="small" stripe border max-height="320">
               <el-table-column prop="trade_date" label="信号日" min-width="110" />
-              <el-table-column label="换手率" min-width="100">
+              <el-table-column label="替换率" min-width="100">
                 <template #default="{ row }">
                   <span :title="row.short_handed ? '短员日：分母仍为请求 top_n，不是当日实际规模' : undefined">
-                    {{ (row.turnover * 100).toFixed(2) }}%
+                    {{ pct2(row.turnover_ratio) }}
                   </span>
                 </template>
               </el-table-column>

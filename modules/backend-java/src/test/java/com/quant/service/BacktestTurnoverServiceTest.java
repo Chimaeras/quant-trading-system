@@ -63,7 +63,7 @@ class BacktestTurnoverServiceTest {
         Map<String, Object> out = service().analyze("CLASSIC_SELECTOR", d1, d2, 3);
 
         assertThat(out.get("signal_days")).isEqualTo(2);
-        assertThat(out.get("avg_turnover")).isEqualTo(0.3333);
+        assertThat(out.get("avg_turnover_ratio")).isEqualTo(0.3333);
         List<Map<String, Object>> daily = (List<Map<String, Object>>) out.get("daily_turnover");
         assertThat(daily).hasSize(1);
         assertThat(daily.get(0).get("new_count")).isEqualTo(1);  // D 新进
@@ -80,9 +80,9 @@ class BacktestTurnoverServiceTest {
         Map<String, Object> out = service().analyze("CLASSIC_SELECTOR", d, d, 10);
         assertThat(out.get("signal_days")).isEqualTo(1);
         // 裁定 A（D-R008-03）：信号日不足 2 ⟹ 换手率不可计算，avg/max/min 一律 null（改前为 0.0）
-        assertThat(out.get("avg_turnover")).isNull();
-        assertThat(out.get("max_turnover")).isNull();
-        assertThat(out.get("min_turnover")).isNull();
+        assertThat(out.get("avg_turnover_ratio")).isNull();
+        assertThat(out.get("max_turnover_ratio")).isNull();
+        assertThat(out.get("min_turnover_ratio")).isNull();
         assertThat((List<Map<String, Object>>) out.get("daily_turnover")).isEmpty();
     }
 
@@ -95,7 +95,7 @@ class BacktestTurnoverServiceTest {
         Map<String, Object> out = service().analyze(null, d, d, null);
         assertThat(out.get("signal_days")).isEqualTo(0);
         // 无信号日 ⟹ 无定义，null（不得以 0.0 冒充「真的 0 换手」）
-        assertThat(out.get("avg_turnover")).isNull();
+        assertThat(out.get("avg_turnover_ratio")).isNull();
     }
 
     @Test
@@ -114,9 +114,9 @@ class BacktestTurnoverServiceTest {
         Map<String, Object> out = service().analyze("CLASSIC_SELECTOR", d1, d2, 2);
 
         assertThat(out.get("turnover_status")).isEqualTo("OK");
-        assertThat(out.get("avg_turnover")).isEqualTo(0.0);
-        assertThat(out.get("max_turnover")).isEqualTo(0.0);
-        assertThat(out.get("min_turnover")).isEqualTo(0.0);
+        assertThat(out.get("avg_turnover_ratio")).isEqualTo(0.0);
+        assertThat(out.get("max_turnover_ratio")).isEqualTo(0.0);
+        assertThat(out.get("min_turnover_ratio")).isEqualTo(0.0);
     }
 
     // ---- Q-R008-02/03/04/05/06/07/09：增量披露字段（数值与既有键零变化） ----
@@ -138,7 +138,7 @@ class BacktestTurnoverServiceTest {
 
         Map<String, Object> out = service().analyze("CLASSIC_SELECTOR", d1, d2, 10);
 
-        assertThat(out.get("avg_turnover")).isEqualTo(0.7);
+        assertThat(out.get("avg_turnover_ratio")).isEqualTo(0.7);
         assertThat(out.get("denominator")).isEqualTo("REQUEST_PARAM_TOP_N");
         List<Map<String, Object>> daily = (List<Map<String, Object>>) out.get("daily_turnover");
         Map<String, Object> row = daily.get(0);
@@ -149,7 +149,7 @@ class BacktestTurnoverServiceTest {
         // 读者可用披露的三元组精确复算该日 turnover（不依赖任何未发射的量）
         int n = (int) out.get("top_n");
         double recomputed = 1.0 - (int) row.get("intersection_count") / (double) n;
-        assertThat((double) row.get("turnover")).isEqualTo(Math.round(recomputed * 10000.0) / 10000.0);
+        assertThat((double) row.get("turnover_ratio")).isEqualTo(Math.round(recomputed * 10000.0) / 10000.0);
     }
 
     @SuppressWarnings("unchecked")
@@ -169,7 +169,7 @@ class BacktestTurnoverServiceTest {
 
         List<Map<String, Object>> daily = (List<Map<String, Object>>) out.get("daily_turnover");
         assertThat(daily.get(0).get("short_handed")).isEqualTo(false);
-        assertThat(daily.get(0).get("turnover")).isEqualTo(0.0);
+        assertThat(daily.get(0).get("turnover_ratio")).isEqualTo(0.0);
     }
 
     @SuppressWarnings("unchecked")
@@ -183,12 +183,12 @@ class BacktestTurnoverServiceTest {
 
         // 退化输入下 avg/max/min 改为 null（无定义），靠 turnover_status 与「真的 0」区分（裁定 A）
         assertThat(out.get("turnover_status")).isEqualTo("INSUFFICIENT_SIGNAL_DAYS");
-        assertThat(out.get("avg_turnover")).isNull();
-        assertThat(out.get("max_turnover")).isNull();
-        assertThat(out.get("min_turnover")).isNull();
+        assertThat(out.get("avg_turnover_ratio")).isNull();
+        assertThat(out.get("max_turnover_ratio")).isNull();
+        assertThat(out.get("min_turnover_ratio")).isNull();
         assertThat(out.get("turnover_basis")).isEqualTo("ONE_WAY_REPLACEMENT_RATIO");
         assertThat(out.get("denominator")).isEqualTo("REQUEST_PARAM_TOP_N");
-        assertThat(out.get("avg_turnover_unit")).isEqualTo("RATIO_0_1");
+        assertThat(out.get("avg_turnover_ratio_unit")).isEqualTo("RATIO_0_1");
         assertThat(out.get("rounding_rule")).isEqualTo("ROUND_HALF_UP_4DP");
         assertThat(out.get("strategy_filter")).isEqualTo("EXACT_STRATEGY");
         assertThat(out.get("grouped_by_strategy")).isEqualTo(true);
@@ -233,12 +233,15 @@ class BacktestTurnoverServiceTest {
         Map<String, Object> blank = service().analyze("", d1, d2, 2);
         Map<String, Object> explicit = service().analyze("CLASSIC_SELECTOR", d1, d2, 2);
 
-        // "" 与 null 走同一分支、计算等价，但回显不同（Q-R008-05）：载荷以策略过滤语义键把这点写明
-        assertThat(blank.get("strategy")).isEqualTo("");
+        // 裁定 B（D-R008-05）：回显只留归一后的两个键，旧键 strategy 已删除；"" 与 null 回显同一值
+        assertThat(blank).doesNotContainKey("strategy");
+        assertThat(blank.get("strategy_requested")).isNull();
+        assertThat(blank.get("strategy_effective")).isEqualTo("ALL");
         assertThat(blank.get("strategy_filter")).isEqualTo("NONE_ALL_STRATEGIES");
         assertThat(blank.get("grouped_by_strategy")).isEqualTo(false);
         assertThat(explicit.get("strategy_filter")).isEqualTo("EXACT_STRATEGY");
-        assertThat(blank.get("avg_turnover")).isEqualTo(explicit.get("avg_turnover"));
+        assertThat(explicit.get("strategy_effective")).isEqualTo("CLASSIC_SELECTOR");
+        assertThat(blank.get("avg_turnover_ratio")).isEqualTo(explicit.get("avg_turnover_ratio"));
     }
 
     @SuppressWarnings("unchecked")
@@ -262,13 +265,14 @@ class BacktestTurnoverServiceTest {
         Map<String, Object> out = service().analyze(null, d1, d2, 2);
 
         assertThat(out.get("signal_days")).isEqualTo(4);
-        assertThat(out.get("strategy")).isEqualTo("ALL");
+        assertThat(out).doesNotContainKey("strategy");
+        assertThat(out.get("strategy_effective")).isEqualTo("ALL");
         assertThat(out.get("grouped_by_strategy")).isEqualTo(false);
         assertThat(out.get("strategy_filter")).isEqualTo("NONE_ALL_STRATEGIES");
         assertThat((String) out.get("strategy_filter_note")).contains("不按策略分组");
     }
 
-    // ---- D-R008-01 / 04 / 05：实际规模分母、同策略配对、回显归一（legacy 聚合值零变化） ----
+    // ---- D-R008-01 / 04 / 05：实际规模分母、同策略配对、回显归一（主口径聚合值零变化） ----
 
     @SuppressWarnings("unchecked")
     @Test
@@ -276,7 +280,7 @@ class BacktestTurnoverServiceTest {
         LocalDate d1 = LocalDate.of(2025, 1, 2);
         LocalDate d2 = LocalDate.of(2025, 1, 3);
         // 集合完全不变但两日各只有 3 只（请求 topN = 10）：
-        // legacy（参数分母）读出 1 - 3/10 = 0.7，按实际规模归一应为 0.0。两个数并列给出。
+        // 主口径（参数分母）读出 1 - 3/10 = 0.7，按实际规模归一应为 0.0。两个数并列给出。
         when(selectorResultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(d1, d2))
                 .thenReturn(List.of(result("R2", "CLASSIC_SELECTOR", d2), result("R1", "CLASSIC_SELECTOR", d1)));
         when(selectorResultItemRepository.findByResultIdInOrderByRankNo(any()))
@@ -287,17 +291,17 @@ class BacktestTurnoverServiceTest {
 
         Map<String, Object> out = service().analyze("CLASSIC_SELECTOR", d1, d2, 10);
 
-        assertThat(out.get("avg_turnover")).isEqualTo(0.7);
+        assertThat(out.get("avg_turnover_ratio")).isEqualTo(0.7);
         assertThat(out.get("denominator_actual")).isEqualTo("MIN_PREV_CURR_CANDIDATE_COUNT");
-        assertThat(out.get("avg_turnover_actual_denominator")).isEqualTo(0.0);
-        assertThat(out.get("max_turnover_actual_denominator")).isEqualTo(0.0);
-        assertThat(out.get("min_turnover_actual_denominator")).isEqualTo(0.0);
+        assertThat(out.get("avg_turnover_ratio_actual_denominator")).isEqualTo(0.0);
+        assertThat(out.get("max_turnover_ratio_actual_denominator")).isEqualTo(0.0);
+        assertThat(out.get("min_turnover_ratio_actual_denominator")).isEqualTo(0.0);
         assertThat(out.get("pairs_dropped_undefined_actual_denominator")).isEqualTo(0);
 
         List<Map<String, Object>> daily = (List<Map<String, Object>>) out.get("daily_turnover");
         Map<String, Object> row = daily.get(0);
-        assertThat(row.get("turnover")).isEqualTo(0.7);
-        assertThat(row.get("turnover_actual_denominator")).isEqualTo(0.0);
+        assertThat(row.get("turnover_ratio")).isEqualTo(0.7);
+        assertThat(row.get("turnover_ratio_actual_denominator")).isEqualTo(0.0);
         assertThat(row.get("denominator_actual_value")).isEqualTo(3);
     }
 
@@ -325,9 +329,9 @@ class BacktestTurnoverServiceTest {
         assertThat(out.get("pairing_rule")).isEqualTo("SAME_STRATEGY_DISTINCT_TRADING_DAYS");
         assertThat(out.get("same_strategy_pairs")).isEqualTo(1);
         assertThat(out.get("cross_strategy_pairs")).isEqualTo(1);
-        // legacy 聚合仍含跨策略对：(0.5 + 1.0) / 2 = 0.75；同策略子集为 0.5
-        assertThat(out.get("avg_turnover")).isEqualTo(0.75);
-        assertThat(out.get("avg_turnover_same_strategy_only")).isEqualTo(0.5);
+        // 主口径聚合仍含跨策略对：(0.5 + 1.0) / 2 = 0.75；同策略子集为 0.5
+        assertThat(out.get("avg_turnover_ratio")).isEqualTo(0.75);
+        assertThat(out.get("avg_turnover_ratio_same_strategy_only")).isEqualTo(0.5);
 
         List<Map<String, Object>> daily = (List<Map<String, Object>>) out.get("daily_turnover");
         assertThat(daily.get(0).get("same_strategy_pair")).isEqualTo(true);
@@ -355,13 +359,52 @@ class BacktestTurnoverServiceTest {
         Map<String, Object> blank = service().analyze("   ", d1, d2, 2);
         Map<String, Object> explicit = service().analyze("CLASSIC_SELECTOR", d1, d2, 2);
 
-        // legacy 键保持历史回显；新键给出「原始请求值 / 实际生效值」这一对，语义不再二义
-        assertThat(blank.get("strategy")).isEqualTo("   ");
+        // 裁定 B：纯空白请求归一为 null、生效值 "ALL"；旧键 strategy 已删除
+        assertThat(blank).doesNotContainKey("strategy");
         assertThat(blank.get("strategy_requested")).isNull();
         assertThat(blank.get("strategy_effective")).isEqualTo("ALL");
         assertThat(explicit.get("strategy_requested")).isEqualTo("CLASSIC_SELECTOR");
         assertThat(explicit.get("strategy_effective")).isEqualTo("CLASSIC_SELECTOR");
-        assertThat(blank.get("strategy_echo_note")).isNotNull();
+        assertThat(String.valueOf(blank.get("strategy_echo_note")))
+                .contains("strategy_requested").contains("strategy_effective").doesNotContain("legacy");
+    }
+
+    /**
+     * 裁定 B（D-R008-05）：空串 / 纯空白 / null 三种「未过滤」请求必须给出**逐键相同**的载荷
+     * （旧实现分别回 {@code ""} / {@code "   "} / {@code "ALL"} 三种不同值），
+     * 且回显与实际过滤条件一致；旧键 {@code strategy} 在任何请求下都不再出现。
+     */
+    @SuppressWarnings("unchecked")
+    @Test
+    void everyUnfilteredRequestShapeGivesTheSamePayloadAndEchoMatchesTheFilter() {
+        LocalDate d1 = LocalDate.of(2025, 4, 1);
+        LocalDate d2 = LocalDate.of(2025, 4, 2);
+        when(selectorResultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(d1, d2))
+                .thenReturn(List.of(result("R2", "CLASSIC_SELECTOR", d2), result("R1", "CLASSIC_SELECTOR", d1)));
+        when(selectorResultItemRepository.findByResultIdInOrderByRankNo(any()))
+                .thenReturn(List.of(
+                        item("R1", 1, "A"), item("R1", 2, "B"),
+                        item("R2", 1, "A"), item("R2", 2, "B")
+                ));
+
+        Map<String, Object> fromNull = service().analyze(null, d1, d2, 2);
+        Map<String, Object> fromEmpty = service().analyze("", d1, d2, 2);
+        Map<String, Object> fromSpaces = service().analyze("   ", d1, d2, 2);
+
+        assertThat(fromEmpty).isEqualTo(fromNull);
+        assertThat(fromSpaces).isEqualTo(fromNull);
+        assertThat(fromNull.keySet()).doesNotContain("strategy");
+        assertThat(fromNull.get("strategy_requested")).isNull();
+        assertThat(fromNull.get("strategy_effective")).isEqualTo("ALL");
+        assertThat(fromNull.get("strategy_filter")).isEqualTo("NONE_ALL_STRATEGIES");
+        assertThat(fromNull.get("grouped_by_strategy")).isEqualTo(false);
+
+        Map<String, Object> filtered = service().analyze("CLASSIC_SELECTOR", d1, d2, 2);
+        assertThat(filtered.keySet()).isEqualTo(fromNull.keySet());
+        assertThat(filtered.get("strategy_requested")).isEqualTo("CLASSIC_SELECTOR");
+        assertThat(filtered.get("strategy_effective")).isEqualTo("CLASSIC_SELECTOR");
+        assertThat(filtered.get("strategy_filter")).isEqualTo("EXACT_STRATEGY");
+        assertThat(filtered.get("grouped_by_strategy")).isEqualTo(true);
     }
 
     /** 纯函数边界：分母 ≤ 0（某日候选为空）时「替换率」无定义，必须是 null 而不是 0。 */
@@ -381,7 +424,7 @@ class BacktestTurnoverServiceTest {
     void emptyDayMakesTheActualDenominatorAggregateUndefined() {
         LocalDate d1 = LocalDate.of(2025, 1, 2);
         LocalDate d2 = LocalDate.of(2025, 1, 3);
-        // d2 无候选条目 ⟹ min(prev, curr) = 0，该对的替代分母无定义；legacy 仍按参数分母给数
+        // d2 无候选条目 ⟹ min(prev, curr) = 0，该对的替代分母无定义；主口径仍按参数分母给数
         when(selectorResultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(d1, d2))
                 .thenReturn(List.of(result("R2", "CLASSIC_SELECTOR", d2), result("R1", "CLASSIC_SELECTOR", d1)));
         when(selectorResultItemRepository.findByResultIdInOrderByRankNo(any()))
@@ -389,8 +432,8 @@ class BacktestTurnoverServiceTest {
 
         Map<String, Object> out = service().analyze("CLASSIC_SELECTOR", d1, d2, 2);
 
-        assertThat(out.get("avg_turnover")).isEqualTo(1.0); // 1 - 0/2
-        assertThat(out.get("avg_turnover_actual_denominator")).isNull();
+        assertThat(out.get("avg_turnover_ratio")).isEqualTo(1.0); // 1 - 0/2
+        assertThat(out.get("avg_turnover_ratio_actual_denominator")).isNull();
         assertThat(out.get("pairs_dropped_undefined_actual_denominator")).isEqualTo(1);
         List<Map<String, Object>> daily = (List<Map<String, Object>>) out.get("daily_turnover");
         assertThat(daily.get(0).get("turnover_actual_denominator")).isNull();
@@ -416,8 +459,71 @@ class BacktestTurnoverServiceTest {
         Map<String, Object> undefined = service().analyze("CLASSIC_SELECTOR", d2, d2, 2);
 
         assertThat(undefined.keySet()).isEqualTo(defined.keySet());
-        assertThat(undefined.get("avg_turnover_actual_denominator")).isNull();
+        assertThat(undefined.get("avg_turnover_ratio_actual_denominator")).isNull();
         assertThat(undefined.get("same_strategy_pairs")).isEqualTo(0);
         assertThat(undefined.get("pairs_dropped_undefined_actual_denominator")).isNull();
+    }
+
+    /**
+     * 裁定 B（D-R008-09 改名）的守卫：本载荷的取值键一律带 `_ratio` 量纲后缀，
+     * 且**旧键名不再存在**（改名为破坏性契约变更，不得留「旧名仍可读」的兼容层）。
+     * 逐日行同理（`turnover_ratio`）。
+     *
+     * <p>改前该表面发射 `avg_turnover` / `max_turnover` / `min_turnover` / `avg_turnover_unit`
+     * 等旧名 ⟹ 本用例改前失败（`doesNotContainKeys` 命中旧键）。
+     */
+    @SuppressWarnings("unchecked")
+    @Test
+    void payloadKeysCarryRatioSuffixAndLegacyNamesAreGone() {
+        LocalDate d1 = LocalDate.of(2025, 1, 2);
+        LocalDate d2 = LocalDate.of(2025, 1, 3);
+        when(selectorResultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(d1, d2))
+                .thenReturn(List.of(result("R2", "CLASSIC_SELECTOR", d2), result("R1", "CLASSIC_SELECTOR", d1)));
+        when(selectorResultItemRepository.findByResultIdInOrderByRankNo(any()))
+                .thenReturn(List.of(
+                        item("R1", 1, "A"), item("R1", 2, "B"), item("R1", 3, "C"),
+                        item("R2", 1, "A"), item("R2", 2, "B"), item("R2", 3, "D")
+                ));
+
+        Map<String, Object> out = service().analyze("CLASSIC_SELECTOR", d1, d2, 3);
+
+        assertThat(out).containsKeys(
+                "avg_turnover_ratio", "max_turnover_ratio", "min_turnover_ratio",
+                "avg_turnover_ratio_unit", "avg_turnover_ratio_unit_note",
+                "avg_turnover_ratio_actual_denominator", "max_turnover_ratio_actual_denominator",
+                "min_turnover_ratio_actual_denominator", "avg_turnover_ratio_same_strategy_only");
+        assertThat(out).doesNotContainKeys(
+                "avg_turnover", "max_turnover", "min_turnover",
+                "avg_turnover_unit", "avg_turnover_unit_note",
+                "avg_turnover_actual_denominator", "max_turnover_actual_denominator",
+                "min_turnover_actual_denominator", "avg_turnover_same_strategy_only");
+
+        // 自洽规则：任何以 avg_/max_/min_ 开头且含 turnover 的键，量纲后缀必须在键名里
+        for (String key : out.keySet()) {
+            if (key.matches("(avg|max|min)_turnover.*")) {
+                assertThat(key).as("聚合换手键必须带 _ratio 量纲后缀：%s", key).contains("turnover_ratio");
+            }
+        }
+
+        List<Map<String, Object>> daily = (List<Map<String, Object>>) out.get("daily_turnover");
+        assertThat(daily).hasSize(1);
+        Map<String, Object> day = daily.get(0);
+        assertThat(day).containsKey("turnover_ratio");
+        assertThat(day).containsKey("turnover_ratio_actual_denominator");
+        assertThat(day).doesNotContainKey("turnover");
+        assertThat(day).doesNotContainKey("turnover_actual_denominator");
+    }
+
+    /**
+     * 单位声明键的**文本**必须指向改名后的键（否则声明与实际载荷对不上）：
+     * 本载荷是 0–1 的 `_ratio` 族，市场换手率面是 `_pct`。
+     */
+    @Test
+    void unitNotePointsToRenamedKeysAndNoLongerClaimsSameName() {
+        assertThat(BacktestTurnoverService.TURNOVER_UNIT_NOTE)
+                .contains("avg_turnover_ratio").contains("turnover_ratio")
+                .contains("avg_turnover_pct")
+                .doesNotContain("同名字段");
+        assertThat(BacktestTurnoverService.TURNOVER_UNIT).isEqualTo("RATIO_0_1");
     }
 }

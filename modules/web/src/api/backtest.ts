@@ -229,29 +229,40 @@ export interface StrategyBacktestResponse {
 
 export interface TurnoverDaily {
   trade_date: string
-  turnover: number
+  /** 候选替换率（比例 0–1，键名自带量纲后缀 _ratio）；渲染时 ×100 显示为百分数 */
+  turnover_ratio: number
   new_count: number
   exit_count: number
   /** 纯增量披露：上一日/当日的实际候选规模（min 与 top_n 之比即短员判据） */
   prev_size?: number
   curr_size?: number
-  /** 相邻两日 TopN 交集大小；1 - intersection_count / top_n 即本行 turnover 的未取整值 */
+  /** 相邻两日 TopN 交集大小；1 - intersection_count / top_n 即本行 turnover_ratio 的未取整值 */
   intersection_count?: number
   /** 该日任一侧候选数少于请求 top_n（分母仍为请求参数，见 denominator_note） */
   short_handed?: boolean
 }
 
 export interface TurnoverResponse {
-  strategy: string
+  /**
+   * 原始请求的 strategy（null / 空串 / 纯空白一律归一为 null）。D-R008-05 裁定 B 后**只有归一后的两个
+   * 回显键**：旧的单键 `strategy`（曾对 null 回 "ALL"、对 "" 回 ""）已删除。
+   */
+  strategy_requested: string | null
+  /** 实际生效值：真正按策略过滤时即该策略名，未过滤时 "ALL"——回显与实际过滤条件一致 */
+  strategy_effective: string
   start_date: string
   end_date: string
   top_n: number
   signal_days: number
-  /** 换手率；INSUFFICIENT_SIGNAL_DAYS 时不可计算 ⟹ null（不得渲染成 0%） */
-  avg_turnover: number | null
+  /**
+   * 候选替换率（比例 0–1，**不是**市场换手率百分数）；D-R008-09 裁定 B 改名后量纲写在键名里：
+   * 本面恒为 `_ratio`（0–1 分数，渲染时 ×100），市场换手率面是 `avg_turnover_pct`（百分数）。
+   * INSUFFICIENT_SIGNAL_DAYS 时不可计算 ⟹ null（不得渲染成 0%）
+   */
+  avg_turnover_ratio: number | null
   /** 同上：不可计算时为 null */
-  max_turnover: number | null
-  min_turnover: number | null
+  max_turnover_ratio: number | null
+  min_turnover_ratio: number | null
   daily_turnover: TurnoverDaily[]
   note: string
   /** OK | INSUFFICIENT_SIGNAL_DAYS；退化输入时 avg/max/min 为 null，靠本键区分「无定义」与「真的 0」 */
@@ -262,8 +273,8 @@ export interface TurnoverResponse {
   /** 分母来源：当前恒为 REQUEST_PARAM_TOP_N（不是当日实际规模） */
   denominator?: string
   denominator_note?: string
-  avg_turnover_unit?: string
-  avg_turnover_unit_note?: string
+  avg_turnover_ratio_unit?: string
+  avg_turnover_ratio_unit_note?: string
   rounding_rule?: string
   rounding_rule_note?: string
   /** EXACT_STRATEGY | NONE_ALL_STRATEGIES（后者不按策略分组，同日跨策略会互相配对） */

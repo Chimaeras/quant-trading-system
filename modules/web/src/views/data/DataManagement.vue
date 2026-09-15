@@ -290,7 +290,7 @@
             <template #default="{ row }">{{ formatAmount(row.avg_amount) }}</template>
           </el-table-column>
           <el-table-column label="均换手率" min-width="100" sortable>
-            <template #default="{ row }">{{ formatNumber(row.avg_turnover, 2) }}%</template>
+            <template #default="{ row }">{{ formatNumber(row.avg_turnover_pct, 2) }}%</template>
           </el-table-column>
           <el-table-column label="量能放大" min-width="100" sortable>
             <template #default="{ row }">{{ formatNumber(row.volume_ratio, 2) }}x</template>

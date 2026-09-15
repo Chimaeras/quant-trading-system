@@ -38,6 +38,9 @@ export interface FactorIcDisclosure {
   pearson_support_days?: number
   rank_ic_std_basis?: string
   rank_ic_std_basis_note?: string
+  /** 主口径 `rank_ic_std` 分母为**总体标准差 ÷T**；并列键 `rank_ic_std_sample` 用 ÷(T−1)（比值恒为 sqrt(T/(T−1))） */
+  rank_ic_std_sample_basis?: string
+  rank_ic_std_sample_note?: string
   group_boundary_rule?: string
   group_boundary_rule_note?: string
   rounding_rule?: string
@@ -45,6 +48,38 @@ export interface FactorIcDisclosure {
   ci_status?: CiStatus
   long_short_spread_basis?: string
   long_short_spread_basis_note?: string
+  /** 本块两腿价差的成本基准：GROSS_BEFORE_COSTS / NET_AFTER_MODELED_COSTS / NOT_APPLICABLE_NO_OBSERVATIONS */
+  long_short_spread_cost_basis?: string
+  long_short_spread_cost_basis_note?: string
+  /** 单腿往返成本（乘性口径：佣金+印花税+双边滑点复合）；两条腿共 2× 本值 */
+  cost_per_leg_round_trip?: number | null
+  cost_per_leg_round_trip_exact?: number | null
+  cost_per_leg_round_trip_basis?: string
+  cost_per_leg_round_trip_note?: string
+  /** 美元中性净价差 = long_short_spread − 2×单腿往返成本；本块本身已是净价差时**不适用**，为 null */
+  long_short_spread_neutral?: number | null
+  long_short_spread_neutral_exact?: number | null
+  long_short_spread_neutral_basis?: string
+  long_short_spread_neutral_note?: string
+  pearson_ic_mean_note?: string
+  /** 取整策略：载荷为 4 位小数四舍五入，同名的 *_exact 键给出未取整原值 */
+  precision_policy?: string
+  precision_policy_note?: string
+  /** 并列口径：样本标准差（÷(T−1)）的 IC 标准差；无离散度/无观测时为 null */
+  rank_ic_std_sample?: number | null
+  /** 并列口径：由 rank_ic_std_sample 算出的 ICIR；分母为 0 或无定义时为 null */
+  rank_ic_ir_sample?: number | null
+  rank_ic_std_sample_exact?: number | null
+  /** 聚合面的未取整原值（主键为 4 位小数四舍五入结果） */
+  rank_ic_mean_exact?: number | null
+  rank_ic_std_exact?: number | null
+  rank_ic_ir_exact?: number | null
+  rank_ic_positive_rate_exact?: number | null
+  pearson_ic_mean_exact?: number | null
+  hac_std_exact?: number | null
+  ci_lower_exact?: number | null
+  ci_upper_exact?: number | null
+  long_short_spread_exact?: number | null
   /** 聚合面 grouped_returns[].observations 的单位（截面日数，不是成分股数） */
   grouped_returns_observations_basis?: string
   grouped_returns_observations_basis_note?: string
@@ -104,8 +139,11 @@ export interface FactorRankIc extends FactorIcDisclosure {
   /** ICIR；IC 序列无离散度（std = 0）时**无定义**，为 null（≠「IR 恰为 0」） */
   rank_ic_ir: number | null
   rank_ic_positive_rate: number
-  /** 线性 IC 均值；**无 Pearson 可定义样本时本字段为占位 0.0**，须同时看 `pearson_support_days`（= 0 即不可用） */
-  pearson_ic_mean: number
+  /**
+   * 线性（Pearson）IC 均值。**不可定义时为 null**（样本不足、任一侧无区分度等），
+   * 不再以占位 0.0 冒充「线性 IC 恰为 0」；null 时同时看 `pearson_support_days`。
+   */
+  pearson_ic_mean: number | null
   monotonicity: MonotonicityLabel
   hac_std: number
   ci_lower: number
@@ -191,7 +229,8 @@ export interface SnapshotScopeIc extends FactorIcDisclosure {
   /** ICIR；IC 序列无离散度时为 null（≠ 0） */
   rank_ic_ir: number | null
   rank_ic_positive_rate: number
-  pearson_ic_mean: number
+  /** 线性（Pearson）IC 均值；**不可定义时为 null**（不再以占位 0.0 冒充） */
+  pearson_ic_mean: number | null
   monotonicity: MonotonicityLabel
   hac_std: number
   ci_lower: number
@@ -283,7 +322,8 @@ export interface UnifiedReportHorizonRow extends FactorIcDisclosure {
   /** ICIR；IC 序列无离散度时为 null（≠ 0） */
   rank_ic_ir: number | null
   rank_ic_positive_rate: number
-  pearson_ic_mean: number
+  /** 线性（Pearson）IC 均值；**不可定义时为 null**（不再以占位 0.0 冒充） */
+  pearson_ic_mean: number | null
   monotonicity: MonotonicityLabel
   hac_std: number
   ci_lower: number
@@ -297,7 +337,8 @@ export interface UnifiedReportHorizonRow extends FactorIcDisclosure {
     rank_ic_std: number
     rank_ic_ir: number | null
     rank_ic_positive_rate: number
-    pearson_ic_mean: number
+    /** 不可定义时为 null（原实现写占位 0.0） */
+    pearson_ic_mean: number | null
     long_short_spread: number
     /** false 时上面的 0.0 是占位（本口径无数据），不是「成本后恰为 0」 */
     data_available?: boolean

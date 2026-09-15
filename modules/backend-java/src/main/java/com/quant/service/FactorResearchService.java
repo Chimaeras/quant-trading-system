@@ -103,6 +103,16 @@ public class FactorResearchService {
             "rank_ic_std / rank_ic_ir 的分母为**总体标准差 ÷ T**，非样本标准差 ÷(T−1)；"
                     + "两种约定的比值恒为 sqrt(T/(T−1))（T=5 时约 +11.8%）。本键只声明现状，未改任何数值；"
                     + "rank_ic_ir 在 std = 0（含 T < 2）时无定义，序列化为 null（0 的语义是「IR 恰为 0」）";
+    /**
+     * 并列披露的样本标准差口径（Q-R006-02）。主口径 {@link #RANK_IC_STD_BASIS} 不改，
+     * 本约定只作为并列键 {@code rank_ic_std_sample} / {@code rank_ic_ir_sample} 的分母声明，
+     * 供读者在重叠持有期下按自由度修正复核；两口径比值恒为 sqrt(T/(T−1))。
+     */
+    private static final String RANK_IC_STD_SAMPLE_BASIS = "SAMPLE_STD_DIV_T_MINUS_1";
+    private static final String RANK_IC_STD_SAMPLE_NOTE =
+            "并列键 rank_ic_std_sample / rank_ic_ir_sample 的分母为**样本标准差 ÷(T−1)**"
+                    + "（无偏估计量），用于与主口径对照；T < 2 或值非有限时序列化为 null（无定义，不等于 0）；"
+                    + "rank_ic_std_sample_exact 给出未取整值";
     private static final String GROUP_BOUNDARY_RULE = "INDEX_EQUAL_SPLIT_STABLE_SORT";
     private static final String GROUP_BOUNDARY_RULE_NOTE =
             "分桶规则：组内按 score 升序**稳定排序**（并列项保持输入行序）+ 下标等分 bucket = min(g−1, i·g/n)；"
@@ -120,6 +130,51 @@ public class FactorResearchService {
                     + "**不是**美元中性多空（本字段名沿用历史契约）：成本在两腿差分中结构上抵消，"
                     + "故该值不承担空头腿成本、不减基准、不减无风险利率；按论文口径的真双腿美元中性理解会"
                     + "系统性高估成本承受力（样本外符号可能翻转）。只读披露，未改字段语义与数值";
+    /**
+     * 两腿价差的**成本基准**（Q-R003-01 / Q-R004-01）：同名 {@code long_short_spread}
+     * 在不同口径块里取自不同收益序列——本键把「是否已扣费」变成可读事实。
+     */
+    static final String SPREAD_COST_BASIS_GROSS = "GROSS_BEFORE_COSTS";
+    static final String SPREAD_COST_BASIS_NET = "NET_AFTER_MODELED_COSTS";
+    static final String SPREAD_COST_BASIS_NONE = "NOT_APPLICABLE_NO_OBSERVATIONS";
+    private static final String SPREAD_COST_BASIS_NOTE =
+            "GROSS_BEFORE_COSTS：本块收益为价格直接算出的毛收益（qfq/raw close-to-close 或 next-open→close），"
+                    + "**未扣任何费用** ⟹ 美元中性口径需再减 2×单腿往返成本；"
+                    + "NET_AFTER_MODELED_COSTS：本块收益已按冻结费率逐腿扣费 ⟹ "
+                    + "块内 long_short_spread **本身已是真双腿美元中性净价差**，不得再减一次（否则双重扣费）；"
+                    + "NOT_APPLICABLE_NO_OBSERVATIONS：本块无观测，两种口径都无定义";
+    private static final String NEUTRAL_SPREAD_BASIS_GROSS_MINUS_TWO_LEGS = "GROSS_SPREAD_MINUS_TWO_LEG_ROUND_TRIPS";
+    private static final String NEUTRAL_SPREAD_BASIS_ALREADY_NET = "NOT_APPLICABLE_ALREADY_NET_OF_COSTS";
+    private static final String NEUTRAL_SPREAD_NOTE =
+            "long_short_spread_neutral = 真双腿（多最高分组 + 空最低分组）美元中性净价差："
+                    + "毛价差 − 2×单腿往返成本。**与 long_short_spread 并列**，不替换它；"
+                    + "两者之差 = 两腿成本（冻结费率下约 30.0bp per holding period，见 cost_per_leg_round_trip）。"
+                    + "注意 A 股不能融券做空，本值只用于**按论文口径评估成本承受力**，不是可实现的策略收益";
+    private static final String PER_LEG_COST_BASIS = "MULTIPLICATIVE_TWO_SIDED";
+    private static final String PER_LEG_COST_NOTE =
+            "cost_per_leg_round_trip = 1 − (1−滑点)(1−佣金−印花税)/((1+滑点)(1+佣金))，"
+                    + "与冻结口径的乘性实现同构（佣金万三 / 印花税万五 / 单边滑点万二）⟹ 约 15.0bp/腿。"
+                    + "**记法陷阱**：常见的加法式 12bp（2×滑点+佣金+印花税）漏掉卖出腿佣金，"
+                    + "与实现差 −3.00bp（主项 = −佣金）；因此「两腿扣 24bp」与「扣 30bp」两种候选读法的分歧"
+                    + "不是建模选择，而是加法式/乘性之差（同 D-R010-01 的公式勘误）";
+    private static final String PEARSON_IC_MEAN_NOTE =
+            "pearson_ic_mean = 线性（Pearson）IC 的日均值；无任何 Pearson 支撑日时为 **null**"
+                    + "（见 pearson_support_days），不再写 0.0——0 是合法的 IC 取值，"
+                    + "「线性 IC 恰为 0」与「线性 IC 不可定义」不可混同（Q-R009-02）。"
+                    + "另注：秩相关有限**不蕴含** Pearson 有限（小量级输入下秩侧有限而 Pearson 为 NaN，"
+                    + "Q-R009-03），故两个支撑日数可以不同";
+    private static final String PRECISION_POLICY = "PAYLOAD_ROUNDED_4DP_WITH_EXACT_COMPANION";
+    private static final String PRECISION_POLICY_NOTE =
+            "两面取整策略（Q-R014-08）：**本载荷**的标量指标取 4 位小数，并在同键名后加 `_exact` 给出未取整原值"
+                    + "（逐日行原本已有 rank_ic_exact / avg_return_exact）；**DTO 面**（ScoringBacktestResponse）"
+                    + "承载**未取整**原值。⟹ 同一量在两面的差异可逐键复核：载荷 `X_exact` 必须与 DTO 的 `X` 逐位相等；"
+                    + "展示层负责按需取整。取整函数与位数见 rounding_rule";
+    private static final String RANK_IC_SAMPLE_STD_NOTE =
+            "并列披露（Q-R006-02，**不改主口径**）：rank_ic_std_sample = 样本标准差 ÷(T−1)、"
+                    + "rank_ic_ir_sample = rank_ic_mean / rank_ic_std_sample。"
+                    + "主口径 rank_ic_std / rank_ic_ir 仍为总体标准差 ÷T（rank_ic_std_basis）；"
+                    + "两者比值恒为 sqrt(T/(T−1))（T=5 时约 +11.8%，即 ÷(T−1) 侧系统性更大）。"
+                    + "本组键只让另一条约定可被直接复核，未改任何既有数值；无定义（T<2 或无离散度）时为 null";
     private static final String KEY_ALIAS_NOTE =
             "键别名（同一变量两个键名，为向后兼容保留，**不是**两个量）："
                     + "feature_valid_count ≡ valid_observations（同源变量 validObservations）；"
@@ -602,13 +657,45 @@ public class FactorResearchService {
         block.put("long_short_spread", round4(s.longShortSpread()));
         block.put("daily_rank_ic", dailyIcList(s));
         block.put("grouped_returns", groupedReturnList(s));
+        // 未取整并列键（Q-R014-08）：使「载荷 4dp 值 + DTO 原值」两面可逐位复核，展示层负责取整
+        block.put("rank_ic_mean_exact", s.rankIcMean());
+        block.put("rank_ic_std_exact", s.rankIcStd());
+        block.put("rank_ic_ir_exact", s.rankIcIr());
+        block.put("rank_ic_positive_rate_exact", s.rankIcPositiveRate());
+        block.put("pearson_ic_mean_exact", s.pearsonIcMean());
+        block.put("hac_std_exact", s.hacStd());
+        block.put("ci_lower_exact", s.ciLower());
+        block.put("ci_upper_exact", s.ciUpper());
+        block.put("long_short_spread_exact", s.longShortSpread());
+        // 并列披露 ÷(T−1) 那条分母约定（Q-R006-02）：主口径 ÷T 未动，本组只让另一读法可复核
+        Double sampleStd = FactorResearchEngine.sampleStdDivTMinusOne(dailyIcSeries(s));
+        block.put("rank_ic_std_sample", round4(sampleStd));
+        // 注意：不可写成 `sampleStd == null ? (Double) null : mean / sampleStd`——
+        // 三元表达式一支是 double、一支是 Double 时结果类型退化为 double，null 会被拆箱成 NPE。
+        Double sampleIr = (sampleStd == null || sampleStd == 0) ? null : s.rankIcMean() / sampleStd;
+        block.put("rank_ic_ir_sample", round4(sampleIr));
+        block.put("rank_ic_std_sample_exact", sampleStd);
+    }
+
+    private static List<Double> dailyIcSeries(FactorResearchSummary s) {
+        return s.dailyRankIc().stream().map(DailyRankIc::rankIc).toList();
+    }
+
+    private static void putSummaryDisclosure(Map<String, Object> block, FactorResearchSummary s, String priceBasis) {
+        putSummaryDisclosure(block, s, priceBasis, SPREAD_COST_BASIS_GROSS);
     }
 
     /**
      * 三口径族共用的**披露键**（纯增量）：样本漏斗计数、统计量构造规则、字段口径边界。
      * 不改任何既有键的名字/语义/数值。
+     *
+     * @param spreadCostBasis 本块的收益序列是否已扣费（{@link #SPREAD_COST_BASIS_GROSS} /
+     *                        {@link #SPREAD_COST_BASIS_NET} / {@link #SPREAD_COST_BASIS_NONE}）：
+     *                        决定 {@code long_short_spread_neutral} 是「毛价差 − 2×单腿成本」
+     *                        还是「不适用（本块已是净价差）」（Q-R003-01 / Q-R004-01）
      */
-    private static void putSummaryDisclosure(Map<String, Object> block, FactorResearchSummary s, String priceBasis) {
+    private static void putSummaryDisclosure(
+            Map<String, Object> block, FactorResearchSummary s, String priceBasis, String spreadCostBasis) {
         block.put("price_basis", priceBasis);
         block.put("group_count", s.groupCount());
         block.put("min_cross_section_size", RANK_IC_MIN_CROSS_SECTION_SIZE);
@@ -621,6 +708,8 @@ public class FactorResearchService {
         block.put("pearson_support_days", s.pearsonSupportDays());
         block.put("rank_ic_std_basis", RANK_IC_STD_BASIS);
         block.put("rank_ic_std_basis_note", RANK_IC_STD_BASIS_NOTE);
+        block.put("rank_ic_std_sample_basis", RANK_IC_STD_SAMPLE_BASIS);
+        block.put("rank_ic_std_sample_note", RANK_IC_STD_SAMPLE_NOTE);
         block.put("group_boundary_rule", GROUP_BOUNDARY_RULE);
         block.put("group_boundary_rule_note", GROUP_BOUNDARY_RULE_NOTE);
         block.put("rounding_rule", ROUNDING_RULE);
@@ -628,8 +717,43 @@ public class FactorResearchService {
         block.put("ci_status", ciStatus(s));
         block.put("long_short_spread_basis", LONG_SHORT_SPREAD_BASIS);
         block.put("long_short_spread_basis_note", LONG_SHORT_SPREAD_BASIS_NOTE);
+        block.put("long_short_spread_cost_basis", spreadCostBasis);
+        block.put("long_short_spread_cost_basis_note", SPREAD_COST_BASIS_NOTE);
+        putNeutralSpreadKeys(block, s, spreadCostBasis);
+        block.put("pearson_ic_mean_note", PEARSON_IC_MEAN_NOTE);
+        block.put("precision_policy", PRECISION_POLICY);
+        block.put("precision_policy_note", PRECISION_POLICY_NOTE);
         block.put("grouped_returns_observations_basis", GROUPED_RETURN_OBSERVATIONS_BASIS);
         block.put("grouped_returns_observations_basis_note", GROUPED_RETURN_OBSERVATIONS_BASIS_NOTE);
+    }
+
+    /**
+     * 两腿价差的成本并列键：单腿往返成本 + 真双腿美元中性净价差。
+     * 净收益块的价差**本身已是净价差** ⟹ 中性值写 {@code null} 并声明「不适用」，
+     * 而不是把同一数值换个名字再发一遍（那会让同名不同量的歧义重生）。
+     */
+    private static void putNeutralSpreadKeys(
+            Map<String, Object> block, FactorResearchSummary s, String spreadCostBasis) {
+        double perLegCost = FactorResearchEngine.roundTripCostPerLeg(
+                ResearchConvention.DEFAULT_COMMISSION_RATE,
+                ResearchConvention.DEFAULT_SELL_TAX_RATE,
+                ResearchConvention.DEFAULT_SLIPPAGE_RATE);
+        block.put("cost_per_leg_round_trip", round4(perLegCost));
+        block.put("cost_per_leg_round_trip_exact", Double.isFinite(perLegCost) ? perLegCost : null);
+        block.put("cost_per_leg_round_trip_basis", PER_LEG_COST_BASIS);
+        block.put("cost_per_leg_round_trip_note", PER_LEG_COST_NOTE);
+        boolean gross = SPREAD_COST_BASIS_GROSS.equals(spreadCostBasis);
+        Double neutral = gross
+                ? FactorResearchEngine.dollarNeutralSpread(s.longShortSpread(), perLegCost)
+                : null;
+        block.put("long_short_spread_neutral", round4(neutral));
+        block.put("long_short_spread_neutral_exact", neutral);
+        block.put("long_short_spread_neutral_basis",
+                gross ? NEUTRAL_SPREAD_BASIS_GROSS_MINUS_TWO_LEGS
+                        : (SPREAD_COST_BASIS_NET.equals(spreadCostBasis)
+                                ? NEUTRAL_SPREAD_BASIS_ALREADY_NET
+                                : SPREAD_COST_BASIS_NONE));
+        block.put("long_short_spread_neutral_note", NEUTRAL_SPREAD_NOTE);
     }
 
     /**
@@ -659,7 +783,7 @@ public class FactorResearchService {
         block.put("embargo_note", RANK_IC_EMBARGO_NOTE);
         block.put("universe_note", SNAPSHOT_UNIVERSE_NOTE);
         putSummaryMetricKeys(block, summary);
-        putSummaryDisclosure(block, summary, PRICE_BASIS_RAW);
+        putSummaryDisclosure(block, summary, PRICE_BASIS_RAW, SPREAD_COST_BASIS_GROSS);
         if (summary.totalObservations() == 0) {
             block.put("note", "该口径无可用观测（forward 区间未形成、raw 缺失或无可执行标签），不给出 IC");
         }
@@ -675,7 +799,7 @@ public class FactorResearchService {
         block.put("status", "UNAVAILABLE");
         block.put("basis_note", basisNote);
         putSummaryMetricKeys(block, summary);
-        putSummaryDisclosure(block, summary, PRICE_BASIS_RAW);
+        putSummaryDisclosure(block, summary, PRICE_BASIS_RAW, SPREAD_COST_BASIS_NONE);
         block.put("note", basisNote);
         return block;
     }
@@ -782,7 +906,7 @@ public class FactorResearchService {
                     RANK_IC_UNIVERSE_NOTE);
             block.put("status", STATUS_NO_OBSERVATIONS);
             putSummaryMetricKeys(block, empty);
-            putSummaryDisclosure(block, empty, PRICE_BASIS_QFQ);
+            putSummaryDisclosure(block, empty, PRICE_BASIS_QFQ, SPREAD_COST_BASIS_GROSS);
             block.put("cost_net_ic", emptyNetIcBlock());
             return block;
         }
@@ -871,7 +995,7 @@ public class FactorResearchService {
         block.put("status", summary.totalObservations() > 0 ? STATUS_OK : STATUS_NO_OBSERVATIONS);
         putSummaryMetricKeys(block, summary);
         // 价格基准：本面为 qfq 前复权 close（与 snapshot 面同名 metric_scope=RAW 的 rawClose 不同基准）
-        putSummaryDisclosure(block, summary, PRICE_BASIS_QFQ);
+        putSummaryDisclosure(block, summary, PRICE_BASIS_QFQ, SPREAD_COST_BASIS_GROSS);
 
         // 成本后近似净收益 IC（与标签/回测成交口径对齐的对照列；不含涨跌停/停牌拒单过滤）
         block.put("cost_net_ic", buildNetIcBlock(
@@ -896,7 +1020,7 @@ public class FactorResearchService {
         // 「本口径无数据」与「成本后恰为 0」不可区分；此键为纯增量显式标志
         net.put("data_available", false);
         putSummaryMetricKeys(net, empty);
-        putSummaryDisclosure(net, empty, PRICE_BASIS_QFQ);
+        putSummaryDisclosure(net, empty, PRICE_BASIS_QFQ, SPREAD_COST_BASIS_NET);
         net.put("note", "成本后近似净收益 IC（COST_APPROX；next-open 入场 + 持有期收盘退出 + 扣费；不含涨跌停/停牌拒单）；"
                 + "EXECUTABLE 暂不可用；与毛收益 IC 窗口差一日，并列仅作口径对照");
         return net;
@@ -911,7 +1035,7 @@ public class FactorResearchService {
         // 本块的 summary 实际使用 RANK_IC_GROUP_COUNT / RANK_IC_MIN_CROSS_SECTION_SIZE，
         // 原实现不发射这两者，读者只能从兄弟块反推（Q-R013-07）
         putSummaryMetricKeys(net, s);
-        putSummaryDisclosure(net, s, PRICE_BASIS_QFQ);
+        putSummaryDisclosure(net, s, PRICE_BASIS_QFQ, SPREAD_COST_BASIS_NET);
         net.put("note", "成本后近似净收益 IC（COST_APPROX；next-open 入场 + 持有期收盘退出 + 扣费；不含涨跌停/停牌拒单）；"
                 + "EXECUTABLE 暂不可用；与毛收益 IC 窗口差一日，并列仅作口径对照");
         return net;

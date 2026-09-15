@@ -36,8 +36,14 @@ public class SelectorResult {
     @Column(nullable = false)
     private Integer topN = 10;
 
+    /**
+     * 流动性闸下限，单位<strong>万元</strong>（与 {@code market_data.amount} 同单位，
+     * 见 {@code ScoringUtils.AMOUNT_UNIT} 的证据与冲突说明）；3e4 万元 = 3 亿元/日。
+     * 原默认值 3e7 把「万元」当「元」用、比实测候选量级高 1000×，任何候选都无法通过；
+     * 实体不依赖 service 包，故此处写字面量，由 {@code ScoringUtilsMinAvgAmountTest} 守卫与常量一致。
+     */
     @Column(nullable = false)
-    private Double minAvgAmount = 30000000.0;
+    private Double minAvgAmount = 30000.0;
 
     @Column(nullable = false)
     private Double minTrendScore = 40.0;

@@ -72,7 +72,7 @@ def strategy_payloads(trade_date: str, pool: int) -> list[tuple[str, dict]]:
             "tradeDate": trade_date,
             "fullHistory": True,
             "topN": pool,
-            "minAvgAmount": 30_000_000,   # 单位元（=3000万元日均成交额）；修正「万元→元」口径，与后端默认一致
+            "minAvgAmount": 30_000,   # 单位万元（=30,000 万元 = 3 亿元/日）；与后端 ScoringUtils.DEFAULT_MIN_AVG_AMOUNT 一致
             "minTrendScore": 40,
             "minListingDays": 60,
             "horizonProfile": "MEDIUM_TREND",
@@ -83,7 +83,7 @@ def strategy_payloads(trade_date: str, pool: int) -> list[tuple[str, dict]]:
             "tradeDate": trade_date,
             "topN": pool,
             "minTotalScore": 60,
-            "minAvgAmount": 30_000_000,   # 单位元（=3000万元日均成交额）；修正「万元→元」口径
+            "minAvgAmount": 30_000,   # 单位万元（=30,000 万元 = 3 亿元/日）；与后端 ScoringUtils.DEFAULT_MIN_AVG_AMOUNT 一致
             "excludeST": True,
             "minListingDays": 60,
             "persist": True,
@@ -93,7 +93,7 @@ def strategy_payloads(trade_date: str, pool: int) -> list[tuple[str, dict]]:
             "tradeDate": trade_date,
             "topN": pool,
             "minTotalScore": 45,
-            "minAvgAmount": 30_000_000,   # 单位元（=3000万元日均成交额）；修正「万元→元」口径
+            "minAvgAmount": 30_000,   # 单位万元（=30,000 万元 = 3 亿元/日）；与后端 ScoringUtils.DEFAULT_MIN_AVG_AMOUNT 一致
             "excludeST": True,
             "minListingDays": 60,
             "persist": True,
@@ -104,7 +104,7 @@ def strategy_payloads(trade_date: str, pool: int) -> list[tuple[str, dict]]:
             "tradeDate": trade_date,
             "topN": pool,
             "minTotalScore": 55,
-            "minAvgAmount": 30_000_000,   # 单位元（=3000万元日均成交额）；修正「万元→元」口径
+            "minAvgAmount": 30_000,   # 单位万元（=30,000 万元 = 3 亿元/日）；与后端 ScoringUtils.DEFAULT_MIN_AVG_AMOUNT 一致
             "excludeST": True,
             "minListingDays": 60,
             "persist": True,
@@ -115,7 +115,7 @@ def strategy_payloads(trade_date: str, pool: int) -> list[tuple[str, dict]]:
             "tradeDate": trade_date,
             "topN": pool,
             "minTotalScore": 55,
-            "minAvgAmount": 30_000_000,   # 单位元（=3000万元日均成交额）；修正「万元→元」口径
+            "minAvgAmount": 30_000,   # 单位万元（=30,000 万元 = 3 亿元/日）；与后端 ScoringUtils.DEFAULT_MIN_AVG_AMOUNT 一致
             "excludeST": True,
             "minListingDays": 60,
             "persist": True,

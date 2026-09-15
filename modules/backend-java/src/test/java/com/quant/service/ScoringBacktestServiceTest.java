@@ -845,4 +845,184 @@ class ScoringBacktestServiceTest {
                 .build();
         assertThat(analysis.getRankIcIr()).isEqualTo(0.5);
     }
+
+    // ---- D-R013-03：因子分组数钳位（原实现把请求值原样透传） ----
+
+    @Test
+    void factorGroupCountIsClampedToAUsableRange() {
+        // 下界 2：groupCount = 1 时「最高组」与「最低组」重合，long_short_spread 恒为 0 却被判为有效
+        assertThat(ScoringBacktestService.clampFactorGroupCount(1)).isEqualTo(2);
+        assertThat(ScoringBacktestService.clampFactorGroupCount(0)).isEqualTo(2);
+        assertThat(ScoringBacktestService.clampFactorGroupCount(-7)).isEqualTo(2);
+        // 上界 20：再多则组均值由单只标的代表
+        assertThat(ScoringBacktestService.clampFactorGroupCount(21)).isEqualTo(20);
+        assertThat(ScoringBacktestService.clampFactorGroupCount(500)).isEqualTo(20);
+        // 区间内原样生效
+        assertThat(ScoringBacktestService.clampFactorGroupCount(5)).isEqualTo(5);
+        assertThat(ScoringBacktestService.clampFactorGroupCount(2)).isEqualTo(2);
+        assertThat(ScoringBacktestService.clampFactorGroupCount(20)).isEqualTo(20);
+        assertThat(ScoringBacktestService.DEFAULT_FACTOR_GROUP_COUNT)
+                .isBetween(ScoringBacktestService.MIN_FACTOR_GROUP_COUNT,
+                        ScoringBacktestService.MAX_FACTOR_GROUP_COUNT);
+    }
+
+    @Test
+    void effectiveParamsRecordFlagsClampingWithoutTreatingDefaultAsClamped() {
+        // 未指定（null）⟹ 走冻结默认，不算被钳位
+        ScoringBacktestService.EffectiveExecutionParams defaults = new ScoringBacktestService.EffectiveExecutionParams(
+                5, 5, null, 0.0003, null, 0.0005, null, 0.0002);
+        assertThat(defaults.commissionRateClamped()).isFalse();
+        assertThat(defaults.sellTaxRateClamped()).isFalse();
+        assertThat(defaults.slippageRateClamped()).isFalse();
+        assertThat(defaults.factorGroupCountClamped()).isFalse();
+
+        // 用户显式指定 0：费率 0 是**合法**请求，不得被当成「未指定」而回落默认值
+        ScoringBacktestService.EffectiveExecutionParams explicitZero =
+                new ScoringBacktestService.EffectiveExecutionParams(
+                        5, 5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        assertThat(explicitZero.commissionRateClamped()).isFalse();
+        assertThat(explicitZero.commissionRate()).isEqualTo(0.0);
+
+        // 负值/超上限/非有限值被改变 ⟹ 标记为已钳位
+        ScoringBacktestService.EffectiveExecutionParams clamped =
+                new ScoringBacktestService.EffectiveExecutionParams(
+                        1, 2, -0.01, 0.0, 0.9, 0.05, Double.NaN, 0.0002);
+        assertThat(clamped.commissionRateClamped()).isTrue();
+        assertThat(clamped.sellTaxRateClamped()).isTrue();
+        assertThat(clamped.slippageRateClamped()).isTrue();
+        assertThat(clamped.factorGroupCountClamped()).isTrue();
+    }
+
+    /**
+     * D-R010-06：回测计算、载荷与落库三处必须用**同一份生效值**。
+     * 原实现落库写请求原值，导致同一次运行在历史列表里显示 0%、在载荷里显示 0.03%。
+     */
+    @Test
+    void runPersistsEffectiveClampedRatesAndDisclosesRequestedValues() {
+        SelectorResultRepository resultRepository = mock(SelectorResultRepository.class);
+        SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
+        MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
+        BacktestRunRepository runRepository = mock(BacktestRunRepository.class);
+        ScoringBacktestService service =
+                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                        mock(com.quant.repository.MarketPriceRawRepository.class),
+                        runRepository, objectMapper());
+
+        LocalDate signalDate = LocalDate.of(2025, 1, 2);
+        LocalDate entryDate = LocalDate.of(2025, 1, 3);
+        LocalDate exitDate = LocalDate.of(2025, 1, 6);
+        SelectorResult result = new SelectorResult();
+        result.setResultId("R1");
+        result.setTradeDate(signalDate);
+        result.setStrategyType("CLASSIC_SELECTOR");
+        SelectorResultItem item = new SelectorResultItem();
+        item.setResultId("R1");
+        item.setRankNo(1);
+        item.setStockCode("000001");
+        item.setExchangeType("SZSE");
+        item.setFinalScore(80.0);
+
+        when(resultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(any(), any()))
+                .thenReturn(List.of(result));
+        when(itemRepository.findByResultIdInOrderByRankNo(any())).thenReturn(List.of(item));
+        when(marketDataRepository.findDistinctTradeDatesBetween(any(), any()))
+                .thenReturn(List.of(signalDate, entryDate, exitDate));
+        when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
+                .thenReturn(List.of(bar(signalDate, 100, 100), bar(entryDate, 80, 88), bar(exitDate, 88, 88)));
+        when(marketDataRepository.findMaxTradeDate()).thenReturn(java.util.Optional.of(exitDate));
+
+        ScoringBacktestRequest request = new ScoringBacktestRequest();
+        request.setStrategyType("CLASSIC_SELECTOR");
+        request.setStartDate(signalDate);
+        request.setEndDate(signalDate);
+        request.setTopN(5);
+        request.setFactorGroupCount(1);          // 越界 → 钳到 2
+        request.setCommissionRate(-0.01);        // 负值 → 钳到 0（≠ 默认 0.0003）
+        request.setSellTaxRate(0.0005);          // 原样生效
+        request.setSlippageRate(Double.NaN);     // 非有限 → 回落默认 0.0002
+
+        ScoringBacktestResponse response = service.run(request);
+
+        Map<String, Object> assumptions = response.getExecutionAssumptions();
+        assertThat(assumptions.get("factor_group_count_requested")).isEqualTo(1);
+        assertThat(assumptions.get("factor_group_count_effective")).isEqualTo(2);
+        assertThat(assumptions.get("factor_group_count_clamped")).isEqualTo(true);
+        assertThat(assumptions.get("factor_group_count_basis")).isEqualTo("CLAMPED_REQUEST_PARAM");
+        assertThat(assumptions.get("commission_rate")).isEqualTo(0.0);
+        assertThat(assumptions.get("commission_rate_requested")).isEqualTo(-0.01);
+        assertThat(assumptions.get("commission_rate_clamped")).isEqualTo(true);
+        assertThat(assumptions.get("sell_tax_rate_clamped")).isEqualTo(false);
+        assertThat(assumptions.get("slippage_rate_each_side")).isEqualTo(0.0002);
+        assertThat(assumptions.get("slippage_rate_each_side_clamped")).isEqualTo(true);
+        assertThat(assumptions.get("rate_bounds_note")).isNotNull();
+
+        // 落库值与载荷一致（历史实现落请求原值 ⟹ 两面对同一次运行给出不同费率）
+        ArgumentCaptor<BacktestRun> captor = ArgumentCaptor.forClass(BacktestRun.class);
+        verify(runRepository).save(captor.capture());
+        BacktestRun saved = captor.getValue();
+        assertThat(saved.getCommissionRate()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(saved.getSellTaxRate()).isEqualByComparingTo(BigDecimal.valueOf(0.0005));
+        assertThat(saved.getSlippageRate()).isEqualByComparingTo(BigDecimal.valueOf(0.0002));
+    }
+
+    /**
+     * D-R003-01 / D-R004-01：打分回测面的因子观测收益来自 {@code periodResult.ret()}（**已扣费**），
+     * 故 {@code longShortSpread} 是**净**价差：必须声明基准、且不得再减一次两腿成本（重复扣费）。
+     * 与因子研究载荷里同名的**毛**价差是「同名不同量」，跨面引用前先读基准键。
+     */
+    @Test
+    void factorSpreadIsDeclaredAsNetAndExposesTheGrossEquivalentInstead() {
+        double perLeg = ScoringBacktestService.perLegRoundTripCost();
+        assertThat(perLeg).isCloseTo(0.0015, within(0.00005));
+
+        ScoringBacktestResponse.FactorAnalysis net = ScoringBacktestResponse.FactorAnalysis.builder()
+                .holdingDays(5)
+                .groupCount(5)
+                .crossSectionDays(10)
+                .totalObservations(100)
+                .rankIcMean(0.03)
+                .rankIcStd(0.1)
+                .rankIcIr(0.3)
+                .rankIcPositiveRate(0.6)
+                .longShortSpread(0.05)
+                .longShortSpreadCostBasis(com.quant.service.FactorResearchService.SPREAD_COST_BASIS_NET)
+                .longShortSpreadGrossEquivalent(ScoringBacktestService.grossEquivalentOfNetSpread(0.05))
+                .costPerLegRoundTrip(perLeg)
+                .build();
+
+        assertThat(net.getLongShortSpreadCostBasis()).isEqualTo("NET_AFTER_MODELED_COSTS");
+        assertThat(net.getLongShortSpreadGrossEquivalent()).isNotNull();
+        assertThat(net.getLongShortSpreadGrossEquivalent() / 0.05).isCloseTo(1 / (1 - perLeg), within(1e-12));
+        assertThat(net.getLongShortSpreadGrossEquivalent()).isGreaterThan(0.05);
+        // 该键在 JSON 里可被消费方读到（不是只在载荷 map 中）
+        assertThat(objectMapper().valueToTree(net).toString())
+                .contains("longShortSpreadCostBasis")
+                .contains("longShortSpreadGrossEquivalent");
+    }
+
+    /** 不可定义时序列化为 null（毛等价物的分母为 0/负、价差为 null 等），不得回落成 0.0。 */
+    @Test
+    void grossEquivalentIsNullWhenItCannotBeRecovered() {
+        assertThat(ScoringBacktestService.grossEquivalentOfNetSpread(Double.NaN)).isNull();
+        assertThat(com.quant.service.backtest.FactorResearchEngine
+                .grossSpreadFromNet(0.05, 1.0)).isNull();
+        // 正常输入下与净价差同号且绝对值更大（成本为正 ⟹ 毛 > 净）
+        Double healthy = ScoringBacktestService.grossEquivalentOfNetSpread(-0.02);
+        assertThat(healthy).isNotNull().isLessThan(-0.02);
+    }
+
+    /** 样本标准差口径的并列键：单截面日（T = 1）无离散度 ⟹ null，不是 0。 */
+    @Test
+    void sampleStdAndSampleIcIrAreNullWithoutDispersion() {
+        com.quant.service.backtest.FactorResearchEngine.FactorResearchSummary singleDay =
+                new com.quant.service.backtest.FactorResearchEngine.FactorResearchSummary(
+                        5, 5, 1, 10, 0.03, 0.0, null, 1.0, null, "N/A",
+                        0.0, 0.0, 0.0,
+                        List.of(new com.quant.service.backtest.FactorResearchEngine.DailyRankIc(
+                                "2025-01-02", 0.03, 10, 0)),
+                        List.of(), 0.01, "note", 1, 0, 0, 0, 2, 1);
+
+        assertThat(ScoringBacktestService.sampleStdDivTMinusOne(singleDay)).isNull();
+        assertThat(ScoringBacktestService.sampleIcIr(singleDay)).isNull();
+    }
 }

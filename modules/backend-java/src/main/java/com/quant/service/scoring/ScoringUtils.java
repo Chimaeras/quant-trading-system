@@ -21,6 +21,56 @@ public final class ScoringUtils {
 
     private ScoringUtils() {}
 
+    // ==================== 成交额单位与流动性闸 ====================
+
+    /**
+     * 成交额列（{@code market_data.amount} / {@code market_price_raw.amount}）的单位：<strong>万元</strong>。
+     *
+     * <p><b>证据（D-R001-01 / D-R005-03）</b>：R001 在真实行上实测
+     * {@code amount / (volume × close) ≈ 1/100}（换手率交叉核对证明 {@code volume} 的单位是「手」），
+     * 且 600519 单日 {@code amount ≈ 530,365} 与「万元」下的约 53 亿元/日自洽；若按「元」解读
+     * 则为 53 万元/日，与任何 A 股流动性常识矛盾。{@code avg_amount20} 的实测量级
+     * 8.16e4–6.41e5（万元）即 8 亿–64 亿元/日，同样自洽。
+     *
+     * <p><b>已知冲突</b>：{@code modules/database/01_init_schema.sql} 与 {@code V1__baseline_core.sql}
+     * 的列注释写「成交额(元)」，前端 {@code StockPicker.vue} 的标签也写「(元)」——
+     * 本轮把这批声明改为与实测一致；活库中的列注释需人工执行
+     * {@code ALTER TABLE market_data MODIFY amount DECIMAL(20,4) COMMENT '成交额(万元)'}
+     * （本仓库不自动执行 DDL）。
+     *
+     * <p><b>残余不确定</b>：R005 曾以「30000 与 30000000 恰差 1000×」推测单位为「千元」。
+     * 两种读法（万元/千元）都落在同一量级档次（1e4–6e5），**都不支持** 3e7 这一档阈值，
+     * 故本轮的阈值修正对「万元 vs 千元」之争是稳健的；单位声明采用证据更强的「万元」。
+     */
+    public static final String AMOUNT_UNIT = "TEN_THOUSAND_CNY";
+
+    /**
+     * 流动性闸默认下限，单位与 {@link #AMOUNT_UNIT} 相同（万元）⟹ 约 <strong>3 亿元/日</strong>。
+     *
+     * <p><b>为什么改回 3e4</b>：本常量原为 {@code 30_000_000d}（把「万元」当「元」用），
+     * 在实测数据量级（1e4–6e5 万元）下是 **1000× 偏高**、任何候选都不可能满足，
+     * 使 4 处硬过滤（{@code if (!passesMinAvgAmount(...)) continue;}）恒为真。
+     * 阈值必须是「一个能被流动性正常的股票满足」的数：3e4 万元 = 3 亿元/日。
+     * 该值同时与改动前的 {@code 30000}（旧流水线、活库低档）一致。
+     */
+    public static final double DEFAULT_MIN_AVG_AMOUNT = 30_000d;
+
+    /** 流动性闸阈值的单位声明（与成交额列同单位）。 */
+    public static final String MIN_AVG_AMOUNT_UNIT = AMOUNT_UNIT;
+
+    /** 诊断取值：阈值高出候选量级 100× 以上 ⟹ 几乎不可能由任何候选满足（单位错配的典型形态）。 */
+    public static final String LIQUIDITY_GATE_SUSPECTED_UNIT_MISMATCH = "SUSPECTED_UNIT_MISMATCH";
+    /** 诊断取值：阈值与候选量级同档，闸可正常区分流动性。 */
+    public static final String LIQUIDITY_GATE_CONSISTENT = "CONSISTENT";
+    /** 诊断取值：候选不足 5 个，不作量级判断。 */
+    public static final String LIQUIDITY_GATE_NO_OBSERVATIONS = "NO_OBSERVATIONS";
+
+    private static final String LIQUIDITY_GATE_DIAGNOSIS_NOTE =
+            "只读诊断（不改任何阈值）：把配置阈值与候选 avg_amount20 的中位数按同一单位比较。"
+                    + "命中 SUSPECTED_UNIT_MISMATCH 表示阈值高出候选量级 ≥100×——这在单位被写错时"
+                    + "（把万元当元用）是典型形态，此时闸恒为真、候选被全量过滤且不易察觉；"
+                    + "不代表阈值本身一定错（极冷门样本亦可能整体低于一个合理阈值）";
+
     // ==================== 数值处理 ====================
 
     /**
@@ -212,7 +262,8 @@ public final class ScoringUtils {
     }
 
     /**
-     * 最近 20 个<strong>有成交</strong>交易日的日均成交额（元）。
+     * 最近 20 个<strong>有成交</strong>交易日的日均成交额，单位<strong>万元</strong>（= {@link #AMOUNT_UNIT}，
+     * 与源列 {@code market_data.amount} 同单位；见该常量处的证据与冲突说明）。
      * 零成交量（停牌代理）日不计入样本；不足 20 个有效样本时按实际有效日数求平均，
      * 不再直接归零——避免停牌偏多的小票被 minAvgAmount 误杀（上市时长另由 minListingDays 闸把关）。
      */
@@ -233,9 +284,48 @@ public final class ScoringUtils {
         return count > 0 ? sum / count : 0;
     }
 
-    /** 当 minAvgAmount &gt; 0 时，要求 avgAmount20 不低于该阈值。 */
+    /** 当 minAvgAmount &gt; 0 时，要求 avgAmount20 不低于该阈值。阈值单位必须是万元，见 {@link #AMOUNT_UNIT}。 */
     public static boolean passesMinAvgAmount(List<MarketData> bars, double minAvgAmount) {
         return minAvgAmount <= 0 || avgAmount20(bars) >= minAvgAmount;
+    }
+
+    /**
+     * 流动性闸的<strong>单位自洽诊断</strong>（纯函数、只读、不改阈值）。
+     *
+     * <p>把配置阈值与候选 {@code avg_amount20} 的<strong>中位数</strong>按同一单位比较：
+     * 阈值高出中位数 ≥ 100× 时，闸几乎不可能被任何候选满足——这正是单位被写错
+     * （万元当元用）时的形态，且外部只看到「筛不出票」，难以察觉。
+     *
+     * <p>候选少于 5 个时返回 {@link #LIQUIDITY_GATE_NO_OBSERVATIONS}：中位数在小样本上不是量级证据。
+     * 判据是**相对**的（阈值与中位数之比），故与具体单位无关。
+     */
+    public static String liquidityGateMagnitudeDiagnosis(List<Double> avgAmounts, double minAvgAmount) {
+        if (minAvgAmount <= 0) {
+            return LIQUIDITY_GATE_CONSISTENT;
+        }
+        if (avgAmounts == null) {
+            return LIQUIDITY_GATE_NO_OBSERVATIONS;
+        }
+        List<Double> usable = new ArrayList<>();
+        for (Double v : avgAmounts) {
+            if (v != null && Double.isFinite(v) && v > 0) {
+                usable.add(v);
+            }
+        }
+        if (usable.size() < 5) {
+            return LIQUIDITY_GATE_NO_OBSERVATIONS;
+        }
+        List<Double> sorted = new ArrayList<>(usable);
+        sorted.sort(Double::compareTo);
+        double median = sorted.get(sorted.size() / 2);
+        return minAvgAmount >= 100.0 * median
+                ? LIQUIDITY_GATE_SUSPECTED_UNIT_MISMATCH
+                : LIQUIDITY_GATE_CONSISTENT;
+    }
+
+    /** 诊断说明文本（随诊断值一起发射，读者不必回查源码）。 */
+    public static String liquidityGateDiagnosisNote() {
+        return LIQUIDITY_GATE_DIAGNOSIS_NOTE;
     }
 
     /**

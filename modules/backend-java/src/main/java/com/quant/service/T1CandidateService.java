@@ -52,7 +52,7 @@ public class T1CandidateService {
      */
     private static final int LOOKBACK_DAYS = 60;
     private static final int MIN_BARS = 30;
-    private static final double MIN_AVG_AMOUNT = 30_000_000;
+    private static final double MIN_AVG_AMOUNT = ScoringUtils.DEFAULT_MIN_AVG_AMOUNT;
     private static final int MIN_LISTING_DAYS = 60;
 
     // ===== 入选阈值门禁（V2-MP-027 P1）：TopN 只是上限，不是配额 =====

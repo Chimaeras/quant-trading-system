@@ -267,14 +267,33 @@
                     <div class="stat-item">
                       <span class="stat-label">业务含义</span>
                       <span class="stat-value small-text">
-                        {{ response.factorAnalysis.longShortSpread >= 0 ? '高分组合收益高于低分组合，选股有效' : '高分组合反而跑输低分组合，选股方向需警惕' }}
+                        {{ response.factorAnalysis.longShortSpread >= 0 ? '高分组合收益高于低分组合（仅方向，不等于已验证有效）' : '高分组合反而跑输低分组合，选股方向需警惕' }}
                       </span>
                     </div>
                     <div class="stat-item">
                       <span class="stat-label">口径</span>
                       <span class="stat-value small-text">
                         持有 {{ response.factorAnalysis.holdingDays }} 日 · 单期非年化 · 成本后近似（未减基准/无风险利率）
+                        <template v-if="response.factorAnalysis.longShortSpreadCostBasis">
+                          · 价差基准 {{ response.factorAnalysis.longShortSpreadCostBasis }}
+                        </template>
                       </span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-label" title="单腿往返成本（佣金+印花税+双边滑点乘性复合）；本面价差已扣费，两条腿共 2× 本值">单腿往返成本</span>
+                      <span class="stat-value small-text">{{ bps(response.factorAnalysis.costPerLegRoundTrip) }}</span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-label" title="净价差 ÷ (1 − 单腿往返成本)：用于与因子研究载荷的**毛价差**同尺对比（同名不同量）">毛价差等价物</span>
+                      <span class="stat-value small-text">{{ pct2(response.factorAnalysis.longShortSpreadGrossEquivalent) }}</span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-label" title="并列口径：分母用样本标准差 ÷(T−1)（主口径为总体标准差 ÷T）">ICIR（÷(T−1)）</span>
+                      <span class="stat-value small-text">{{ fmtIcIr(response.factorAnalysis.rankIcIrSample) }}</span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-label" title="线性 IC 均值；不可定义时为 null，显示「—」而不是占位 0.0">Pearson IC</span>
+                      <span class="stat-value small-text">{{ fmtPearson(response.factorAnalysis.pearsonIcMean) }}</span>
                     </div>
                     <div class="stat-item">
                       <span class="stat-label" title="分组收益方向：零区分度 = 各组收益全相等，既非上升也非下降；不可判定 = 可用组不足 2">分组单调性</span>
@@ -625,6 +644,17 @@ const form = reactive({
 // ===== 业务化格式化 =====
 function pct(v: number) { return Number.isFinite(v) ? (v * 100).toFixed(2) + '%' : '—' }
 function pct1(v: number) { return Number.isFinite(v) ? (v * 100).toFixed(1) + '%' : '—' }
+/** null = 该量无定义（如毛价差等价物不可还原、Pearson 无可定义样本），显示「—」而不是 0 */
+function pct2(v: number | null | undefined) {
+  return v !== null && v !== undefined && Number.isFinite(v) ? (v * 100).toFixed(2) + '%' : '—'
+}
+function fmtPearson(v: number | null | undefined) {
+  return v !== null && v !== undefined && Number.isFinite(v) ? v.toFixed(4) : '—'
+}
+/** 成本类比例按基点显示（1bp = 0.01%） */
+function bps(v: number | null | undefined) {
+  return v !== null && v !== undefined && Number.isFinite(v) ? (v * 10000).toFixed(2) + 'bp' : '—'
+}
 
 // 盈亏比：后端在"无亏损样本"时下发 null（比值无定义，不等于 0），此时显示 "--"，
 // 绝不能落到 toFixed 上（会抛错）或显示成 0.00（含义正好相反）。

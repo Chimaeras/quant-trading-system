@@ -426,7 +426,7 @@ public class ComprehensiveScoringService {
                 Math.max(1, Runtime.getRuntime().availableProcessors()), 1, 64);
         boolean includeItems = ScoringUtils.parseBool(req.get("includeItems"), false);
         boolean excludeST = ScoringUtils.parseBool(req.get("excludeST"), true);
-        double minAvgAmount = ScoringUtils.parseDouble(req.get("minAvgAmount"), 30_000_000d, 0d, 1_000_000_000_000d);
+        double minAvgAmount = ScoringUtils.parseDouble(req.get("minAvgAmount"), ScoringUtils.DEFAULT_MIN_AVG_AMOUNT, 0d, 1_000_000_000_000d);
         int minListingDays = ScoringUtils.parseInt(req.get("minListingDays"), 60, 0, 3650);
 
         LocalDate rangeStart = tradeDate.minusDays(lookbackDays);

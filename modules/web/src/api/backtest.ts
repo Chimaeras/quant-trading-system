@@ -63,7 +63,20 @@ export interface FactorAnalysis {
   dailyRankIc: Array<{ tradeDate: string; rankIc: number; sampleSize: number }>
   /** groupedReturns[].observations = 参与聚合的**截面日数**（不是成分股数） */
   groupedReturns: Array<{ groupNo: number; label: string; avgReturn: number; observations: number }>
+  /** 两腿价差 = 最高组均值 − 最低组均值，本面为**净价差**（观测收益已扣费）；口径看 longShortSpreadCostBasis */
   longShortSpread: number
+  /** 价差成本基准：本面恒为 NET_AFTER_MODELED_COSTS；载荷毛收益块为 GROSS_BEFORE_COSTS（同名不同量） */
+  longShortSpreadCostBasis?: string
+  /** 净价差 → 毛价差的精确还原（longShortSpread / (1 − costPerLegRoundTrip)），跨面对齐用 */
+  longShortSpreadGrossEquivalent?: number | null
+  /** 单腿往返成本（乘性口径：佣金+印花税+双边滑点复合） */
+  costPerLegRoundTrip?: number | null
+  /** 并列口径：样本标准差（÷(T−1)）的 IC 标准差；主口径 rankIcStd 为总体标准差 ÷T */
+  rankIcStdSample?: number | null
+  /** 并列口径：由 rankIcStdSample 算出的 ICIR；无定义时为 null */
+  rankIcIrSample?: number | null
+  /** 线性（Pearson）IC 均值；不可定义时为 null（原实现写占位 0.0） */
+  pearsonIcMean?: number | null
   /** 分组单调性标签（含 NO_DISPERSION = 各组收益全相等，非任何方向） */
   monotonicity?: MonotonicityLabel
   universeNote: string
@@ -78,7 +91,14 @@ export interface FactorIcSummary {
   /** ICIR；IC 序列无离散度时**无定义**⟹ null（≠「IR 恰为 0」） */
   rankIcIr: number | null
   rankIcPositiveRate: number
+  /** 两腿价差（本面为**净价差**；口径看 longShortSpreadCostBasis） */
   longShortSpread: number
+  longShortSpreadCostBasis?: string
+  longShortSpreadGrossEquivalent?: number | null
+  costPerLegRoundTrip?: number | null
+  rankIcStdSample?: number | null
+  rankIcIrSample?: number | null
+  pearsonIcMean?: number | null
 }
 
 export interface ScoringBacktestResponse {

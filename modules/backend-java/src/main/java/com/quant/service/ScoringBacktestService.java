@@ -24,6 +24,7 @@ import com.quant.repository.SelectorResultRepository;
 import com.quant.service.backtest.FactorResearchEngine;
 import com.quant.service.backtest.FactorResearchEngine.CrossSectionObservation;
 import com.quant.service.backtest.FactorResearchEngine.FactorResearchSummary;
+import com.quant.research.ResearchConvention;
 import com.quant.service.backtest.StrategyBacktestEngine;
 import com.quant.service.backtest.TradingLimitRules;
 import com.quant.service.execution.RawPriceResolver;
@@ -60,6 +61,23 @@ public class ScoringBacktestService {
     private static final String FACTOR_UNIVERSE_NOTE =
             "基于 persisted 全截面候选（通过质量闸的全部条目，非 TopN 子集）；未复现历史时点股票池，存在幸存者偏差";
 
+    /** D-R013-03：因子分组数的请求边界（原实现把请求值原样透传给引擎，无任何校验）。 */
+    static final int DEFAULT_FACTOR_GROUP_COUNT = 5;
+    static final int MIN_FACTOR_GROUP_COUNT = 2;
+    static final int MAX_FACTOR_GROUP_COUNT = 20;
+    static final String FACTOR_GROUP_COUNT_BASIS = "CLAMPED_REQUEST_PARAM";
+    static final String FACTOR_GROUP_COUNT_NOTE =
+            "分组数取请求值并**钳位**到 [" + MIN_FACTOR_GROUP_COUNT + ", " + MAX_FACTOR_GROUP_COUNT + "]："
+                    + "下界 2 因分组收益需「最高组 − 最低组」两个可分辨的组；上界 20 因每组至少要能装下截面样本"
+                    + "（截面下限 " + FACTOR_MIN_CROSS_SECTION_SIZE + " 只），再多则组均值由单只标的代表。"
+                    + "原实现把请求值原样透传：groupCount = 1 时最高组与最低组重合，long_short_spread 恒为 0 却"
+                    + "仍被判为有效；groupCount > 截面样本数时大量空组。载荷同时给出请求值与生效值及是否被钳位";
+    /** D-R010-06：费率请求边界（与 {@code boundedRate} 的钳位规则同源）。 */
+    static final String RATE_BOUNDS_NOTE =
+            "费率为请求值经钳位后的**生效值**：null 或非有限值回落冻结口径默认（佣金 0.0003 / 印花税 0.0005 / "
+                    + "滑点 0.0002），负值钳到 0，超过 0.05 钳到 0.05。回测计算、载荷与落库三处一律用生效值；"
+                    + "请求原值见 *_requested 与 *_clamped，便于区分「用户指定 0」与「用户未指定」";
+
     private final SelectorResultRepository resultRepo;
     private final SelectorResultItemRepository itemRepo;
     private final MarketDataRepository marketDataRepo;
@@ -75,11 +93,17 @@ public class ScoringBacktestService {
         List<Integer> holdingDays = req.getHoldingDays() != null ? req.getHoldingDays() : List.of(1, 3, 5, 10, 20);
         int maxHolding = holdingDays.stream().max(Integer::compareTo).orElse(20);
         int topN = req.getTopN() != null ? req.getTopN() : 10;
-        int factorGroupCount = req.getFactorGroupCount() != null ? req.getFactorGroupCount() : 5;
+        int requestedFactorGroupCount = req.getFactorGroupCount() != null ? req.getFactorGroupCount() : DEFAULT_FACTOR_GROUP_COUNT;
+        int factorGroupCount = clampFactorGroupCount(requestedFactorGroupCount);
         int factorHoldingDay = resolveFactorAnalysisHoldingDay(holdingDays, req.getFactorAnalysisHoldingDay());
         double commissionRate = boundedRate(req.getCommissionRate(), 0.0003);
         double sellTaxRate = boundedRate(req.getSellTaxRate(), 0.0005);
         double slippageRate = boundedRate(req.getSlippageRate(), 0.0002);
+        EffectiveExecutionParams effectiveParams = new EffectiveExecutionParams(
+                requestedFactorGroupCount, factorGroupCount,
+                req.getCommissionRate(), commissionRate,
+                req.getSellTaxRate(), sellTaxRate,
+                req.getSlippageRate(), slippageRate);
 
         // 1. 查询日期范围内的选股结果，按日期取最新的一条
         List<SelectorResult> results = resultRepo
@@ -102,7 +126,7 @@ public class ScoringBacktestService {
         dailyResults.sort(Comparator.comparing(SelectorResult::getTradeDate));
 
         Map<String, Object> assumptions = executionAssumptions(
-                commissionRate, sellTaxRate, slippageRate, dailyResults);
+                commissionRate, sellTaxRate, slippageRate, dailyResults, effectiveParams);
 
         if (dailyResults.isEmpty()) {
             log.warn("未找到符合条件的选股结果");
@@ -135,6 +159,9 @@ public class ScoringBacktestService {
 
         Map<String, List<SelectorResultItem>> itemsByResultId = allItems.stream()
                 .collect(Collectors.groupingBy(SelectorResultItem::getResultId, LinkedHashMap::new, Collectors.toList()));
+
+        // 流动性闸的单位自洽诊断（只读）：候选已加载，可用实测量级与配置阈值对照
+        assumptions.put("selector_liquidity_gate", selectorLiquidityGateDiagnosis(dailyResults, allItems));
 
         // 3. 获取交易日历
         LocalDate calStart = req.getStartDate();
@@ -484,7 +511,7 @@ public class ScoringBacktestService {
                 .priceSource(priceSource)
                 .metricScope("FILLED_SAMPLE")
                 .build();
-        persistRun(req, response);
+        persistRun(req, response, effectiveParams);
         return response;
     }
 
@@ -492,7 +519,8 @@ public class ScoringBacktestService {
      * 持久化回测运行记录（参数+假设+数据截止日+完整结果），供按 resultId 回溯/分享。
      * 持久化失败不阻断回测主流程，仅告警。
      */
-    private void persistRun(ScoringBacktestRequest req, ScoringBacktestResponse response) {
+    private void persistRun(
+            ScoringBacktestRequest req, ScoringBacktestResponse response, EffectiveExecutionParams effectiveParams) {
         try {
             if (response.getTotalTradingDays() == 0) {
                 return; // 无有效回测数据不落库，避免污染历史列表
@@ -504,9 +532,11 @@ public class ScoringBacktestService {
             run.setEndDate(req.getEndDate());
             run.setTopN(response.getTopN());
             run.setHoldingDays(toJson(req.getHoldingDays()));
-            run.setCommissionRate(BigDecimal.valueOf(req.getCommissionRate() != null ? req.getCommissionRate() : 0.0003));
-            run.setSellTaxRate(BigDecimal.valueOf(req.getSellTaxRate() != null ? req.getSellTaxRate() : 0.0005));
-            run.setSlippageRate(BigDecimal.valueOf(req.getSlippageRate() != null ? req.getSlippageRate() : 0.0002));
+            // D-R010-06：落库用**生效值**（钳位后），与回测计算、载荷 assumptions 三者同源。
+            // 原实现写请求原值，导致同一次运行在历史列表里显示 0.0%、在载荷里显示 0.03%（载荷为钳位后值）。
+            run.setCommissionRate(BigDecimal.valueOf(effectiveParams.commissionRate()));
+            run.setSellTaxRate(BigDecimal.valueOf(effectiveParams.sellTaxRate()));
+            run.setSlippageRate(BigDecimal.valueOf(effectiveParams.slippageRate()));
             run.setLatestDataDate(marketDataRepo.findMaxTradeDate().orElse(null));
             run.setAssumptions(toJson(response.getExecutionAssumptions()));
             Map<String, Object> summary = new LinkedHashMap<>();
@@ -673,11 +703,53 @@ public class ScoringBacktestService {
         return Math.max(0, Math.min(value, 0.05));
     }
 
+    /** 因子分组数钳位（D-R013-03）：纯函数，便于单测直接覆盖边界。 */
+    static int clampFactorGroupCount(int requested) {
+        return Math.max(MIN_FACTOR_GROUP_COUNT, Math.min(requested, MAX_FACTOR_GROUP_COUNT));
+    }
+
+    /**
+     * 本次运行**实际生效**的执行参数（D-R010-06 / D-R013-03）。回测计算、载荷与落库共用同一份，
+     * 避免「载荷写钳位后的值、落库存请求原值」这类跨面不一致。
+     */
+    record EffectiveExecutionParams(
+            int requestedFactorGroupCount,
+            int factorGroupCount,
+            Double requestedCommissionRate,
+            double commissionRate,
+            Double requestedSellTaxRate,
+            double sellTaxRate,
+            Double requestedSlippageRate,
+            double slippageRate
+    ) {
+        boolean factorGroupCountClamped() {
+            return requestedFactorGroupCount != factorGroupCount;
+        }
+
+        boolean commissionRateClamped() {
+            return !isHonored(requestedCommissionRate, commissionRate);
+        }
+
+        boolean sellTaxRateClamped() {
+            return !isHonored(requestedSellTaxRate, sellTaxRate);
+        }
+
+        boolean slippageRateClamped() {
+            return !isHonored(requestedSlippageRate, slippageRate);
+        }
+
+        /** 请求值是否被原样采纳：null（未指定走默认）不算被钳位；非有限值被回落成默认则算。 */
+        private static boolean isHonored(Double requested, double effective) {
+            return requested == null || (Double.isFinite(requested) && Double.compare(requested, effective) == 0);
+        }
+    }
+
     private Map<String, Object> executionAssumptions(
             double commissionRate,
             double sellTaxRate,
             double slippageRate,
-            List<SelectorResult> dailyResults
+            List<SelectorResult> dailyResults,
+            EffectiveExecutionParams effectiveParams
     ) {
         Map<String, Object> assumptions = new LinkedHashMap<>();
         assumptions.put("entry", "NEXT_TRADING_DAY_OPEN");
@@ -690,11 +762,28 @@ public class ScoringBacktestService {
         assumptions.put("commission_rate", commissionRate);
         assumptions.put("sell_tax_rate", sellTaxRate);
         assumptions.put("slippage_rate_each_side", slippageRate);
+        // D-R010-06：请求原值 / 是否被钳位（此前只发钳位后的值，「用户指定 0」与「未指定」不可区分，
+        // 且落库用的是请求原值 —— 载荷与历史列表可能对同一次运行给出不同费率）
+        assumptions.put("commission_rate_requested", effectiveParams.requestedCommissionRate());
+        assumptions.put("sell_tax_rate_requested", effectiveParams.requestedSellTaxRate());
+        assumptions.put("slippage_rate_each_side_requested", effectiveParams.requestedSlippageRate());
+        assumptions.put("commission_rate_clamped", effectiveParams.commissionRateClamped());
+        assumptions.put("sell_tax_rate_clamped", effectiveParams.sellTaxRateClamped());
+        assumptions.put("slippage_rate_each_side_clamped", effectiveParams.slippageRateClamped());
+        assumptions.put("rate_bounds_note", RATE_BOUNDS_NOTE);
+        assumptions.put("factor_group_count_requested", effectiveParams.requestedFactorGroupCount());
+        assumptions.put("factor_group_count_effective", effectiveParams.factorGroupCount());
+        assumptions.put("factor_group_count_clamped", effectiveParams.factorGroupCountClamped());
+        assumptions.put("factor_group_count_basis", FACTOR_GROUP_COUNT_BASIS);
+        assumptions.put("factor_group_count_note", FACTOR_GROUP_COUNT_NOTE);
         assumptions.put("return_type", "NET_AFTER_MODELED_COSTS");
         assumptions.put("limit_up_entry_blocked", true);
         assumptions.put("limit_down_exit_blocked", true);
         assumptions.put("limit_pct_source", "BY_BOARD_AND_ST");
         assumptions.put("selector_tradability", resolveSelectorTradability(dailyResults));
+        // 只读诊断（D-R001-01 / D-R005-03）：闸阈值与候选量级是否同档。items 此刻尚未加载，
+        // 先给 NO_OBSERVATIONS 占位，由 run() 在加载 items 后覆盖同一键（保持键集恒定，见 D-R007-03）
+        assumptions.put("selector_liquidity_gate", selectorLiquidityGateDiagnosis(dailyResults, List.of()));
         assumptions.put("short_horizon_research_focus", "T+3/T+5 Rank IC 与分组 spread 用于验证 3～5 日预测有效性");
         assumptions.put("codex_neutralization", "v2: winsorize → OLS(lnMV+industry dummies) → robust Z on residuals");
         assumptions.put("skip_reason_codes", List.of(
@@ -740,6 +829,54 @@ public class ScoringBacktestService {
         Map<String, Object> fallback = new LinkedHashMap<>(ScoringUtils.tradabilitySnapshot(true, true, 60));
         fallback.put("source", "default_no_snapshot_in_result");
         return fallback;
+    }
+
+    /**
+     * 流动性闸的单位自洽诊断（只读，不改阈值）：把 selector 结果里配置的 {@code min_avg_amount}
+     * 与候选实测量级 {@code avg_amount20} 的<strong>中位数</strong>按同一单位对照。
+     * 阈值高出候选量级 ≥100× 时判 {@code SUSPECTED_UNIT_MISMATCH} ——
+     * 外部表现是「闸筛不出任何票」，而根因往往是单位写错（把万元当元用），
+     * 不做这一层诊断时该形态极难在载荷里被看见（D-R001-01 / D-R005-03）。
+     */
+    private static Map<String, Object> selectorLiquidityGateDiagnosis(
+            List<SelectorResult> dailyResults, List<SelectorResultItem> items) {
+        Map<String, Object> gate = new LinkedHashMap<>();
+        Double configured = null;
+        if (dailyResults != null) {
+            configured = dailyResults.stream()
+                    .filter(r -> r != null && r.getMinAvgAmount() != null)
+                    .map(SelectorResult::getMinAvgAmount)
+                    .max(Double::compareTo)
+                    .orElse(null);
+        }
+        List<Double> avgAmounts = new ArrayList<>();
+        if (items != null) {
+            for (SelectorResultItem item : items) {
+                if (item != null && item.getAvgAmount20() != null && Double.isFinite(item.getAvgAmount20())) {
+                    avgAmounts.add(item.getAvgAmount20());
+                }
+            }
+        }
+        gate.put("configured_min_avg_amount", configured);
+        gate.put("configured_min_avg_amount_source", "selector_result.min_avg_amount");
+        gate.put("min_avg_amount_unit", ScoringUtils.MIN_AVG_AMOUNT_UNIT);
+        gate.put("default_min_avg_amount", ScoringUtils.DEFAULT_MIN_AVG_AMOUNT);
+        gate.put("candidate_count", avgAmounts.size());
+        gate.put("candidate_avg_amount20_median", medianOrNull(avgAmounts));
+        gate.put("unit_diagnosis",
+                ScoringUtils.liquidityGateMagnitudeDiagnosis(avgAmounts, configured == null ? 0d : configured));
+        gate.put("note", ScoringUtils.liquidityGateDiagnosisNote());
+        return gate;
+    }
+
+    private static Double medianOrNull(List<Double> values) {
+        if (values == null || values.isEmpty()) {
+            return null;
+        }
+        List<Double> sorted = new ArrayList<>(values);
+        sorted.sort(Double::compareTo);
+        int n = sorted.size();
+        return n % 2 == 1 ? sorted.get(n / 2) : (sorted.get(n / 2 - 1) + sorted.get(n / 2)) / 2.0;
     }
 
     private static boolean isZeroVolume(MarketData bar) {
@@ -1044,6 +1181,12 @@ public class ScoringBacktestService {
                                 .build())
                         .toList())
                 .longShortSpread(summary.longShortSpread())
+                .longShortSpreadCostBasis(FactorResearchService.SPREAD_COST_BASIS_NET)
+                .longShortSpreadGrossEquivalent(grossEquivalentOfNetSpread(summary.longShortSpread()))
+                .costPerLegRoundTrip(perLegRoundTripCost())
+                .rankIcStdSample(sampleStdDivTMinusOne(summary))
+                .rankIcIrSample(sampleIcIr(summary))
+                .pearsonIcMean(summary.pearsonIcMean())
                 .monotonicity(summary.monotonicity())
                 .universeNote(summary.universeNote())
                 .build();
@@ -1062,6 +1205,51 @@ public class ScoringBacktestService {
                 .rankIcIr(summary.rankIcIr())
                 .rankIcPositiveRate(summary.rankIcPositiveRate())
                 .longShortSpread(summary.longShortSpread())
+                .longShortSpreadCostBasis(FactorResearchService.SPREAD_COST_BASIS_NET)
+                .longShortSpreadGrossEquivalent(grossEquivalentOfNetSpread(summary.longShortSpread()))
+                .costPerLegRoundTrip(perLegRoundTripCost())
+                .rankIcStdSample(sampleStdDivTMinusOne(summary))
+                .rankIcIrSample(sampleIcIr(summary))
+                .pearsonIcMean(summary.pearsonIcMean())
                 .build();
+    }
+
+    /**
+     * 单腿往返成本（乘性口径）：与 {@code FactorResearchService} 载荷的
+     * {@code cost_per_leg_round_trip} 同源同算法（都走 {@link FactorResearchEngine#roundTripCostPerLeg}），
+     * 保证跨面同键同值。
+     */
+    static double perLegRoundTripCost() {
+        return FactorResearchEngine.roundTripCostPerLeg(
+                ResearchConvention.DEFAULT_COMMISSION_RATE,
+                ResearchConvention.DEFAULT_SELL_TAX_RATE,
+                ResearchConvention.DEFAULT_SLIPPAGE_RATE);
+    }
+
+    /**
+     * 本面（打分回测）的因子观测收益来自 {@code periodResult.ret()}，**已扣费**，
+     * 故 {@code longShortSpread} 是**净**价差：美元中性值不适用（再减一次两腿成本即重复扣费），
+     * 能给出的是它的毛价差等价物（见 {@link FactorResearchEngine#grossSpreadFromNet}）。
+     * 同名字段在 {@code FactorResearchService} 载荷的毛收益块里是**毛**价差——跨面引用前先读
+     * {@code long_short_spread_cost_basis} / {@code longShortSpreadCostBasis}。
+     */
+    static Double grossEquivalentOfNetSpread(double netSpread) {
+        return FactorResearchEngine.grossSpreadFromNet(netSpread, perLegRoundTripCost());
+    }
+
+    /** 样本标准差口径（÷(T−1)）的 IC 标准差；无离散度或无观测时为 null。 */
+    static Double sampleStdDivTMinusOne(FactorResearchSummary summary) {
+        return FactorResearchEngine.sampleStdDivTMinusOne(summary.dailyRankIc().stream()
+                .map(com.quant.service.backtest.FactorResearchEngine.DailyRankIc::rankIc)
+                .toList());
+    }
+
+    /** 由样本标准差口径算出的 ICIR；分母为 0 或无定义时为 null（0 的语义是「IR 恰为 0」）。 */
+    static Double sampleIcIr(FactorResearchSummary summary) {
+        Double sampleStd = sampleStdDivTMinusOne(summary);
+        if (sampleStd == null || sampleStd == 0) {
+            return null;
+        }
+        return summary.rankIcMean() / sampleStd;
     }
 }

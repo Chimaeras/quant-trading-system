@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS market_data (
     pre_close           DECIMAL(12,4) DEFAULT NULL COMMENT '前收盘价',
     change_pct          DECIMAL(8,4) DEFAULT NULL COMMENT '涨跌幅%',
     volume              BIGINT DEFAULT NULL COMMENT '成交量(股)',
-    amount              DECIMAL(20,4) DEFAULT NULL COMMENT '成交额(元)',
+    amount              DECIMAL(20,4) DEFAULT NULL COMMENT '成交额(万元)',
     turnover_rate       DECIMAL(8,4) DEFAULT NULL COMMENT '换手率%',
     pe_ratio            DECIMAL(12,4) DEFAULT NULL COMMENT '市盈率',
     pb_ratio            DECIMAL(12,4) DEFAULT NULL COMMENT '市净率',

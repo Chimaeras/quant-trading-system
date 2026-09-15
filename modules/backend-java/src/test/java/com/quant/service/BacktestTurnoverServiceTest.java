@@ -240,4 +240,157 @@ class BacktestTurnoverServiceTest {
         assertThat(out.get("strategy_filter")).isEqualTo("NONE_ALL_STRATEGIES");
         assertThat((String) out.get("strategy_filter_note")).contains("不按策略分组");
     }
+
+    // ---- D-R008-01 / 04 / 05：实际规模分母、同策略配对、回显归一（legacy 聚合值零变化） ----
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void actualDenominatorKeysNeutralizeTheShortHandedDistortion() {
+        LocalDate d1 = LocalDate.of(2025, 1, 2);
+        LocalDate d2 = LocalDate.of(2025, 1, 3);
+        // 集合完全不变但两日各只有 3 只（请求 topN = 10）：
+        // legacy（参数分母）读出 1 - 3/10 = 0.7，按实际规模归一应为 0.0。两个数并列给出。
+        when(selectorResultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(d1, d2))
+                .thenReturn(List.of(result("R2", "CLASSIC_SELECTOR", d2), result("R1", "CLASSIC_SELECTOR", d1)));
+        when(selectorResultItemRepository.findByResultIdInOrderByRankNo(any()))
+                .thenReturn(List.of(
+                        item("R1", 1, "A"), item("R1", 2, "B"), item("R1", 3, "C"),
+                        item("R2", 1, "C"), item("R2", 2, "B"), item("R2", 3, "A")
+                ));
+
+        Map<String, Object> out = service().analyze("CLASSIC_SELECTOR", d1, d2, 10);
+
+        assertThat(out.get("avg_turnover")).isEqualTo(0.7);
+        assertThat(out.get("denominator_actual")).isEqualTo("MIN_PREV_CURR_CANDIDATE_COUNT");
+        assertThat(out.get("avg_turnover_actual_denominator")).isEqualTo(0.0);
+        assertThat(out.get("max_turnover_actual_denominator")).isEqualTo(0.0);
+        assertThat(out.get("min_turnover_actual_denominator")).isEqualTo(0.0);
+        assertThat(out.get("pairs_dropped_undefined_actual_denominator")).isEqualTo(0);
+
+        List<Map<String, Object>> daily = (List<Map<String, Object>>) out.get("daily_turnover");
+        Map<String, Object> row = daily.get(0);
+        assertThat(row.get("turnover")).isEqualTo(0.7);
+        assertThat(row.get("turnover_actual_denominator")).isEqualTo(0.0);
+        assertThat(row.get("denominator_actual_value")).isEqualTo(3);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void sameStrategyPairingExcludesCrossStrategyAndSameDatePairs() {
+        LocalDate d1 = LocalDate.of(2025, 1, 2);
+        LocalDate d2 = LocalDate.of(2025, 1, 3);
+        // 排序后序列 = [CLASSIC|d1, CLASSIC|d2, MOMENTUM|d2]（同日按 createdAt desc 插入序稳定排列）：
+        //   对 1 = 同策略、不同交易日 → 计入同策略聚合（1 - 1/2 = 0.5）
+        //   对 2 = 不同策略且同一交易日 → 计入 cross_strategy_pairs（1 - 0/2 = 1.0）
+        when(selectorResultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(d1, d2))
+                .thenReturn(List.of(
+                        result("R2", "CLASSIC_SELECTOR", d2), result("R3", "MOMENTUM", d2),
+                        result("R1", "CLASSIC_SELECTOR", d1)));
+        when(selectorResultItemRepository.findByResultIdInOrderByRankNo(any()))
+                .thenReturn(List.of(
+                        item("R1", 1, "A"), item("R1", 2, "B"),
+                        item("R2", 1, "A"), item("R2", 2, "C"),
+                        item("R3", 1, "X"), item("R3", 2, "Y")
+                ));
+
+        Map<String, Object> out = service().analyze(null, d1, d2, 2);
+
+        assertThat(out.get("pairing_rule")).isEqualTo("SAME_STRATEGY_DISTINCT_TRADING_DAYS");
+        assertThat(out.get("same_strategy_pairs")).isEqualTo(1);
+        assertThat(out.get("cross_strategy_pairs")).isEqualTo(1);
+        // legacy 聚合仍含跨策略对：(0.5 + 1.0) / 2 = 0.75；同策略子集为 0.5
+        assertThat(out.get("avg_turnover")).isEqualTo(0.75);
+        assertThat(out.get("avg_turnover_same_strategy_only")).isEqualTo(0.5);
+
+        List<Map<String, Object>> daily = (List<Map<String, Object>>) out.get("daily_turnover");
+        assertThat(daily.get(0).get("same_strategy_pair")).isEqualTo(true);
+        assertThat(daily.get(0).get("same_date_pair")).isEqualTo(false);
+        assertThat(daily.get(0).get("prev_strategy")).isEqualTo("CLASSIC_SELECTOR");
+        assertThat(daily.get(0).get("curr_strategy")).isEqualTo("CLASSIC_SELECTOR");
+        assertThat(daily.get(1).get("same_strategy_pair")).isEqualTo(false);
+        assertThat(daily.get(1).get("same_date_pair")).isEqualTo(true);
+        assertThat(daily.get(1).get("prev_trade_date")).isEqualTo(d2.toString());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void strategyEchoIsNormalizedIntoRequestedAndEffectiveKeys() {
+        LocalDate d1 = LocalDate.of(2025, 1, 2);
+        LocalDate d2 = LocalDate.of(2025, 1, 3);
+        when(selectorResultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(d1, d2))
+                .thenReturn(List.of(result("R2", "CLASSIC_SELECTOR", d2), result("R1", "CLASSIC_SELECTOR", d1)));
+        when(selectorResultItemRepository.findByResultIdInOrderByRankNo(any()))
+                .thenReturn(List.of(
+                        item("R1", 1, "A"), item("R1", 2, "B"),
+                        item("R2", 1, "A"), item("R2", 2, "B")
+                ));
+
+        Map<String, Object> blank = service().analyze("   ", d1, d2, 2);
+        Map<String, Object> explicit = service().analyze("CLASSIC_SELECTOR", d1, d2, 2);
+
+        // legacy 键保持历史回显；新键给出「原始请求值 / 实际生效值」这一对，语义不再二义
+        assertThat(blank.get("strategy")).isEqualTo("   ");
+        assertThat(blank.get("strategy_requested")).isNull();
+        assertThat(blank.get("strategy_effective")).isEqualTo("ALL");
+        assertThat(explicit.get("strategy_requested")).isEqualTo("CLASSIC_SELECTOR");
+        assertThat(explicit.get("strategy_effective")).isEqualTo("CLASSIC_SELECTOR");
+        assertThat(blank.get("strategy_echo_note")).isNotNull();
+    }
+
+    /** 纯函数边界：分母 ≤ 0（某日候选为空）时「替换率」无定义，必须是 null 而不是 0。 */
+    @Test
+    void replacementRatioIsUndefinedForNonPositiveDenominator() {
+        assertThat(BacktestTurnoverService.replacementRatio(0, 0)).isNull();
+        assertThat(BacktestTurnoverService.replacementRatio(3, -1)).isNull();
+        assertThat(BacktestTurnoverService.replacementRatio(1, 2)).isEqualTo(0.5);
+        assertThat(BacktestTurnoverService.replacementRatio(2, 2)).isEqualTo(0.0);
+        // null 透传的取整：null ≠ 0.0
+        assertThat(BacktestTurnoverService.round4((Double) null)).isNull();
+        assertThat(BacktestTurnoverService.round4(0.0)).isEqualTo(0.0);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void emptyDayMakesTheActualDenominatorAggregateUndefined() {
+        LocalDate d1 = LocalDate.of(2025, 1, 2);
+        LocalDate d2 = LocalDate.of(2025, 1, 3);
+        // d2 无候选条目 ⟹ min(prev, curr) = 0，该对的替代分母无定义；legacy 仍按参数分母给数
+        when(selectorResultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(d1, d2))
+                .thenReturn(List.of(result("R2", "CLASSIC_SELECTOR", d2), result("R1", "CLASSIC_SELECTOR", d1)));
+        when(selectorResultItemRepository.findByResultIdInOrderByRankNo(any()))
+                .thenReturn(List.of(item("R1", 1, "A"), item("R1", 2, "B")));
+
+        Map<String, Object> out = service().analyze("CLASSIC_SELECTOR", d1, d2, 2);
+
+        assertThat(out.get("avg_turnover")).isEqualTo(1.0); // 1 - 0/2
+        assertThat(out.get("avg_turnover_actual_denominator")).isNull();
+        assertThat(out.get("pairs_dropped_undefined_actual_denominator")).isEqualTo(1);
+        List<Map<String, Object>> daily = (List<Map<String, Object>>) out.get("daily_turnover");
+        assertThat(daily.get(0).get("turnover_actual_denominator")).isNull();
+        assertThat(daily.get(0).get("denominator_actual_value")).isEqualTo(0);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void undefinedBranchKeepsTheSameKeySetAsTheDefinedBranch() {
+        LocalDate d1 = LocalDate.of(2025, 1, 2);
+        LocalDate d2 = LocalDate.of(2025, 1, 3);
+        when(selectorResultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(d1, d2))
+                .thenReturn(List.of(result("R2", "CLASSIC_SELECTOR", d2), result("R1", "CLASSIC_SELECTOR", d1)));
+        when(selectorResultItemRepository.findByResultIdInOrderByRankNo(any()))
+                .thenReturn(List.of(
+                        item("R1", 1, "A"), item("R1", 2, "B"),
+                        item("R2", 1, "B"), item("R2", 2, "C")
+                ));
+        when(selectorResultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(d2, d2))
+                .thenReturn(List.of(result("R2", "CLASSIC_SELECTOR", d2)));
+
+        Map<String, Object> defined = service().analyze("CLASSIC_SELECTOR", d1, d2, 2);
+        Map<String, Object> undefined = service().analyze("CLASSIC_SELECTOR", d2, d2, 2);
+
+        assertThat(undefined.keySet()).isEqualTo(defined.keySet());
+        assertThat(undefined.get("avg_turnover_actual_denominator")).isNull();
+        assertThat(undefined.get("same_strategy_pairs")).isEqualTo(0);
+        assertThat(undefined.get("pairs_dropped_undefined_actual_denominator")).isNull();
+    }
 }

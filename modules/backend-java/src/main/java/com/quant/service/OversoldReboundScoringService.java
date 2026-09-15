@@ -63,7 +63,7 @@ public class OversoldReboundScoringService {
         // topN<=0 表示「无上限」：V2-MP-016 完整特征截面回放用 topN=0 获取全部打分候选
         int topN = ScoringUtils.parseInt(req.get("topN"), 50, 0, 500);
         double minTotalScore = ScoringUtils.parseDouble(req.get("minTotalScore"), 60, 0, 100);
-        double minAvgAmount = ScoringUtils.parseDouble(req.get("minAvgAmount"), 30_000_000d, 0d, 1_000_000_000_000d);
+        double minAvgAmount = ScoringUtils.parseDouble(req.get("minAvgAmount"), ScoringUtils.DEFAULT_MIN_AVG_AMOUNT, 0d, 1_000_000_000_000d);
         boolean excludeST = ScoringUtils.parseBool(req.get("excludeST"), true);
         int minListingDays = ScoringUtils.parseInt(req.get("minListingDays"), 60, 0, 3650);
         boolean persist = ScoringUtils.parseBool(req.get("persist"), true);
@@ -347,7 +347,7 @@ public class OversoldReboundScoringService {
                 effectiveLookbackDays
         );
         double minTotalScore = ScoringUtils.parseDouble(req.get("minTotalScore"), 60, 0, 100);
-        double minAvgAmount = ScoringUtils.parseDouble(req.get("minAvgAmount"), 30_000_000d, 0d, 1_000_000_000_000d);
+        double minAvgAmount = ScoringUtils.parseDouble(req.get("minAvgAmount"), ScoringUtils.DEFAULT_MIN_AVG_AMOUNT, 0d, 1_000_000_000_000d);
         boolean excludeST = ScoringUtils.parseBool(req.get("excludeST"), true);
         int minListingDays = ScoringUtils.parseInt(req.get("minListingDays"), 60, 0, 3650);
         boolean bulkFetch = ScoringUtils.parseBool(req.get("bulkFetch"), true);
@@ -414,7 +414,7 @@ public class OversoldReboundScoringService {
             int effectiveLookbackDays
     ) {
         String resultId = ScoringUtils.isNotEmpty(fixedResultId) ? fixedResultId : genResultId();
-        double minAvgAmount = ScoringUtils.parseDouble(req.get("minAvgAmount"), 30_000_000d, 0d, 1_000_000_000_000d);
+        double minAvgAmount = ScoringUtils.parseDouble(req.get("minAvgAmount"), ScoringUtils.DEFAULT_MIN_AVG_AMOUNT, 0d, 1_000_000_000_000d);
         SelectorResult result = selectorResultRepository.findByResultId(resultId).orElse(new SelectorResult());
         result.setResultId(resultId);
         result.setTradeDate(tradeDate);

@@ -47,6 +47,9 @@ public final class FactorResearchEngine {
      *
      * @param rankIcIr ICIR；当 IC 序列无离散度（std = 0，含 T &lt; 2）时**无定义**，为 {@code null}，
      *                 不得写成 0（0 的语义是「IR 恰为 0」，两者不可混同）
+     * @param pearsonIcMean 线性 IC 均值；当无任何 Pearson 支撑日（`pearsonSupportDays = 0`）时**无定义**，
+     *                      为 {@code null}。原实现硬写 0.0，而 0 是合法的 IC 取值，
+     *                      二者在载荷上不可区分（Q-R009-02）
      */
     public record FactorResearchSummary(
             int holdingDays,
@@ -57,7 +60,7 @@ public final class FactorResearchEngine {
             double rankIcStd,
             Double rankIcIr,
             double rankIcPositiveRate,
-            double pearsonIcMean,
+            Double pearsonIcMean,
             String monotonicity,
             double hacStd,
             double ciLower,
@@ -255,7 +258,8 @@ public final class FactorResearchEngine {
         // 以免把量级极小但真实有离散度的 IC 序列误判为无定义。
         Double icIr = icStd == 0 ? null : icMean / icStd;
         long icPos = icSeries.stream().filter(v -> v > 0).count();
-        double pearsonIcMean = dailyPearson.isEmpty() ? 0
+        // 无 Pearson 支撑日 ⟹ 线性 IC 不可定义，写 null（0 是合法 IC 取值，不可用来表示「无数据」）
+        Double pearsonIcMean = dailyPearson.isEmpty() ? null
                 : dailyPearson.stream().mapToDouble(Double::doubleValue).average().orElse(0);
 
         List<GroupReturnStat> grouped = new ArrayList<>();
@@ -307,7 +311,7 @@ public final class FactorResearchEngine {
             int daysBelowMinCrossSection, int daysNonFiniteIc, int excludedNonFiniteObservations) {
         return new FactorResearchSummary(
                 holdingDays, groupCount, 0, 0,
-                0, 0, null, 0, 0, "N/A", 0, 0, 0,
+                0, 0, null, 0, null, "N/A", 0, 0, 0,
                 List.of(), List.of(), 0,
                 note,
                 inputDays, daysBelowMinCrossSection, daysNonFiniteIc,
@@ -373,6 +377,103 @@ public final class FactorResearchEngine {
             return "MONOTONIC_DECREASING";
         }
         return "NON_MONOTONIC";
+    }
+
+    /**
+     * 样本标准差（÷(T−1)），供载荷并列披露 ICIR 的另一条分母约定（Q-R006-02）。
+     *
+     * <p>本项目的**主**口径是总体标准差 ÷T（{@code rank_ic_std_basis = POPULATION_STD_DIV_T}），
+     * 本方法**不改**任何既有数值，只让 ÷(T−1) 读法可被复核：两者比值恒为
+     * {@code sqrt(T/(T-1))}（T=5 时约 +11.8%）。
+     *
+     * @return 样本标准差；{@code T < 2} 或输入非有限时返回 {@code null}（无定义，不得写 0）
+     */
+    public static Double sampleStdDivTMinusOne(List<Double> values) {
+        if (values == null || values.size() < 2) {
+            return null;
+        }
+        int n = values.size();
+        double mean = 0;
+        for (Double v : values) {
+            if (v == null || !Double.isFinite(v)) {
+                return null;
+            }
+            mean += v;
+        }
+        mean /= n;
+        double ss = 0;
+        for (Double v : values) {
+            ss += (v - mean) * (v - mean);
+        }
+        return Math.sqrt(ss / (n - 1));
+    }
+
+    /**
+     * 单腿往返成本率（entry open → exit close 的乘性实现，与冻结口径同构）：
+     * {@code 1 − (1−slippage)(1−commission−tax) / ((1+slippage)(1+commission))}。
+     *
+     * <p>冻结口径下（佣金万三、印花税万五、单边滑点万二）≈ {@code 0.0014992}，即约 <strong>15.0bp</strong>。
+     * 常见的 <strong>12bp</strong> 加法式写法（{@code 2×滑点 + 佣金 + 印花税}）**漏掉卖出腿佣金**，
+     * 与实现不符（差值主项 = −佣金 = −3.00bp）——这与 {@code D-R010-01} 的公式勘误同一根因；
+     * 因此「两腿美元中性扣减 24bp」与「30bp」两种候选读法的分歧**不是建模选择**，而是加法式/乘性之差。
+     *
+     * @return 成本率；入参非有限或为负时返回 {@code NaN}（不可定义）
+     */
+    public static double roundTripCostPerLeg(double commissionRate, double sellTaxRate, double slippageRate) {
+        if (!Double.isFinite(commissionRate) || !Double.isFinite(sellTaxRate) || !Double.isFinite(slippageRate)
+                || commissionRate < 0 || sellTaxRate < 0 || slippageRate < 0) {
+            return Double.NaN;
+        }
+        double netFactor = (1 - slippageRate) * (1 - commissionRate - sellTaxRate)
+                / ((1 + slippageRate) * (1 + commissionRate));
+        return 1 - netFactor;
+    }
+
+    /**
+     * 美元中性（真双腿：多头最高分组 + 空头最低分组）净价差：
+     * {@code 毛价差 − 2 × 单腿往返成本}。
+     *
+     * <p>{@code longShortSpread} 本身是**两个多头腿净收益之差**（成本在两腿差分中结构上抵消），
+     * 不承担空头腿成本；本方法给出论文口径下的真双腿美元中性值，供并列对照，
+     * **不替换**既有字段（Q-R003-01 / Q-R004-01）。
+     *
+     * @param grossSpread 毛收益（未扣费）两腿之差；为 {@code null} 时返回 {@code null}
+     * @return 美元中性净价差；成本不可定义（非有限）时返回 {@code null}
+     */
+    public static Double dollarNeutralSpread(Double grossSpread, double roundTripCostPerLeg) {
+        if (grossSpread == null || !Double.isFinite(grossSpread) || !Double.isFinite(roundTripCostPerLeg)) {
+            return null;
+        }
+        return grossSpread - 2 * roundTripCostPerLeg;
+    }
+
+    /**
+     * 净价差 → 毛价差的还原：{@code 毛价差 = 净价差 / (1 − 单腿往返成本)}。
+     *
+     * <p>这是**价格模型**（回测执行面实际用法）的逆运算：该面按价格乘性扣费，
+     * 每个观测的净收益 = 毛收益 × (1 − 单腿成本)，组均值同比例缩放，故除法可精确还原。
+     * 用来把「成本后近似净收益面」的同名 {@code longShortSpread} 对齐到「毛收益面」的同一把尺子上
+     * （两面同名不同量，见载荷的 {@code long_short_spread_cost_basis}）。
+     *
+     * <p><b>注意：本方法不是 {@link #dollarNeutralSpread} 的逆运算</b>。后者用的是「美元中性」惯例
+     * {@code 毛价差 − 2c}（两条腿各按名义本金付一次往返成本），与价格模型 {@code 毛价差 ×(1−c)} 是
+     * **两个不同的成本模型**，差值闭式为 {@code c(2 − 毛价差)}（毛价差 5%、c≈15bp 时约 2.92bp）；
+     * 把美元中性值代回本方法，还原缺口为 {@code c(2 − G)/(1 − c)}。
+     * 两个都保留：净观测面用本方法还原，毛价差面用美元中性惯例折算，各自声明基准。
+     *
+     * @param netSpread 净（已扣费）两腿价差；{@code null} 时返回 {@code null}
+     * @param roundTripCostPerLeg 单腿往返成本；为 1（或非有限/负）时分母为 0 或反号，返回 {@code null}
+     */
+    public static Double grossSpreadFromNet(Double netSpread, double roundTripCostPerLeg) {
+        if (netSpread == null || !Double.isFinite(netSpread)
+                || !Double.isFinite(roundTripCostPerLeg) || roundTripCostPerLeg < 0) {
+            return null;
+        }
+        double factor = 1 - roundTripCostPerLeg;
+        if (factor <= 0) {
+            return null;
+        }
+        return netSpread / factor;
     }
 
     private static String groupLabel(int groupNo, int groupCount) {

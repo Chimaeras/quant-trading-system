@@ -26,7 +26,7 @@
       <el-form-item label="打分池数量">
         <el-input-number v-model="form.scoreTopN" :min="10" :max="500" :step="10" />
       </el-form-item>
-      <el-form-item label="最小日均成交额(元)">
+      <el-form-item label="最小日均成交额(万元)">
         <el-input-number v-model="form.minAvgAmount" :min="0" :step="1000000" />
       </el-form-item>
       <el-form-item label="最小趋势分">
@@ -66,7 +66,7 @@
       <el-form-item label="最低综合分">
         <el-input-number v-model="oversoldForm.minTotalScore" :min="0" :max="100" />
       </el-form-item>
-      <el-form-item label="最低日均成交额(元)">
+      <el-form-item label="最低日均成交额(万元)">
         <el-input-number v-model="oversoldForm.minAvgAmount" :min="0" :step="1000000" />
       </el-form-item>
       <el-form-item label="排除 ST">
@@ -103,7 +103,7 @@
       <el-form-item label="最低综合分">
         <el-input-number v-model="commonForm.minTotalScore" :min="0" :max="100" :step="1" />
       </el-form-item>
-      <el-form-item label="最低日均成交额(元)">
+      <el-form-item label="最低日均成交额(万元)">
         <el-input-number v-model="commonForm.minAvgAmount" :min="0" :step="1000000" />
       </el-form-item>
       <el-form-item label="排除 ST">
@@ -367,7 +367,7 @@
       </template>
       <el-descriptions-item label="20日收益">{{ detailRow.ret20 != null ? `${detailRow.ret20}%` : '—' }}</el-descriptions-item>
       <el-descriptions-item label="60日收益">{{ detailRow.ret60 != null ? `${detailRow.ret60}%` : '—' }}</el-descriptions-item>
-      <el-descriptions-item label="日均成交额" :span="2">{{ detailRow.avg_amount20 }}</el-descriptions-item>
+      <el-descriptions-item label="日均成交额(万元)" :span="2">{{ detailRow.avg_amount20 }}</el-descriptions-item>
       <el-descriptions-item label="触发原因" :span="2">
         <el-table v-if="detailReasonEntries.length" :data="detailReasonEntries" size="small" stripe class="reason-table">
           <el-table-column prop="label" label="指标" min-width="140" />
@@ -474,7 +474,7 @@ const form = reactive({
   fullHistory: true,
   lookbackDays: 120,
   scoreTopN: 500,
-  minAvgAmount: 30_000_000,
+  minAvgAmount: 30_000,
   minTrendScore: 40,
   minListingDays: MIN_LISTING_DAYS_DEFAULT,
   horizonProfile: 'MEDIUM_TREND',
@@ -486,7 +486,7 @@ const oversoldForm = reactive({
   tradeDate: dayjs().format('YYYY-MM-DD'),
   scoreTopN: 500,
   minTotalScore: 60,
-  minAvgAmount: 30_000_000,
+  minAvgAmount: 30_000,
   excludeST: true,
   persist: true,
   templateId: ''
@@ -498,7 +498,7 @@ const commonForm = reactive({
   lookbackDays: 120,
   biasThreshold: 5.0,
   minTotalScore: 45,
-  minAvgAmount: 30_000_000,
+  minAvgAmount: 30_000,
   excludeST: true,
   minListingDays: MIN_LISTING_DAYS_DEFAULT
 })

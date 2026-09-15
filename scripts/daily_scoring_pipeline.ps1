@@ -356,8 +356,8 @@ function New-MainBoardUpdateBody {
 
 function Get-ScoringPayloads {
     param([string]$TradeDate)
-    # minAvgAmount 单位为「元」（与后端 ScoringUtils 默认值 30_000_000 及各打分服务一致）。
-    # 曾误填 30000（按「万元」理解），等于把 20 日均额闸门降到 3 万元 → 流动性过滤实际失效。
+    # minAvgAmount 单位为「万元」（= market_data.amount 的单位，见 ScoringUtils.AMOUNT_UNIT）。
+    # 30000 万元 = 3 亿元/日；曾按「元」写成 30000000（1000× 偏高）→ 20 日均额闸门恒不通过。
     return @(
         @{
             key      = 'classic'
@@ -369,7 +369,7 @@ function Get-ScoringPayloads {
                 tradeDate       = $TradeDate
                 fullHistory     = $true
                 topN            = $ScorePoolSize
-                minAvgAmount    = 30000000
+                minAvgAmount    = 30000
                 minTrendScore   = 40
                 minListingDays  = 60
                 horizonProfile  = 'MEDIUM_TREND'
@@ -385,7 +385,7 @@ function Get-ScoringPayloads {
                 tradeDate      = $TradeDate
                 topN           = $ScorePoolSize
                 minTotalScore  = 60
-                minAvgAmount   = 30000000
+                minAvgAmount   = 30000
                 excludeST      = $true
                 minListingDays = 60
                 persist        = $true
@@ -401,7 +401,7 @@ function Get-ScoringPayloads {
                 tradeDate      = $TradeDate
                 topN           = $ScorePoolSize
                 minTotalScore  = 45
-                minAvgAmount   = 30000000
+                minAvgAmount   = 30000
                 excludeST      = $true
                 minListingDays = 60
                 biasThreshold  = 5.0
@@ -419,7 +419,7 @@ function Get-ScoringPayloads {
                 topN           = $ScorePoolSize
                 lookbackDays   = 120
                 minTotalScore  = 55
-                minAvgAmount   = 30000000
+                minAvgAmount   = 30000
                 excludeST      = $true
                 minListingDays = 60
                 persist        = $true
@@ -435,7 +435,7 @@ function Get-ScoringPayloads {
                 tradeDate      = $TradeDate
                 topN           = $ScorePoolSize
                 minTotalScore  = 55
-                minAvgAmount   = 30000000
+                minAvgAmount   = 30000
                 excludeST      = $true
                 minListingDays = 60
                 persist        = $true

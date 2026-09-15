@@ -949,7 +949,7 @@ public class UnifiedScoringService {
         sr.setTradeDate(d);
         sr.setLookbackDays(parseInt(strategyReq.get("lookbackDays"), 60, 1, 5000));
         sr.setTopN(topN);
-        sr.setMinAvgAmount(parseDouble(strategyReq.get("minAvgAmount"), 30_000_000d, 0, 1_000_000_000_000d));
+        sr.setMinAvgAmount(parseDouble(strategyReq.get("minAvgAmount"), ScoringUtils.DEFAULT_MIN_AVG_AMOUNT, 0, 1_000_000_000_000d));
         sr.setMinTrendScore(parseDouble(strategyReq.get("minTrendScore"), 0, 0, 100));
         sr.setTemplateId(String.valueOf(strategyReq.getOrDefault("templateId", "")).trim().isBlank()
                 ? null : String.valueOf(strategyReq.get("templateId")).trim());

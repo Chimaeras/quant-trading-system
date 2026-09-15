@@ -78,7 +78,7 @@ class FactorResearchEngineTest {
         assertThat(summary.rankIcMean()).isGreaterThan(0.9);
         assertThat(summary.rankIcPositiveRate()).isEqualTo(1.0);
         assertThat(summary.groupedReturns()).hasSize(5);
-        assertThat(summary.longShortSpread()).isGreaterThan(0);
+        assertThat(summary.twoLongLegSpread()).isGreaterThan(0);
         assertThat(summary.universeNote()).isEqualTo("test universe");
     }
 
@@ -356,7 +356,7 @@ class FactorResearchEngineTest {
         FactorResearchEngine.FactorResearchSummary summary = FactorResearchEngine.summarize(
                 singleDay("2025-01-02", observations), 5, 20, 10, "test");
 
-        assertThat(summary.longShortSpread()).isCloseTo(-0.09, offset(1e-12));
+        assertThat(summary.twoLongLegSpread()).isCloseTo(-0.09, offset(1e-12));
         assertThat(summary.groupedReturns()).hasSize(20);
         // 非空组严格递减；修复前空组占位 0.0 插在末尾 ⟹ NON_MONOTONIC
         assertThat(summary.monotonicity()).isEqualTo("MONOTONIC_DECREASING");
@@ -408,7 +408,7 @@ class FactorResearchEngineTest {
         assertThat((Double) s.hacStd()).isNull();
         assertThat((Double) s.ciLower()).isNull();
         assertThat((Double) s.ciUpper()).isNull();
-        assertThat((Double) s.longShortSpread()).isNull();
+        assertThat((Double) s.twoLongLegSpread()).isNull();
         assertThat(s.monotonicity()).isEqualTo("N/A");
         // 整数计数是真实计数（0 个日 / 0 个观测），照常给数值
         assertThat(s.inputDays()).isZero();
@@ -432,7 +432,7 @@ class FactorResearchEngineTest {
         assertThat((Double) s.hacStd()).isNull();
         assertThat((Double) s.ciLower()).isNull();
         assertThat((Double) s.ciUpper()).isNull();
-        assertThat((Double) s.longShortSpread()).isNull();
+        assertThat((Double) s.twoLongLegSpread()).isNull();
         // 丢弃计数：入参 1 日、因规模不足丢 1 日（真实计数，不是占位）
         assertThat(s.inputDays()).isEqualTo(1);
         assertThat(s.daysBelowMinCrossSection()).isEqualTo(1);
@@ -476,7 +476,7 @@ class FactorResearchEngineTest {
                 FactorResearchEngine.summarize(singleDay("2025-01-02", observations), 5, 2, 2, "test");
 
         assertThat(s.crossSectionDays()).isEqualTo(1);
-        assertThat(s.longShortSpread()).isEqualTo(0.0);
+        assertThat(s.twoLongLegSpread()).isEqualTo(0.0);
         assertThat((Double) s.hacStd()).isNull();
         assertThat((Double) s.ciLower()).isNull();
         assertThat((Double) s.ciUpper()).isNull();
@@ -499,7 +499,7 @@ class FactorResearchEngineTest {
         // 非空组仍有真实均值；spread 只用非空组，且不因空组被置为 null
         assertThat(s.groupedReturns().get(0).avgReturn()).isEqualTo(0.01);
         assertThat(s.groupedReturns().get(1).avgReturn()).isEqualTo(0.02);
-        assertThat(s.longShortSpread()).isEqualTo(0.01);
+        assertThat(s.twoLongLegSpread()).isEqualTo(0.01);
         assertThat(s.groupsWithObservations()).isEqualTo(2);
         // 空组（null 均值）不参与方向断言
         assertThat(s.monotonicity()).isEqualTo("MONOTONIC_INCREASING");

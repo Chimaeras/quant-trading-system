@@ -82,21 +82,21 @@ public class ScoringBacktestResponse {
          * 两腿价差 = 最高分组均值 − 最低分组均值。本面（打分回测）的因子观测用
          * {@code periodResult.ret()}，**已扣费**，故本字段是**净价差**；同名字段在
          * {@code FactorResearchService} 载荷的毛收益块里是**毛价差**（同名不同量）。
-         * 判定口径一律读 {@link #longShortSpreadCostBasis}（Q-R003-01 / Q-R004-01）。
+         * 判定口径一律读 {@link #twoLongLegSpreadCostBasis}（Q-R003-01 / Q-R004-01）。
          * **无可用分组时不可计算，为 {@code null}**（不得以 0.0 冒充「恰好中性」）。
          */
-        private Double longShortSpread;
+        private Double twoLongLegSpread;
         /**
          * 两腿价差的成本基准（纯增量）：本 DTO 面恒为 {@code NET_AFTER_MODELED_COSTS}；
          * 载荷毛收益块为 {@code GROSS_BEFORE_COSTS}。消费方**不必靠字段名猜口径**。
          */
-        private String longShortSpreadCostBasis;
+        private String twoLongLegSpreadCostBasis;
         /**
-         * 净价差 → 毛价差的精确还原：{@code longShortSpread / (1 − costPerLegRoundTrip)}。
+         * 净价差 → 毛价差的精确还原：{@code twoLongLegSpread / (1 − costPerLegRoundTrip)}。
          * 用于与「毛收益面」的同名键对齐（冻结口径下费率为常数且逐笔乘性作用，故可精确还原）。
          * 美元中性值在本面**不适用**（价差已扣费，再减两腿成本即重复扣费），故不提供该字段。
          */
-        private Double longShortSpreadGrossEquivalent;
+        private Double twoLongLegSpreadGrossEquivalent;
         /** 单腿往返成本（乘性口径，佣金+印花税+双边滑点复合后的比例），纯增量。 */
         private Double costPerLegRoundTrip;
         /** 样本标准差口径（÷(T−1)）的 IC 标准差；主口径 {@link #rankIcStd} 为总体标准差 ÷T。 */
@@ -141,13 +141,13 @@ public class ScoringBacktestResponse {
         /**
          * 两腿价差 = 最高分组均值 − 最低分组均值，本面为**净价差**（观测收益已扣费）；
          * 与 {@code HoldingPeriodStat.ret()} 同属净收益家族，但**不是**美元中性多空。见
-         * {@link #longShortSpreadCostBasis}。无可用分组时不可计算，为 {@code null}。
+         * {@link #twoLongLegSpreadCostBasis}。无可用分组时不可计算，为 {@code null}。
          */
-        private Double longShortSpread;
+        private Double twoLongLegSpread;
         /** 两腿价差的成本基准（纯增量，Q-R003-01/Q-R004-01）：本面恒为 NET_AFTER_MODELED_COSTS。 */
-        private String longShortSpreadCostBasis;
-        /** 净价差 → 毛价差的精确还原（{@code longShortSpread / (1 − costPerLegRoundTrip)}）。 */
-        private Double longShortSpreadGrossEquivalent;
+        private String twoLongLegSpreadCostBasis;
+        /** 净价差 → 毛价差的精确还原（{@code twoLongLegSpread / (1 − costPerLegRoundTrip)}）。 */
+        private Double twoLongLegSpreadGrossEquivalent;
         /** 单腿往返成本（乘性口径），纯增量。 */
         private Double costPerLegRoundTrip;
         /** 样本标准差口径（÷(T−1)）的 IC 标准差；主口径 {@link #rankIcStd} 为总体标准差 ÷T。 */

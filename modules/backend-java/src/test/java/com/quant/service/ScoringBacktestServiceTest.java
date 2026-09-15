@@ -751,7 +751,7 @@ class ScoringBacktestServiceTest {
         assertThat(response.getFactorAnalysis().getHoldingDays()).isEqualTo(5);
         assertThat(response.getFactorAnalysis().getRankIcMean()).isGreaterThan(0);
         assertThat(response.getFactorAnalysis().getGroupedReturns()).hasSize(5);
-        assertThat(response.getFactorAnalysis().getLongShortSpread()).isGreaterThan(0);
+        assertThat(response.getFactorAnalysis().getTwoLongLegSpread()).isGreaterThan(0);
         assertThat(response.getFactorIcByHolding()).containsKey(5);
         assertThat(response.getFactorIcByHolding().get(5).getRankIcMean()).isGreaterThan(0);
         assertThat(response.getFormulaAudit()).isNotNull();
@@ -913,7 +913,7 @@ class ScoringBacktestServiceTest {
                 .rankIcStd(0.0)
                 .rankIcIr(null)
                 .rankIcPositiveRate(1.0)
-                .longShortSpread(0.01)
+                .twoLongLegSpread(0.01)
                 .build();
 
         assertThat(undefined.getRankIcIr()).isNull();
@@ -933,7 +933,7 @@ class ScoringBacktestServiceTest {
 
     @Test
     void factorGroupCountIsClampedToAUsableRange() {
-        // 下界 2：groupCount = 1 时「最高组」与「最低组」重合，long_short_spread 恒为 0 却被判为有效
+        // 下界 2：groupCount = 1 时「最高组」与「最低组」重合，two_long_leg_spread 恒为 0 却被判为有效
         assertThat(ScoringBacktestService.clampFactorGroupCount(1)).isEqualTo(2);
         assertThat(ScoringBacktestService.clampFactorGroupCount(0)).isEqualTo(2);
         assertThat(ScoringBacktestService.clampFactorGroupCount(-7)).isEqualTo(2);
@@ -1050,7 +1050,7 @@ class ScoringBacktestServiceTest {
 
     /**
      * D-R003-01 / D-R004-01：打分回测面的因子观测收益来自 {@code periodResult.ret()}（**已扣费**），
-     * 故 {@code longShortSpread} 是**净**价差：必须声明基准、且不得再减一次两腿成本（重复扣费）。
+     * 故 {@code twoLongLegSpread} 是**净**价差：必须声明基准、且不得再减一次两腿成本（重复扣费）。
      * 与因子研究载荷里同名的**毛**价差是「同名不同量」，跨面引用前先读基准键。
      */
     @Test
@@ -1067,20 +1067,54 @@ class ScoringBacktestServiceTest {
                 .rankIcStd(0.1)
                 .rankIcIr(0.3)
                 .rankIcPositiveRate(0.6)
-                .longShortSpread(0.05)
-                .longShortSpreadCostBasis(com.quant.service.FactorResearchService.SPREAD_COST_BASIS_NET)
-                .longShortSpreadGrossEquivalent(ScoringBacktestService.grossEquivalentOfNetSpread(0.05))
+                .twoLongLegSpread(0.05)
+                .twoLongLegSpreadCostBasis(com.quant.service.FactorResearchService.SPREAD_COST_BASIS_NET)
+                .twoLongLegSpreadGrossEquivalent(ScoringBacktestService.grossEquivalentOfNetSpread(0.05))
                 .costPerLegRoundTrip(perLeg)
                 .build();
 
-        assertThat(net.getLongShortSpreadCostBasis()).isEqualTo("NET_AFTER_MODELED_COSTS");
-        assertThat(net.getLongShortSpreadGrossEquivalent()).isNotNull();
-        assertThat(net.getLongShortSpreadGrossEquivalent() / 0.05).isCloseTo(1 / (1 - perLeg), within(1e-12));
-        assertThat(net.getLongShortSpreadGrossEquivalent()).isGreaterThan(0.05);
+        assertThat(net.getTwoLongLegSpreadCostBasis()).isEqualTo("NET_AFTER_MODELED_COSTS");
+        assertThat(net.getTwoLongLegSpreadGrossEquivalent()).isNotNull();
+        assertThat(net.getTwoLongLegSpreadGrossEquivalent() / 0.05).isCloseTo(1 / (1 - perLeg), within(1e-12));
+        assertThat(net.getTwoLongLegSpreadGrossEquivalent()).isGreaterThan(0.05);
         // 该键在 JSON 里可被消费方读到（不是只在载荷 map 中）
         assertThat(objectMapper().valueToTree(net).toString())
-                .contains("longShortSpreadCostBasis")
-                .contains("longShortSpreadGrossEquivalent");
+                .contains("twoLongLegSpreadCostBasis")
+                .contains("twoLongLegSpreadGrossEquivalent");
+    }
+
+    @Test
+    void dtoSpreadFieldsCarryTheHonestNameOnBothFacesAndNoLegacyAccessorSurvives() {
+        // 裁定 B（D-R003-01 / D-R004-01）：DTO 两个面上的旧字段名 longShortSpread 已删除。
+        // 改前两个面都声明 longShortSpread / longShortSpreadCostBasis ⟹ 本用例失败；
+        // 若有人留下 @JsonAlias 或旧名 getter 伪装成未改名 ⟹ 本用例同样失败。
+        for (Class<?> face : List.of(ScoringBacktestResponse.FactorIcSummary.class,
+                ScoringBacktestResponse.FactorAnalysis.class)) {
+            List<String> declared = java.util.Arrays.stream(face.getDeclaredFields())
+                    .map(java.lang.reflect.Field::getName).toList();
+            assertThat(declared).contains("twoLongLegSpread")
+                    .contains("twoLongLegSpreadCostBasis")
+                    .contains("twoLongLegSpreadGrossEquivalent")
+                    .noneMatch(n -> n.toLowerCase().contains("longshortspread"));
+
+            List<String> jsonNames = java.util.Arrays.stream(face.getDeclaredFields())
+                    .flatMap(f -> java.util.Arrays.stream(f.getAnnotationsByType(
+                            com.fasterxml.jackson.annotation.JsonProperty.class))
+                            .map(com.fasterxml.jackson.annotation.JsonProperty::value))
+                    .toList();
+            assertThat(jsonNames).noneMatch(n -> n.toLowerCase().contains("long_short_spread"))
+                    .noneMatch(n -> n.toLowerCase().contains("longshortspread"));
+            assertThat(java.util.Arrays.stream(face.getDeclaredFields())
+                    .flatMap(f -> java.util.Arrays.stream(f.getAnnotationsByType(
+                            com.fasterxml.jackson.annotation.JsonAlias.class)))
+                    .flatMap(a -> java.util.Arrays.stream(a.value())).toList()).isEmpty();
+
+            List<String> methods = java.util.Arrays.stream(face.getMethods())
+                    .map(java.lang.reflect.Method::getName)
+                    .map(String::toLowerCase).toList();
+            assertThat(methods).contains("gettwolonglegspread")
+                    .noneMatch(n -> n.contains("longshortspread"));
+        }
     }
 
     /** 不可定义时序列化为 null（毛等价物的分母为 0/负、价差为 null 等），不得回落成 0.0。 */

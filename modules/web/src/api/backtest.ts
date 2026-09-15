@@ -69,12 +69,12 @@ export interface FactorAnalysis {
    * 日级面的成分股数在引擎侧已改名为 `DailyGroupReturnStat.nameCount`，单位「只」）；空组 avgReturn = null
    */
   groupedReturns: Array<{ groupNo: number; label: string; avgReturn: number | null; observations: number }>
-  /** 两腿价差 = 最高组均值 − 最低组均值，本面为**净价差**（观测收益已扣费）；口径看 longShortSpreadCostBasis；无非空分组时为 null */
-  longShortSpread: number | null
+  /** 两腿价差 = 最高组均值 − 最低组均值，本面为**净价差**（观测收益已扣费）；口径看 twoLongLegSpreadCostBasis；无非空分组时为 null */
+  twoLongLegSpread: number | null
   /** 价差成本基准：本面恒为 NET_AFTER_MODELED_COSTS；载荷毛收益块为 GROSS_BEFORE_COSTS（同名不同量） */
-  longShortSpreadCostBasis?: string
-  /** 净价差 → 毛价差的精确还原（longShortSpread / (1 − costPerLegRoundTrip)），跨面对齐用 */
-  longShortSpreadGrossEquivalent?: number | null
+  twoLongLegSpreadCostBasis?: string
+  /** 净价差 → 毛价差的精确还原（twoLongLegSpread / (1 − costPerLegRoundTrip)），跨面对齐用 */
+  twoLongLegSpreadGrossEquivalent?: number | null
   /** 单腿往返成本（乘性口径：佣金+印花税+双边滑点复合） */
   costPerLegRoundTrip?: number | null
   /** 并列口径：样本标准差（÷(T−1)）的 IC 标准差；主口径 rankIcStd 为总体标准差 ÷T */
@@ -100,10 +100,10 @@ export interface FactorIcSummary {
   rankIcIr: number | null
   /** IC 为正的截面日占比；无可用截面日时为 null；真为 0 时仍为 0 */
   rankIcPositiveRate: number | null
-  /** 两腿价差（本面为**净价差**；口径看 longShortSpreadCostBasis）；无非空分组时为 null */
-  longShortSpread: number | null
-  longShortSpreadCostBasis?: string
-  longShortSpreadGrossEquivalent?: number | null
+  /** 两腿价差（本面为**净价差**；口径看 twoLongLegSpreadCostBasis）；无非空分组时为 null */
+  twoLongLegSpread: number | null
+  twoLongLegSpreadCostBasis?: string
+  twoLongLegSpreadGrossEquivalent?: number | null
   costPerLegRoundTrip?: number | null
   rankIcStdSample?: number | null
   rankIcIrSample?: number | null

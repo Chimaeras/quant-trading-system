@@ -47,21 +47,21 @@ export interface FactorIcDisclosure {
   rounding_rule?: string
   rounding_rule_note?: string
   ci_status?: CiStatus
-  long_short_spread_basis?: string
-  long_short_spread_basis_note?: string
+  two_long_leg_spread_basis?: string
+  two_long_leg_spread_basis_note?: string
   /** 本块两腿价差的成本基准：GROSS_BEFORE_COSTS / NET_AFTER_MODELED_COSTS / NOT_APPLICABLE_NO_OBSERVATIONS */
-  long_short_spread_cost_basis?: string
-  long_short_spread_cost_basis_note?: string
+  two_long_leg_spread_cost_basis?: string
+  two_long_leg_spread_cost_basis_note?: string
   /** 单腿往返成本（乘性口径：佣金+印花税+双边滑点复合）；两条腿共 2× 本值 */
   cost_per_leg_round_trip?: number | null
   cost_per_leg_round_trip_exact?: number | null
   cost_per_leg_round_trip_basis?: string
   cost_per_leg_round_trip_note?: string
-  /** 美元中性净价差 = long_short_spread − 2×单腿往返成本；本块本身已是净价差时**不适用**，为 null */
-  long_short_spread_neutral?: number | null
-  long_short_spread_neutral_exact?: number | null
-  long_short_spread_neutral_basis?: string
-  long_short_spread_neutral_note?: string
+  /** 美元中性净价差 = two_long_leg_spread − 2×单腿往返成本；本块本身已是净价差时**不适用**，为 null */
+  dollar_neutral_spread?: number | null
+  dollar_neutral_spread_exact?: number | null
+  dollar_neutral_spread_basis?: string
+  dollar_neutral_spread_note?: string
   pearson_ic_mean_note?: string
   /** 取整策略：载荷为 4 位小数四舍五入，同名的 *_exact 键给出未取整原值 */
   precision_policy?: string
@@ -80,7 +80,7 @@ export interface FactorIcDisclosure {
   hac_std_exact?: number | null
   ci_lower_exact?: number | null
   ci_upper_exact?: number | null
-  long_short_spread_exact?: number | null
+  two_long_leg_spread_exact?: number | null
   /** 聚合面 grouped_returns[].observations 的单位（截面日数，不是成分股数） */
   grouped_returns_observations_basis?: string
   grouped_returns_observations_basis_note?: string
@@ -160,7 +160,7 @@ export interface FactorRankIc extends FactorIcDisclosure {
   ci_lower: number | null
   ci_upper: number | null
   /** 高分组均值 − 低分组均值；无非空分组时为 null（不得渲染成「恰好中性」） */
-  long_short_spread: number | null
+  two_long_leg_spread: number | null
   daily_rank_ic: FactorDailyRankIc[]
   grouped_returns: FactorGroupReturn[]
 }
@@ -253,7 +253,7 @@ export interface SnapshotScopeIc extends FactorIcDisclosure {
   ci_lower: number | null
   ci_upper: number | null
   /** 高分组均值 − 低分组均值；无非空分组时为 null（不得渲染成「恰好中性」） */
-  long_short_spread: number | null
+  two_long_leg_spread: number | null
   daily_rank_ic: FactorDailyRankIc[]
   grouped_returns: FactorGroupReturn[]
   note?: string
@@ -327,7 +327,7 @@ export async function getSnapshotFactorResearch(params: {
   return unwrap(res)
 }
 
-/** 统一因子报告：T+1/2/3/5 多周期并列（Pearson/Rank IC/ICIR/单调性/多空 spread + 成本后近似 IC）。 */
+/** 统一因子报告：T+1/2/3/5 多周期并列（Pearson/Rank IC/ICIR/单调性/两腿价差 + 成本后近似 IC）。 */
 export interface UnifiedReportHorizonRow extends FactorIcDisclosure {
   holding_days: number
   basis_note?: string
@@ -352,7 +352,7 @@ export interface UnifiedReportHorizonRow extends FactorIcDisclosure {
   ci_lower: number | null
   ci_upper: number | null
   /** 高分组均值 − 低分组均值；无非空分组时为 null（不得渲染成「恰好中性」） */
-  long_short_spread: number | null
+  two_long_leg_spread: number | null
   /** 成本后近似 IC（尚未接入涨跌停/停牌拒单，勿称为完整可执行） */
   cost_net_ic?: {
     cross_section_days: number
@@ -365,7 +365,7 @@ export interface UnifiedReportHorizonRow extends FactorIcDisclosure {
     /** 不可定义时为 null（原实现写占位 0.0） */
     pearson_ic_mean: number | null
     /** 无非空分组时为 null（不得渲染成「恰好中性」） */
-    long_short_spread: number | null
+    two_long_leg_spread: number | null
     /** false 时上列统计量为 null（本口径无数据），不是「成本后恰为 0」 */
     data_available?: boolean
     status?: string

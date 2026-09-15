@@ -259,25 +259,25 @@
                   <div class="stat-header">高分 vs 低分收益差</div>
                   <div class="stat-body">
                     <div class="stat-item">
-                      <span class="stat-label" title="高分组均值 − 低分组均值（两个多头腿之差），口径 = 成本后近似净收益，非美元中性多空、非超额收益；无有效分组时为「—」">多空收益差（高−低）</span>
-                      <span class="stat-value" :class="numClass(response.factorAnalysis.longShortSpread)">
-                        {{ pct2(response.factorAnalysis.longShortSpread) }}
+                      <span class="stat-label" title="高分组均值 − 低分组均值（两个多头腿之差），口径 = 成本后近似净收益，非美元中性多空、非超额收益；无有效分组时为「—」">两腿收益差（高−低）</span>
+                      <span class="stat-value" :class="numClass(response.factorAnalysis.twoLongLegSpread)">
+                        {{ pct2(response.factorAnalysis.twoLongLegSpread) }}
                       </span>
                     </div>
                     <div class="stat-item">
                       <span class="stat-label">业务含义</span>
                       <span class="stat-value small-text">
-                        {{ response.factorAnalysis.longShortSpread == null
+                        {{ response.factorAnalysis.twoLongLegSpread == null
                           ? '不可用：本面无有效分组，无法判定方向'
-                          : (response.factorAnalysis.longShortSpread >= 0 ? '高分组合收益高于低分组合（仅方向，不等于已验证有效）' : '高分组合反而跑输低分组合，选股方向需警惕') }}
+                          : (response.factorAnalysis.twoLongLegSpread >= 0 ? '高分组合收益高于低分组合（仅方向，不等于已验证有效）' : '高分组合反而跑输低分组合，选股方向需警惕') }}
                       </span>
                     </div>
                     <div class="stat-item">
                       <span class="stat-label">口径</span>
                       <span class="stat-value small-text">
                         持有 {{ response.factorAnalysis.holdingDays }} 日 · 单期非年化 · 成本后近似（未减基准/无风险利率）
-                        <template v-if="response.factorAnalysis.longShortSpreadCostBasis">
-                          · 价差基准 {{ response.factorAnalysis.longShortSpreadCostBasis }}
+                        <template v-if="response.factorAnalysis.twoLongLegSpreadCostBasis">
+                          · 价差基准 {{ response.factorAnalysis.twoLongLegSpreadCostBasis }}
                         </template>
                       </span>
                     </div>
@@ -287,7 +287,7 @@
                     </div>
                     <div class="stat-item">
                       <span class="stat-label" title="净价差 ÷ (1 − 单腿往返成本)：用于与因子研究载荷的**毛价差**同尺对比（同名不同量）">毛价差等价物</span>
-                      <span class="stat-value small-text">{{ pct2(response.factorAnalysis.longShortSpreadGrossEquivalent) }}</span>
+                      <span class="stat-value small-text">{{ pct2(response.factorAnalysis.twoLongLegSpreadGrossEquivalent) }}</span>
                     </div>
                     <div class="stat-item">
                       <span class="stat-label" title="并列口径：分母用样本标准差 ÷(T−1)（主口径为总体标准差 ÷T）">ICIR（÷(T−1)）</span>
@@ -428,8 +428,8 @@
                   </el-table-column>
                   <el-table-column label="高分减低分收益差" width="130">
                     <template #default="{ row }">
-                      <span :class="numClass(row.longShortSpread)">
-                        {{ pct2(row.longShortSpread) }}
+                      <span :class="numClass(row.twoLongLegSpread)">
+                        {{ pct2(row.twoLongLegSpread) }}
                       </span>
                     </template>
                   </el-table-column>
@@ -1011,7 +1011,7 @@ function renderIcByHoldingChart() {
         name: '高分减低分收益差',
         type: 'line',
         yAxisIndex: 1,
-        data: rows.map((r) => (r.longShortSpread == null ? null : +(r.longShortSpread * 100).toFixed(2))),
+        data: rows.map((r) => (r.twoLongLegSpread == null ? null : +(r.twoLongLegSpread * 100).toFixed(2))),
         lineStyle: { width: 2 }
       }
     ]

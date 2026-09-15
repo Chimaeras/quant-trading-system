@@ -70,7 +70,7 @@ public class ScoringBacktestService {
             "分组数取请求值并**钳位**到 [" + MIN_FACTOR_GROUP_COUNT + ", " + MAX_FACTOR_GROUP_COUNT + "]："
                     + "下界 2 因分组收益需「最高组 − 最低组」两个可分辨的组；上界 20 因每组至少要能装下截面样本"
                     + "（截面下限 " + FACTOR_MIN_CROSS_SECTION_SIZE + " 只），再多则组均值由单只标的代表。"
-                    + "原实现把请求值原样透传：groupCount = 1 时最高组与最低组重合，long_short_spread 恒为 0 却"
+                    + "原实现把请求值原样透传：groupCount = 1 时最高组与最低组重合，two_long_leg_spread 恒为 0 却"
                     + "仍被判为有效；groupCount > 截面样本数时大量空组。载荷同时给出请求值与生效值及是否被钳位";
     /** D-R010-06：费率请求边界（与 {@code boundedRate} 的钳位规则同源）。 */
     static final String RATE_BOUNDS_NOTE =
@@ -675,7 +675,7 @@ public class ScoringBacktestService {
         v.put("t3_effective", predictsT3);
         v.put("t5_effective", predictsT5);
         v.put("primary_holding_day", primarySummary != null ? primarySummary.holdingDays() : null);
-        v.put("primary_long_short_spread", primarySummary != null ? primarySummary.longShortSpread() : null);
+        v.put("primary_two_long_leg_spread", primarySummary != null ? primarySummary.twoLongLegSpread() : null);
         if (predictsT3 || predictsT5) {
             v.put("verdict", "得分与 forward return 在 T+3/T+5 呈正相关，可用于相对排序；不等于单票必涨");
             v.put("confidence", (predictsT3 && predictsT5) ? "中" : "低");
@@ -1186,9 +1186,9 @@ public class ScoringBacktestService {
                                 .observations(g.observations())
                                 .build())
                         .toList())
-                .longShortSpread(summary.longShortSpread())
-                .longShortSpreadCostBasis(FactorResearchService.SPREAD_COST_BASIS_NET)
-                .longShortSpreadGrossEquivalent(grossEquivalentOfNetSpread(summary.longShortSpread()))
+                .twoLongLegSpread(summary.twoLongLegSpread())
+                .twoLongLegSpreadCostBasis(FactorResearchService.SPREAD_COST_BASIS_NET)
+                .twoLongLegSpreadGrossEquivalent(grossEquivalentOfNetSpread(summary.twoLongLegSpread()))
                 .costPerLegRoundTrip(perLegRoundTripCost())
                 .rankIcStdSample(sampleStdDivTMinusOne(summary))
                 .rankIcIrSample(sampleIcIr(summary))
@@ -1210,9 +1210,9 @@ public class ScoringBacktestService {
                 .rankIcStd(summary.rankIcStd())
                 .rankIcIr(summary.rankIcIr())
                 .rankIcPositiveRate(summary.rankIcPositiveRate())
-                .longShortSpread(summary.longShortSpread())
-                .longShortSpreadCostBasis(FactorResearchService.SPREAD_COST_BASIS_NET)
-                .longShortSpreadGrossEquivalent(grossEquivalentOfNetSpread(summary.longShortSpread()))
+                .twoLongLegSpread(summary.twoLongLegSpread())
+                .twoLongLegSpreadCostBasis(FactorResearchService.SPREAD_COST_BASIS_NET)
+                .twoLongLegSpreadGrossEquivalent(grossEquivalentOfNetSpread(summary.twoLongLegSpread()))
                 .costPerLegRoundTrip(perLegRoundTripCost())
                 .rankIcStdSample(sampleStdDivTMinusOne(summary))
                 .rankIcIrSample(sampleIcIr(summary))
@@ -1234,10 +1234,10 @@ public class ScoringBacktestService {
 
     /**
      * 本面（打分回测）的因子观测收益来自 {@code periodResult.ret()}，**已扣费**，
-     * 故 {@code longShortSpread} 是**净**价差：美元中性值不适用（再减一次两腿成本即重复扣费），
+     * 故 {@code twoLongLegSpread} 是**净**价差：美元中性值不适用（再减一次两腿成本即重复扣费），
      * 能给出的是它的毛价差等价物（见 {@link FactorResearchEngine#grossSpreadFromNet}）。
      * 同名字段在 {@code FactorResearchService} 载荷的毛收益块里是**毛**价差——跨面引用前先读
-     * {@code long_short_spread_cost_basis} / {@code longShortSpreadCostBasis}。
+     * {@code two_long_leg_spread_cost_basis} / {@code twoLongLegSpreadCostBasis}。
      *
      * @param netSpread 净价差；为 {@code null}（无可用分组，不可计算）时返回 {@code null}，不得还原成 0
      */

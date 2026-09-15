@@ -135,15 +135,15 @@
                 <span>Rank IC 正率：{{ pct(blk.rank_ic_positive_rate) }}</span>
                 <span title="线性 IC 均值；不可定义时（样本不足/任一侧无区分度）为 null，显示「—」而不是占位 0.0，须看 Pearson 支撑日数">Pearson IC：{{ fmt4(blk.pearson_ic_mean) }}</span>
                 <span>单调性：{{ monoLabel(blk.monotonicity) }}</span>
-                <span title="高分组均值 − 低分组均值（两个多头腿之差，非美元中性多空）">多空 spread（高−低）：{{ pct4(blk.long_short_spread) }}</span>
-                <span v-if="blk.long_short_spread_neutral !== undefined" title="美元中性净价差 = 毛价差 − 2×单腿往返成本（真多空各付一次往返成本）；本块收益若本身已是净口径则不适用，显示「—」">
-                  美元中性净 spread：{{ pct4(blk.long_short_spread_neutral) }}
+                <span title="高分组均值 − 低分组均值（两个多头腿之差，非美元中性多空）">两腿价差（高−低）：{{ pct4(blk.two_long_leg_spread) }}</span>
+                <span v-if="blk.dollar_neutral_spread !== undefined" title="美元中性净价差 = 毛价差 − 2×单腿往返成本（真多空各付一次往返成本）；本块收益若本身已是净口径则不适用，显示「—」">
+                  美元中性净价差：{{ pct4(blk.dollar_neutral_spread) }}
                 </span>
                 <span v-if="blk.cost_per_leg_round_trip !== undefined" title="单腿往返成本（佣金+印花税+双边滑点乘性复合）；两条腿共 2× 本值">
                   单腿往返成本：{{ bps(blk.cost_per_leg_round_trip) }}
                 </span>
-                <span v-if="blk.long_short_spread_cost_basis" title="本块两腿价差的成本基准：毛价差 / 净价差 / 不适用">
-                  价差基准：{{ blk.long_short_spread_cost_basis }}
+                <span v-if="blk.two_long_leg_spread_cost_basis" title="本块两腿价差的成本基准：毛价差 / 净价差 / 不适用">
+                  价差基准：{{ blk.two_long_leg_spread_cost_basis }}
                 </span>
                 <span v-if="blk.rank_ic_ir_sample !== undefined" title="并列口径：分母用样本标准差 ÷(T−1)（主口径为总体标准差 ÷T）；无定义时为「—」">
                   ICIR（样本口径 ÷(T−1)）：{{ fmt4(blk.rank_ic_ir_sample) }}
@@ -276,9 +276,9 @@
                   Pearson IC：{{ fmt4(result.rank_ic.pearson_ic_mean) }}
                 </span>
                 <span v-if="result.rank_ic.monotonicity">单调性：{{ monoLabel(result.rank_ic.monotonicity) }}</span>
-                <span title="高分组均值 − 低分组均值（两个多头腿之差，非美元中性多空）">多空 spread（高−低）：{{ pct4(result.rank_ic.long_short_spread) }}</span>
-                <span v-if="result.rank_ic.long_short_spread_neutral !== undefined" title="美元中性净价差 = 毛价差 − 2×单腿往返成本；不适用时显示「—」">
-                  美元中性净 spread：{{ pct4(result.rank_ic.long_short_spread_neutral) }}
+                <span title="高分组均值 − 低分组均值（两个多头腿之差，非美元中性多空）">两腿价差（高−低）：{{ pct4(result.rank_ic.two_long_leg_spread) }}</span>
+                <span v-if="result.rank_ic.dollar_neutral_spread !== undefined" title="美元中性净价差 = 毛价差 − 2×单腿往返成本；不适用时显示「—」">
+                  美元中性净价差：{{ pct4(result.rank_ic.dollar_neutral_spread) }}
                 </span>
                 <span v-if="result.rank_ic.cost_per_leg_round_trip !== undefined" title="单腿往返成本（乘性复合口径）；两条腿共 2× 本值">
                   单腿往返成本：{{ bps(result.rank_ic.cost_per_leg_round_trip) }}
@@ -380,16 +380,16 @@
             <el-table-column label="单调性" width="170">
               <template #default="{ row }">{{ monoLabel(row.monotonicity) }}</template>
             </el-table-column>
-            <el-table-column label="多空 spread（高−低）" width="140">
+            <el-table-column label="两腿价差（高−低）" width="140">
               <template #default="{ row }">
-                <span title="高分组均值 − 低分组均值（两个多头腿之差，非美元中性多空）">{{ pct(row.long_short_spread) }}</span>
+                <span title="高分组均值 − 低分组均值（两个多头腿之差，非美元中性多空）">{{ pct(row.two_long_leg_spread) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="美元中性净 spread" width="150">
+            <el-table-column label="美元中性净价差" width="150">
               <template #default="{ row }">
-                <span v-if="row.long_short_spread_neutral === undefined || row.long_short_spread_neutral === null"
+                <span v-if="row.dollar_neutral_spread === undefined || row.dollar_neutral_spread === null"
                       title="本块收益口径不适用（如本身已是净价差）或成本不可算">—</span>
-                <span v-else title="毛价差 − 2×单腿往返成本">{{ pct(row.long_short_spread_neutral) }}</span>
+                <span v-else title="毛价差 − 2×单腿往返成本">{{ pct(row.dollar_neutral_spread) }}</span>
               </template>
             </el-table-column>
             <el-table-column label="ICIR（÷(T−1)）" width="120">
@@ -624,15 +624,15 @@ function exportUnifiedCsv() {
     'metric_scope,RAW(gross) unless prefixed cost_net_,COST_APPROX',
     'icir_undefined_when,,IC 序列无离散度（std=0，含截面日 < 2）',
     ['holding_days', 'gross_rank_ic_mean', 'gross_pearson_ic_mean', 'gross_rank_ic_ir',
-      'gross_rank_ic_positive_rate', 'monotonicity', 'gross_long_short_spread',
-      'gross_long_short_spread_neutral', 'gross_rank_ic_ir_sample',
+      'gross_rank_ic_positive_rate', 'monotonicity', 'gross_two_long_leg_spread',
+      'gross_dollar_neutral_spread', 'gross_rank_ic_ir_sample',
       'cost_net_rank_ic_mean', 'gross_hac_std', 'gross_ci_lower', 'gross_ci_upper',
       'ci_status', 'cross_section_days', 'input_cross_section_days', 'total_observations',
       'pearson_support_days'].join(','),
     ...r.by_horizon.map((row) => [
       row.holding_days, row.rank_ic_mean, row.pearson_ic_mean ?? '',
-      row.rank_ic_ir ?? '', row.rank_ic_positive_rate, row.monotonicity, row.long_short_spread,
-      row.long_short_spread_neutral ?? '', row.rank_ic_ir_sample ?? '',
+      row.rank_ic_ir ?? '', row.rank_ic_positive_rate, row.monotonicity, row.two_long_leg_spread,
+      row.dollar_neutral_spread ?? '', row.rank_ic_ir_sample ?? '',
       row.cost_net_ic?.data_available === false ? '' : (row.cost_net_ic?.rank_ic_mean ?? ''),
       row.hac_std, row.ci_lower, row.ci_upper,
       row.ci_status ?? '', row.cross_section_days, row.input_cross_section_days ?? '',

@@ -95,7 +95,7 @@ public final class FactorResearchEngine {
      * @param ciLower block bootstrap 95% **名义**区间下界；IC 序列点数不足 2 时**无定义**，为 {@code null}
      *                （原实现与 ciUpper 同为 0，零宽区间会被误读作「精确估计」，Q-R007-01 / Q-R007-07）
      * @param ciUpper 区间上界；无定义时同样为 {@code null}
-     * @param longShortSpread 高分组均值 − 低分组均值（两个多头腿之差）；无任何非空分组时**无定义**，
+     * @param twoLongLegSpread 高分组均值 − 低分组均值（两个多头腿之差）；无任何非空分组时**无定义**，
      *                        为 {@code null}（原实现写 0.0 会伪造「恰好中性」，Q-R006-04 / Q-R013-02）
      */
     public record FactorResearchSummary(
@@ -114,7 +114,7 @@ public final class FactorResearchEngine {
             Double ciUpper,
             List<DailyRankIc> dailyRankIc,
             List<GroupReturnStat> groupedReturns,
-            Double longShortSpread,
+            Double twoLongLegSpread,
             String universeNote,
             int inputDays,
             int daysBelowMinCrossSection,
@@ -509,7 +509,7 @@ public final class FactorResearchEngine {
      * 美元中性（真双腿：多头最高分组 + 空头最低分组）净价差：
      * {@code 毛价差 − 2 × 单腿往返成本}。
      *
-     * <p>{@code longShortSpread} 本身是**两个多头腿净收益之差**（成本在两腿差分中结构上抵消），
+     * <p>{@code twoLongLegSpread} 本身是**两个多头腿净收益之差**（成本在两腿差分中结构上抵消），
      * 不承担空头腿成本；本方法给出论文口径下的真双腿美元中性值，供并列对照，
      * **不替换**既有字段（Q-R003-01 / Q-R004-01）。
      *
@@ -528,8 +528,8 @@ public final class FactorResearchEngine {
      *
      * <p>这是**价格模型**（回测执行面实际用法）的逆运算：该面按价格乘性扣费，
      * 每个观测的净收益 = 毛收益 × (1 − 单腿成本)，组均值同比例缩放，故除法可精确还原。
-     * 用来把「成本后近似净收益面」的同名 {@code longShortSpread} 对齐到「毛收益面」的同一把尺子上
-     * （两面同名不同量，见载荷的 {@code long_short_spread_cost_basis}）。
+     * 用来把「成本后近似净收益面」的同名 {@code twoLongLegSpread} 对齐到「毛收益面」的同一把尺子上
+     * （两面同名不同量，见载荷的 {@code two_long_leg_spread_cost_basis}）。
      *
      * <p><b>注意：本方法不是 {@link #dollarNeutralSpread} 的逆运算</b>。后者用的是「美元中性」惯例
      * {@code 毛价差 − 2c}（两条腿各按名义本金付一次往返成本），与价格模型 {@code 毛价差 ×(1−c)} 是

@@ -21,8 +21,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -298,8 +300,8 @@ class FactorResearchServiceTest {
         // 得分与 forward return 完全同向 → IC=1.0
         assertThat((double) rankIc.get("rank_ic_mean")).isEqualTo(1.0);
         assertThat((double) rankIc.get("rank_ic_positive_rate")).isEqualTo(1.0);
-        // 多空 spread = 高分组均值 - 低分组均值 > 0
-        assertThat((double) rankIc.get("long_short_spread")).isGreaterThan(0.0);
+        // 两腿价差 = 高分组均值 − 低分组均值 > 0（两个多头腿之差，非美元中性多空）
+        assertThat((double) rankIc.get("two_long_leg_spread")).isGreaterThan(0.0);
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> daily = (List<Map<String, Object>>) rankIc.get("daily_rank_ic");
@@ -328,7 +330,7 @@ class FactorResearchServiceTest {
                 "pearson_ic_mean", "monotonicity", "hac_std", "ci_lower", "ci_upper",
                 "price_basis", "status", "min_cross_section_size", "min_cross_section_size_basis",
                 "group_boundary_rule", "rounding_rule", "ci_status", "rank_ic_std_basis",
-                "groups_with_observations", "pearson_support_days", "long_short_spread_basis");
+                "groups_with_observations", "pearson_support_days", "two_long_leg_spread_basis");
         assertThat(rankIc.get("status")).isEqualTo("NO_OBSERVATIONS");
         assertThat(rankIc.get("price_basis")).isEqualTo("QFQ_CLOSE");
         assertThat(rankIc.get("monotonicity")).isEqualTo("N/A");
@@ -337,9 +339,54 @@ class FactorResearchServiceTest {
     }
 
     @Test
+    void renamedSpreadKeysAreTheOnlyReadableNamesAndNoLegacyAliasSurvives() {
+        // 裁定 B（D-R003-01 / D-R004-01）改名硬红线：旧名**不得以任何形式仍可读**。
+        // 改前键是 long_short_spread / long_short_spread_neutral ⟹ 本用例失败；
+        // 若有人把旧名以「旧名+后缀」的兼容别名塞回来（伪装成未改名）⟹ 本用例同样失败。
+        LocalDate d = LocalDate.of(2025, 1, 2);
+        when(selectorResultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(d, d))
+                .thenReturn(List.of());
+
+        Map<String, Object> out = service().research(null, d, d);
+
+        Set<String> keys = collectKeysDeep(out);
+        assertThat(keys).noneMatch(k -> k.toLowerCase().contains("long_short_spread"))
+                .noneMatch(k -> k.toLowerCase().contains("longshortspread"));
+        // 如实名必须真的在载荷里（是改名，不是删字段/改名后再发一份旧数据）
+        assertThat(keys).contains(
+                "two_long_leg_spread", "two_long_leg_spread_exact",
+                "two_long_leg_spread_basis", "two_long_leg_spread_cost_basis",
+                "two_long_leg_spread_cost_basis_note",
+                "dollar_neutral_spread", "dollar_neutral_spread_exact",
+                "dollar_neutral_spread_basis", "dollar_neutral_spread_note");
+    }
+
+    /** 递归收集载荷（含嵌套 map/list）里的全部键，供「旧名不可读」这类全量断言使用。 */
+    private static Set<String> collectKeysDeep(Object root) {
+        Set<String> keys = new LinkedHashSet<>();
+        // 载荷里 null 是常态（不可定义值），且 ArrayDeque 不接受 null ⟹ 用允许 null 的 ArrayDeque 替代品
+        List<Object> stack = new ArrayList<>();
+        stack.add(root);
+        while (!stack.isEmpty()) {
+            Object cur = stack.remove(stack.size() - 1);
+            if (cur instanceof Map<?, ?> m) {
+                for (Map.Entry<?, ?> e : m.entrySet()) {
+                    keys.add(String.valueOf(e.getKey()));
+                    if (e.getValue() != null) {
+                        stack.add(e.getValue());
+                    }
+                }
+            } else if (cur instanceof List<?> l) {
+                l.stream().filter(java.util.Objects::nonNull).forEach(stack::add);
+            }
+        }
+        return keys;
+    }
+
+    @Test
     void emptyBranchEmitsNullStatisticsNotPlaceholderZero() {
         // 裁定 A（D-R006-05 / D-R007-01 / D-R013-02）：无可用观测时统计量一律 null，不得发 0.0。
-        // 改前 rank_ic_mean / rank_ic_std / hac_std / ci_* / long_short_spread 均为 0.0 ⟹ 本用例失败。
+        // 改前 rank_ic_mean / rank_ic_std / hac_std / ci_* / two_long_leg_spread 均为 0.0 ⟹ 本用例失败。
         LocalDate d = LocalDate.of(2025, 1, 2);
         when(selectorResultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(d, d))
                 .thenReturn(List.of());
@@ -355,11 +402,11 @@ class FactorResearchServiceTest {
         assertThat(rankIc.get("hac_std")).isNull();
         assertThat(rankIc.get("ci_lower")).isNull();
         assertThat(rankIc.get("ci_upper")).isNull();
-        assertThat(rankIc.get("long_short_spread")).isNull();
+        assertThat(rankIc.get("two_long_leg_spread")).isNull();
         // 未取整并列键（*_exact）必须同样为 null，不得把取整差异当挡箭牌
         assertThat(rankIc.get("rank_ic_mean_exact")).isNull();
         assertThat(rankIc.get("hac_std_exact")).isNull();
-        assertThat(rankIc.get("long_short_spread_exact")).isNull();
+        assertThat(rankIc.get("two_long_leg_spread_exact")).isNull();
         // 状态键与 null 并存：消费方可区分「不可用」与「恰为 0」
         assertThat(rankIc.get("ci_status")).isEqualTo("INSUFFICIENT_N");
 
@@ -369,7 +416,7 @@ class FactorResearchServiceTest {
         assertThat(net.get("status")).isEqualTo("NO_OBSERVATIONS");
         assertThat(net.get("data_available")).isEqualTo(false);
         assertThat(net.get("rank_ic_mean")).isNull();
-        assertThat(net.get("long_short_spread")).isNull();
+        assertThat(net.get("two_long_leg_spread")).isNull();
     }
 
     @Test
@@ -418,7 +465,7 @@ class FactorResearchServiceTest {
         assertThat(rankIc.get("group_boundary_rule")).isEqualTo("INDEX_EQUAL_SPLIT_STABLE_SORT");
         assertThat(rankIc.get("rounding_rule")).isEqualTo("ROUND_HALF_UP_4DP");
         assertThat(rankIc.get("rank_ic_std_basis")).isEqualTo("POPULATION_STD_DIV_T");
-        assertThat(rankIc.get("long_short_spread_basis")).isEqualTo("TWO_LONG_LEG_NET_DIFFERENCE");
+        assertThat(rankIc.get("two_long_leg_spread_basis")).isEqualTo("TWO_LONG_LEG_NET_DIFFERENCE");
         // 聚合面 observations 的单位声明：截面日数，不是成分股数（Q-R014-03）
         assertThat(rankIc.get("grouped_returns_observations_basis"))
                 .isEqualTo("DAY_LEVEL_GROUP_MEANS_PER_GROUP");
@@ -452,7 +499,7 @@ class FactorResearchServiceTest {
         assertThat(net.get("group_count")).isEqualTo(5);
         assertThat(net.get("min_cross_section_size")).isEqualTo(10);
         // 裁定 A：本口径无可用观测 ⟹ 统计量为 null（0.0 会被读成「成本后恰为 0」，与「无数据」不可区分）
-        assertThat(net.get("long_short_spread")).isNull();
+        assertThat(net.get("two_long_leg_spread")).isNull();
         assertThat(net.get("rank_ic_mean")).isNull();
         assertThat(net).containsKey("grouped_returns");
     }

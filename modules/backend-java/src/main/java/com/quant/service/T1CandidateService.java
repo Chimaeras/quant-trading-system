@@ -36,8 +36,17 @@ import java.util.stream.Collectors;
  *   <li>候选与核销结果落库（{@code t1_candidate}），支持按日回溯。</li>
  * </ol>
  *
- * <p>打分：涨停基因（涨停/连板/量比/换手）+ 短期动量 + 量能 + 趋势位置，输出为
- * <b>rule_score（0-100，截面排序用，非概率）</b>；候选 JSON 标注 score_type 以区别于概率。
+ * <p>打分：短期动量（近 5 日涨幅）+ 量能（量比）+ 趋势位置（相对 MA20），输出为
+ * <b>rule_score（0-50，截面排序用，非概率）</b>；候选 JSON 标注 score_type 以区别于概率。
+ *
+ * <p><b>为什么可行域是 0-50 而不是 0-100（D-T1-01，2026-10-13 修正）</b>：打分池在打分前已由
+ * {@link ScoringUtils#isTradableForScoring} 以 {@code excludeLimitUpAtClose=true} 过掉「收盘涨停」的标的
+ * （见 {@link #generateCandidates} 的预过滤与 {@link ScoringUtils} 的涨停闸），因此池内每只标的的
+ * {@code is_limit_up} 恒为 false、{@code lianban_days} 恒为 0。此前公式里的 {@code +30 涨停} 与
+ * {@code +min(15, 连板*5)} 两项对本打分池<b>恒不贡献任何分数</b>（对池内所有标的的影响完全相同，
+ * 因此对排序也完全没有影响），而旧阈值 {@code 40} 是按「含涨停基因的 0-100 分布」设置的。
+ * 结果是可实现的最高分只有约 35~49，实测 1,404~1,747 只通过流动性闸的标的中达到 40 分的为 0~1 只，
+ * 候选清单长期恒空。本次修正：删除这两个不可达项，并把阈值按真实可达分布重新标定。
  */
 @Slf4j
 @Service
@@ -57,9 +66,23 @@ public class T1CandidateService {
 
     // ===== 入选阈值门禁（V2-MP-027 P1）：TopN 只是上限，不是配额 =====
     /** 门禁版本标识：阈值由冻结的实验/配置版本产生，随 snapshot 落库。 */
-    private static final String ELIGIBILITY_THRESHOLD_VERSION = "t1_rule_v1";
-    /** rule_score 入选下限（0-100，截面排序分，非概率）。弱信号日宁可无标的也不凑满。 */
-    private static final double RULE_SCORE_THRESHOLD = 40.0;
+    private static final String ELIGIBILITY_THRESHOLD_VERSION = "t1_rule_v2";
+    /**
+     * rule_score 入选下限（可行域 0-50，截面排序分，非概率）。弱信号日宁可无标的也不凑满。
+     *
+     * <p><b>标定依据（D-T1-01）</b>：对 2026-06-30 / 2026-07-15 / 2026-08-04 / 2026-08-24 / 2026-09-07
+     * 五个信号日、通过流动性闸的 1,404~1,747 只标的实测可达分数分布，取 {@code >=35} 作为下限：
+     * 命中 0 / 0 / 2 / 1 / 1 只（旧阈值 40 为 0 / 0 / 1 / 1 / 0 只）。
+     * 该值落在可达分布的上尾而非极值端（旧阈值坐在极值端，这是候选恒空的直接原因）；
+     * 取 30 会命中 4 / 4 / 4 / 3 / 2 只，但会显著放宽标准，故不采用。
+     * <b>该阈值必须与 {@link #scoreT1} 的公式组成一起变更</b>，单独调阈值不构成修复。
+     */
+    private static final double RULE_SCORE_THRESHOLD = 35.0;
+    /**
+     * rule_score 理论最高分 = 动量 20 + 量能 15 + 趋势 15（三项上限之和）。
+     * 与 {@link #scoreT1} 的分量上限必须保持一致；改动公式上限时同步改这里。
+     */
+    private static final double RULE_SCORE_MAX = 50.0;
     /** 概率轨入选下限：仅当加载到 T+1 champion 概率模型时启用（绝对概率，非截面 percentile）。 */
     private static final double PROBABILITY_THRESHOLD = 0.55;
 
@@ -77,6 +100,9 @@ public class T1CandidateService {
     public Map<String, Object> generateCandidates(LocalDate tradeDate, int topN) {
         int n = Math.max(1, Math.min(topN > 0 ? topN : DEFAULT_TOP_N, 50));
         LocalDate rangeStart = tradeDate.minusDays(LOOKBACK_DAYS);
+        // 生成时刻：T1Candidate.createdAt 是 @Column(updatable=false)，仅记录首次落库时间，
+        // 重新生成不会更新它，因此单靠 createdAt 无法回答「这份清单是什么时候算的」。这里显式记录。
+        java.time.LocalDateTime generatedAt = java.time.LocalDateTime.now();
         PointInTimeUniverseProvider.UniverseView universe = pointInTimeUniverseProvider.loadAsOf(tradeDate);
 
         // 区间行情（单次批量），按股票分组
@@ -149,6 +175,8 @@ public class T1CandidateService {
 
             Map<String, Object> lu = limitUpEcologyService.stockLimitUpFeatures(stockBars, today, name);
             double[] ind = shortIndicators(stockBars);
+            // 注意：池内标的已在上方预过滤时排除「收盘涨停」，故 lu 的 is_limit_up/lianban_days
+            // 不能作为加分项（会对全池一致，既无区分度又使可行域虚高）；仅用于解释与可买性预判。
             double ruleScore = scoreT1(lu, ind);
 
             Map<String, Object> cand = new LinkedHashMap<>();
@@ -189,9 +217,9 @@ public class T1CandidateService {
             scored.add(cand);
         }
 
-        // ===== 入选阈值门禁（V2-MP-027）：先过滤 eligible，再排序截断 =====
+        // ===== 入选阈值门禁（V2-MP-027）：先过滤 eligible，再按 score 排序截断到 topN =====
         // TopN 只是上限（cap），不是配额（quota）。弱信号日允许返回 0 条并明确标注。
-        Map<String, Object> eligibility = applyEligibilityGate(scored, probModel);
+        Map<String, Object> eligibility = applyEligibilityGate(scored, probModel, n);
         List<Map<String, Object>> top = new ArrayList<>((List<Map<String, Object>>) eligibility.get("top"));
         Map<String, Integer> rejectedByReason = (Map<String, Integer>) eligibility.get("rejectedByReason");
         int eligibleCount = (Integer) eligibility.get("eligibleCount");
@@ -211,24 +239,44 @@ public class T1CandidateService {
         Map<String, Object> eligMeta = new LinkedHashMap<>();
         eligMeta.put("threshold_version", ELIGIBILITY_THRESHOLD_VERSION);
         eligMeta.put("rule_score_threshold", RULE_SCORE_THRESHOLD);
+        eligMeta.put("rule_score_max", RULE_SCORE_MAX);
         eligMeta.put("probability_threshold", probModel != null ? PROBABILITY_THRESHOLD : null);
         eligMeta.put("eligible_count", eligibleCount);
+        eligMeta.put("returned_count", top.size());
+        eligMeta.put("total_scored", scored.size());
         eligMeta.put("rejected_by_reason", rejectedByReason);
         eligMeta.put("status", top.isEmpty() ? "NO_ELIGIBLE_CANDIDATE" : "OK");
+        // 可追溯性：落库侧同样记录生成时刻与实际数据日，避免只能靠响应体回溯
+        eligMeta.put("generated_at", generatedAt.toString());
+        eligMeta.put("requested_trade_date", tradeDate.toString());
+        eligMeta.put("data_date_fallback", !actualDate.isEqual(tradeDate));
+        // PIT 质量状态随快照落库：此前 pit_limited 只在生成响应里，getCandidates 与页面都拿不到
+        eligMeta.putAll(universe.lineage());
         ecology.put("eligibility", eligMeta);
         rec.setEcologyJson(toJson(ecology));
         t1CandidateRepository.save(rec);
 
         boolean noEligible = top.isEmpty();
         Map<String, Object> out = new LinkedHashMap<>();
+        // ===== 可追溯性（D-T1-03）：区分「请求日」与「实际数据日」，并声明口径版本与失效条件 =====
+        // 此前只给 trade_date，节假日请求会被静默替换成回退日，调用方与页面都看不出来。
         out.put("trade_date", actualDate.toString());
         out.put("requested_trade_date", tradeDate.toString());
+        out.put("data_date_fallback", !actualDate.isEqual(tradeDate));
+        out.put("data_cutoff", actualDate.toString());
+        out.put("generated_at", generatedAt.toString());
+        out.put("threshold_version", ELIGIBILITY_THRESHOLD_VERSION);
+        out.put("rule_score_max", RULE_SCORE_MAX);
+        out.put("candidate_invalidation", "本清单在 " + actualDate + " 收盘数据下有效；"
+                + "T+1（" + actualDate.plusDays(1) + " 起最近交易日）收盘后由「次日核销」判定命中，"
+                + "核销完成或跨过该交易日即失效，不得作为后续交易日的候选继续使用");
         out.put("top_n", top.size());
-        out.put("total_scored", scored.size());
         out.put("eligible_count", eligibleCount);
+        out.put("returned_count", top.size());
+        out.put("total_scored", scored.size());
+        out.put("max_rule_score", eligibility.get("maxRuleScore"));
         out.put("rejected_count", scored.size() - eligibleCount);
         out.put("rejected_by_reason", rejectedByReason);
-        out.put("threshold_version", ELIGIBILITY_THRESHOLD_VERSION);
         out.put("candidates", top);
         out.put("settled", false);
         out.put("status", noEligible ? "NO_ELIGIBLE_CANDIDATE" : "OK");
@@ -246,8 +294,14 @@ public class T1CandidateService {
             out.put("score_model", null);
             out.put("fallback_reason", fallbackReason != null ? fallbackReason
                     : "NO_CHAMPION_MODEL");
-            out.put("note", "T+1 次日候选：仅输出 RULE_SCORE（涨停基因+短期动量+量能+趋势），非概率；"
+            // D-T1-01：说明文字必须与打分口径一致。旧的「涨停基因+短期动量+量能+趋势」是错的：
+            // 候选池在打分前已排除收盘涨停标的，涨停/连板因子在这条路径上恒不可达（已删除），
+            // 涨停基因/连板只是生态快照（/research/t1/ecology），不参与候选排序。
+            out.put("note", "T+1 次日候选：仅输出 RULE_SCORE（短期动量+量能+趋势，0-" + RULE_SCORE_MAX
+                    + "），非概率；不含涨停基因（涨停标的已在打分前排除，连板仅作生态快照展示）；"
                     + "入选需 rule_score≥" + RULE_SCORE_THRESHOLD
+                    + "；当日最高 rule_score=" + (eligibility.get("maxRuleScore") == null ? "-"
+                            : eligibility.get("maxRuleScore"))
                     + (noEligible ? "；当日无合格标的（NO_ELIGIBLE_CANDIDATE），宁可空不凑数" : "")
                     + "；回退原因：" + (fallbackReason != null ? fallbackReason : "NO_CHAMPION_MODEL")
                     + "。未发布 challenger/特征不匹配模型不会自动上线；"
@@ -263,8 +317,14 @@ public class T1CandidateService {
      * <p>门槛：可交易/流动性/上市时长（打分前已过滤）+ rule_score≥{@link #RULE_SCORE_THRESHOLD}
      * +（若加载了概率模型）校准概率≥{@link #PROBABILITY_THRESHOLD}。被拒原因逐条计数，
      * 用于响应与快照中的 rejected_by_reason。TopN 只是上限：eligible 不足时原样返回，不补足。
+     *
+     * <p><b>截断必须真的执行（D-T1-02，2026-10-13 修正）</b>：此前本方法返回全部 eligible，
+     * 调用方虽写入 {@code rec.setTopN(n)} 与 {@code top_n=top.size()}，却从未做 {@code subList}，
+     * 因此 {@code ?topN=10} 可能返回远超 10 条。insertionCount 单独回传，便于区分
+     * 「合格数」与「实际返回数」。
      */
-    private Map<String, Object> applyEligibilityGate(List<Map<String, Object>> scored, T1ProbModel probModel) {
+    private Map<String, Object> applyEligibilityGate(List<Map<String, Object>> scored, T1ProbModel probModel,
+                                                     int topN) {
         List<Map<String, Object>> eligible = new ArrayList<>();
         Map<String, Integer> rejectedByReason = new LinkedHashMap<>();
         for (Map<String, Object> c : scored) {
@@ -283,9 +343,21 @@ public class T1CandidateService {
             eligible.add(c);
         }
         eligible.sort(Comparator.comparingDouble((Map<String, Object> c) -> (double) c.get("score")).reversed());
+        int eligibleCount = eligible.size();
+        // 诊断：把「当日最高 rule_score」一并回传。没有它时，空候选只表现为
+        // rejected_by_reason={BELOW_RULE_SCORE_THRESHOLD:n}，使用者无法判断
+        // 「完全没有信号」还是「就差一点」，也无法评估阈值是否定得过高。
+        double maxRuleScore = scored.stream()
+                .mapToDouble(c -> ((Number) c.get("rule_score")).doubleValue())
+                .max().orElse(0.0);
+        // TopN 是上限不是配额：合格数不足时原样返回，超出时截断
+        List<Map<String, Object>> top = eligibleCount > topN
+                ? new ArrayList<>(eligible.subList(0, topN))
+                : eligible;
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("top", eligible);
-        result.put("eligibleCount", eligible.size());
+        result.put("top", top);
+        result.put("eligibleCount", eligibleCount);
+        result.put("maxRuleScore", maxRuleScore);
         result.put("rejectedByReason", rejectedByReason);
         return result;
     }
@@ -391,7 +463,22 @@ public class T1CandidateService {
             out.put("settle", parseMap(rec.getSettledJson()));
         }
         if (rec.getEcologyJson() != null) {
-            out.put("ecology", parseMap(rec.getEcologyJson()));
+            Map<String, Object> ecology = parseMap(rec.getEcologyJson());
+            out.put("ecology", ecology);
+            // 回放路径同样暴露口径与质量状态：此前这些字段只在生成响应里，
+            // 按日回溯时看不到「用的哪版阈值/PIT 是否受限」，属于可追溯性缺口（D-T1-03）。
+            if (ecology.get("eligibility") instanceof Map<?, ?> elig) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> e = (Map<String, Object>) elig;
+                for (String k : List.of("threshold_version", "rule_score_threshold", "rule_score_max",
+                        "eligible_count", "returned_count", "total_scored", "rejected_by_reason",
+                        "status", "generated_at", "requested_trade_date", "data_date_fallback",
+                        "pit_limited", "master_reliability", "universe_as_of", "universe_size")) {
+                    if (e.containsKey(k)) {
+                        out.put(k, e.get(k));
+                    }
+                }
+            }
         }
         out.put("found", true);
         return out;
@@ -418,9 +505,35 @@ public class T1CandidateService {
 
         int totalSettled = 0;
         int totalHit = 0;
+        int totalCandidateSlots = 0;
+        int zeroCandidateDays = 0;
+        int unsettledDays = 0;
         double retSum = 0;
         double gapSum = 0;
         List<Map<String, Object>> dailySeries = new ArrayList<>();
+        // 基准逐日对齐：把「信号日 → 次日」的策略收益与「同一持有区间」的指数收益配对比较。
+        // 旧实现用 策略日均次日涨幅 对比 指数区间总收益/(区间天数-1)，两条腿的区间、股票池、
+        // 成本口径都不同（策略腿 gross、指数腿 gross，且末尾日期错配），结论不可比（D-T1-04）。
+        Map<LocalDate, Double> indexNextDayReturn = new HashMap<>();
+        try {
+            List<com.quant.entity.IndexQuote> quotes = indexQuoteRepository
+                    .findByIndexCodeAndTradeDateBetweenOrderByTradeDateAsc("000300", startDate, endDate.plusDays(10));
+            for (int i = 0; i + 1 < quotes.size(); i++) {
+                Double c0 = quotes.get(i).getClosePrice() != null
+                        ? quotes.get(i).getClosePrice().doubleValue() : null;
+                Double c1 = quotes.get(i + 1).getClosePrice() != null
+                        ? quotes.get(i + 1).getClosePrice().doubleValue() : null;
+                if (c0 != null && c1 != null && c0 > 0) {
+                    indexNextDayReturn.put(quotes.get(i).getTradeDate(), c1 / c0 - 1);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("基准指数加载失败: {}", e.getMessage());
+        }
+        double pairedStrategySum = 0;
+        double pairedIndexSum = 0;
+        int pairedDays = 0;
+        int outperformDays = 0;
         for (T1Candidate rec : recs) {
             Map<String, Object> settle = parseMap(rec.getSettledJson());
             Map<String, Object> summary = settle.get("summary") instanceof Map<?, ?> m
@@ -433,6 +546,17 @@ public class T1CandidateService {
             totalHit += hit;
             retSum += avgRet * settled;
             gapSum += avgGap * settled;
+            // 入参 topN 只是上限：用各条记录自己的 topN 求和，不用第一条代表全部（D-T1-05）
+            totalCandidateSlots += rec.getTopN() != null ? rec.getTopN() : 0;
+            if (settled == 0) {
+                // 区分「当日无候选」与「有候选但未核销」：旧实现两种都不进分母，
+                // 使命中率在候选为 0 的弱信号日被静默剔除，恰好抹掉策略最该计分的时段。
+                if (parseList(rec.getCandidatesJson()).isEmpty()) {
+                    zeroCandidateDays++;
+                } else {
+                    unsettledDays++;
+                }
+            }
 
             Map<String, Object> day = new LinkedHashMap<>();
             day.put("trade_date", rec.getTradeDate().toString());
@@ -440,6 +564,23 @@ public class T1CandidateService {
             day.put("hit_count", hit);
             day.put("hit_rate", settled > 0 ? round4((double) hit / settled) : 0);
             day.put("avg_next_ret", round4(avgRet));
+            // 逐日 策略腿 vs 指数腿
+            LocalDate nextDay = settle.get("next_trade_date") instanceof String s
+                    ? LocalDate.parse(s) : null;
+            Double idxRet = nextDay != null ? indexNextDayReturn.get(nextDay) : null;
+            if (settled > 0 && idxRet != null) {
+                day.put("index_next_ret", round4(idxRet));
+                day.put("excess_ret", round4(avgRet - idxRet));
+                pairedStrategySum += avgRet;
+                pairedIndexSum += idxRet;
+                pairedDays++;
+                if (avgRet > idxRet) {
+                    outperformDays++;
+                }
+            } else if (settled > 0) {
+                day.put("index_next_ret", null);
+                day.put("excess_ret", null);
+            }
             dailySeries.add(day);
         }
 
@@ -447,39 +588,44 @@ public class T1CandidateService {
         double avgNextRet = totalSettled > 0 ? retSum / totalSettled : 0;
         double avgGap = totalSettled > 0 ? gapSum / totalSettled : 0;
 
-        // 沪深300 基准
         Map<String, Object> benchmark = Map.of("available", false);
-        try {
-            List<com.quant.entity.IndexQuote> quotes = indexQuoteRepository
-                    .findByIndexCodeAndTradeDateBetweenOrderByTradeDateAsc("000300", startDate, endDate);
-            if (quotes.size() >= 2) {
-                double first = quotes.get(0).getClosePrice() != null ? quotes.get(0).getClosePrice().doubleValue() : 0;
-                double last = quotes.get(quotes.size() - 1).getClosePrice() != null
-                        ? quotes.get(quotes.size() - 1).getClosePrice().doubleValue() : 0;
-                double indexReturn = first > 0 ? last / first - 1 : 0;
-                double indexAvgDaily = quotes.size() > 1 ? indexReturn / (quotes.size() - 1) : 0;
-                benchmark = Map.of(
-                        "available", true,
-                        "index_code", "000300",
-                        "index_name", "沪深300",
-                        "index_return", round4(indexReturn),
-                        "index_avg_daily_return", round4(indexAvgDaily),
-                        "outperform", avgNextRet > indexAvgDaily);
-            }
-        } catch (Exception e) {
-            log.warn("基准指数计算失败: {}", e.getMessage());
+        if (pairedDays > 0) {
+            double stratAvg = pairedStrategySum / pairedDays;
+            double indexAvg = pairedIndexSum / pairedDays;
+            // 键值对超过 Map.of 的 10 组上限，用 LinkedHashMap 保持稳定顺序
+            Map<String, Object> bench = new LinkedHashMap<>();
+            bench.put("available", true);
+            bench.put("index_code", "000300");
+            bench.put("index_name", "沪深300");
+            bench.put("paired_days", pairedDays);
+            bench.put("strategy_avg_daily_return", round4(stratAvg));
+            bench.put("index_avg_daily_return", round4(indexAvg));
+            bench.put("excess_avg_daily_return", round4(stratAvg - indexAvg));
+            bench.put("outperform_days", outperformDays);
+            bench.put("outperform_rate", round4((double) outperformDays / pairedDays));
+            bench.put("comparison_basis", "同持有区间逐日配对：候选等权「次日收盘/当日收盘」对沪深300 对应交易日涨跌幅");
+            bench.put("caveats", List.of(
+                    "策略腿为等权、未扣费用与滑点（T+1 口径为 close-to-close 方向统计，非可交易收益）",
+                    "T 日收盘并非可成交价，实际入场点多在次日开盘，故本对比不等于可执行超额收益",
+                    "指数腿为沪深300 点位涨跌幅，与候选股票池成分不同，不构成同池基准"));
+            benchmark = bench;
         }
 
-        out.put("total_candidates", recs.size() * recs.get(0).getTopN());
+        out.put("total_candidates", totalCandidateSlots);
         out.put("total_settled", totalSettled);
         out.put("hit_count", totalHit);
         out.put("hit_rate", round4(hitRate));
         out.put("avg_next_ret", round4(avgNextRet));
         out.put("avg_gap", round4(avgGap));
+        out.put("settled_days", recs.size() - unsettledDays - zeroCandidateDays);
+        out.put("zero_candidate_days", zeroCandidateDays);
+        out.put("unsettled_days", unsettledDays);
         out.put("daily_series", dailySeries);
         out.put("benchmark", benchmark);
-        out.put("note", "策略绩效：命中=次日收盘>当日收盘；avg_next_ret=候选平均次日涨幅；"
-                + "benchmark=沪深300区间收益与日均收益（outperform=策略日均次日涨幅>指数日均收益）");
+        out.put("note", "策略绩效：命中=次日收盘>当日收盘（无成本、T 日收盘非可成交价，属方向统计）；"
+                + "avg_next_ret=候选平均次日涨幅（gross）；total_candidates=各日 topN 上限之和，"
+                + "非实际候选条数；hit_rate 分母只含已核销且确有候选的交易日，"
+                + "zero_candidate_days/unsettled_days 为被排除的日数，须与 hit_rate 同屏解读");
         return out;
     }
 
@@ -509,20 +655,25 @@ public class T1CandidateService {
         return out;
     }
 
-    /** T+1 规则分：涨停基因 + 短期动量 + 量能 + 趋势位置。 */
+    /**
+     * T+1 规则分：短期动量 + 量能 + 趋势位置（可行域 0-{@link #RULE_SCORE_MAX}）。
+     *
+     * <p><b>已移除「涨停基因」项（D-T1-01）</b>：{@code +30 涨停} 与 {@code +min(15, 连板*5)}
+     * 对进入本方法的打分池恒为 0——池内标的已在预过滤阶段被 {@code excludeLimitUpAtClose=true} 排除，
+     * 其 {@code is_limit_up} 与 {@code lianban_days} 恒为 false/0。保留它们会让「公式声称的可行域 0-100」
+     * 与「实际可行域 0-50」长期不一致，并使按 0-100 设置的阈值既不可达也不可解释。
+     *
+     * <p>三项目前均有可达区间：动量 {@code [-15,20]}、量能 {@code [-10,15]}、趋势 {@code [-10,15]}，
+     * 合计 {@code [-35,50]}，再 clamp 到 {@code [0,50]}。
+     */
     private static double scoreT1(Map<String, Object> lu, double[] ind) {
         double score = 0;
-        if (Boolean.TRUE.equals(lu.get("is_limit_up"))) {
-            score += 30;
-        }
-        int lianban = ((Number) lu.getOrDefault("lianban_days", 0)).intValue();
-        score += Math.min(15, lianban * 5);
         double ret5 = ind[1];
         score += Math.max(-15, Math.min(20, ret5 * 100 * 0.4));
         double vr = ((Number) lu.getOrDefault("volume_ratio", 0)).doubleValue();
         score += Math.max(-10, Math.min(15, (vr - 1) * 10));
         score += Math.max(-10, Math.min(15, ind[2] * 15));
-        return Math.max(0, Math.min(100, score));
+        return Math.max(0, Math.min(RULE_SCORE_MAX, score));
     }
 
     /**
@@ -687,6 +838,18 @@ public class T1CandidateService {
                 if (maxList != null && !maxList.isEmpty()) {
                     featureMax = maxList.get(0).doubleValue();
                 }
+            }
+            // D-T1-01 后续守卫（2026-10-13）：rule_score 的取值域已由 0–100 收敛到 0–50
+            // （移除恒不可达的涨停/连板加分项）。用旧 0–100 标度训练出的模型，其
+            // preprocessor.max 会显著大于当前 RULE_SCORE_MAX，min-max 归一化会把当前分数
+            // 系统性压到实际区间的一半，再经 sigmoid 得到**被静默压低的伪概率**。
+            // 这里 fail-closed：标度不匹配即拒绝推理并回退规则分，不输出错误标度的概率。
+            if (featureMax > RULE_SCORE_MAX * 1.5) {
+                log.warn("T+1 champion 模型 {} 的 preprocessor.max={} 与当前 rule_score 值域 0–{} 不匹配"
+                                + "（疑似按旧 0–100 标度训练），拒绝推理并回退规则分",
+                        mv.getModelVersion(), featureMax, RULE_SCORE_MAX);
+                return new T1ProbLoadResult(null,
+                        "PREPROCESSOR_SCALE_MISMATCH:max=" + featureMax + ",expected<=0-" + RULE_SCORE_MAX);
             }
             return new T1ProbLoadResult(
                     new T1ProbModel(weights, bias, featureMin, featureMax, mv.getModelVersion()),

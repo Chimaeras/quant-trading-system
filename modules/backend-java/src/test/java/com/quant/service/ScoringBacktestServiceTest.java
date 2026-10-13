@@ -271,7 +271,12 @@ class ScoringBacktestServiceTest {
 
         MarketData signalBar = bar(signalDate, 100, 100);
         MarketData entryBar = bar(entryDate, 80, 999);
-        MarketData exitBar = bar(exitDate, 88, 88);
+        // D-EXEC-02 修正后的夹具一致性：入场日相对前收 100 已跌到 80（-20%，跌停附近），
+        // 故出场日若用 88 收盘，相对出场日前收仍是深跌，会被「跌停收盘不可卖」正确拦下
+        // （旧的双边界判定会因为 88 落在 90 容差带之外而误判为可卖）。
+        // 这里改为出场日相对前收 96 平收、且相对入场价 80 上涨 20%，语义仍是
+        // 「持有 1 日在次日收盘出场」，但不再踩在跌停上。
+        MarketData exitBar = bar(exitDate, 96, 96);
 
         when(resultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(any(), any()))
                 .thenReturn(List.of(result));
@@ -281,7 +286,7 @@ class ScoringBacktestServiceTest {
         when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
                 .thenReturn(List.of(signalBar, entryBar, exitBar));
         when(rawRepo.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
-                .thenReturn(List.of(rawBar(entryDate, 80, 999, "000001"), rawBar(exitDate, 88, 88, "000001")));
+                .thenReturn(List.of(rawBar(entryDate, 80, 80, "000001"), rawBar(exitDate, 96, 96, "000001")));
 
         ScoringBacktestRequest request = new ScoringBacktestRequest();
         request.setStrategyType("CLASSIC_SELECTOR");
@@ -297,7 +302,7 @@ class ScoringBacktestServiceTest {
         ScoringBacktestResponse.StockReturn stock =
                 response.getDailyDetails().getFirst().getTopStocks().getFirst();
 
-        assertThat(stock.getForwardReturns().get(1)).isCloseTo(0.10, within(1e-9));
+        assertThat(stock.getForwardReturns().get(1)).isCloseTo(0.20, within(1e-9));
     }
 
     @Test
@@ -543,6 +548,81 @@ class ScoringBacktestServiceTest {
                 .isEqualTo(ScoringBacktestService.SKIP_LIMIT_DOWN_AT_CLOSE);
         assertThat(response.getHoldingPeriodStats().get(1).getTotalObservations()).isZero();
         assertThat(response.getExecutionAssumptions().get("limit_down_exit_blocked")).isEqualTo(true);
+    }
+
+    /**
+     * D-EXEC-02 回归闸：收盘价**严格低于**跌停价的出场同样不可卖。
+     *
+     * <p>旧实现用双边界判定（{@code close <= 跌停价×(1+容差) && close >= 跌停价×(1-容差)}），
+     * 于是 87 相对跌停价 90（低 3.3%，超出容差带）会被误判为「可正常卖出」，
+     * 系统性**低估出场摩擦**。修正后为单边界（只判上界），87 被正确拦下。
+     */
+    @Test
+    void skipsExitReturnWhenCloseStrictlyBelowLimitDown() {
+        SelectorResultRepository resultRepository = mock(SelectorResultRepository.class);
+        SelectorResultItemRepository itemRepository = mock(SelectorResultItemRepository.class);
+        MarketDataRepository marketDataRepository = mock(MarketDataRepository.class);
+        com.quant.repository.MarketPriceRawRepository rawRepo = mock(com.quant.repository.MarketPriceRawRepository.class);
+        ScoringBacktestService service =
+                new ScoringBacktestService(resultRepository, itemRepository, marketDataRepository,
+                rawRepo,
+                mock(BacktestRunRepository.class), objectMapper());
+
+        LocalDate signalDate = LocalDate.of(2025, 1, 2);
+        LocalDate entryDate = LocalDate.of(2025, 1, 3);
+        LocalDate exitDate = LocalDate.of(2025, 1, 6);
+        SelectorResult result = new SelectorResult();
+        result.setResultId("R1");
+        result.setTradeDate(signalDate);
+        result.setStrategyType("CLASSIC_SELECTOR");
+
+        SelectorResultItem item = new SelectorResultItem();
+        item.setResultId("R1");
+        item.setRankNo(1);
+        item.setStockCode("000001");
+        item.setExchangeType("SZSE");
+        item.setStockName("测试股票");
+        item.setFinalScore(80.0);
+
+        MarketData signalBar = bar(signalDate, 100, 100);
+        MarketData entryBar = bar(entryDate, 80, 90);
+        entryBar.setPreClose(BigDecimal.valueOf(100));
+        MarketData exitBar = bar(exitDate, 87, 87);
+        exitBar.setPreClose(BigDecimal.valueOf(90));
+
+        when(resultRepository.findByTradeDateBetweenOrderByCreatedAtDesc(any(), any()))
+                .thenReturn(List.of(result));
+        when(itemRepository.findByResultIdInOrderByRankNo(any())).thenReturn(List.of(item));
+        when(marketDataRepository.findDistinctTradeDatesBetween(any(), any()))
+                .thenReturn(List.of(signalDate, entryDate, exitDate));
+        when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
+                .thenReturn(List.of(signalBar, entryBar, exitBar));
+        MarketPriceRaw entryRaw = rawBar(entryDate, 80, 90, "000001");
+        entryRaw.setPreClose(BigDecimal.valueOf(100));
+        // 出场日前收设为 100 ⇒ 跌停价 = 100 × (1 − 10%) = 90；收盘 87 严格低于跌停价，
+        // 这正是旧双边界判定漏掉、被误判为「可正常卖出」的形态。
+        MarketPriceRaw exitRaw = rawBar(exitDate, 87, 87, "000001");
+        exitRaw.setPreClose(BigDecimal.valueOf(100));
+        when(rawRepo.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
+                .thenReturn(List.of(entryRaw, exitRaw));
+
+        ScoringBacktestRequest request = new ScoringBacktestRequest();
+        request.setStrategyType("CLASSIC_SELECTOR");
+        request.setStartDate(signalDate);
+        request.setEndDate(signalDate);
+        request.setTopN(1);
+        request.setHoldingDays(List.of(1));
+        request.setCommissionRate(0.0);
+        request.setSellTaxRate(0.0);
+        request.setSlippageRate(0.0);
+
+        ScoringBacktestResponse response = service.run(request);
+        ScoringBacktestResponse.StockReturn stock =
+                response.getDailyDetails().getFirst().getTopStocks().getFirst();
+
+        assertThat(stock.getForwardReturns().get(1)).isNull();
+        assertThat(stock.getPeriodSkipReasons().get(1))
+                .isEqualTo(ScoringBacktestService.SKIP_LIMIT_DOWN_AT_CLOSE);
     }
 
     @Test

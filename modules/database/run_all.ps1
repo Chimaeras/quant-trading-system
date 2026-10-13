@@ -1,4 +1,4 @@
-# 执行所有数据库脚本
+﻿# 执行所有数据库脚本
 # 用法: .\run_all.ps1  或  .\run_all.ps1 -User root -Password 123456
 # 若 mysql 不在 PATH，请手动执行: mysql -u root -p < scripts/db/01_init_schema.sql
 

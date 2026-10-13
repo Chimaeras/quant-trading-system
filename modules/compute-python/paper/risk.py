@@ -14,6 +14,38 @@ from .config import (
 )
 from .models import Balance, Intent, IntentType, MxOrder, Quote, QuoteValidity, RiskStatus
 
+# 各板块涨跌幅（%）。D-RISK-01（2026-10-13）：此前 board_limit_pct 只存在于 decide.py，
+# 而 risk.py 的 NEAR_LIMIT_UP 闸把「接近涨停」硬编码成 9.0%，两者口径不一致——
+# 创业板/科创板（20%）下 9.8% 的正常标的会被误判为接近涨停并拒单，
+# 而 decide.py 本身明确规定禁止用 9%/9.8% 近似涨停价。
+# 现在把板块涨跌幅判定收敛到风控侧作为唯一来源，decide.py 从本模块导入。
+_MAIN_BOARD_LIMIT_PCT = 10.0
+_BSE_LIMIT_PCT = 30.0
+_CHINEXT_LIMIT_PCT = 20.0
+_STAR_LIMIT_PCT = 20.0
+# 「接近涨停」的缓冲：距板块涨停幅不足该点数即拒单（主板 10% → 9%，与旧行为一致）
+_NEAR_LIMIT_BUFFER_PCT = 1.0
+
+
+def board_limit_pct(code: str, exchange: str) -> float:
+    """按证券代码/交易所返回涨跌幅（%，用于反推涨停价与接近涨停判定）。
+
+    板块判定规则与 models.board_blocked 保持一致：300/301 → 创业板 20%，
+    688/689 → 科创板 20%，BJ/BSE → 北交所 30%，其余 → 主板 10%。
+    """
+    if str(exchange).upper() in {"BJ", "BSE"}:
+        return _BSE_LIMIT_PCT
+    if code.startswith(("300", "301")):
+        return _CHINEXT_LIMIT_PCT
+    if code.startswith(("688", "689")):
+        return _STAR_LIMIT_PCT
+    return _MAIN_BOARD_LIMIT_PCT
+
+
+def near_limit_up_threshold_pct(code: str, exchange: str) -> float:
+    """接近涨停的拒绝阈值（%）＝ 板块涨停幅 − 缓冲。主板 10→9，创业板/科创板 20→19，北交所 30→29。"""
+    return board_limit_pct(code, exchange) - _NEAR_LIMIT_BUFFER_PCT
+
 
 def estimate_commission(gross_amount: float) -> float:
     """佣金 = max(金额×0.0003, 5)（TradingFeePolicy 口径）。"""
@@ -278,7 +310,9 @@ def check_watch_intent(
         note("LIMIT_UP_NOT_BUYABLE", False)
         return reject("LIMIT_UP_NOT_BUYABLE")
     note("LIMIT_UP_NOT_BUYABLE", True)
-    if (quote.pct_chg or 0) >= 9.0:
+    # D-RISK-01：阈值按板块推导，不再硬编码 9.0%（创业板/科创板应为 19%、北交所 29%）
+    near_limit_pct = near_limit_up_threshold_pct(quote.code, quote.exchange)
+    if (quote.pct_chg or 0) >= near_limit_pct:
         note("NEAR_LIMIT_UP", False)
         return reject("NEAR_LIMIT_UP")
     note("NEAR_LIMIT_UP", True)

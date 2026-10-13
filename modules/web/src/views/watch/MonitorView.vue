@@ -150,6 +150,23 @@
               <span v-else>—</span>
             </template>
           </el-table-column>
+          <!-- D-QUOTE-01：行情数据时间与来源。缓存兜底的标的必须与实时行情区分显示，
+               否则使用者无法判断页面上的价格是「现在」还是「上一轮」。 -->
+          <el-table-column label="数据时间" min-width="96" align="center">
+            <template #default="{ row }">
+              <span v-if="row.marketTime" class="quote-time">{{ hhmmss(row.marketTime) }}</span>
+              <span v-else>—</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="来源" min-width="88" align="center">
+            <template #default="{ row }">
+              <el-tooltip v-if="row.sourceKind === 'cache'" content="源站本轮未返回该标的，价格来自上一轮快照兜底（不是本轮实时行情）" placement="top">
+                <el-tag type="warning" size="small">缓存兜底</el-tag>
+              </el-tooltip>
+              <el-tag v-else-if="row.sourceKind === 'realtime'" type="success" size="small">实时</el-tag>
+              <span v-else>—</span>
+            </template>
+          </el-table-column>
           <el-table-column label="状态" min-width="100">
             <template #default="{ row }">
               <el-tooltip v-if="row.disabled" :content="row.disabled" placement="top">
@@ -455,6 +472,24 @@ const poolSecurityNames = computed<Record<string, string>>(() =>
   Object.fromEntries((watchPool.value?.items || []).map((item) => [item.code, item.name]))
 )
 
+/**
+ * D-QUOTE-01：判断一条报价是否「本轮源站数据」。
+ * 依据两条独立证据：(1) source 带 "+cache" 后缀（_apply_last_good_cache 的标记）；
+ * (2) market_time 明显早于本轮批次 received_at（同一轮里拿到旧时间戳）。
+ * 两条都不满足才认为是实时；证据缺失时不冒充实时（返回 null → 显示「—」）。
+ */
+function quoteSourceKind(quote: any): 'realtime' | 'cache' | 'unknown' {
+  const source = String(quote?.source || '')
+  if (source.includes('+cache')) return 'cache'
+  const marketTime = Date.parse(String(quote?.market_time || quote?.last_market_time || ''))
+  const batchAt = Date.parse(String(marketSnapshot.value?.batch?.received_at || ''))
+  if (Number.isFinite(marketTime) && Number.isFinite(batchAt) && batchAt - marketTime > 90_000) {
+    return 'cache'
+  }
+  if (source) return 'realtime'
+  return 'unknown'
+}
+
 const universeRows = computed(() => {
   const rows = new Map<string, { code: string; name?: string; last?: number; pct?: number; disabled?: string; active?: boolean; manual?: boolean }>()
   const active = new Set((marketSnapshot.value?.active_pool || []).map((item: any) => String(item.code)))
@@ -477,6 +512,9 @@ const universeRows = computed(() => {
       pct: quote.pct_chg == null ? undefined : Number(quote.pct_chg),
       disabled: ['INVALID', 'STALE', 'MISSING'].includes(String(quote.quality))
         ? String(quote.quality_reason || quote.quality) : undefined,
+      // D-QUOTE-01 可追溯性：源数据时间与「本轮是否来自源站」
+      marketTime: (quote as any).last_market_time || (quote as any).market_time || undefined,
+      sourceKind: quoteSourceKind(quote),
       active: active.has(String(quote.code)),
       manual: existing?.manual
     })
@@ -488,7 +526,9 @@ const universeRows = computed(() => {
         code: e.code,
         name: eventName(e),
         last: (e.detail as any).last,
-        pct: (e.detail as any).pct_chg == null ? undefined : Number((e.detail as any).pct_chg)
+        pct: (e.detail as any).pct_chg == null ? undefined : Number((e.detail as any).pct_chg),
+        marketTime: (e.detail as any).market_time || undefined,
+        sourceKind: quoteSourceKind(e.detail)
       })
     } else if (e.type === 'ERROR' && e.code && (e.detail as any).scope === 'KLINE_DISABLED' && !rows.has(e.code)) {
       rows.set(e.code, { code: e.code, name: eventName(e), disabled: String((e.detail as any).message || 'KLINE_DISABLED') })
@@ -1060,6 +1100,20 @@ function scheduleRefresh() {
 
 function onVisibilityChange() {
   if (!disposed && autoRefresh.value && document.visibilityState === 'visible') void refresh()
+}
+
+/** D-QUOTE-01：行情源时间只显示时分秒（同日），跨日补日期，缺失返回空串。 */
+function hhmmss(value: unknown): string {
+  const text = String(value || '')
+  if (!text) return ''
+  const m = text.match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/)
+  if (!m) return text
+  const now = new Date()
+  const sameDay =
+    Number(m[1]) === now.getFullYear() &&
+    Number(m[2]) === now.getMonth() + 1 &&
+    Number(m[3]) === now.getDate()
+  return sameDay ? `${m[4]}:${m[5]}:${m[6]}` : `${m[2]}-${m[3]} ${m[4]}:${m[5]}`
 }
 
 onMounted(async () => {

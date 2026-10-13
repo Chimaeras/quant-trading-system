@@ -206,7 +206,7 @@
 | POST | `/research/labels/build` | 🔒 | 任务 | ✍ | wired | T+2/T+3 标签生成（label_v2） |
 | POST | `/research/labels/build-t1` | 🔒 | 任务 | ✍ | wired | T+1 标签生成 |
 | GET | `/research/labels/coverage` | 🔒 | — | — | prod | 标签覆盖率 |
-| GET | `/research/t1/ecology` | 🔒 | — | — | prod | 涨停基因/情绪生态 |
+| GET | `/research/t1/ecology` | 🔒 | — | — | prod | 涨停/情绪生态**快照**（不参与候选排序） |
 | GET | `/research/t1/premium` | 🔒 | — | — | prod | 涨停次日溢价 |
 | GET | `/research/calibration` | 🔒 | — | — | prod | 规则分数概率校准（Brier/logLoss/ECE/BSS） |
 | GET | `/research/calibrators` | 🔒 | — | — | prod | 校准器列表 |

@@ -32,9 +32,16 @@ public interface TradingCalendarDayRepository extends JpaRepository<TradingCalen
     @Query("SELECT MAX(t.tradeDate) FROM TradingCalendarDay t")
     Optional<LocalDate> findMaxTradeDate();
 
-    /** 区间内交易日集合（用于与 market_data 对比计算缺失交易日）。 */
+    /**
+     * 区间内交易日集合（用于与 market_data 对比计算缺失交易日）。
+     *
+     * <p>D-CAL-01（2026-10-13 修正）：此前不过滤 {@code is_trading_day}。表结构允许写入
+     * {@code is_trading_day=false} 的行（实体默认 true 且 {@code @Column(nullable=false)}），
+     * 一旦存在这类行，凡以此方法作为「交易日集合」的地方都会把**非交易日**当交易日，
+     * 进而把「该日无行情」误报为缺失数据、并让标签/回测的日轴出现空日。
+     */
     @Query("SELECT t.tradeDate FROM TradingCalendarDay t " +
-            "WHERE t.tradeDate BETWEEN :start AND :end ORDER BY t.tradeDate ASC")
+            "WHERE t.tradeDate BETWEEN :start AND :end AND t.isTradingDay = true ORDER BY t.tradeDate ASC")
     List<LocalDate> findTradeDatesBetween(@Param("start") LocalDate start, @Param("end") LocalDate end);
 
     /** 内容指纹：count, minDate, maxDate, max(ingested_at)。 */

@@ -331,6 +331,30 @@ export interface T1CandidatesResponse {
   found?: boolean
   // 后端 getCandidates 把核销结果嵌套在 settle 字段下（含 next_trade_date/summary/results）
   settle?: { next_trade_date?: string; summary?: T1SettleSummary; results?: T1CandidateItem[] }
+  // ===== D-T1-03 可追溯性字段（生成与按日回溯都会返回）=====
+  /** 实际使用的数据日（可能与 requested_trade_date 不同） */
+  requested_trade_date?: string
+  data_cutoff?: string
+  /** true 表示请求日无行情、已回退到 trade_date */
+  data_date_fallback?: boolean
+  generated_at?: string
+  threshold_version?: string
+  rule_score_threshold?: number
+  rule_score_max?: number
+  eligible_count?: number
+  returned_count?: number
+  rejected_count?: number
+  /** 当日打分池中的最高 rule_score：用于判断「完全没有信号」还是「就差一点」 */
+  max_rule_score?: number
+  rejected_by_reason?: Record<string, number>
+  status?: string
+  /** 本清单的有效期/失效条件说明 */
+  candidate_invalidation?: string
+  /** true 表示股票池来自当前截面回退，存在幸存者偏差 */
+  pit_limited?: boolean
+  master_reliability?: string
+  universe_as_of?: string
+  universe_size?: number
 }
 
 /** 生成 T+1 次日候选：后端需拉取全市场行情逐股打分，耗时较长，放宽至 120s。 */

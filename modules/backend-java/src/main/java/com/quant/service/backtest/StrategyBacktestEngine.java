@@ -443,7 +443,12 @@ public final class StrategyBacktestEngine {
     }
 
     /**
-     * 涨停收盘：收盘价落在涨停价容差带内，信号日视为封板，次日买入难以成交。
+     * 涨停收盘：收盘价达到或高于涨停价容差下界，信号日视为封板，次日买入难以成交。
+     *
+     * <p>D-EXEC-02（2026-10-13 修正）：此前同时要求 {@code close <= 涨停价*(1+容差)}（双边界）。
+     * 收盘价明显高于涨停价只可能来自脏数据或 preClose 未随除权更新，属"更不可能买入"的形态，
+     * 却因上界不满足而被判为可买 —— 与 {@link #isLimitDownAtOpen} 刻意"不做下界判定"的处理相反。
+     * 现统一为单边界（加上界、不加下界），偏差方向为**偏向不可成交**，保守且与开盘价判定一致。
      */
     public static boolean isLimitUpAtClose(MarketData bar, double preClose, double limitPct) {
         if (preClose <= 0 || bar.getClosePrice() == null) {
@@ -454,12 +459,15 @@ public final class StrategyBacktestEngine {
             return false;
         }
         double limitUpPrice = preClose * (1 + limitPct);
-        return close >= limitUpPrice * (1 - LIMIT_PRICE_TOLERANCE)
-                && close <= limitUpPrice * (1 + LIMIT_PRICE_TOLERANCE);
+        return close >= limitUpPrice * (1 - LIMIT_PRICE_TOLERANCE);
     }
 
     /**
-     * 跌停收盘：收盘价落在跌停价容差带内，卖单无法按收盘价成交。
+     * 跌停收盘：收盘价达到或低于跌停价容差上界，卖单无法按收盘价成交。
+     *
+     * <p>D-EXEC-02（2026-10-13 修正）：同 {@link #isLimitUpAtClose}，改为单边界。
+     * 此前收盘价严格低于跌停价时返回 false（判为"可卖"），等于把真实的跌停/更差成交
+     * 当成正常出场，系统性**低估出场摩擦**。
      */
     public static boolean isLimitDownAtClose(MarketData bar, double preClose, double limitPct) {
         if (preClose <= 0 || bar.getClosePrice() == null) {
@@ -470,8 +478,7 @@ public final class StrategyBacktestEngine {
             return false;
         }
         double limitDownPrice = preClose * (1 - limitPct);
-        return close <= limitDownPrice * (1 + LIMIT_PRICE_TOLERANCE)
-                && close >= limitDownPrice * (1 - LIMIT_PRICE_TOLERANCE);
+        return close <= limitDownPrice * (1 + LIMIT_PRICE_TOLERANCE);
     }
 
     private static double calcSharpe(List<Double> dailyReturns) {

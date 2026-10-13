@@ -233,7 +233,7 @@ public final class ScoringUtils {
             LocalDate tradeDate,
             int minListingDays,
             List<MarketData> bars) {
-        if (minListingDays <= 0 || tradeDate == null) {
+        if (tradeDate == null) {
             return true;
         }
         LocalDate effectiveListDate = listDate;
@@ -247,11 +247,15 @@ public final class ScoringUtils {
                 }
             }
         }
-        if (effectiveListDate == null) {
-            return true;
-        }
-        if (effectiveListDate.isAfter(tradeDate)) {
+        // D-PIT-03（2026-10-13 修正）：「asOf 当时尚未上市」是**时点有效性**约束，不是可关闭的
+        // 偏好阈值。此前 minListingDays<=0 在上市日校验之前直接 return true，于是当调用方把
+        // 上市时长闸配成 0（StockSelectorService 的 minListingDays 可由请求覆盖）时，
+        // 未来才上市的标的会被放进历史截面。故先判上市日，再判时长。
+        if (effectiveListDate != null && effectiveListDate.isAfter(tradeDate)) {
             return false;
+        }
+        if (minListingDays <= 0 || effectiveListDate == null) {
+            return true;
         }
         return ChronoUnit.DAYS.between(effectiveListDate, tradeDate) >= minListingDays;
     }

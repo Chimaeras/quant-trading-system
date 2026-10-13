@@ -92,12 +92,28 @@ public class PointInTimeUniverseProvider {
         log.warn("security_master_history 在 asOf={} 无记录，回退 stock_info 当前截面（PIT_LIMITED）", asOf);
         List<StockInfo> all = stockInfoRepository.findAll();
         Map<String, StockInfo> byKey = new HashMap<>(Math.max(16, all.size() * 2));
+        int droppedNotYetListed = 0;
         for (StockInfo s : all) {
             if (s.getStockCode() == null || s.getExchangeType() == null) {
                 continue;
             }
+            // D-PIT-01（2026-10-13 修正）：回退路径此前完全不做日期过滤，连 list_date 都不看，
+            // 于是「asOf 当时尚未上市」的标的也会进入历史截面，构成明确的前视泄漏。
+            // 这里补上唯一可在此路径正确判定的时点条件：上市日必须不晚于 asOf
+            // （list_date 为 null 时无法判定，保守放行并由 pit_limited=true 整体披露）。
+            LocalDate listDate = s.getListDate();
+            if (listDate != null && listDate.isAfter(asOf)) {
+                droppedNotYetListed++;
+                continue;
+            }
             byKey.put(key(s.getStockCode(), s.getExchangeType()), s);
         }
+        if (droppedNotYetListed > 0) {
+            log.info("回退截面剔除 {} 只在 asOf={} 尚未上市的标的（前视防护）", droppedNotYetListed, asOf);
+        }
+        // 已知残留局限（本路径无法修复，需真实历史主数据）：stock_info 是「今天」的截面，
+        // 已退市标的整体缺失（幸存者偏差），且 status 无历史（当前全部为 1）。
+        // 唯一修复途径是回填 security_master_history（含 valid_from/valid_to/delist_date）。
         return new UniverseView(
                 asOf,
                 new ArrayList<>(byKey.values()),

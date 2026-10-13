@@ -11,30 +11,12 @@ from decimal import Decimal, ROUND_HALF_UP
 from .broker_client import ACTIVE_ORDER_STATUSES, order_remaining_qty
 from .config import BUYABILITY_BLOCKED, LOT_SIZE, PaperConfig, PRICE_DECIMALS
 from .models import Balance, Candidate, Intent, IntentType, MxOrder, Quote, QuoteValidity
+# D-RISK-01：板块涨跌幅判定已收敛到 risk.py（风控侧）作为唯一来源，
+# 避免 decide.py 与 risk.py 各有一套「涨停/接近涨停」口径。
+from .risk import board_limit_pct
 
 # 弱涨停信号阈值（辅助信号，禁止作为最终安全依据，硬闸见 risk.py limit_up_price）
 _WEAK_LIMIT_PCT = 9.8
-# 主板涨停幅度（用于从 last/pct_chg 反推涨停价，来源记录在 limit_up_source）
-_MAIN_BOARD_LIMIT_PCT = 10.0
-_BSE_LIMIT_PCT = 30.0
-# 创业板（300/301）与科创板（688/689）涨跌幅 20%，与 models.board_blocked 板块闸保持一致
-_CHINEXT_LIMIT_PCT = 20.0
-_STAR_LIMIT_PCT = 20.0
-
-
-def board_limit_pct(code: str, exchange: str) -> float:
-    """按证券代码/交易所返回涨跌幅（用于反推涨停价）。
-
-    板块判定规则与 models.board_blocked 保持一致：300/301 → 创业板 20%，
-    688/689 → 科创板 20%，BJ/BSE → 北交所 30%，其余 → 主板 10%。
-    """
-    if str(exchange).upper() in {"BJ", "BSE"}:
-        return _BSE_LIMIT_PCT
-    if code.startswith(("300", "301")):
-        return _CHINEXT_LIMIT_PCT
-    if code.startswith(("688", "689")):
-        return _STAR_LIMIT_PCT
-    return _MAIN_BOARD_LIMIT_PCT
 
 
 def in_trading_window(now: datetime) -> bool:

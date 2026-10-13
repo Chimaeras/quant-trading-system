@@ -55,6 +55,20 @@ $env:PAPER_AUTO_CANCEL_EXPIRED = '1'
 if ($TradingCalendarFile) {
     $env:PAPER_TRADING_CALENDAR_FILE = (Resolve-Path $TradingCalendarFile).Path
 }
+# D-CAL-02（2026-10-13 修正）：此前只有显式传 -TradingCalendarFile 才会注入日历，
+# 而 INTERNAL_PAPER 不做强制校验，于是默认走 trading_calendar.py 的「周一至周五」回退——
+# 国庆/中秋等法定节假日会被当作交易日。仓库已自带日历文件，这里默认自动注入；
+# 目标年份文件不存在时保持原回退行为并给出明确告警，不静默假定。
+if (-not $env:PAPER_TRADING_CALENDAR_FILE) {
+    $calendarYear = ([datetime]$SignalDate).Year
+    $defaultCalendar = Join-Path $computeRoot "paper/trading-calendar.$calendarYear.json"
+    if (Test-Path $defaultCalendar) {
+        $env:PAPER_TRADING_CALENDAR_FILE = (Resolve-Path $defaultCalendar).Path
+        Write-Host "[calendar] 自动注入仓库日历: $($env:PAPER_TRADING_CALENDAR_FILE)"
+    } else {
+        Write-Warning "[calendar] 未找到 paper/trading-calendar.$calendarYear.json，将退化为「周一至周五」判定，法定节假日会被当作交易日；请用 -TradingCalendarFile 显式注入。"
+    }
+}
 if ($ExecutionMode -eq 'EXTERNAL_PAPER' -and -not $env:PAPER_TRADING_CALENDAR_FILE) {
     throw 'EXTERNAL_PAPER 必须通过 -TradingCalendarFile 或 PAPER_TRADING_CALENDAR_FILE 注入正式交易日历。'
 }

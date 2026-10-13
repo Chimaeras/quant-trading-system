@@ -1,12 +1,38 @@
 <template>
   <PageShell>
-    <PageHeader title="T+1 次日候选（涨停基因 · 规则轨优先）" subtitle="基于信号日生成次日候选，核销后回填次日表现；含市场情绪快照与历史累计绩效" />
+    <PageHeader title="T+1 次日候选（动量 · 量能 · 趋势）" subtitle="基于信号日生成次日候选，核销后回填次日表现；含市场情绪快照与历史累计绩效。评分为 rule_score（截面排序用，非概率）" />
 
     <SectionCard>
       <el-alert type="info" :closable="false" show-icon class="note-alert"
         :title="result?.score_type === 'CALIBRATED_PROBABILITY' || result?.score_type === 'probability'
           ? ('已按校准概率排序（champion 模型 ' + (result.score_model ?? '') + '）')
           : ('仅输出 RULE_SCORE，非概率' + (result?.fallback_reason ? '；回退原因：' + result.fallback_reason : '。无匹配 champion 或特征 schema 不匹配时不会加载 challenger'))" />
+
+      <!-- D-T1-03 可追溯性：数据日 / 生成时刻 / 口径版本 / PIT 质量 / 失效条件 -->
+      <div v-if="result" class="trace-row">
+        <el-tag type="info" size="small">数据日 {{ result.trade_date ?? '—' }}</el-tag>
+        <el-tag v-if="result.data_date_fallback" type="warning" size="small">
+          请求日 {{ result.requested_trade_date }} 无行情，已回退到 {{ result.trade_date }}
+        </el-tag>
+        <el-tag type="info" size="small">口径版本 {{ result.threshold_version ?? '—' }}</el-tag>
+        <el-tag type="info" size="small">生成于 {{ (result.generated_at ?? '').replace('T', ' ') || '—' }}</el-tag>
+        <el-tag v-if="result.rule_score_threshold != null" type="info" size="small">
+          入选阈值 {{ result.rule_score_threshold }} / 满分 {{ result.rule_score_max ?? '—' }}
+        </el-tag>
+        <el-tag v-if="result.pit_limited" type="danger" size="small">
+          PIT 受限：股票池来自当前截面回退（存在幸存者偏差）
+        </el-tag>
+        <el-tag v-if="result.total_scored != null" type="info" size="small">
+          打分池 {{ result.total_scored }} → 合格 {{ result.eligible_count ?? 0 }}
+        </el-tag>
+        <el-tag v-if="result.max_rule_score != null" type="info" size="small">
+          当日最高分 {{ fmt1(result.max_rule_score) }}
+        </el-tag>
+      </div>
+      <el-alert v-if="result?.candidate_invalidation" type="warning" :closable="false" show-icon
+        class="note-alert" :title="'失效条件：' + result.candidate_invalidation" />
+      <el-alert v-if="rejectedSummary" type="info" :closable="false" show-icon
+        class="note-alert" :title="'未入选原因：' + rejectedSummary" />
 
       <el-form inline>
         <el-form-item label="信号日 T">
@@ -206,6 +232,25 @@ const stats = ref<T1StatsResponse | null>(null)
 
 const loading = computed(() => genLoading.value || settleLoading.value)
 
+/** 实际使用的数据日（后端 data_cutoff / trade_date），无则为请求日。 */
+const effDate = computed(() => result.value?.data_cutoff ?? result.value?.trade_date ?? tradeDate.value)
+
+/** 被拒原因直方图（D-T1-03）：候选为空时，页面必须能说明是「没有合格标的」还是「根本没打分」。 */
+const rejectedSummary = computed(() => {
+  const m = result.value?.rejected_by_reason
+  if (!m || typeof m !== 'object') return ''
+  const entries = Object.entries(m as Record<string, number>)
+  if (!entries.length) {
+    return result.value?.total_scored != null && result.value.total_scored === 0
+      ? '打分池为空：信号日无可打分的标的（非「弱信号日」）。请检查行情数据是否覆盖该日。'
+      : '无被拒记录（全部标的要么合格、要么在打分前的可交易/流动性/上市时长闸被过滤）'
+  }  const labels: Record<string, string> = {
+    BELOW_RULE_SCORE_THRESHOLD: '低于 rule_score 阈值',
+    BELOW_PROBABILITY_THRESHOLD: '低于概率阈值',
+  }
+  return entries.map(([k, v]) => `${labels[k] ?? k} ${v}`).join(' · ')
+})
+
 const tableData = computed(() => {
   if (!result.value) return []
   if (result.value.results?.length) return result.value.results
@@ -235,11 +280,18 @@ function exportOperationList() {
   const rows = tableData.value
   if (!rows.length) return
   const lines: string[] = [
-    `信号日,${tradeDate.value}`,
+    // D-T1-03：导出必须写**实际使用的数据日**，而不是请求日，否则节假日导出会标错日期。
+    // effDate 从 top_n 闭包外的 tradeDate 推导，取后端回传的 data_cutoff 优先。
+    `信号日,${effDate.value}`,
+    `请求日,${tradeDate.value}`,
+    `口径版本,${result.value?.threshold_version ?? ''}`,
+    `生成时刻,${result.value?.generated_at ?? ''}`,
+    `失效条件,${result.value?.candidate_invalidation ?? ''}`,
+    `PIT受限,${result.value?.pit_limited ? '是' : '否'}`,
     '',
-    ['stock_code', 'stock_name', 'score', 'is_limit_up', 'lianban_days', 'volume_ratio', 'change_pct', 'buyability', 'risks', 'reasons'].join(','),
+    ['stock_code', 'stock_name', 'score', 'rule_score', 'is_limit_up', 'lianban_days', 'volume_ratio', 'change_pct', 'buyability', 'risks', 'reasons'].join(','),
     ...rows.map((r) => [
-      r.stock_code, `"${r.stock_name ?? ''}"`, r.score ?? '', r.is_limit_up ?? '', r.lianban_days ?? '',
+      r.stock_code, `"${r.stock_name ?? ''}"`, r.score ?? '', r.rule_score ?? '', r.is_limit_up ?? '', r.lianban_days ?? '',
       r.volume_ratio ?? '', r.change_pct ?? '', r.buyability ?? '', (r.risk_tags || []).join('|'),
       (r.reasons || []).join('|')
     ].join(','))
@@ -248,7 +300,7 @@ function exportOperationList() {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `t1-operation-list-${tradeDate.value}.csv`
+  a.download = `t1-operation-list-${effDate.value}.csv`
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -351,6 +403,8 @@ onMounted(loadRecent)
 <style scoped>
 .note-alert { margin-bottom: 14px; }
 .ecology-row { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; }
+/* D-T1-03 可追溯性行：数据日/生成时刻/口径版本/PIT 状态 */
+.trace-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
 .reason-tag { margin-right: 4px; }
 .prob-tag { margin-left: 4px; }
 .kpi-row { margin-bottom: 12px; }

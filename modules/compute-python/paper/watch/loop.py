@@ -64,6 +64,19 @@ def _exchange_for_code(code: str) -> str:
     return "SZ"
 
 
+def _hard_failed(readiness: dict) -> list:
+    """返回未通过的**硬**门禁名列表（D-WARMUP-01）。
+
+    与 ``readiness["ready"]`` 的区别：``ready`` 还受「部分就绪」展示语义影响（可能为 False
+    而硬门禁全过），本函数只看硬门禁，供「是否阻断 live」这类决策使用。
+    """
+    return [
+        str(check.get("name"))
+        for check in (readiness.get("checks") or [])
+        if check.get("hard") and not check.get("ok")
+    ]
+
+
 def _optional_float(value):
     try:
         number = float(value)
@@ -1636,15 +1649,46 @@ class WatchLoop:
             # 本地撮合可以安全地只处理已经预热完成的标的；未达到 warmup
             # 的标的会在候选循环中跳过，并由 K 线重试逐步补齐，不能因此
             # 把整个内部模拟账户停成 dry-run。外部模拟盘仍保持全量门禁。
+            #
+            # D-WARMUP-01（2026-10-13 修正）：降级为软门禁本身是合理取舍（避免全停），
+            # 但此前只把 hard 置 False，readiness["ready"] 仍为 True，页面会显示
+            # 「就绪」而实际有大量标的未预热、在该状态下**不可能产生任何买卖信号**
+            # （未就绪标的的信号在下方被强制为 hold/WARMUP 并 continue）。
+            # 这里额外写出 partial 标记、覆盖数与未就绪数，让上层如实展示部分就绪。
             for check in readiness["checks"]:
                 if check.get("name") == "strategy_warmup":
                     check["hard"] = False
                     check["scope"] = "ready_symbols_only"
+                    check["partial"] = True
+                    ready_n = int(check.get("ready") or check.get("ready_count") or 0)
+                    total_n = int(check.get("total") or check.get("universe_count") or 0)
+                    if total_n <= 0:
+                        total_n = readiness_universe_count
+                    if ready_n <= 0:
+                        ready_n = strategy_ready_count
+                    check["not_ready_count"] = max(total_n - ready_n, 0)
+                    check["detail"] = (
+                        f"部分就绪：{ready_n}/{total_n} 只已完成策略预热，"
+                        f"{max(total_n - ready_n, 0)} 只未就绪（未就绪标的不会产生买卖信号，仅记 WARMUP）"
+                    )
+                    readiness["partial"] = True
+                    readiness["strategy_ready_count"] = ready_n
+                    readiness["universe_count"] = total_n
                     break
         readiness["lease"] = lease_detail
+        # 日历可用性：真正的 fail-closed 在更早处（calendar.is_trading_day 返回 false 即 SLEEPING，
+        # 异常则 BLOCKED），能走到这里说明本轮已判定为交易日。故本项是**如实展示**而非第二道硬门禁，
+        # 用 hard=False 避免「同一条件既前置阻断又被记为就绪失败」这种双重记账。
+        calendar_available = bool(getattr(self.calendar, "available", True))
         readiness["checks"].extend([
-            {"name": "trading_calendar", "ok": True, "hard": True,
-             "source": self.calendar.source},
+            # D-CAL-01（2026-10-13 修正）：此前该检查把 ok 硬编码为 True，即使日历是
+            # weekday_fallback（不含节假日）也显示为「就绪」，页面无法看出节假日风险。
+            {"name": "trading_calendar",
+             "ok": calendar_available,
+             "hard": False,
+             "source": self.calendar.source,
+             "note": "" if calendar_available
+             else "交易日历不可用（weekday 回退，节假日会被当作交易日）"},
             {"name": "account_queries", "ok": True, "hard": True,
              "positions": len(positions), "orders": len(orders)},
             {"name": "oms_reconciled", "ok": oms_unknown_count == 0, "hard": True,
@@ -1666,9 +1710,21 @@ class WatchLoop:
         readiness["ready"] = all(
             check["ok"] for check in readiness["checks"] if check.get("hard")
         )
+        # D-WARMUP-01：partial 表示「硬门禁全过，但存在被降级为软门禁的检查项」。
+        # ready 会被置为 False 以免页面把「部分就绪」当成「全量就绪」；
+        # 是否允许继续运行由硬门禁决定，与 ready 的展示语义分离。
+        if readiness.get("partial"):
+            readiness["ready"] = False
+            readiness["partial_note"] = (
+                "部分就绪：硬门禁已通过，但策略预热覆盖未达 "
+                f"{self.config.min_strategy_ready_coverage}，未就绪标的不会产生买卖信号"
+            )
         tick.metrics["readiness"] = readiness
         events.emit("READINESS", cycle=self._cycle, detail=readiness, now=current)
-        if actual_live and self.require_persistence and not readiness["ready"]:
+        # D-WARMUP-01：阻断判定只看**硬门禁失败**，不看 ready 的展示语义。
+        # ready=False 现在也涵盖「部分就绪（预热覆盖不足但已降级为软门禁）」，
+        # 若直接据此阻断，会把降级的意义抹掉（等于把内部模拟盘全停成 dry-run）。
+        if actual_live and self.require_persistence and _hard_failed(readiness):
             self._live_halted = True
             tick.live = False
             tick.errors.append("LIVE_READINESS_BLOCKED:持久化/策略预热/磁盘检查未通过")
@@ -1810,6 +1866,15 @@ class WatchLoop:
                     "validity": quote.validity.value,
                     "quality": quote_event_state[1],
                     "level": "L2" if pipeline_v2 else "LEGACY",
+                    # D-QUOTE-01（2026-10-13 修正）：此前 QUOTE 事件不含数据时间与来源，
+                    # 而 _apply_last_good_cache 会把上一轮快照重标为 VALID 并计为已覆盖，
+                    # 于是最长 120 秒的源站空洞在事件流与页面上完全不可见。
+                    # 这里显式输出源时间、接收时间、新鲜度与来源（含 "+cache" 标记）。
+                    "source": getattr(quote, "source", "") or "",
+                    "market_time": getattr(getattr(quote, "market_time", None), "isoformat", lambda: "")(),
+                    "received_at": getattr(getattr(quote, "received_at", None), "isoformat", lambda: "")(),
+                    "freshness_seconds": getattr(quote, "freshness_seconds", None),
+                    "cache_filled": "+cache" in (getattr(quote, "source", "") or ""),
                 }, now=current)
                 self._quote_event_state[candidate.stock_code] = quote_event_state
             if quote.validity != QuoteValidity.VALID:
@@ -1863,6 +1928,10 @@ class WatchLoop:
                     in {QuoteValidity.VALID, QuoteValidity.NOT_TRADABLE}
                 )
                 batch_meta = getattr(self.quote_client, "last_batch_meta", {}) or {}
+                # D-QUOTE-01：明确披露「缓存兜底」条数。这些标的在源站本轮缺失、
+                # 由上一轮快照重标为 VALID，会计入 covered_count/coverage，
+                # 必须让使用者能看到有多少覆盖率其实来自旧值而非本轮源数据。
+                cache_fill_count = int(batch_meta.get("cache_fill_count", 0) or 0)
                 batch_summary = {
                     "batch_id": f"{run_id}-watch",
                     "provider": "eastmoney_ulist"
@@ -1878,6 +1947,9 @@ class WatchLoop:
                     "duplicate_count": int(batch_meta.get("duplicate_codes") and len(batch_meta["duplicate_codes"]) or 0),
                     "page_count": int(batch_meta.get("page_count", 0) or 0),
                     "coverage": round(covered_count / requested_count, 6)
+                    if requested_count else 0.0,
+                    "cache_fill_count": cache_fill_count,
+                    "source_coverage": round(max(covered_count - cache_fill_count, 0) / requested_count, 6)
                     if requested_count else 0.0,
                     "elapsed_ms": max(int((time.monotonic() - batch_started_monotonic) * 1000), 0),
                     "status": "OK" if covered_count == requested_count else "DEGRADED",
@@ -1897,6 +1969,10 @@ class WatchLoop:
                         "last_received_at": getattr(getattr(quote, "received_at", None), "isoformat", lambda: "")(),
                         "last_price": getattr(quote, "last", None),
                         "last_volume": getattr(quote, "volume", None),
+                        # D-QUOTE-01：把来源与缓存兜底标记落到行情质量行，
+                        # serve._market_snapshot 回读给面板，使「缓存兜底」在表格中可见。
+                        "source": getattr(quote, "source", "") or "",
+                        "cache_filled": "+cache" in (getattr(quote, "source", "") or ""),
                     })
                 if self.store is not None and callable(getattr(self.store, "save_market_data_batch", None)):
                     self.store.save_market_data_batch(batch_summary, quality_rows)
@@ -2047,6 +2123,10 @@ class WatchLoop:
         readiness["ready"] = all(
             check["ok"] for check in readiness["checks"] if check.get("hard")
         )
+        # D-WARMUP-01：此处会重算 ready，必须与上面保持一致地反映「部分就绪」，
+        # 否则行情检查阶段会把预热覆盖不足重新抹成「就绪」。
+        if readiness.get("partial"):
+            readiness["ready"] = False
         readiness["phase"] = "market_checked"
         events.emit("READINESS", cycle=self._cycle, detail=readiness, now=current)
 
@@ -2420,6 +2500,12 @@ class WatchLoop:
         if self._live_halted:
             tick.errors.append("LIVE_DISABLED_AFTER_STOP_RUN")
             tick.live = False
+        # D-QUOTE-01：把「缓存兜底」的规模计入 tick 指标，使覆盖率可被拆解为
+        # 「来自本轮源数据」与「来自上一轮快照兜底」两部分，而不是一个混合数字。
+        cached_quote_count = sum(
+            1 for quote in quotes.values()
+            if "+cache" in (getattr(quote, "source", "") or "")
+        )
         tick.metrics.update({
             "universe_source": self._universe_source,
             "universe_count": len(self._candidates),
@@ -2429,6 +2515,10 @@ class WatchLoop:
             ),
             "covered_quote_count": covered_quote_count,
             "quote_coverage": round(quote_coverage, 6),
+            "cached_quote_count": cached_quote_count,
+            "source_quote_coverage": round(
+                max(covered_quote_count - cached_quote_count, 0) / len(self._candidates), 6
+            ) if self._candidates else 0.0,
             "strategy_ready_count": sum(
                 1 for candidate in self._candidates if self.adapter.ready(candidate.stock_code)
             ),

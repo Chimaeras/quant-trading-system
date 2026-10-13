@@ -5,8 +5,14 @@
 
 ## 文件
 
-- `daily_scoring_pipeline.py` — 核心脚本（仅标准库，无第三方依赖）
-- `run_daily_scoring.bat` — 双击即可运行的包装
+- `daily_scoring_pipeline.ps1` — **Windows 实际入口**（`run_daily_scoring.bat` 调用的就是这个）：
+  启动后端 → 拉数据 → 五维度打分 → 导出 CSV，结果落在 `output\scoring\<日期>\`
+- `daily_scoring_pipeline.py` — 等价的 Python 实现（仅标准库），结果落在项目根目录 `scoring_results\`；
+  适合非 Windows 或想用 `--offline` 直接对已有数据打分时使用
+- `run_daily_scoring.bat` — 双击即可运行的包装（转发到 `.ps1`）
+
+> ⚠️ 两个实现的**输出目录不同**（`output\scoring\<日期>\` vs `scoring_results\`），
+> 且 `.bat` 走的是 `.ps1` 路径。找结果时请按实际入口对应目录查看。
 
 ## 运行
 

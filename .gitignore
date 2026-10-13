@@ -60,3 +60,7 @@ docs/paper-captures/*_capture_raw.json
 
 ### Paper Live 审计日志（含行情原始JSON）
 modules/compute-python/logs/
+
+### 后端启动日志（dev profile 把 Hibernate DEBUG SQL 全量 Tee 进来，
+### 单次运行可达上百 MB，曾触及 GitHub 100MB 单文件上限，禁止入库）
+quant-trading-system-startup.log

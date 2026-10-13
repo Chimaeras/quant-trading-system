@@ -848,23 +848,35 @@ def test_kline_parser_accepts_nested_field_minute_granularity():
     assert bars[0].close == 10.0
 
 
-def test_eastmoney_kline_parser_uses_raw_ohlcv_and_skips_forming_bar():
+def test_eastmoney_kline_parser_treats_label_as_bar_end_and_skips_forming_bar():
+    """R1-01：东财 K 线的时间标签是 bar 的**结束**时刻，不是起始时刻。
+
+    修复前把标签当 start 再 +period 得 end，于是 as_of=09:45 时标签 09:45 的那根
+    （实际区间 09:40~09:45，此刻已收盘）被误判为「还没走完」而丢弃。本用例的
+    fixture 使用真实口径的标签。
+    """
     payload = {
         "rc": 0,
         "data": {
             "klines": [
-                "2026-08-18 09:30,10,10.2,10.3,9.9,12,0,0,0,0,0",
-                "2026-08-18 09:35,10.2,10.1,10.4,10.0,8,0,0,0,0,0",
-                "2026-08-18 09:40,10.1,10.3,10.5,10.1,9,0,0,0,0,0",
+                "2026-08-18 09:35,10,10.2,10.3,9.9,12,0,0,0,0,0",
+                "2026-08-18 09:40,10.2,10.1,10.4,10.0,8,0,0,0,0,0",
+                "2026-08-18 09:45,10.1,10.3,10.5,10.1,9,0,0,0,0,0",
             ]
         },
     }
     bars = _parse_eastmoney_klines(payload, "600519", 5, datetime(2026, 8, 18, 9, 45))
-    assert len(bars) == 3
+    assert len(bars) == 3, "标签 09:45 的 bar 在 09:45 已收盘可知"
     assert bars[0].volume == 1200
     assert bars[-1].source == "eastmoney_kline"
+    # 标签解释为结束时刻：09:45 的 bar 覆盖 09:40~09:45
+    assert bars[-1].end_ts == datetime(2026, 8, 18, 9, 45)
+    assert bars[-1].start_ts == datetime(2026, 8, 18, 9, 40)
+
+    # 09:44 时标签 09:45 的那根确实还在 forming，必须丢弃
     forming = _parse_eastmoney_klines(payload, "600519", 5, datetime(2026, 8, 18, 9, 44))
     assert len(forming) == 2
+    assert forming[-1].end_ts == datetime(2026, 8, 18, 9, 40)
 
 
 def test_eastmoney_kline_request_bypasses_system_proxy(monkeypatch):

@@ -356,3 +356,72 @@ def test_cycle_pushes_newly_closed_bars_to_local_sink(tmp_path, monkeypatch):
     assert all(bar.closed for bar in client.pushed)
 
 
+# --------------------------------------------------------------------------
+# R2-01 回归（2026-10-13 Codex 验证）：网络回退路径必须复用同一日期闸门
+# --------------------------------------------------------------------------
+
+class _KlineReturns:
+    """外部 K 线客户端替身：固定返回给定序列，并记录调用次数。"""
+
+    def __init__(self, bars):
+        self._bars = list(bars)
+        self.calls = 0
+
+    def fetch_history(self, *args, **kwargs):
+        self.calls += 1
+        return list(self._bars), None
+
+
+def test_network_warmup_rejects_stale_series_outside_trading_window(tmp_path, monkeypatch):
+    """R2-01：窗口外的网络序列不得被采信。
+
+    缺陷背景：本地路径走 ``_series_is_usable``，网络回退路径却直接
+    ``prepared_bars[code] = list(bars)``，于是**完全相同的陈旧返回值**本地被拒、
+    网络被接受并 ``ready=True``（实测 002388：网络返回 30 根全为 2026-09-30，
+    本地 usable=False、网络 ready=True）。停牌/陈旧序列因此仍能进入预热，
+    均线在断层处跳变并伪造金叉。
+    """
+    calendar = load_calendar_from_file(_CALENDAR_PATH)
+    allowed = _allowed_bar_dates(calendar, _REPLAY_DATE, 2)
+    assert allowed == {"2026-08-18", "2026-08-17"}, "前提：允许窗口为当日+上一交易日"
+
+    stale = _bars("2026-07-06T09:35", 30, 10.0)
+    assert not _series_is_usable(stale, 21, allowed), "前提：该序列尾部确实在窗口外"
+
+    client = _FakeMinuteBarClient()          # 本地无分钟线 -> 必须回退网络
+    kline = _KlineReturns(stale)
+    loop, candidate = _loop_with_client(
+        tmp_path, monkeypatch, client, kline_client=kline)
+
+    _advance(loop, candidate, 97)
+
+    assert kline.calls == 1, "本地不可用时应回退外部 K 线"
+    assert not loop.adapter.ready(_CODE), (
+        "窗口外的网络序列不得进入预热序列（修复前此处为 ready=True）"
+    )
+    assert any(
+        "KLINE_SERIES_OUT_OF_TRADING_WINDOW" in err for err in loop._prepare_errors
+    ), f"应记录明确错误而不是静默采用；实际 {loop._prepare_errors}"
+
+
+def test_network_warmup_accepts_series_inside_trading_window(tmp_path, monkeypatch):
+    """对照：窗口内的网络序列仍应正常预热（修复不得误伤正常路径）。"""
+    calendar = load_calendar_from_file(_CALENDAR_PATH)
+    allowed = _allowed_bar_dates(calendar, _REPLAY_DATE, 2)
+
+    fresh = _bars("2026-08-18T09:35", 30, 10.0)
+    assert _series_is_usable(fresh, 21, allowed), "前提：该序列在窗口内"
+
+    client = _FakeMinuteBarClient()
+    kline = _KlineReturns(fresh)
+    loop, candidate = _loop_with_client(
+        tmp_path, monkeypatch, client, kline_client=kline)
+
+    _advance(loop, candidate, 97)
+
+    assert loop.adapter.ready(_CODE), "窗口内的网络序列应正常预热"
+    assert not any(
+        "KLINE_SERIES_OUT_OF_TRADING_WINDOW" in err for err in loop._prepare_errors
+    )
+
+

@@ -12,7 +12,16 @@ from .config import (
     MIN_COMMISSION,
     PaperConfig,
 )
-from .models import Balance, Intent, IntentType, MxOrder, Quote, QuoteValidity, RiskStatus
+from .models import (
+    Balance,
+    Intent,
+    IntentType,
+    MxOrder,
+    Quote,
+    QuoteValidity,
+    RiskStatus,
+    is_bse,
+)
 
 # 各板块涨跌幅（%）。D-RISK-01（2026-10-13）：此前 board_limit_pct 只存在于 decide.py，
 # 而 risk.py 的 NEAR_LIMIT_UP 闸把「接近涨停」硬编码成 9.0%，两者口径不一致——
@@ -70,7 +79,17 @@ def check_intent(
     买入价达到涨停价 → LIMIT_UP_NOT_BUYABLE。禁止以 9%/9.8% 近似值替代。
     """
     if intent.intent_type != IntentType.BUY_LIMIT:
-        intent.risk_status = RiskStatus.PASS if intent.intent_type == IntentType.NOOP else RiskStatus.REJECT
+        if intent.intent_type == IntentType.NOOP:
+            intent.risk_status = RiskStatus.PASS
+            return intent
+        # V1 路径只实现买入；其它意图类型（SELL_LIMIT 等）不予受理。
+        # 此前直接置 REJECT 且不写原因码，拒绝不可审计——而 dry-run 预览
+        # （runner.py）存在的目的正是"展示真实拦截原因"。这里只补原因码，
+        # 不改变 intent_type（保持原有语义）。
+        intent.risk_status = RiskStatus.REJECT
+        if not intent.risk_reject_reason:
+            intent.risk_reject_reason = "UNSUPPORTED_INTENT_TYPE_IN_V1"
+            intent.reason_codes.append("UNSUPPORTED_INTENT_TYPE_IN_V1")
         return intent
 
     def reject(reason: str) -> Intent:
@@ -108,7 +127,12 @@ def check_intent(
     if intent.limit_price >= quote.limit_up_price:
         return reject("LIMIT_UP_NOT_BUYABLE")
     # 闸 7b：近涨停辅助信号（弱保护，非最终安全依据）
-    if (quote.pct_chg or 0) >= 9.0:
+    # D-RISK-01：阈值按板块推导，不再硬编码 9.0%。watch 路径已用
+    # near_limit_up_threshold_pct（主板 9 / 两创 19 / 北交所 29），而 V1 路径
+    # 此前未同步，导致北交所 +15% 的正常标的被误判为接近涨停并拒单，
+    # 同一输入下两闸结论相反。
+    near_limit_pct = near_limit_up_threshold_pct(quote.code, quote.exchange)
+    if (quote.pct_chg or 0) >= near_limit_pct:
         return reject("NEAR_LIMIT_UP")
 
     # 闸 8：资金（金额+佣金 ≤ 可用）
@@ -238,6 +262,14 @@ def check_watch_intent(
     if intent.intent_type == IntentType.BUY_LIMIT and is_star and not config.allow_star:
         note("BOARD_POLICY", False)
         return reject("BOARD_BLOCKED_STAR")
+    # R4-03：北交所此前**没有开关且默认放行**，与两创口径不一致。
+    is_bse_board = (
+        board in {"BSE", "BJ"} if board
+        else is_bse(intent.stock_code, getattr(quote, "exchange", None))
+    )
+    if intent.intent_type == IntentType.BUY_LIMIT and is_bse_board and not config.allow_bse:
+        note("BOARD_POLICY", False)
+        return reject("BOARD_BLOCKED_BSE")
     note("BOARD_POLICY", True)
     if trades_this_day >= config.max_trades_per_day:
         note("MAX_TRADES_PER_DAY", False)

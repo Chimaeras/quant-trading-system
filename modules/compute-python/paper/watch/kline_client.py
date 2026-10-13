@@ -77,7 +77,15 @@ def _parse_eastmoney_klines(payload: dict, code: str, period_min: int, as_of: da
         if len(parts) < 6:
             continue
         try:
-            start = _parse_time(parts[0])
+            # R1-01：东方财富 K 线的时间标签是该 bar 的**结束**时刻，不是起始时刻。
+            # 旧实现把标签当 start、再 +period 得到 end，造成两点偏差：
+            #   1) 每根 bar 的时间区间整体右移一个周期（标签 15:00 的末根被记成
+            #      15:00~15:05，而它实际是 14:55~15:00）；
+            #   2) as_of 过滤 `end > as_of` 会连带丢弃一根**早已收盘可知**的 bar
+            #      （实测 as_of=10:32 只采纳到标签 10:25，而标签 10:30 的那根
+            #       已于 10:30 收盘，理应在 10:32 可见）。
+            end = _parse_time(parts[0])
+            start = end - timedelta(minutes=period_min)
             open_price = _number(parts[1])
             close = _number(parts[2])
             high = _number(parts[3])
@@ -85,7 +93,6 @@ def _parse_eastmoney_klines(payload: dict, code: str, period_min: int, as_of: da
             volume = _number(parts[5]) * 100.0
         except (TypeError, ValueError):
             continue
-        end = start + timedelta(minutes=period_min)
         if end > as_of or min(open_price, high, low, close) <= 0 or high < low:
             continue
         bars.append(WatchBar(
@@ -138,6 +145,14 @@ def _minute_granularity(table: dict) -> str:
 
 
 def parse_kline_payload(payload: dict, code: str, period_min: int, as_of: datetime) -> list[WatchBar]:
+    """解析妙想 query 的分钟 K 线表（仅 ``PAPER_KLINE_SOURCE=mx_query`` 时启用）。
+
+    R1-05 未决：本函数仍按「标签 = bar **起始**时刻」解释（``end = start + period``）。
+    该来源的时间标签语义**尚未取证**——东财路径已确证标签是**结束**时刻（R1-01），
+    妙想是否相同没有实测证据（``mx_query_kline`` 在实际库中 0 行，默认 ``auto`` 不走
+    这里）。启用本路径前必须先拿 1 分钟线比对标签，确认口径后再与
+    :func:`_parse_eastmoney_klines` 统一，不要凭猜测改动。
+    """
     try:
         tables = payload["data"]["data"]["searchDataResultDTO"]["dataTableDTOList"]
     except (KeyError, TypeError) as exc:

@@ -288,7 +288,7 @@ def load_watch_universe(
             # risk 闸门决定，不能在 universe 阶段把热门股或人工标的删掉。
             filtered.append(candidate)
             continue
-        blocked = candidate.board_blocked(config.allow_chinext, config.allow_star)
+        blocked = candidate.board_blocked(config.allow_chinext, config.allow_star, config.allow_bse)
         if blocked:
             errors.append(f"{candidate.stock_code}:{blocked}")
             continue

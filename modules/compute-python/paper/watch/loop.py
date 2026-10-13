@@ -591,6 +591,18 @@ class WatchLoop:
                         raise fetch_error
                     if bars is None:
                         raise ValueError(_result_message(result))
+                    # R2-01：网络回退路径此前不做任何校验，与本地路径口径不一致——
+                    # 完全相同的陈旧返回值，本地因 _series_is_usable=False 被拒，
+                    # 网络却直接采信并 ready=True（实测 002388：30 根全为 2026-09-30，
+                    # 本地 usable=False、网络 ready=True）。停牌/陈旧序列因此仍能
+                    # 进入预热，均线在断层处跳变并伪造金叉。
+                    # 这里复用同一判据；不通过即视为**取回失败**（记错误、按
+                    # kline_retry_sec 退避重试），而不是降级采用可疑序列。
+                    if not _series_is_usable(bars, required, allowed_bar_dates):
+                        raise ValueError(
+                            "KLINE_SERIES_OUT_OF_TRADING_WINDOW:"
+                            f"{len(bars)} bars, tail not in allowed dates"
+                        )
                     prepared_bars[code] = list(bars)
                 except Exception as exc:  # noqa: BLE001 - 单只失败继续预热
                     self._disabled_codes[code] = str(exc)

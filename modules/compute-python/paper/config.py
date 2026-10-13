@@ -36,6 +36,7 @@ class PaperConfig:
     halt: bool = False
     allow_chinext: bool = False
     allow_star: bool = False
+    allow_bse: bool = False
     allow_market: bool = False
     max_trades_per_run: int = 5
     max_name_weight: float = 0.20
@@ -256,6 +257,7 @@ class PaperConfig:
             halt=e.get("PAPER_HALT", "0") == "1",
             allow_chinext=e.get("PAPER_ALLOW_CHINEXT", "0") == "1",
             allow_star=e.get("PAPER_ALLOW_STAR", "0") == "1",
+            allow_bse=e.get("PAPER_ALLOW_BSE", "0") == "1",
             allow_market=e.get("PAPER_ALLOW_MARKET", "0") == "1",
             max_trades_per_run=int(e.get("PAPER_MAX_TRADES_PER_RUN", "5")),
             max_name_weight=float(e.get("PAPER_MAX_NAME_WEIGHT", "0.20")),
@@ -330,6 +332,7 @@ class PaperConfig:
             "halt": self.halt,
             "allow_chinext": self.allow_chinext,
             "allow_star": self.allow_star,
+            "allow_bse": self.allow_bse,
             "allow_market": self.allow_market,
             "max_trades_per_run": self.max_trades_per_run,
             "max_name_weight": self.max_name_weight,

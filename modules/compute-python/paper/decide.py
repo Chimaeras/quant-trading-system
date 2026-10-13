@@ -132,7 +132,7 @@ def decide(
         quote = quotes.get(code)
 
         # 板块闸
-        board = cand.board_blocked(config.allow_chinext, config.allow_star)
+        board = cand.board_blocked(config.allow_chinext, config.allow_star, config.allow_bse)
         if board:
             intents.append(_noop(code, board, cand.source))
             continue

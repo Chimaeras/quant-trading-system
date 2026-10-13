@@ -7,6 +7,20 @@ from enum import Enum
 import math
 
 
+# 北交所证券代码段：920 为新段，43/83/87/88 为存量段。
+# 交易所代码有两种命名约定并存（SSE/SZSE/BSE 与 SH/SZ/BJ），只看其中一个都可能误判，
+# 因此代码段与交易所两者任一命中即认定。沪深股票代码段不会与这些前缀冲突。
+_BSE_CODE_PREFIXES = ("43", "83", "87", "88", "920")
+_BSE_EXCHANGES = {"BJ", "BSE"}
+
+
+def is_bse(code: str, exchange: str | None = None) -> bool:
+    """是否北交所证券。"""
+    if str(exchange or "").strip().upper() in _BSE_EXCHANGES:
+        return True
+    return str(code or "").strip().startswith(_BSE_CODE_PREFIXES)
+
+
 class QuoteValidity(str, Enum):
     """行情有效性判定。"""
 
@@ -161,16 +175,25 @@ class Candidate:
     source: str = "t1"
     selection_lineage: dict = field(default_factory=dict)
 
-    def board_blocked(self, allow_chinext: bool, allow_star: bool) -> str | None:
-        """板块闸：返回拦截原因码或 None。创业板 300/301 开头，科创 688/689。
+    def board_blocked(
+        self, allow_chinext: bool, allow_star: bool, allow_bse: bool = False
+    ) -> str | None:
+        """板块闸：返回拦截原因码或 None。创业板 300/301，科创 688/689，北交所见 :func:`is_bse`。
 
         与 decide.board_limit_pct 的板块判定保持一致（300/301 → 创业板 20%），
         避免 allow_chinext=False 时 301 仍被放行。
+
+        R4-03（2026-10-13）：补上北交所。此前两创各有关闭开关，而北交所**没有开关
+        且默认放行**，三类非主板板块口径不一致——热门股 500 只里北交所占 25 只（5%），
+        在默认配置下可买，而同为非主板的创业板/科创板被禁。现统一为默认禁买，
+        需要时用 ``PAPER_ALLOW_BSE=1`` 打开。
         """
         if self.stock_code.startswith(("300", "301")) and not allow_chinext:
             return "BOARD_BLOCKED_CHINEXT"
         if self.stock_code.startswith(("688", "689")) and not allow_star:
             return "BOARD_BLOCKED_STAR"
+        if is_bse(self.stock_code, self.exchange_type) and not allow_bse:
+            return "BOARD_BLOCKED_BSE"
         return None
 
 

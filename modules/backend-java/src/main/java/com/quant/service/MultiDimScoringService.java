@@ -17,6 +17,7 @@ import com.quant.service.scoring.EnhancedMarketSentimentService;
 import com.quant.service.scoring.MarketEnvironmentAnalyzer;
 import com.quant.service.scoring.ScoringRules;
 import com.quant.service.scoring.ScoringUtils;
+import com.quant.service.scoring.ScoreReadAvailability;
 import com.quant.service.scoring.SignalDecay;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -57,6 +58,12 @@ public class MultiDimScoringService {
     private final EnhancedMarketSentimentService enhancedMarketSentimentService;
     private final MarketEnvironmentAnalyzer marketEnvironmentAnalyzer;
 
+    /**
+     * 查询已持久化的多维打分结果（按综合分降序）。
+     *
+     * <p><b>R3-02</b>：响应新增可用性标记。此前该因子版本 0 行时只回
+     * {@code trade_date="" / total=0}，把「没有任何结果」与「结果为空页」混为一谈。
+     */
     @Transactional(readOnly = true)
     public Map<String, Object> listScores(LocalDate tradeDate, int page, int size) {
         LocalDate d;
@@ -65,6 +72,8 @@ public class MultiDimScoringService {
         } else {
             d = stockMultiDimScoreRepository.findMaxTradeDateOnOrBefore(FV, tradeDate).orElse(null);
         }
+        // R3-02：以库内最新行情日作为「本应到哪天」的参照，不靠本机时钟推断。
+        LocalDate expected = marketDataRepository.findMaxTradeDate().orElse(null);
         if (d == null) {
             Map<String, Object> empty = new LinkedHashMap<>();
             empty.put("trade_date", "");
@@ -72,6 +81,8 @@ public class MultiDimScoringService {
             empty.put("total", 0L);
             empty.put("page", 0);
             empty.put("size", Math.min(500, Math.max(1, size)));
+            empty.put("factor_version", FV);
+            empty.putAll(ScoreReadAvailability.describe(null, tradeDate, expected));
             return empty;
         }
         Pageable p = PageRequest.of(Math.max(0, page), Math.min(500, Math.max(1, size)));
@@ -89,6 +100,8 @@ public class MultiDimScoringService {
         out.put("page", pg.getNumber());
         out.put("size", pg.getSize());
         out.put("scoring_mode", "compute_v1");
+        out.put("factor_version", FV);
+        out.putAll(ScoreReadAvailability.describe(d, tradeDate, expected));
         return out;
     }
 

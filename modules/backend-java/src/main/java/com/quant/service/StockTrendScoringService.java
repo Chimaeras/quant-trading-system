@@ -10,6 +10,7 @@ import com.quant.service.scoring.ExecutorLifecycle;
 import com.quant.service.scoring.ScoringConstants;
 import com.quant.service.scoring.ScoringRules;
 import com.quant.service.scoring.ScoringUtils;
+import com.quant.service.scoring.ScoreReadAvailability;
 import com.quant.service.scoring.TechnicalIndicators;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -54,6 +55,14 @@ public class StockTrendScoringService {
         return listScores(tradeDate, page, size, StockTrendScore.SCORE_TYPE_TREND);
     }
 
+    /**
+     * 查询已持久化的趋势打分结果（按总分降序）。
+     *
+     * <p><b>R3-02</b>：响应新增可用性标记（{@code data_status} / {@code effective_trade_date} /
+     * {@code requested_trade_date} / {@code expected_trade_date} / {@code staleness_days} /
+     * {@code downgraded}）。此前把旧数据与空数据直接返回：实测该类型最新只到
+     * 2026-04-07（当时已过去半年）仍以最新结果交付，调用方无从分辨。
+     */
     @Transactional(readOnly = true)
     public Map<String, Object> listScores(LocalDate tradeDate, int page, int size, String scoreType) {
         String type = scoreType != null && !scoreType.isBlank() ? scoreType : StockTrendScore.SCORE_TYPE_TREND;
@@ -63,13 +72,17 @@ public class StockTrendScoringService {
         } else {
             d = stockTrendScoreRepository.findMaxTradeDateOnOrBeforeByScoreType(type, tradeDate).orElse(null);
         }
+        // R3-02：以库内最新行情日作为「本应到哪天」的参照，不靠本机时钟推断。
+        LocalDate expected = marketDataRepository.findMaxTradeDate().orElse(null);
         if (d == null) {
             Map<String, Object> empty = new LinkedHashMap<>();
+            empty.put("score_type", type);
             empty.put("trade_date", "");
             empty.put("list", List.of());
             empty.put("total", 0L);
             empty.put("page", 0);
             empty.put("size", Math.min(500, Math.max(1, size)));
+            empty.putAll(ScoreReadAvailability.describe(null, tradeDate, expected));
             return empty;
         }
         Pageable p = PageRequest.of(Math.max(0, page), Math.min(500, Math.max(1, size)));
@@ -87,6 +100,7 @@ public class StockTrendScoringService {
         out.put("total", pg.getTotalElements());
         out.put("page", pg.getNumber());
         out.put("size", pg.getSize());
+        out.putAll(ScoreReadAvailability.describe(d, tradeDate, expected));
         return out;
     }
 

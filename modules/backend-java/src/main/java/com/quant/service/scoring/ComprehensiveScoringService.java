@@ -700,6 +700,9 @@ public class ComprehensiveScoringService {
 
     /**
      * 查询已持久化的综合打分结果（按总分降序）。
+     *
+     * <p><b>R3-02</b>：响应新增可用性标记，与趋势/多维两个读取接口保持一致，
+     * 使陈旧结果与空结果都能被调用方识别。
      */
     @Transactional
     public Map<String, Object> listScores(LocalDate tradeDate, int page, int size) {
@@ -710,6 +713,8 @@ public class ComprehensiveScoringService {
         } else {
             d = stockTrendScoreRepository.findMaxTradeDateOnOrBeforeByScoreType(scoreType, tradeDate).orElse(null);
         }
+        // R3-02：以库内最新行情日作为「本应到哪天」的参照，不靠本机时钟推断。
+        LocalDate expected = marketDataRepository.findMaxTradeDate().orElse(null);
         if (d == null) {
             Map<String, Object> empty = new LinkedHashMap<>();
             empty.put("score_type", scoreType);
@@ -719,6 +724,7 @@ public class ComprehensiveScoringService {
             empty.put("total", 0L);
             empty.put("page", 0);
             empty.put("size", Math.min(500, Math.max(1, size)));
+            empty.putAll(ScoreReadAvailability.describe(null, tradeDate, expected));
             return empty;
         }
         Pageable p = PageRequest.of(Math.max(0, page), Math.min(500, Math.max(1, size)));
@@ -737,6 +743,7 @@ public class ComprehensiveScoringService {
         out.put("total", pg.getTotalElements());
         out.put("page", pg.getNumber());
         out.put("size", pg.getSize());
+        out.putAll(ScoreReadAvailability.describe(d, tradeDate, expected));
         return out;
     }
 

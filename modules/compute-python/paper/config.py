@@ -87,6 +87,18 @@ class PaperConfig:
     lease_ttl_sec: int = 180
     min_strategy_ready_coverage: float = 0.95
     min_store_free_mb: int = 256
+    # `closed_bar` 只服务「同一交易日重启恢复」，不是跨日历史库：跨日历史一律由
+    # 公开分钟 K 线补齐。保留最近 N 个交易日用于当日/隔日重启，更早的行启动时清理。
+    # 缺陷背景见 store.load_recent_closed_bars 的 docstring。
+    closed_bar_keep_trade_dates: int = 2
+    # 把盘中 5 分钟 bar 回写 Java/MySQL（market_data_minute），沉淀为可回测的本地
+    # 分钟级历史资产；并让预热优先读本地连续分钟线，东方财富退化为兜底。
+    # 默认关闭：t1_base 默认指向 localhost:8080，若默认开启会让测试套件向真实后端
+    # 发请求（非 hermetic）。真实运行由启动脚本显式置 PAPER_MINUTE_BAR_SINK=1。
+    minute_bar_sink_enabled: bool = False
+    # 本地分钟线取回窗口（自然日）。4 天足以覆盖「周五 → 周一」这类周末跨越，
+    # 再大只会放大传输量：Java 侧仍按代码截尾 limit 根。
+    minute_bar_lookback_days: int = 4
     # SHADOW 只产生日志；INTERNAL_PAPER 使用本地撮合；EXTERNAL_PAPER 调妙想模拟盘。
     watch_execution_mode: str = "SHADOW"
     paper_session_id: str = "default"
@@ -180,6 +192,8 @@ class PaperConfig:
             raise ValueError("min_strategy_ready_coverage 必须在 (0,1] 内")
         if self.min_store_free_mb < 0:
             raise ValueError("min_store_free_mb 不能为负")
+        if self.closed_bar_keep_trade_dates < 1:
+            raise ValueError("closed_bar_keep_trade_dates 至少为 1（否则丢弃当日恢复能力）")
         if self.watch_execution_mode not in {"SHADOW", "INTERNAL_PAPER", "EXTERNAL_PAPER"}:
             raise ValueError("watch_execution_mode 必须是 SHADOW/INTERNAL_PAPER/EXTERNAL_PAPER")
         if not self.paper_session_id.strip():
@@ -274,6 +288,9 @@ class PaperConfig:
             lease_ttl_sec=int(e.get("PAPER_LEASE_TTL_SEC", "180")),
             min_strategy_ready_coverage=float(e.get("PAPER_MIN_STRATEGY_READY_COVERAGE", "0.95")),
             min_store_free_mb=int(e.get("PAPER_MIN_STORE_FREE_MB", "256")),
+            closed_bar_keep_trade_dates=int(e.get("PAPER_CLOSED_BAR_KEEP_TRADE_DATES", "2")),
+            minute_bar_sink_enabled=e.get("PAPER_MINUTE_BAR_SINK", "0") == "1",
+            minute_bar_lookback_days=int(e.get("PAPER_MINUTE_BAR_LOOKBACK_DAYS", "4")),
             watch_execution_mode=execution_mode,
             paper_session_id=e.get("PAPER_SESSION_ID", "default").strip(),
             internal_initial_cash=float(e.get("PAPER_INTERNAL_INITIAL_CASH", "1000000")),

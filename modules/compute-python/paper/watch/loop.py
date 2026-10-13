@@ -7,7 +7,7 @@ import time
 import requests
 import math
 from dataclasses import asdict, replace
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
 from statistics import median
@@ -37,6 +37,7 @@ from .events import EventLog
 from .execution import PreSendRejected, create_execution_adapter
 from .size import sizing_detail
 from .models import WatchTick
+from .minute_bars import MinuteBarClient
 from .oms import ACTIVE_STATUSES as OMS_ACTIVE_STATUSES, LocalOrder, OmsService, OrderStatus, external_status
 from .readiness import build_readiness_report
 from .signal_adapter import SignalAdapter
@@ -85,6 +86,54 @@ def _optional_float(value):
     return number if math.isfinite(number) else None
 
 
+def _allowed_bar_dates(calendar, trade_date: str, keep_trade_dates: int) -> set[str]:
+    """返回缓存允许保留的最近 N 个交易日（含当日）的日期集合。
+
+    与 ``SqliteWatchStore.prune_closed_bars`` 的保留窗口同源：``closed_bar`` 只服务
+    当日/隔日重启恢复，落在窗口外的 bar 属于陈旧数据，不得进入策略预热序列。
+    """
+    try:
+        anchor = date.fromisoformat(str(trade_date))
+    except (TypeError, ValueError):
+        return set()
+    keep = max(1, int(keep_trade_dates))
+    allowed: set[str] = set()
+    probe = anchor
+    # 逐日回退并跳过长假（国庆/春节最长约 10 个自然日）；余量给足以免漏算交易日。
+    for _ in range(keep * 20 + 20):
+        if len(allowed) >= keep:
+            break
+        if calendar is None or calendar.is_trading_day(probe):
+            allowed.add(probe.isoformat())
+        probe -= timedelta(days=1)
+    return allowed
+
+
+def _series_is_usable(bars: list, required: int, allowed_dates: set[str]) -> bool:
+    """判断一段 bar 序列能否直接作为策略预热输入（D-STALE-BAR-01）。
+
+    判据是**日期归属**而非根数：被策略实际判定的尾部 ``required`` 根必须全部落在
+    缓存允许的交易日窗口内（默认「当日 + 上一交易日」）。
+
+    缺陷背景（2026-10-13 定位）：``closed_bar`` 缓存跨月取证后，某票「最近 80 根」
+    横跨 8~10 月；旧代码只看**根数**够就采信并跳过网络补拉，于是 8 月旧价与当日
+    实时价被拼成假连续序列，均线在断层处跳变，伪造出金叉买入（实测 601579 的
+    ma5 被算成 22.866，真实应为 34.32）。
+
+    为何不用「尾部跨 ≤2 个交易日」这类纯计数判据：陈旧序列的尾部完全可能只跨
+    2 个日期（例如 8/27 的 20 根 + 今日 1 根），计数判据会放行——必须比对**具体
+    日期是否属于允许窗口**。返回 False 只会让调用方转为走公开 K 线补拉，因此是
+    fail-open 的：宁可多一次网络请求，不可用可疑序列。
+    """
+    if required <= 0 or len(bars) < required or not allowed_dates:
+        return False
+    try:
+        tail_dates = {bar.start_ts.date().isoformat() for bar in bars[-required:]}
+    except (AttributeError, TypeError, ValueError):
+        return False
+    return tail_dates <= allowed_dates
+
+
 class WatchLoop:
     """可运行一轮或长循环的盯盘引擎。
 
@@ -106,6 +155,7 @@ class WatchLoop:
         store: WatchStore | None = None,
         require_persistence: bool = False,
         store_init_error: str = "",
+        minute_bar_client=None,
     ):
         self.config = config
         self.quote_client = quote_client
@@ -115,6 +165,16 @@ class WatchLoop:
         self.log_base = Path(log_base)
         self.now_fn = now_fn or clock.now
         self.sleep_fn = sleep_fn
+        # 分钟线本地沉淀（D-STALE-BAR-01 修复 4）。默认按配置构造；测试可注入替身
+        # 或依赖 minute_bar_sink_enabled 的默认关闭来保持 hermetic。
+        if minute_bar_client is None and getattr(config, "minute_bar_sink_enabled", False):
+            minute_bar_client = MinuteBarClient(
+                getattr(config, "t1_base", ""),
+                getattr(config, "java_token", ""),
+                period_min=config.bar_period_min,
+            )
+        self.minute_bar_client = minute_bar_client
+        self._minute_bar_sink_last_error = ""
         self.bar_store = BarStore(config.bar_period_min)
         self.adapter = SignalAdapter(
             config.watch_strategy,
@@ -146,6 +206,10 @@ class WatchLoop:
         self._watch_pool_revision = ""
         self._prepare_errors: list[str] = []
         self._prepare_errors_pending = False
+        # prepare() 拿不到 tick（它在 run_once 里才创建），故与 errors 同法：
+        # 先在 prepare 内积累，再由 run_once 合并进 tick.metrics。
+        self._prepare_metrics: dict = {}
+        self._prepare_metrics_pending = False
         self._disabled_codes: dict[str, str] = {}
         self._disabled_retry_at: dict[str, datetime] = {}
         self._state: WatchState | None = None
@@ -323,6 +387,7 @@ class WatchLoop:
         self._candidates = candidates
         self._universe_source = source
         self._prepare_errors = list(errors)
+        self._prepare_metrics = {}
         if self.store is not None and callable(getattr(self.store, "watch_pool_revision", None)):
             try:
                 self._watch_pool_revision = self.store.watch_pool_revision()
@@ -378,12 +443,24 @@ class WatchLoop:
             )
 
         required = self.adapter.required_bars()
+        allowed_bar_dates = _allowed_bar_dates(
+            self.calendar, trade_date, self.config.closed_bar_keep_trade_dates
+        )
         persisted_bars: dict[str, list] = {}
         forming_checkpoints: dict[str, dict] = {}
         if self.store is not None:
             try:
+                # 先清理再加载：缓存只留最近 N 个交易日，跨月陈旧行不得进入预热序列。
+                if callable(getattr(self.store, "prune_closed_bars", None)):
+                    pruned = self.store.prune_closed_bars(
+                        self.config.closed_bar_keep_trade_dates
+                    )
+                    if pruned:
+                        self._prepare_metrics["closed_bar_pruned"] = pruned
                 persisted_bars = self.store.load_recent_closed_bars(
-                    self.config.bar_period_min, max(required + 10, 80)
+                    self.config.bar_period_min,
+                    max(required + 10, 80),
+                    trade_date=trade_date,
                 )
                 forming_checkpoints = self.store.load_forming_checkpoints(
                     trade_date, self.config.bar_period_min
@@ -408,8 +485,12 @@ class WatchLoop:
             try:
                 if code in self._seed_bars:
                     prepared_bars[code] = list(self._seed_bars[code])
-                elif code in persisted_bars and (
-                    source == "full_market" or len(persisted_bars[code]) >= required
+                elif (
+                    code in persisted_bars
+                    and (source == "full_market" or len(persisted_bars[code]) >= required)
+                    and _series_is_usable(
+                        persisted_bars[code], required, allowed_bar_dates
+                    )
                 ):
                     prepared_bars[code] = list(persisted_bars[code])
                 elif source == "full_market" and code in forming_checkpoints:
@@ -443,6 +524,33 @@ class WatchLoop:
                 return candidate, bars, result, None
             except Exception as exc:  # noqa: BLE001 - 单只失败不得拖垮启动
                 return candidate, None, None, exc
+
+        # 本地分钟线优先（D-STALE-BAR-01 修复 4）：主库 market_data_minute 里的序列
+        # 是我们自己沉淀并校验过的连续数据，比外部窗口更可靠，也不受网关限流影响。
+        # 未命中或序列不可用（含交易日窗口外）的代码继续走外部 K 线补拉。
+        if self.minute_bar_client is not None and fetch_candidates:
+            local_bars = self.minute_bar_client.recent(
+                [candidate.stock_code for candidate in fetch_candidates],
+                limit_per_code=max(required + 10, 80),
+                lookback_days=self.config.minute_bar_lookback_days,
+            )
+            if local_bars:
+                still_pending = []
+                for candidate in fetch_candidates:
+                    bars = local_bars.get(candidate.stock_code) or []
+                    if _series_is_usable(bars, required, allowed_bar_dates):
+                        prepared_bars[candidate.stock_code] = bars
+                    else:
+                        still_pending.append(candidate)
+                resolved = len(fetch_candidates) - len(still_pending)
+                if resolved:
+                    self._prepare_metrics["minute_bar_local_warmup"] = resolved
+                fetch_candidates = still_pending
+            if self.minute_bar_client.last_error:
+                # 只降级不阻断：本地不可用时外部行情仍能完成预热。
+                self._prepare_errors.append(
+                    f"MINUTE_BAR_LOCAL_UNAVAILABLE:{self.minute_bar_client.last_error}"
+                )
 
         deferred_candidates = fetch_candidates[self.config.kline_retry_batch_size:]
         fetch_candidates = fetch_candidates[:self.config.kline_retry_batch_size]
@@ -554,6 +662,7 @@ class WatchLoop:
 
         self._prepared_date = trade_date
         self._prepare_errors_pending = True
+        self._prepare_metrics_pending = True
         events = self._event_log(trade_date)
         candidate_names = {candidate.stock_code: candidate.stock_name for candidate in candidates}
         for code, reason in self._disabled_codes.items():
@@ -599,6 +708,9 @@ class WatchLoop:
             return
         candidate_map = {candidate.stock_code: candidate for candidate in self._candidates}
         required = self.adapter.required_bars()
+        allowed_bar_dates = _allowed_bar_dates(
+            self.calendar, trade_date, self.config.closed_bar_keep_trade_dates
+        )
         for code in sorted(codes):
             candidate = candidate_map.get(code)
             if candidate is None or self.adapter.ready(code):
@@ -607,7 +719,9 @@ class WatchLoop:
             # FULL 模式启动阶段不拉全市场历史 K；活跃池标的一旦出现 1～2 根
             # 实时 closed bar，旧逻辑会因 history 非空而永久跳过补拉，导致
             # strategy_warmup 长期 0/N。历史不足时必须用公开分钟 K 补齐。
-            if len(history) >= required:
+            if len(history) >= required and _series_is_usable(
+                history, required, allowed_bar_dates
+            ):
                 self.adapter.seed(code, history)
                 continue
             try:
@@ -1399,6 +1513,9 @@ class WatchLoop:
         if self._prepare_errors_pending:
             tick.errors.extend(self._prepare_errors)
             self._prepare_errors_pending = False
+        if self._prepare_metrics_pending:
+            tick.metrics.update(self._prepare_metrics)
+            self._prepare_metrics_pending = False
         if live and "T1_UNAVAILABLE" in self._prepare_errors:
             tick.errors.append("DATA_SOURCE_BLOCKED:T1 观察池不可用，live 不允许空名单继续")
             tick.status = "BLOCKED"
@@ -2035,6 +2152,20 @@ class WatchLoop:
                 tick.errors.append(f"L2_QUOTE_PERSIST_FAILED:{type(exc).__name__}:{exc}")
 
         closed_bars = [bar for update in updates.values() for bar in update.new_closed]
+        # 同步沉淀到主库 market_data_minute（D-STALE-BAR-01 修复 4，best-effort）：
+        # 本地分钟线一旦累积，下一交易日的预热就能优先读它而不是每次都依赖外部窗口。
+        # 失败只上报事件、绝不阻断本轮判定——行情可用性不因本地沉淀服务而下降。
+        if self.minute_bar_client is not None and closed_bars:
+            saved = self.minute_bar_client.push(closed_bars)
+            if saved:
+                tick.metrics["minute_bar_saved"] = saved
+            error = self.minute_bar_client.last_error
+            if error and error != self._minute_bar_sink_last_error:
+                events.emit("ERROR", cycle=self._cycle, detail={
+                    "scope": "MINUTE_BAR_SINK",
+                    "message": error,
+                }, now=current)
+            self._minute_bar_sink_last_error = error
         if self.store is not None:
             checkpoints = [
                 checkpoint for code in updates

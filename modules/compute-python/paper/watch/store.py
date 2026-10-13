@@ -596,8 +596,25 @@ class SqliteWatchStore:
 
     # ----------------------------- bar state ------------------------------
 
-    def load_recent_closed_bars(self, period_min: int, limit_per_code: int) -> dict[str, list[WatchBar]]:
-        """一次查询加载每个代码最近 N 根 bar，避免全市场逐股 SQL。"""
+    def load_recent_closed_bars(
+        self,
+        period_min: int,
+        limit_per_code: int,
+        *,
+        trade_date: str | None = None,
+    ) -> dict[str, list[WatchBar]]:
+        """一次查询加载每个代码最近 N 根 bar，避免全市场逐股 SQL。
+
+        `trade_date` 是本缓存的**安全边界**，不是可选优化：`closed_bar` 只服务
+        「同一交易日重启恢复」，跨日历史一律由公开分钟 K 线补齐。
+
+        缺陷背景（2026-10-13 定位）：旧签名没有日期参数，于是「最近 80 根」会跨月
+        取证——某票的 80 根横跨 8~10 月十余个交易日，而 `loop` 只按**根数**判断
+        「已预热」并跳过网络补拉，导致 8 月的旧价与当日实时价被拼成一条假连续
+        序列，均线在断层处跳变，伪造出金叉买入（实测 601579 ma5 被算成 22.866，
+        真实应为 34.32）。因此真实调用方必须传 `trade_date`；`None` 仅保留给
+        需要跨日审计的显式场景。
+        """
         if limit_per_code <= 0:
             return {}
         try:
@@ -608,11 +625,12 @@ class SqliteWatchStore:
                            ROW_NUMBER() OVER(PARTITION BY code ORDER BY start_ts DESC) AS rn
                     FROM closed_bar b
                     WHERE period_min=?
+                      AND (? IS NULL OR trade_date=?)
                 ) ranked
                 WHERE rn <= ?
                 ORDER BY code, start_ts
                 """,
-                (period_min, limit_per_code),
+                (period_min, trade_date, trade_date, limit_per_code),
             ).fetchall()
         except sqlite3.Error as exc:
             raise WatchStoreError(f"读取历史 bar 失败: {type(exc).__name__}:{exc}") from exc
@@ -633,6 +651,34 @@ class SqliteWatchStore:
             )
             out.setdefault(bar.code, []).append(bar)
         return out
+
+    def prune_closed_bars(self, keep_trade_dates: int) -> int:
+        """只保留最近 N 个交易日的 `closed_bar`，返回删除行数。
+
+        缓存职责仅限当日/隔日重启恢复，更早的行既无用途又是有害的：实测 16379 行
+        混杂 8~10 月数据，且正是上文跨月取证缺陷的燃料。避免用固定日期做保留，
+        改为按表内实际存在的交易日回数，这样长假期间也不会误删当日数据。
+        """
+        if keep_trade_dates <= 0:
+            return 0
+        try:
+            with self._transaction():
+                kept = self._conn.execute(
+                    """
+                    SELECT DISTINCT trade_date FROM closed_bar
+                    ORDER BY trade_date DESC LIMIT ?
+                    """,
+                    (keep_trade_dates,),
+                ).fetchall()
+                if len(kept) < keep_trade_dates:
+                    return 0
+                cutoff = str(kept[-1]["trade_date"])
+                cursor = self._conn.execute(
+                    "DELETE FROM closed_bar WHERE trade_date < ?", (cutoff,)
+                )
+                return int(cursor.rowcount or 0)
+        except sqlite3.Error as exc:
+            raise WatchStoreError(f"清理历史 bar 失败: {type(exc).__name__}:{exc}") from exc
 
     def load_forming_checkpoints(self, trade_date: str, period_min: int) -> dict[str, dict]:
         try:

@@ -49,6 +49,13 @@ $env:PAPER_KLINE_RETRY_WORKERS = '8'
 $env:PAPER_KLINE_RETRY_BATCH_SIZE = '24'
 $env:PAPER_KLINE_REQUEST_TIMEOUT_SEC = '8'
 $env:PAPER_KLINE_MAX_RETRY = '2'
+# 分钟线沉淀到主库 market_data_minute（D-STALE-BAR-01 修复 4）：盯盘每轮把新收盘的
+# 5 分钟 bar 提交给 Java 落库，启动预热则优先读本地连续分钟线、东方财富退化为兜底。
+# 默认关闭是为了让测试套件保持 hermetic（t1_base 默认指向 localhost:8080），
+# 真实盯盘必须显式打开。
+$env:PAPER_MINUTE_BAR_SINK = '1'
+# 4 个自然日足以覆盖「周五 → 周一」，再大只增加传输量（Java 仍按代码截尾）。
+$env:PAPER_MINUTE_BAR_LOOKBACK_DAYS = '4'
 $env:PAPER_QUOTE_BATCH_WORKERS = '2'
 $env:PAPER_QUOTE_REQUEST_TIMEOUT_SEC = '8'
 $env:PAPER_QUOTE_BATCH_MAX_RETRY = '2'

@@ -86,6 +86,20 @@ def _optional_float(value):
     return number if math.isfinite(number) else None
 
 
+def _warmup_bar_window(required: int) -> int:
+    """预热取回的 bar 根数（2026-10-13 性能实测后收敛）。
+
+    MA_CROSS(5,20) 只需要 ``required`` = 21 根：末根 bar 的均线只由最近 ``ma_long``
+    根决定，更早的历史**不影响信号**。原实现一律取 80 根，实测后果是本地读一次
+    200 只返回约 3.5MB、其中约 3/4 是策略用不到的历史。
+
+    留 9 根缓冲用于容忍「末根仍是 forming 被丢弃」「停牌/无成交造成的空洞」；
+    下限 30 保证即使 ``required`` 很小的策略也有基本窗口。按 ``required`` 推导，
+    因此换成 BOLL 等其它策略时自动适配。
+    """
+    return max(int(required) + 9, 30)
+
+
 def _allowed_bar_dates(calendar, trade_date: str, keep_trade_dates: int) -> set[str]:
     """返回缓存允许保留的最近 N 个交易日（含当日）的日期集合。
 
@@ -459,7 +473,7 @@ class WatchLoop:
                         self._prepare_metrics["closed_bar_pruned"] = pruned
                 persisted_bars = self.store.load_recent_closed_bars(
                     self.config.bar_period_min,
-                    max(required + 10, 80),
+                    _warmup_bar_window(required),
                     trade_date=trade_date,
                 )
                 forming_checkpoints = self.store.load_forming_checkpoints(
@@ -516,7 +530,7 @@ class WatchLoop:
                     candidate.stock_code,
                     candidate.stock_name,
                     self.config.bar_period_min,
-                    max(required + 10, 80),
+                    _warmup_bar_window(required),
                     run_id=f"watch-prep-{trade_date}",
                     as_of=current,
                     exchange=candidate.exchange_type,
@@ -531,7 +545,7 @@ class WatchLoop:
         if self.minute_bar_client is not None and fetch_candidates:
             local_bars = self.minute_bar_client.recent(
                 [candidate.stock_code for candidate in fetch_candidates],
-                limit_per_code=max(required + 10, 80),
+                limit_per_code=_warmup_bar_window(required),
                 lookback_days=self.config.minute_bar_lookback_days,
             )
             if local_bars:
@@ -727,7 +741,7 @@ class WatchLoop:
             try:
                 bars, result = self.kline_client.fetch_history(
                     code, candidate.stock_name, self.config.bar_period_min,
-                    max(required + 10, 80), run_id=f"watch-l2-prep-{trade_date}",
+                    _warmup_bar_window(required), run_id=f"watch-l2-prep-{trade_date}",
                     as_of=current, exchange=candidate.exchange_type,
                 )
                 if bars is None:
@@ -767,7 +781,7 @@ class WatchLoop:
                     code,
                     candidate.stock_name,
                     self.config.bar_period_min,
-                    max(required + 10, 80),
+                    _warmup_bar_window(required),
                     run_id=f"watch-kline-retry-{trade_date}",
                     as_of=current,
                     exchange=candidate.exchange_type,
@@ -1023,7 +1037,7 @@ class WatchLoop:
                     position.code,
                     candidate.stock_name,
                     self.config.bar_period_min,
-                    max(required + 10, 80),
+                    _warmup_bar_window(required),
                     run_id=f"watch-position-prep-{trade_date}",
                     as_of=current,
                     exchange=candidate.exchange_type,

@@ -63,6 +63,11 @@ class PaperConfig:
     kline_retry_sec: int = 60
     # K 线预热失败时采用有界并发，避免逐只网络超时阻塞整轮行情。
     kline_retry_workers: int = 8
+    # 单轮最多预热/重试多少只。原值 24 意味着 204 只观察池要 8~9 个 cycle 才能
+    # 完成冷启动预热（约 9 分钟）。2026-10-13 实测：200 只 × 80 根、8 并发，
+    # 墙钟 4.57s、200/200 全成功、零限流（P95 321ms）。故真实运行把它放到观察池
+    # 规模（启动脚本置 200），冷启动预热从 9 分钟降到约 5 秒。
+    # 默认仍保守取 24：测试与非启动脚本路径不应默认发起大规模突发请求。
     kline_retry_batch_size: int = 24
     kline_request_timeout_sec: int = 8
     kline_max_retry: int = 2
@@ -162,8 +167,10 @@ class PaperConfig:
             raise ValueError("kline_retry_sec 必须大于 0")
         if not (1 <= self.kline_retry_workers <= 32):
             raise ValueError("kline_retry_workers 必须在 [1,32]")
-        if not (1 <= self.kline_retry_batch_size <= 100):
-            raise ValueError("kline_retry_batch_size 必须在 [1,100]")
+        # 上限从 100 放宽到 500：观察池上限 PAPER_MAX_OBSERVE_CODES=200，要让
+        # 「一轮抓完」成立，批次必须能覆盖观察池；实测 200 只 8 并发零失败。
+        if not (1 <= self.kline_retry_batch_size <= 500):
+            raise ValueError("kline_retry_batch_size 必须在 [1,500]")
         if self.kline_request_timeout_sec <= 0:
             raise ValueError("kline_request_timeout_sec 必须大于 0")
         if self.kline_max_retry <= 0:

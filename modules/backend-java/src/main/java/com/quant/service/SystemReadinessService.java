@@ -75,12 +75,47 @@ public class SystemReadinessService {
         return m;
     }
 
-    /** 日历：存在交易日历行即 PASS；未初始化即 DEGRADED（可初始化，非致命故障）。 */
+    /** 日历对某日的判定：已知交易日 / 已知非交易日 / 日历未覆盖（不可断言）。 */
+    private enum DayVerdict { TRADING, NON_TRADING, UNKNOWN }
+
+    /**
+     * R6-01：把 {@code isTradingDay == false} 拆成两种语义。
+     *
+     * <p>旧实现把「日历根本不覆盖该日」与「已知为非交易日」都当成休市。日历只更新到
+     * 2026-08-19 时，2026-10-12 因此被断言成「休市（非交易日）——按交易日历判定」，
+     * 这是**虚假断言**：它掩盖了真实的日历缺口，把「我不知道」说成了「我确定休市」。
+     *
+     * <p>只有落在 {@link TradingCalendarService#coverageWindow()} 之内，false 才是
+     * 可断言的「非交易日」。日历为空、不可用、或该日在区间外，一律 UNKNOWN。
+     */
+    private DayVerdict verdictFor(LocalDate day) {
+        if (day == null || tradingCalendarService == null) {
+            return DayVerdict.UNKNOWN;
+        }
+        if (tradingCalendarDayRepository.count() == 0) {
+            return DayVerdict.UNKNOWN;
+        }
+        try {
+            LocalDate[] window = tradingCalendarService.coverageWindow();
+            if (window == null || day.isBefore(window[0]) || day.isAfter(window[1])) {
+                return DayVerdict.UNKNOWN;
+            }
+            return tradingCalendarService.isTradingDay(day)
+                    ? DayVerdict.TRADING : DayVerdict.NON_TRADING;
+        } catch (RuntimeException exc) {
+            // 日历查询失败同样只能 UNKNOWN：查不到 ≠ 非交易日。
+            return DayVerdict.UNKNOWN;
+        }
+    }
+
+    /** 日历：存在交易日历行即 PASS；未初始化或未覆盖今日即 DEGRADED（可初始化，非致命故障）。 */
     private Map<String, Object> checkCalendar(LocalDate today) {
         Map<String, Object> m = new LinkedHashMap<>();
         long rows = tradingCalendarDayRepository.count();
         m.put("total_rows", rows);
-        m.put("today_is_trading_day", rows > 0 && tradingCalendarService.isTradingDay(today));
+        DayVerdict verdict = verdictFor(today);
+        m.put("today_is_trading_day", verdict == DayVerdict.TRADING);
+        m.put("today_calendar_verdict", verdict.name());
         if (rows == 0) {
             m.put("status", STATUS_DEGRADED);
             m.put("detail", "交易日历未初始化（可经 /api/data/trading-calendar/init 初始化）");
@@ -88,8 +123,17 @@ public class SystemReadinessService {
         }
         tradingCalendarDayRepository.findMinTradeDate().ifPresent(d -> m.put("earliest_date", d.toString()));
         tradingCalendarDayRepository.findMaxTradeDate().ifPresent(d -> m.put("latest_date", d.toString()));
+        if (verdict == DayVerdict.UNKNOWN) {
+            // R6-01：有日历行但没覆盖今天。旧实现这里报 PASS，同时把今天说成休市，
+            // 于是日历缺口既没被报出来、又被伪装成确定结论。
+            m.put("status", STATUS_DEGRADED);
+            m.put("detail", "交易日历未覆盖今日 " + today + "（现有区间 "
+                    + m.getOrDefault("earliest_date", "?") + " ~ "
+                    + m.getOrDefault("latest_date", "?") + "），无法判定开市与否");
+            return m;
+        }
         m.put("status", STATUS_PASS);
-        m.put("detail", "交易日历已启用（" + rows + " 个交易日）");
+        m.put("detail", "交易日历已启用（" + rows + " 个交易日），今日结论=" + verdict.name());
         return m;
     }
 
@@ -144,16 +188,30 @@ public class SystemReadinessService {
     /**
      * 市场时段（告知性）：交易日以日历表为准，时钟仅用于划分当日交易阶段。
      * 这不等同于系统健康；若日历无该日则明确标记非交易日/未知。
+     *
+     * <p><b>R6-01（2026-10-13 修正）</b>：旧实现对「日历不覆盖该日」与「已知非交易日」
+     * 都输出 {@code phase=HOLIDAY / "休市（非交易日）"}，把未知伪装成确定结论。
+     * 现在区间外输出 {@code phase=UNKNOWN}，并附上日历覆盖区间，使缺口可见。
      */
     private Map<String, Object> buildMarketSession(LocalDate today) {
         Map<String, Object> m = new LinkedHashMap<>();
-        boolean tradingDay = tradingCalendarDayRepository.count() > 0
-                && tradingCalendarService.isTradingDay(today);
-        m.put("today_is_trading_day", tradingDay);
-        if (!tradingDay) {
+        DayVerdict verdict = verdictFor(today);
+        m.put("today_is_trading_day", verdict == DayVerdict.TRADING);
+        m.put("calendar_verdict", verdict.name());
+        tradingCalendarDayRepository.findMinTradeDate().ifPresent(d -> m.put("coverage_from", d.toString()));
+        tradingCalendarDayRepository.findMaxTradeDate().ifPresent(d -> m.put("coverage_to", d.toString()));
+        if (verdict == DayVerdict.UNKNOWN) {
+            // 日历不覆盖该日：既不能断言开市，也不能断言休市。
+            m.put("phase", "UNKNOWN");
+            m.put("label", "未知（交易日历未覆盖该日）");
+            m.put("note", "该日不在日历覆盖区间内，无法判定开市与否；不得据此断言休市，"
+                    + "请先更新交易日历");
+            return m;
+        }
+        if (verdict == DayVerdict.NON_TRADING) {
             m.put("phase", "HOLIDAY");
             m.put("label", "休市（非交易日）");
-            m.put("note", "按交易日历判定，非本机星期/小时推断");
+            m.put("note", "该日落在日历覆盖区间内且标注为非交易日");
             return m;
         }
         LocalTime now = LocalTime.now();

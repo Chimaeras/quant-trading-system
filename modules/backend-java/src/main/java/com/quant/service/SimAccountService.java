@@ -149,6 +149,26 @@ public class SimAccountService {
 
     // ---------- 历史演练会话 ----------
 
+    /**
+     * R6-01：该日是否落在交易日历的覆盖区间内。
+     *
+     * <p>{@code isTradingDay == false} 有两种语义——「已知为非交易日」与「日历根本
+     * 不覆盖该日」。旧实现把两者都当成前者，于是日历只更新到 2026-08-19 时，
+     * 2026-10-12 会被报成「不是交易日」，掩盖真实的日历缺口。
+     * 日历不可用或为空时返回 false（保守，走「未覆盖」分支）。
+     */
+    private boolean calendarCovers(LocalDate day) {
+        if (day == null || tradingCalendarService == null) {
+            return false;
+        }
+        try {
+            LocalDate[] window = tradingCalendarService.coverageWindow();
+            return window != null && !day.isBefore(window[0]) && !day.isAfter(window[1]);
+        } catch (RuntimeException exc) {
+            return false;
+        }
+    }
+
     /** 创建历史演练会话：资金从指定 cash 或在线账户当前可用资金快照，与在线账户隔离。 */
     @Transactional
     public Map<String, Object> createSession(Long userId, Map<String, Object> request) {
@@ -157,8 +177,13 @@ public class SimAccountService {
         if (startDate == null) {
             throw new BusinessException("演练会话必须指定 startDate（起始交易日）");
         }
+        if (!calendarCovers(startDate)) {
+            throw new BusinessException("起始日 " + startDate
+                    + " 不在交易日历覆盖区间内，无法判定是否为交易日；"
+                    + "请先更新交易日历（见 /api/data/trading-calendar/init）");
+        }
         if (!tradingCalendarService.isTradingDay(startDate)) {
-            throw new BusinessException("起始日不是交易日（请先初始化交易日历，见 /api/data/trading-calendar/init）");
+            throw new BusinessException("起始日 " + startDate + " 已知为非交易日");
         }
         BigDecimal baseCash;
         Object cashObj = request.get("cash");
@@ -261,8 +286,12 @@ public class SimAccountService {
             if (tradeDate.isBefore(session.getStartDate())) {
                 return reject("BEFORE_SESSION_START", "tradeDate 早于会话起始日 " + session.getStartDate());
             }
+            if (!calendarCovers(tradeDate)) {
+                return reject("CALENDAR_NOT_COVERED",
+                        "tradeDate=" + tradeDate + " 不在交易日历覆盖区间内，无法判定是否为交易日");
+            }
             if (!tradingCalendarService.isTradingDay(tradeDate)) {
-                return reject("NOT_TRADING_DAY", "tradeDate=" + tradeDate + " 不是交易日（交易日历未覆盖该日）");
+                return reject("NOT_TRADING_DAY", "tradeDate=" + tradeDate + " 已知为非交易日");
             }
             operationDate = tradeDate;
         } else {

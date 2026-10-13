@@ -73,6 +73,11 @@ class SimAccountServiceTest {
         userIdResolver = mock(UserIdResolver.class);
         // 鉴权关闭的本地单用户模式：显式 userId 原样返回
         when(userIdResolver.resolve(anyLong())).thenAnswer(inv -> inv.getArgument(0));
+        // R6-01：日历覆盖判定与 isTradingDay 是两个独立判据（覆盖区间之外 false
+        // 不可断言为非交易日）。默认给一个足够宽的覆盖区间，使本类既有用例继续
+        // 只用 isTradingDay 控制交易日语义；覆盖缺口的行为由专门用例验证。
+        org.mockito.Mockito.lenient().when(tradingCalendarService.coverageWindow())
+                .thenReturn(new LocalDate[]{LocalDate.of(2020, 1, 1), LocalDate.of(2030, 12, 31)});
         service = new SimAccountService(
                 authService,
                 userAccountRepository,

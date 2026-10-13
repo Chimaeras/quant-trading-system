@@ -225,6 +225,9 @@ class WatchLoop:
         self._prepare_metrics: dict = {}
         self._prepare_metrics_pending = False
         self._disabled_codes: dict[str, str] = {}
+        # R1-02：重启残段被丢弃后待补拉的桶起点（code -> {start_ts}）。
+        # 丢弃是对的，但必须补回来，否则序列里留下永久空洞。
+        self._gap_fill_pending: dict[str, set[datetime]] = {}
         self._disabled_retry_at: dict[str, datetime] = {}
         self._state: WatchState | None = None
         self._cooldown = CooldownBook(config.cooldown_min)
@@ -836,6 +839,84 @@ class WatchLoop:
                                 "retry_at": next_retry.isoformat(),
                                 "message": str(exc),
                             }, now=current)
+
+    def _repair_bar_gaps(self, current: datetime, trade_date: str) -> None:
+        """补拉「重启残段」被丢弃的 bar（R1-02）。
+
+        ``BarStore`` 会丢弃接入时刻所在的那个不完整桶——这是**对的**，因为它确实
+        缺了开头一段。但丢弃后序列里就留下一个**永久空洞**：10:32 重启时
+        10:30~10:35 这一桶再也不会出现在 history 里，均线窗口因此悄悄跨过一段
+        缺失时间（实测 10:25 直接跳到 10:35）。
+
+        本方法在后续轮次（该桶已收盘、权威 K 线可取）把它取回并**合并**进历史，
+        然后重放策略状态。取不到就留到下轮再试，不清除待补记录。
+        """
+        if self.kline_client is None or not self._gap_fill_pending:
+            return
+        candidate_map = {candidate.stock_code: candidate for candidate in self._candidates}
+        required = self.adapter.required_bars()
+        due = [
+            (code, candidate_map[code])
+            for code in sorted(self._gap_fill_pending)
+            if code in candidate_map
+        ][: self.config.kline_retry_batch_size]
+        if not due:
+            return
+
+        def fetch(item: tuple[str, Candidate]):
+            code, candidate = item
+            try:
+                bars, result = self.kline_client.fetch_history(
+                    code,
+                    candidate.stock_name,
+                    self.config.bar_period_min,
+                    _warmup_bar_window(required),
+                    run_id=f"watch-gapfill-{trade_date}",
+                    as_of=current,
+                    exchange=candidate.exchange_type,
+                )
+                return code, candidate, bars, result, None
+            except Exception as exc:  # noqa: BLE001 - 单只失败不得拖垮整轮
+                return code, candidate, None, None, exc
+
+        worker_count = min(self.config.kline_retry_workers, len(due))
+        with ThreadPoolExecutor(
+            max_workers=worker_count,
+            thread_name_prefix="watch-gapfill",
+        ) as executor:
+            fetched = list(executor.map(fetch, due))
+
+        events = self._event_log(trade_date)
+        for code, candidate, bars, result, fetch_error in fetched:
+            missing = self._gap_fill_pending.get(code)
+            if not missing:
+                continue
+            if fetch_error is not None or bars is None:
+                # 权威源暂时取不到：保留待补记录，下轮再试。
+                events.emit("ERROR", code=code, name=candidate.stock_name, cycle=self._cycle,
+                            detail={
+                                "scope": "GAP_FILL",
+                                "status": "FAILED",
+                                "missing": sorted(ts.isoformat() for ts in missing),
+                                "message": str(fetch_error or _result_message(result)),
+                            }, now=current)
+                continue
+            wanted = [bar for bar in bars if bar.start_ts in missing]
+            added = self.bar_store.insert_closed(code, wanted)
+            if not added:
+                continue
+            # 补洞后历史变了：整条重放，让策略状态等价于「序列一直是完整的」。
+            self.adapter.seed(code, self.bar_store.history(code))
+            for bar in added:
+                missing.discard(bar.start_ts)
+            events.emit("ERROR", code=code, name=candidate.stock_name, cycle=self._cycle,
+                        detail={
+                            "scope": "GAP_FILL",
+                            "status": "RECOVERED",
+                            "bars": [bar.start_ts.isoformat() for bar in added],
+                        }, now=current)
+            if not missing:
+                self._gap_fill_pending.pop(code, None)
 
     def _persist_latest_quotes(self, quotes: dict, quality: dict[str, dict], *,
                                batch_id: str, processed_at: datetime,
@@ -1721,6 +1802,7 @@ class WatchLoop:
         # 观察池中的 K 线预热失败可能只是公开接口瞬时网络错误；到期后
         # 重试，成功后本轮继续走行情、bar 和策略链路。
         self._retry_disabled_klines(current, trade_date)
+        self._repair_bar_gaps(current, trade_date)
         pipeline_v2 = self._pipeline_v2_enabled()
         l1_scanned = False
         if pipeline_v2 and self._l1_due(current):
@@ -2083,6 +2165,19 @@ class WatchLoop:
                 tick.errors.append(f"bar {candidate.stock_code} 失败: {exc}")
                 continue
             updates[candidate.stock_code] = update
+            for dropped in update.discarded:
+                # R1-02：残段被丢弃后登记待补拉。丢弃是正确的（该桶缺了开头一段），
+                # 但若不补回来，序列里就会永久少一根（实测 10:32 重启后
+                # 10:25 直接跳到 10:35），均线窗口悄悄跨过缺失区间。
+                self._gap_fill_pending.setdefault(candidate.stock_code, set()).add(
+                    dropped.start_ts
+                )
+                events.emit("BAR_DISCARDED", code=candidate.stock_code, name=display_name,
+                            cycle=self._cycle, detail={
+                                "start_ts": dropped.start_ts.isoformat(),
+                                "end_ts": dropped.end_ts.isoformat(),
+                                "reason": "PARTIAL_BUCKET_WILL_BE_REFETCHED",
+                            }, now=current)
             for closed_bar in update.new_closed:
                 events.emit("BAR_CLOSED", code=candidate.stock_code, name=display_name, cycle=self._cycle, detail={
                     "open": closed_bar.open, "high": closed_bar.high, "low": closed_bar.low,

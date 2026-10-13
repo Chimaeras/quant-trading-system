@@ -425,3 +425,89 @@ def test_network_warmup_accepts_series_inside_trading_window(tmp_path, monkeypat
     )
 
 
+# --------------------------------------------------------------------------
+# R1-02 回归：重启残段被丢弃后，必须能从权威 K 线补回来
+# --------------------------------------------------------------------------
+
+class _KlineWindowed:
+    """按调用次序返回不同窗口：预热时目标桶尚未收盘，补洞时已可取。"""
+
+    def __init__(self, windows):
+        self._windows = [list(window) for window in windows]
+        self.calls = 0
+
+    def fetch_history(self, *args, **kwargs):
+        index = min(self.calls, len(self._windows) - 1)
+        self.calls += 1
+        return list(self._windows[index]), None
+
+
+def test_repair_bar_gaps_fills_discarded_residual_bucket(tmp_path, monkeypatch):
+    """R1-02：丢弃残段是对的，但必须补回，否则序列留下永久空洞。
+
+    场景：10:32 一类的中途接入，接入时刻所在桶只观察到后半段被丢弃；
+    下一轮该桶已收盘、权威 K 线可取，应取回并合并，然后重放策略。
+    """
+    missing = datetime(2026, 8, 18, 9, 30)
+    warm = _bars("2026-08-18T07:30", 24, 10.0)     # 末根 09:25~09:30（09:30 桶还没收盘）
+    later = _bars("2026-08-18T07:30", 25, 10.0)    # 多出 09:30~09:35
+    kline = _KlineWindowed([warm, later])
+
+    client = _FakeMinuteBarClient()
+    loop, candidate = _loop_with_client(tmp_path, monkeypatch, client, kline_client=kline)
+
+    _advance(loop, candidate, 0)                   # prepare：预热到 09:30
+    assert loop.adapter.ready(_CODE), "前提：预热成功"
+
+    before = [bar.start_ts for bar in loop.bar_store.history(_CODE)]
+    assert missing not in before, "前提：空洞确实存在"
+
+    loop._gap_fill_pending = {_CODE: {missing}}    # 模拟已登记待补
+    _advance(loop, candidate, 12)                  # 下一轮触发补洞
+
+    after = [bar.start_ts for bar in loop.bar_store.history(_CODE)]
+    assert missing in after, (
+        f"09:30 桶应被补回；实际末尾 {[s.strftime('%H:%M') for s in after[-4:]]}"
+    )
+    assert _CODE not in loop._gap_fill_pending, "补齐后应清除待补记录"
+    assert len(after) == len(before) + 1, "只应新增缺失的那一根，不得替换历史"
+    assert len(after) == len(set(after)), "补洞后不得出现重复 start_ts"
+
+
+def test_repair_bar_gaps_keeps_pending_when_authoritative_source_fails(tmp_path, monkeypatch):
+    """对照：取不到时保留待补记录，下轮再试（不得静默放弃）。"""
+    missing = datetime(2026, 8, 18, 9, 30)
+
+    class _KlineFails:
+        def fetch_history(self, *args, **kwargs):
+            raise RuntimeError("network down")
+
+    client = _FakeMinuteBarClient()
+    loop, candidate = _loop_with_client(
+        tmp_path, monkeypatch, client, kline_client=_KlineFails())
+
+    _advance(loop, candidate, 0)
+    loop._gap_fill_pending = {_CODE: {missing}}
+    _advance(loop, candidate, 12)
+
+    assert loop._gap_fill_pending.get(_CODE) == {missing}, "取不到时必须保留待补记录"
+
+
+def test_loop_registers_discarded_residual_bucket_for_refetch(tmp_path, monkeypatch):
+    """R1-02 链路起点：循环必须把丢弃的残段登记为待补。
+
+    没有这一步，补洞链路永远不会启动，空洞就永久留存——这正是修复前的状态。
+    """
+    warm = _bars("2026-08-18T07:30", 24, 10.0)
+    kline = _KlineWindowed([warm])
+    client = _FakeMinuteBarClient()
+    loop, candidate = _loop_with_client(tmp_path, monkeypatch, client, kline_client=kline)
+
+    _advance(loop, candidate, 2)   # 09:32 接入：09:30 桶只观察到后半段
+    _advance(loop, candidate, 7)   # 09:37 桶切换：09:30 残段被丢弃
+
+    assert loop._gap_fill_pending.get(_CODE) == {datetime(2026, 8, 18, 9, 30)}, (
+        f"残段丢弃后必须登记待补；实际 {loop._gap_fill_pending}"
+    )
+
+

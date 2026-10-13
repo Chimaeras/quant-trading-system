@@ -1,6 +1,6 @@
 """把现有 strategies 包装为持仓外置的 watch 信号适配器。"""
 from __future__ import annotations
-from datetime import timedelta
+from datetime import time, timedelta
 from .. import clock
 
 import hashlib
@@ -14,6 +14,23 @@ from utils.indicators import bollinger_bands, macd, sma
 
 from .bar_store import BarStore
 from .models import WatchBar, WatchSignal
+
+
+# R7-02：A 股一天分两个不连续时段（09:30~11:30、13:00~15:00）。
+# 「下一根 bar」在午休处并不是 end + period——11:30 收盘的那根之后是 13:00 开盘。
+# 旧实现一律按 end + period 计算，把 11:30 的信号有效期算成 11:35，
+# 与 invalidation_conditions 声明的「下一根 bar 收盘」语义不符。
+_SESSION_RESUME = {time(11, 30): time(13, 0)}
+
+
+def next_bar_end(end, period_min: int):
+    """下一根 bar 的收盘时刻；跨越午休时按 13:00 接续。"""
+    resume = _SESSION_RESUME.get(end.time())
+    if resume is not None:
+        return end.replace(
+            hour=resume.hour, minute=resume.minute, second=0, microsecond=0
+        ) + timedelta(minutes=period_min)
+    return end + timedelta(minutes=period_min)
 
 
 def _round_or_none(value) -> float | None:
@@ -111,7 +128,7 @@ class SignalAdapter:
             detail=self._indicator_detail(state.strategy),
             strategy_version="intraday_rules_v1:" + self.parameter_hash(),
             bar_period_min=bar.period_min,
-            valid_until=min(end + timedelta(minutes=bar.period_min),
+            valid_until=min(next_bar_end(end, bar.period_min),
                             end.replace(hour=15, minute=0, second=0, microsecond=0)).isoformat(),
             invalidation_conditions=["下一根 bar 收盘", "行情过期或缺失", "策略或观察池变化", "当日收盘"],
         )

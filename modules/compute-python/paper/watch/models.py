@@ -53,6 +53,10 @@ class BarUpdate:
     code: str
     forming: WatchBar | None
     new_closed: list[WatchBar] = field(default_factory=list)
+    # R1-02：因「残段」或「数据源切换」被丢弃的 bar。丢弃本身是对的（该桶确实缺了
+    # 开头一段），但调用方必须知道丢了哪一根，才能在权威数据可得后补回来，
+    # 否则序列里会留下一个**永久空洞**，均线窗口悄悄跨过一段缺失时间。
+    discarded: list[WatchBar] = field(default_factory=list)
 
 
 @dataclass

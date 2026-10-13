@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+import os
 import time
 
 import requests
@@ -17,6 +18,14 @@ from .models import WatchBar
 EASTMONEY_KLINE_ENDPOINT = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
 _SUPPORTED_PERIODS = {1, 5, 15, 30, 60}
 _EASTMONEY_PROXIES = {"http": None, "https": None}
+
+# R1-05：妙想分钟 K 线的**时间标签口径**尚未取证，因此在来源选择处 fail-closed。
+MX_LABEL_CONFIRMED_ENV = "PAPER_MX_KLINE_LABEL_CONFIRMED"
+
+
+def mx_kline_label_confirmed() -> bool:
+    """妙想分钟 K 线的时间标签口径是否已用 1 分钟线比对确认过。"""
+    return os.getenv(MX_LABEL_CONFIRMED_ENV, "0").strip() == "1"
 
 
 def _number(value, *, volume: bool = False) -> float:
@@ -361,6 +370,23 @@ class KlineClient:
                 exchange=exchange,
                 as_of=current,
                 run_id=run_id,
+            )
+        if not mx_kline_label_confirmed():
+            # R1-05：东财路径已确证「标签 = bar **结束**时刻」（R1-01），而妙想侧
+            # 没有任何实测证据——parse_kline_payload 仍按「标签 = **起始**时刻」解释,
+            # 两种口径整整相差一个周期。默默启用会得到系统性平移 5 分钟的序列，
+            # 正是本清单要消灭的那类准确性问题。所以这里**拒绝运行**，而不是猜。
+            # 放行：先拿 1 分钟线比对标签确认口径，再设
+            # PAPER_MX_KLINE_LABEL_CONFIRMED=1，并把 parse_kline_payload 改成一致。
+            return None, MxResult(
+                endpoint=QUERY_ENDPOINT,
+                ok=False,
+                code="MX_KLINE_LABEL_SEMANTICS_UNVERIFIED",
+                message=(
+                    "妙想分钟 K 线的时间标签口径未取证，拒绝据此生成策略 bar；"
+                    f"请先用 1 分钟线比对标签，确认后设 {MX_LABEL_CONFIRMED_ENV}=1"
+                ),
+                kind=MxErrorKind.PARSE_ERROR,
             )
         query = f"{name or code}({code}) 近 {limit} 根 {period_min}分钟 开盘价 最高价 最低价 收盘价 成交量"
         result = self._http.post(

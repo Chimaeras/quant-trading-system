@@ -85,6 +85,7 @@ def _build_candidate(item: dict, *, signal_date: str, source: str) -> Candidate:
         buyability=str(item.get("buyability", "")),
         risk_tags=item.get("risk_tags", []),
         is_limit_up=bool(item.get("is_limit_up", False)),
+        selection_lineage=item.get("selection_lineage", {}),
         lianban_days=int(item.get("lianban_days", 0)),
         signal_date=signal_date,
         source=source,
@@ -129,11 +130,24 @@ def load_from_t1(t1_base: str, signal_date: str, token: str = "", timeout: int =
     data = body.get("data") if isinstance(body, dict) else body
     if data is None:
         raise ValueError(f"T1 响应无 data: {body}")
+    if not isinstance(data, dict) or data.get("found") is False:
+        raise ValueError("T1 信号日没有已保存的候选快照")
+    if data.get("trade_date") != signal_date or data.get("data_cutoff", signal_date) != signal_date:
+        raise ValueError("T1 候选数据日与请求日不一致，拒绝沿用其他日期")
     raw = data.get("candidatesJson", data.get("candidates"))
     if isinstance(raw, str):
         raw = json.loads(raw)
+    if data.get("status") not in {None, "OK", "NO_ELIGIBLE_CANDIDATE"}:
+        raise ValueError(f"T1 候选质量不合格: {data.get('status')}")
     if data.get("status") == "NO_ELIGIBLE_CANDIDATE" or not raw:
         return []
+    if data.get("probability_verified") is not True:
+        raw = [{**item, "score": item.get("rule_score", item.get("score") if not item.get("is_probability") else None),
+                "probability": None, "is_probability": False,
+                "score_type": "RULE_SCORE"} for item in raw]
+    lineage = {key: data.get(key) for key in (
+        "trade_date", "generated_at", "threshold_version", "quality_status", "pit_limited", "daily_coverage")}
+    raw = [{**item, "selection_lineage": lineage} for item in raw]
     out = [_build_candidate(item, signal_date=signal_date, source="t1") for item in raw]
     out, _dropped = dedupe_candidates(out)
     return out

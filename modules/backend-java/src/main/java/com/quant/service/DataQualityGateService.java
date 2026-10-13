@@ -41,7 +41,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class DataQualityGateService {
 
-    public static final String THRESHOLD_VERSION = "gate_v2";
+    public static final String THRESHOLD_VERSION = "gate_v3_pit";
 
     public static final String STATUS_PASS = "PASS";
     public static final String STATUS_DEGRADED = "DEGRADED";
@@ -251,18 +251,19 @@ public class DataQualityGateService {
         Map<String, Object> check = baseCheck("security_master_reliability");
         long rows = securityMasterHistoryRepository.count();
         long limited = securityMasterHistoryRepository.countByReliability("limited");
+        long unverified = securityMasterHistoryRepository.countUnverified();
         check.put("total_rows", rows);
         check.put("limited_rows", limited);
+        check.put("unverified_rows", unverified);
         if (rows == 0) {
             check.put("status", STATUS_BLOCKED);
             check.put("detail", "证券主数据未初始化");
             return check;
         }
-        boolean allLimited = limited >= rows;
-        if (allLimited) {
+        if (unverified > 0 || limited > 0) {
             if (isProbabilityPurpose(purpose)) {
                 check.put("status", STATUS_BLOCKED);
-                check.put("detail", "证券主数据可靠度均为 limited，概率任务禁止");
+                check.put("detail", "证券主数据含 limited/未知来源记录，概率任务禁止（unverified=" + unverified + "）");
             } else {
                 check.put("status", STATUS_DEGRADED);
                 check.put("detail", "证券主数据可靠度 limited，规则打分降级运行");
@@ -342,25 +343,31 @@ public class DataQualityGateService {
 
     private Map<String, Object> checkRangePit(GateRequest req, List<LocalDate> calendarDays, String purpose) {
         Map<String, Object> check = baseCheck("range_pit_coverage");
-        List<LocalDate> sampled = sampleDays(calendarDays);
+        // 概率任务逐交易日核对，不能让窗口中点的一条记录代替全部样本日期。
+        List<LocalDate> sampled = isProbabilityPurpose(purpose) ? calendarDays : sampleDays(calendarDays);
         if (sampled.isEmpty()) {
             check.put("status", STATUS_DEGRADED);
             check.put("detail", "区间内无交易日，无法评估 PIT 覆盖");
             return check;
         }
-        int effectiveRows = 0;
-        int totalRows = 0;
+        long totalRows = 0;
+        long unverifiedRows = 0;
+        int missingDays = 0;
         for (LocalDate day : sampled) {
-            int n = (int) securityMasterHistoryRepository.countAllEffectiveAt(day);
+            long n = securityMasterHistoryRepository.countAllEffectiveAt(day);
             totalRows += n;
-            effectiveRows += n;
+            if (n == 0) missingDays++;
+            unverifiedRows += securityMasterHistoryRepository.countUnverifiedEffectiveAt(day);
         }
-        int expectedPerDay = totalRows / sampled.size();
+        long expectedPerDay = totalRows / sampled.size();
         check.put("sampled_days", sampled.size());
         check.put("avg_effective_per_day", expectedPerDay);
-        if (expectedPerDay == 0) {
+        check.put("missing_days", missingDays);
+        check.put("unverified_rows", unverifiedRows);
+        check.put("scope", "按日存在性和可靠度；不是全市场覆盖证明，样本成员另行检查");
+        if (missingDays > 0 || unverifiedRows > 0) {
             check.put("status", isProbabilityPurpose(purpose) ? STATUS_BLOCKED : STATUS_DEGRADED);
-            check.put("detail", "区间内 PIT 主数据有效记录为 0（抽样 " + sampled.size() + " 日）");
+            check.put("detail", "PIT 日期缺失=" + missingDays + "，未验证记录=" + unverifiedRows);
         } else {
             check.put("status", STATUS_PASS);
             check.put("detail", "区间内 PIT 主数据平均 " + expectedPerDay + " 条/日（抽样 " + sampled.size() + " 日）");

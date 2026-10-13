@@ -37,6 +37,7 @@ class PointInTimeUniverseProviderTest {
         h.setListDate(LocalDate.of(2010, 1, 1));
         h.setDelistDate(delistDate);
         h.setReliability(reliability);
+        h.setSource("test_official");
         return h;
     }
 
@@ -90,5 +91,19 @@ class PointInTimeUniverseProviderTest {
         assertThat(view.pitLimited()).isTrue();
         assertThat(view.universeSize()).isEqualTo(2);
         assertThat(view.lineage().get("universe_gate")).isEqualTo("PIT_LIMITED");
+    }
+
+    @Test
+    void overlappingOrUnknownHistoryIsNotCertifiedOfficial() {
+        LocalDate asOf = LocalDate.of(2025, 6, 1);
+        SecurityMasterHistory a = master("000001", "SZSE", null, "official");
+        SecurityMasterHistory b = master("000001", "SZSE", null, "official");
+        when(securityMasterHistoryService.findEffectiveMasters(asOf)).thenReturn(List.of(a, b));
+        var view = provider.loadAsOf(asOf);
+        assertThat(view.byKey()).isEmpty();
+        assertThat(view.pitLimited()).isTrue();
+        a.setReliability(null);
+        when(securityMasterHistoryService.findEffectiveMasters(asOf)).thenReturn(List.of(a));
+        assertThat(provider.loadAsOf(asOf).pitLimited()).isTrue();
     }
 }

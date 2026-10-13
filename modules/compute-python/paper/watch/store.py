@@ -64,7 +64,7 @@ class WatchStore(Protocol):
     def load_security_rules(self, trade_date: str) -> list[dict]: ...
     def save_universe_snapshot(self, trade_date: str, source: str,
                                universe_hash: str, rows: Iterable[dict]) -> None: ...
-    def sync_default_watch_pool(self, rows: Iterable[dict], *, max_size: int = 50) -> None: ...
+    def sync_default_watch_pool(self, rows: Iterable[dict], *, max_size: int = 50, source: str = "hot_stocks") -> None: ...
     def list_watch_pool(self, *, limit: int = 500) -> list[dict]: ...
     def upsert_watch_pool_member(self, row: dict) -> dict: ...
     def remove_watch_pool_member(self, code: str) -> bool: ...
@@ -1116,7 +1116,7 @@ class SqliteWatchStore:
 
     # ---------------------------- watch pool ----------------------------
 
-    def sync_default_watch_pool(self, rows: Iterable[dict], *, max_size: int = 200) -> None:
+    def sync_default_watch_pool(self, rows: Iterable[dict], *, max_size: int = 200, source: str = "hot_stocks") -> None:
         """刷新启动默认热门股；人工加入的成员始终保留，且不挤占热门 TopN 名额。"""
         values = list(rows)
         now = clock.now().isoformat()
@@ -1138,13 +1138,14 @@ class SqliteWatchStore:
                     """
                     INSERT INTO watch_pool_member(
                         code, name, exchange, source, manual, sort_order, created_at, updated_at
-                    ) VALUES(?, ?, ?, 'hot_stocks', 0, ?, ?, ?)
+                    ) VALUES(?, ?, ?, ?, 0, ?, ?, ?)
                     ON CONFLICT(code) DO NOTHING
                     """,
                     [(
                         str(row.get("code", "")).strip(),
                         str(row.get("name", "")).strip(),
                         str(row.get("exchange", "")).strip(),
+                        source,
                         index, now, now,
                     ) for index, row in enumerate(defaults) if row.get("code") and row.get("exchange")],
                 )

@@ -280,6 +280,7 @@ export interface T1CandidateItem {
   exchange_type: string
   stock_name: string
   score: number
+  rule_score?: number
   score_type: 'rule_score' | 'probability' | 'RULE_SCORE' | 'CALIBRATED_PROBABILITY'
   is_probability: boolean
   fallback_reason?: string | null
@@ -293,7 +294,7 @@ export interface T1CandidateItem {
   ret5?: number
   ma_pos?: number
   reasons?: string[]
-  buyability?: '可买' | '高开追高谨慎' | '大概率买不进'
+  buyability?: '可买' | '高开追高谨慎' | '大概率买不进' | '待盘中核实'
   risk_tags?: string[]
   next_ret?: number | null
   next_high_ret?: number | null
@@ -325,9 +326,17 @@ export interface T1CandidatesResponse {
   summary?: T1SettleSummary
   results?: T1CandidateItem[]
   score_type?: 'rule_score' | 'probability' | 'RULE_SCORE' | 'CALIBRATED_PROBABILITY'
-  score_model?: string
+  score_model?: string | null
+  probability_verified?: boolean
+  calibrator_version?: string | null
+  snapshot_reused?: boolean
+  quality_status?: string
+  daily_coverage?: number
+  daily_expected?: number
+  daily_covered?: number
   fallback_reason?: string | null
   note?: string
+  message?: string
   found?: boolean
   // 后端 getCandidates 把核销结果嵌套在 settle 字段下（含 next_trade_date/summary/results）
   settle?: { next_trade_date?: string; summary?: T1SettleSummary; results?: T1CandidateItem[] }
@@ -395,6 +404,9 @@ export interface T1StatsResponse {
   end_date: string
   days: number
   total_candidates?: number
+  settled_days?: number
+  zero_candidate_days?: number
+  unsettled_days?: number
   total_settled?: number
   hit_count?: number
   hit_rate?: number
@@ -405,7 +417,8 @@ export interface T1StatsResponse {
     settled: number
     hit_count: number
     hit_rate: number
-    avg_next_ret: number
+    avg_next_ret: number | null
+    status?: string
   }>
   benchmark?: {
     available: boolean
@@ -414,6 +427,11 @@ export interface T1StatsResponse {
     index_return?: number
     index_avg_daily_return?: number
     outperform?: boolean
+    paired_days?: number
+    strategy_avg_daily_return?: number
+    excess_avg_daily_return?: number
+    comparison_basis?: string
+    caveats?: string[]
   }
   note?: string
 }

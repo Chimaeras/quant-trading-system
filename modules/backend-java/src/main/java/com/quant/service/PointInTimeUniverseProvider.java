@@ -71,18 +71,35 @@ public class PointInTimeUniverseProvider {
             List<StockInfo> stocks = new ArrayList<>(pit.size());
             Map<String, StockInfo> byKey = new HashMap<>(Math.max(16, pit.size() * 2));
             String worstReliability = RELIABILITY_OFFICIAL;
+            java.util.Set<String> overlappingKeys = new java.util.HashSet<>();
             for (SecurityMasterHistory h : pit) {
                 // 已退市且退市日不晚于 asOf：不进入可交易池
                 if (h.getDelistDate() != null && !h.getDelistDate().isAfter(asOf)) {
                     continue;
                 }
+                if (!RELIABILITY_OFFICIAL.equalsIgnoreCase(h.getReliability()) || h.getSource() == null
+                        || h.getSource().isBlank() || "current_snapshot".equalsIgnoreCase(h.getSource())
+                        || "delisted_placeholder".equalsIgnoreCase(h.getSource())) {
+                    worstReliability = RELIABILITY_LIMITED;
+                }
+                if (h.getListDate() == null || h.getListDate().isAfter(asOf)
+                        || h.getStockName() == null || h.getStockName().isBlank()) {
+                    worstReliability = RELIABILITY_LIMITED;
+                    continue;
+                }
                 StockInfo s = toStockInfo(h, asOf);
-                stocks.add(s);
-                byKey.put(key(s.getStockCode(), s.getExchangeType()), s);
+                String stockKey = key(s.getStockCode(), s.getExchangeType());
+                if (overlappingKeys.contains(stockKey)) continue;
+                if (byKey.putIfAbsent(stockKey, s) != null) {
+                    byKey.remove(stockKey);
+                    overlappingKeys.add(stockKey);
+                    worstReliability = RELIABILITY_LIMITED;
+                }
                 if (RELIABILITY_LIMITED.equalsIgnoreCase(h.getReliability())) {
                     worstReliability = RELIABILITY_LIMITED;
                 }
             }
+            stocks.addAll(byKey.values());
             boolean limited = RELIABILITY_LIMITED.equals(worstReliability);
             log.debug("PIT universe asOf={} size={} reliability={}", asOf, stocks.size(), worstReliability);
             return new UniverseView(asOf, stocks, byKey, SOURCE_PIT_HISTORY, worstReliability, limited, stocks.size());

@@ -9,6 +9,11 @@ import com.quant.repository.MarketDataRepository;
 import com.quant.repository.ModelVersionRepository;
 import com.quant.repository.T1CandidateRepository;
 import com.quant.research.ResearchConvention;
+import com.quant.research.CalibratorService;
+import com.quant.research.LogisticModelTrainer;
+import com.quant.research.artifact.ArtifactManifestValidator;
+import com.quant.research.artifact.ModelDeploymentContract;
+import com.quant.entity.Calibrator;
 import com.quant.service.backtest.StrategyBacktestEngine;
 import com.quant.service.backtest.TradingLimitRules;
 import com.quant.service.scoring.LimitUpEcologyService;
@@ -94,15 +99,29 @@ public class T1CandidateService {
     private final com.quant.repository.ModelVersionRepository modelVersionRepository;
     private final com.quant.repository.IndexQuoteRepository indexQuoteRepository;
     private final ObjectMapper objectMapper;
+    private final CalibratorService calibratorService;
+    private java.time.Clock clock = java.time.Clock.system(java.time.ZoneId.of("Asia/Shanghai"));
+    private static final String FEATURE_SET_VERSION = "t1_rule_score_v2";
+    private static final double MIN_DAILY_COVERAGE = 0.95;
 
     /** 生成 T 日次日候选清单并落库。 */
     @Transactional
     public Map<String, Object> generateCandidates(LocalDate tradeDate, int topN) {
         int n = Math.max(1, Math.min(topN > 0 ? topN : DEFAULT_TOP_N, 50));
+        if (!dailyBarClosed(tradeDate)) {
+            return emptyDecision(tradeDate, "DAILY_BAR_NOT_CLOSED", "该日尚未收盘，暂不生成日频候选");
+        }
+        // 已保存的预测是历史证据。重复请求只读取，不以修订后的行情或参数覆盖它。
+        if (t1CandidateRepository.findByTradeDate(tradeDate).isPresent()) {
+            Map<String, Object> saved = getCandidates(tradeDate);
+            saved.put("snapshot_reused", true);
+            saved.put("requested_top_n", n);
+            return saved;
+        }
         LocalDate rangeStart = tradeDate.minusDays(LOOKBACK_DAYS);
         // 生成时刻：T1Candidate.createdAt 是 @Column(updatable=false)，仅记录首次落库时间，
         // 重新生成不会更新它，因此单靠 createdAt 无法回答「这份清单是什么时候算的」。这里显式记录。
-        java.time.LocalDateTime generatedAt = java.time.LocalDateTime.now();
+        java.time.LocalDateTime generatedAt = java.time.LocalDateTime.now(clock);
         PointInTimeUniverseProvider.UniverseView universe = pointInTimeUniverseProvider.loadAsOf(tradeDate);
 
         // 区间行情（单次批量），按股票分组
@@ -114,30 +133,27 @@ public class T1CandidateService {
         Map<String, MarketData> todayByKey = marketDataRepository.findByTradeDate(tradeDate).stream()
                 .collect(Collectors.toMap(m -> m.getStockCode() + "|" + m.getExchangeType(), Function.identity(), (a, b) -> a));
 
-        // 信号日无行情（今日未收盘/非交易日/数据未覆盖）时，回退到该日或之前最近的有行情交易日，
-        // 避免打分循环起点为空导致返回空候选。byStock 已覆盖 [rangeStart, tradeDate]，
-        // actualDate ≤ tradeDate 时其行情必然已在 byStock 内，无需重新加载区间数据。
         LocalDate actualDate = tradeDate;
         if (todayByKey.isEmpty()) {
-            actualDate = marketDataRepository.findLatestTradeDateOnOrBefore(tradeDate).orElse(null);
-            if (actualDate == null) {
-                log.warn("T+1 候选生成失败：tradeDate={} 及此前均无行情数据", tradeDate);
-                Map<String, Object> empty = new LinkedHashMap<>();
-                empty.put("trade_date", tradeDate.toString());
-                empty.put("top_n", 0);
-                empty.put("total_scored", 0);
-                empty.put("candidates", List.of());
-                empty.put("settled", false);
-                empty.put("note", "所选信号日及此前均无行情数据，请确认数据已入库");
-                return empty;
-            }
-            log.info("信号日 {} 无行情，回退到最近有行情交易日 {}", tradeDate, actualDate);
-            todayByKey = marketDataRepository.findByTradeDate(actualDate).stream()
-                    .collect(Collectors.toMap(m -> m.getStockCode() + "|" + m.getExchangeType(), Function.identity(), (a, b) -> a));
-            universe = pointInTimeUniverseProvider.loadAsOf(actualDate);
+            return emptyDecision(tradeDate, "NO_DATA", "所选信号日无行情，暂不判断；请选择有数据的交易日");
         }
 
         Map<String, StockInfo> infoByKey = universe.byKey();
+        long expected = infoByKey.values().stream().filter(s -> Integer.valueOf(1).equals(s.getStatus())
+                && s.getListDate() != null && !s.getListDate().isAfter(tradeDate)).count();
+        long covered = infoByKey.entrySet().stream().filter(e -> Integer.valueOf(1).equals(e.getValue().getStatus())
+                && e.getValue().getListDate() != null && !e.getValue().getListDate().isAfter(tradeDate)
+                && validDailyBar(todayByKey.get(e.getKey()))).count();
+        double dailyCoverage = expected > 0 ? covered / (double) expected : 0;
+        if (dailyCoverage < MIN_DAILY_COVERAGE) {
+            Map<String, Object> empty = emptyDecision(tradeDate, "INCOMPLETE_DAILY_DATA",
+                    "当日行情或证券主数据覆盖不足，暂不判断（覆盖率相对于可识别的证券主表）");
+            empty.putAll(universe.lineage());
+            empty.put("daily_coverage", dailyCoverage);
+            empty.put("daily_expected", expected);
+            empty.put("daily_covered", covered);
+            return empty;
+        }
 
         // 涨停股次日溢价历史分布（用于次日可买性/高开追高风险预判）
         // 注意：生成阶段只能用 ≤ T-1 的历史数据，不能读 T+1（否则未来函数）。
@@ -145,7 +161,8 @@ public class T1CandidateService {
         Map<String, Object> premium = limitUpEcologyService.historicalNextDayPremium(actualDate, 50);
 
         // 尝试加载 horizon=1 的 champion 概率模型；无匹配 champion 则仅输出规则分
-        T1ProbLoadResult modelLoad = loadT1ProbModelWithReason();
+        T1ProbLoadResult modelLoad = universe.pitLimited()
+                ? new T1ProbLoadResult(null, "PIT_LIMITED") : loadT1ProbModelWithReason(actualDate);
         T1ProbModel probModel = modelLoad.model();
         String fallbackReason = modelLoad.fallbackReason();
 
@@ -160,7 +177,13 @@ public class T1CandidateService {
             String code = today.getStockCode();
             String exchange = today.getExchangeType();
             StockInfo info = infoByKey.get(key);
-            String name = info != null ? info.getStockName() : code;
+            if (info == null || !Integer.valueOf(1).equals(info.getStatus()) || info.getListDate() == null) {
+                continue;
+            }
+            String name = info.getStockName();
+            if (name == null || name.isBlank() || stockBars.stream().anyMatch(b -> !validDailyBar(b))) {
+                continue;
+            }
             if (!ScoringUtils.isTradableForScoring(stockBars, code, exchange, name,
                     info != null ? info.getStatus() : null, true, true, true)) {
                 continue;
@@ -189,7 +212,10 @@ public class T1CandidateService {
             String scoreType = "RULE_SCORE";
             boolean isProb = false;
             if (probModel != null) {
-                double prob = probModel.predictProbability(ruleScore);
+                double prob = probModel.predictProbability(calibratorService, ruleScore);
+                if (!Double.isFinite(prob) || prob < 0 || prob > 1) {
+                    throw new IllegalStateException("校准概率不在 [0,1] 内，拒绝生成候选");
+                }
                 rankScore = prob;
                 scoreType = "CALIBRATED_PROBABILITY";
                 isProb = true;
@@ -224,12 +250,8 @@ public class T1CandidateService {
         Map<String, Integer> rejectedByReason = (Map<String, Integer>) eligibility.get("rejectedByReason");
         int eligibleCount = (Integer) eligibility.get("eligibleCount");
 
-        LocalDate effectiveDate = actualDate;
-        T1Candidate rec = t1CandidateRepository.findByTradeDate(effectiveDate).orElseGet(() -> {
-            T1Candidate c = new T1Candidate();
-            c.setTradeDate(effectiveDate);
-            return c;
-        });
+        T1Candidate rec = new T1Candidate();
+        rec.setTradeDate(actualDate);
         rec.setTopN(n);
         rec.setCandidatesJson(toJson(top));
         rec.setSettled(Boolean.FALSE);
@@ -250,6 +272,17 @@ public class T1CandidateService {
         eligMeta.put("generated_at", generatedAt.toString());
         eligMeta.put("requested_trade_date", tradeDate.toString());
         eligMeta.put("data_date_fallback", !actualDate.isEqual(tradeDate));
+        eligMeta.put("data_cutoff", actualDate.toString());
+        eligMeta.put("candidate_invalidation", "仅用于下一交易日观察；下一交易日结束或数据质量异常时失效，候选不构成买卖指令");
+        eligMeta.put("daily_coverage", dailyCoverage);
+        eligMeta.put("daily_expected", expected);
+        eligMeta.put("daily_covered", covered);
+        eligMeta.put("quality_status", universe.pitLimited() ? "PIT_LIMITED" : "PASS");
+        eligMeta.put("score_type", probModel != null ? "CALIBRATED_PROBABILITY" : "RULE_SCORE");
+        eligMeta.put("score_model", probModel != null ? probModel.modelVersion() : null);
+        eligMeta.put("calibrator_version", probModel != null ? probModel.calibrator().getCalibratorVersion() : null);
+        eligMeta.put("probability_verified", probModel != null);
+        eligMeta.put("fallback_reason", fallbackReason);
         // PIT 质量状态随快照落库：此前 pit_limited 只在生成响应里，getCandidates 与页面都拿不到
         eligMeta.putAll(universe.lineage());
         ecology.put("eligibility", eligMeta);
@@ -267,9 +300,8 @@ public class T1CandidateService {
         out.put("generated_at", generatedAt.toString());
         out.put("threshold_version", ELIGIBILITY_THRESHOLD_VERSION);
         out.put("rule_score_max", RULE_SCORE_MAX);
-        out.put("candidate_invalidation", "本清单在 " + actualDate + " 收盘数据下有效；"
-                + "T+1（" + actualDate.plusDays(1) + " 起最近交易日）收盘后由「次日核销」判定命中，"
-                + "核销完成或跨过该交易日即失效，不得作为后续交易日的候选继续使用");
+        out.putAll(eligMeta);
+        out.put("probability_verified", probModel != null);
         out.put("top_n", top.size());
         out.put("eligible_count", eligibleCount);
         out.put("returned_count", top.size());
@@ -369,6 +401,13 @@ public class T1CandidateService {
         if (rec == null) {
             return Map.of("status", "not_found", "message", "该日尚未生成候选，请先生成");
         }
+        if (Boolean.TRUE.equals(rec.getSettled())) {
+            Map<String, Object> saved = new LinkedHashMap<>(parseMap(rec.getSettledJson()));
+            saved.put("trade_date", tradeDate.toString());
+            saved.put("status", "ALREADY_SETTLED");
+            saved.put("settled", true);
+            return saved;
+        }
         List<Map<String, Object>> candidates = parseList(rec.getCandidatesJson());
         if (candidates.isEmpty()) {
             return Map.of("status", "no_candidates", "trade_date", tradeDate.toString());
@@ -377,6 +416,10 @@ public class T1CandidateService {
                 .stream().filter(d -> !d.isEqual(tradeDate)).findFirst().orElse(null);
         if (nextDay == null) {
             return Map.of("status", "no_next_day", "message", "无次日交易日（数据未覆盖）");
+        }
+        if (!dailyBarClosed(nextDay)) {
+            return Map.of("status", "NEXT_DAY_NOT_CLOSED", "trade_date", tradeDate.toString(),
+                    "settled", false, "message", "下一交易日尚未收盘，暂不核销");
         }
         Map<String, MarketData> nextByKey = marketDataRepository.findByTradeDate(nextDay).stream()
                 .collect(Collectors.toMap(m -> m.getStockCode() + "|" + m.getExchangeType(), Function.identity(), (a, b) -> a));
@@ -393,7 +436,9 @@ public class T1CandidateService {
             double closeT = cand.get("close") instanceof Number num ? num.doubleValue() : Double.NaN;
             MarketData next = nextByKey.get(code + "|" + exchange);
             Map<String, Object> r = new LinkedHashMap<>(cand);
-            if (next == null || next.getClosePrice() == null || next.getOpenPrice() == null || !Double.isFinite(closeT) || closeT <= 0) {
+            if (next == null || next.getClosePrice() == null || next.getOpenPrice() == null
+                    || next.getClosePrice().signum() <= 0 || next.getOpenPrice().signum() <= 0
+                    || !Double.isFinite(closeT) || closeT <= 0) {
                 r.put("settled", false);
                 r.put("skip", "no_next_quote");
             } else {
@@ -431,9 +476,12 @@ public class T1CandidateService {
         summary.put("avg_gap", valid > 0 ? round4(gapSum / valid) : 0);
         summary.put("high_open_count", highOpenCount);
 
-        rec.setSettled(Boolean.TRUE);
+        boolean complete = valid == candidates.size();
+        summary.put("missing", candidates.size() - valid);
+        rec.setSettled(complete);
         rec.setSettledJson(toJson(Map.of(
                 "next_trade_date", nextDay.toString(),
+                "quality_status", complete ? "COMPLETE" : "PARTIAL_DATA",
                 "summary", summary,
                 "results", results)));
         t1CandidateRepository.save(rec);
@@ -443,7 +491,10 @@ public class T1CandidateService {
         out.put("next_trade_date", nextDay.toString());
         out.put("summary", summary);
         out.put("results", results);
-        out.put("note", "次日核销：hit=次日收盘>当日收盘；gap=次日开盘相对当日收盘；next_is_limit_up=次日收盘涨停（一字板可能买不进）");
+        out.put("settled", complete);
+        out.put("status", complete ? "SETTLED" : "PARTIAL_DATA");
+        out.put("note", "次日方向统计：hit=次日收盘>信号日收盘；未扣费用、滑点，不代表可成交收益；"
+                + (complete ? "行情完整，核销结果已冻结" : "候选行情缺失，暂不完成核销或纳入累计统计"));
         return out;
     }
 
@@ -473,13 +524,19 @@ public class T1CandidateService {
                 for (String k : List.of("threshold_version", "rule_score_threshold", "rule_score_max",
                         "eligible_count", "returned_count", "total_scored", "rejected_by_reason",
                         "status", "generated_at", "requested_trade_date", "data_date_fallback",
-                        "pit_limited", "master_reliability", "universe_as_of", "universe_size")) {
+                        "pit_limited", "master_source", "master_reliability", "universe_as_of", "universe_size",
+                        "data_cutoff", "candidate_invalidation", "daily_coverage", "daily_expected", "daily_covered",
+                        "quality_status", "score_type", "score_model", "calibrator_version", "probability_verified", "fallback_reason")) {
                     if (e.containsKey(k)) {
                         out.put(k, e.get(k));
                     }
                 }
             }
         }
+        out.putIfAbsent("quality_status", "UNKNOWN_LEGACY");
+        out.putIfAbsent("probability_verified", false);
+        out.putIfAbsent("data_cutoff", rec.getTradeDate().toString());
+        out.putIfAbsent("candidate_invalidation", "仅用于信号日之后的下一交易日观察；历史清单不能继续作为当前候选");
         out.put("found", true);
         return out;
     }
@@ -491,7 +548,7 @@ public class T1CandidateService {
     @Transactional(readOnly = true)
     public Map<String, Object> strategyStats(LocalDate startDate, LocalDate endDate) {
         List<T1Candidate> recs = t1CandidateRepository
-                .findByTradeDateBetweenAndSettledTrueOrderByTradeDateAsc(startDate, endDate);
+                .findByTradeDateBetweenOrderByTradeDateAsc(startDate, endDate);
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("start_date", startDate.toString());
@@ -499,7 +556,7 @@ public class T1CandidateService {
         out.put("days", recs.size());
 
         if (recs.isEmpty()) {
-            out.put("note", "区间内无已核销候选，请先生成并核销");
+            out.put("note", "区间内无候选快照");
             return out;
         }
 
@@ -514,17 +571,13 @@ public class T1CandidateService {
         // 基准逐日对齐：把「信号日 → 次日」的策略收益与「同一持有区间」的指数收益配对比较。
         // 旧实现用 策略日均次日涨幅 对比 指数区间总收益/(区间天数-1)，两条腿的区间、股票池、
         // 成本口径都不同（策略腿 gross、指数腿 gross，且末尾日期错配），结论不可比（D-T1-04）。
-        Map<LocalDate, Double> indexNextDayReturn = new HashMap<>();
+        Map<LocalDate, Double> indexClose = new HashMap<>();
         try {
             List<com.quant.entity.IndexQuote> quotes = indexQuoteRepository
                     .findByIndexCodeAndTradeDateBetweenOrderByTradeDateAsc("000300", startDate, endDate.plusDays(10));
-            for (int i = 0; i + 1 < quotes.size(); i++) {
-                Double c0 = quotes.get(i).getClosePrice() != null
-                        ? quotes.get(i).getClosePrice().doubleValue() : null;
-                Double c1 = quotes.get(i + 1).getClosePrice() != null
-                        ? quotes.get(i + 1).getClosePrice().doubleValue() : null;
-                if (c0 != null && c1 != null && c0 > 0) {
-                    indexNextDayReturn.put(quotes.get(i).getTradeDate(), c1 / c0 - 1);
+            for (com.quant.entity.IndexQuote quote : quotes) {
+                if (quote.getClosePrice() != null && quote.getClosePrice().signum() > 0) {
+                    indexClose.put(quote.getTradeDate(), quote.getClosePrice().doubleValue());
                 }
             }
         } catch (Exception e) {
@@ -534,12 +587,14 @@ public class T1CandidateService {
         double pairedIndexSum = 0;
         int pairedDays = 0;
         int outperformDays = 0;
+        int actualCandidates = 0;
         for (T1Candidate rec : recs) {
             Map<String, Object> settle = parseMap(rec.getSettledJson());
             Map<String, Object> summary = settle.get("summary") instanceof Map<?, ?> m
                     ? (Map<String, Object>) m : Map.of();
-            int settled = numInt(summary.get("settled"));
-            int hit = numInt(summary.get("hit_count"));
+            boolean complete = Boolean.TRUE.equals(rec.getSettled());
+            int settled = complete ? numInt(summary.get("settled")) : 0;
+            int hit = complete ? numInt(summary.get("hit_count")) : 0;
             double avgRet = numDouble(summary.get("avg_next_ret"));
             double avgGap = numDouble(summary.get("avg_gap"));
             totalSettled += settled;
@@ -548,10 +603,11 @@ public class T1CandidateService {
             gapSum += avgGap * settled;
             // 入参 topN 只是上限：用各条记录自己的 topN 求和，不用第一条代表全部（D-T1-05）
             totalCandidateSlots += rec.getTopN() != null ? rec.getTopN() : 0;
+            int candidateCount = parseList(rec.getCandidatesJson()).size();
+            actualCandidates += candidateCount;
             if (settled == 0) {
-                // 区分「当日无候选」与「有候选但未核销」：旧实现两种都不进分母，
-                // 使命中率在候选为 0 的弱信号日被静默剔除，恰好抹掉策略最该计分的时段。
-                if (parseList(rec.getCandidatesJson()).isEmpty()) {
+                // 无候选日属于弃权；未完整核销属于证据缺失，两者分别披露，不伪造成命中或未命中。
+                if (candidateCount == 0) {
                     zeroCandidateDays++;
                 } else {
                     unsettledDays++;
@@ -563,11 +619,14 @@ public class T1CandidateService {
             day.put("settled", settled);
             day.put("hit_count", hit);
             day.put("hit_rate", settled > 0 ? round4((double) hit / settled) : 0);
-            day.put("avg_next_ret", round4(avgRet));
+            day.put("avg_next_ret", settled > 0 ? round4(avgRet) : null);
+            day.put("status", candidateCount == 0 ? "NO_ELIGIBLE_CANDIDATE" : complete ? "SETTLED" : "UNSETTLED");
             // 逐日 策略腿 vs 指数腿
             LocalDate nextDay = settle.get("next_trade_date") instanceof String s
                     ? LocalDate.parse(s) : null;
-            Double idxRet = nextDay != null ? indexNextDayReturn.get(nextDay) : null;
+            Double signalClose = indexClose.get(rec.getTradeDate());
+            Double nextClose = nextDay != null ? indexClose.get(nextDay) : null;
+            Double idxRet = signalClose != null && nextClose != null ? nextClose / signalClose - 1 : null;
             if (settled > 0 && idxRet != null) {
                 day.put("index_next_ret", round4(idxRet));
                 day.put("excess_ret", round4(avgRet - idxRet));
@@ -603,6 +662,7 @@ public class T1CandidateService {
             bench.put("excess_avg_daily_return", round4(stratAvg - indexAvg));
             bench.put("outperform_days", outperformDays);
             bench.put("outperform_rate", round4((double) outperformDays / pairedDays));
+            bench.put("outperform", stratAvg > indexAvg);
             bench.put("comparison_basis", "同持有区间逐日配对：候选等权「次日收盘/当日收盘」对沪深300 对应交易日涨跌幅");
             bench.put("caveats", List.of(
                     "策略腿为等权、未扣费用与滑点（T+1 口径为 close-to-close 方向统计，非可交易收益）",
@@ -611,7 +671,8 @@ public class T1CandidateService {
             benchmark = bench;
         }
 
-        out.put("total_candidates", totalCandidateSlots);
+        out.put("total_candidates", actualCandidates);
+        out.put("requested_candidate_slots", totalCandidateSlots);
         out.put("total_settled", totalSettled);
         out.put("hit_count", totalHit);
         out.put("hit_rate", round4(hitRate));
@@ -622,9 +683,9 @@ public class T1CandidateService {
         out.put("unsettled_days", unsettledDays);
         out.put("daily_series", dailySeries);
         out.put("benchmark", benchmark);
-        out.put("note", "策略绩效：命中=次日收盘>当日收盘（无成本、T 日收盘非可成交价，属方向统计）；"
-                + "avg_next_ret=候选平均次日涨幅（gross）；total_candidates=各日 topN 上限之和，"
-                + "非实际候选条数；hit_rate 分母只含已核销且确有候选的交易日，"
+        out.put("note", "次日方向统计：命中=次日收盘>信号日收盘；信号日收盘并非生成后可成交价，"
+                + "未扣费用和滑点，不是可执行策略收益。avg_next_ret 为所有已完整核销候选的毛收益均值；"
+                + "基准比较按相同信号日和核销日、逐日等权配对；hit_rate 分母为已完整核销的候选数，"
                 + "zero_candidate_days/unsettled_days 为被排除的日数，须与 hit_rate 同屏解读");
         return out;
     }
@@ -688,7 +749,7 @@ public class T1CandidateService {
         double volumeRatio = ((Number) lu.getOrDefault("volume_ratio", 0)).doubleValue();
         double avgGap = premium.get("avg_gap") instanceof Number num ? num.doubleValue() : 0;
 
-        String buyability = "可买";
+        String buyability = "待盘中核实";
         if (isLimitUp && lianban >= 2) {
             risks.add("预计一字板");
             buyability = "大概率买不进";
@@ -790,46 +851,87 @@ public class T1CandidateService {
         }
     }
 
+    private boolean dailyBarClosed(LocalDate day) {
+        java.time.LocalDateTime now = java.time.LocalDateTime.now(clock);
+        return day.isBefore(now.toLocalDate())
+                || day.equals(now.toLocalDate()) && !now.toLocalTime().isBefore(java.time.LocalTime.of(15, 0));
+    }
+
+    private static boolean validDailyBar(MarketData bar) {
+        if (bar == null) return false;
+        for (java.math.BigDecimal price : new java.math.BigDecimal[]{
+                bar.getOpenPrice(), bar.getHighPrice(), bar.getLowPrice(), bar.getClosePrice()}) {
+            if (price == null || price.signum() <= 0 || !Double.isFinite(price.doubleValue())) return false;
+        }
+        return bar.getHighPrice().compareTo(bar.getOpenPrice().max(bar.getClosePrice())) >= 0
+                && bar.getLowPrice().compareTo(bar.getOpenPrice().min(bar.getClosePrice())) <= 0;
+    }
+
+    private static Map<String, Object> emptyDecision(LocalDate day, String status, String note) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("trade_date", day.toString());
+        out.put("requested_trade_date", day.toString());
+        out.put("data_date_fallback", false);
+        out.put("top_n", 0);
+        out.put("total_scored", 0);
+        out.put("candidates", List.of());
+        out.put("settled", false);
+        out.put("score_type", "RULE_SCORE");
+        out.put("probability_verified", false);
+        out.put("status", status);
+        out.put("quality_status", status);
+        out.put("note", note);
+        return out;
+    }
+
     /** 加载结果：模型可空；fallbackReason 在无可用模型时说明原因。 */
     private record T1ProbLoadResult(T1ProbModel model, String fallbackReason) {}
 
     /** 加载 horizon=1 的 T+1 概率模型：仅允许 stage=champion。
      * 禁止回退到最新 challenger（未发布模型不得自动上线）。
      * 当前训练特征为通用 selector_result.rule_score，与 T+1 专用 scoreT1 分布不一致时也拒绝推理。 */
-    private T1ProbLoadResult loadT1ProbModelWithReason() {
+    private T1ProbLoadResult loadT1ProbModelWithReason(LocalDate asOf) {
         try {
+            String schemaHash = LogisticModelTrainer.ruleScoreSchemaHash();
+            String deployKey = com.quant.research.artifact.ModelImportService.buildDeployKey(
+                    LogisticModelTrainer.ALGORITHM, FEATURE_SET_VERSION, schemaHash);
             com.quant.entity.ModelVersion mv = modelVersionRepository
-                    .findFirstByHorizonAndStageOrderByCreatedAtDesc(ResearchConvention.HORIZON_T1, "champion")
+                    .findFirstByDeployKeyAndStageAndStrategyTypeAndHorizonOrderByCreatedAtDesc(
+                            deployKey, "champion", "T1", ResearchConvention.HORIZON_T1)
                     .orElse(null);
             if (mv == null || mv.getArtifact() == null || mv.getArtifact().isBlank()) {
                 return new T1ProbLoadResult(null, "NO_CHAMPION_MODEL");
             }
-            // 特征语义门禁：未声明 T+1 专用 schema 的通用 rule_score 模型不得用于 scoreT1
-            String featureVersion = mv.getFeatureVersion();
-            if (featureVersion == null || featureVersion.isBlank()
-                    || "rule_score_v1".equalsIgnoreCase(featureVersion)
-                    || featureVersion.toLowerCase().contains("selector_result")) {
-                log.warn("T+1 champion 模型 {} 特征版本 {} 与 scoreT1 不兼容，回退规则分",
-                        mv.getModelVersion(), featureVersion);
-                return new T1ProbLoadResult(null, "FEATURE_SCHEMA_MISMATCH:" + featureVersion);
+            if (mv.getCreatedAt() == null || mv.getCreatedAt().toLocalDate().isAfter(asOf)) {
+                return new T1ProbLoadResult(null, "MODEL_NOT_AVAILABLE_AS_OF");
             }
-            if (!featureVersion.toLowerCase().contains("t1")) {
-                log.warn("T+1 champion 模型 {} 特征版本 {} 未标明 T+1 schema，回退规则分",
-                        mv.getModelVersion(), featureVersion);
-                return new T1ProbLoadResult(null, "FEATURE_SCHEMA_MISMATCH:" + featureVersion);
+            // 特征语义门禁：未声明 T+1 专用 schema 的通用 rule_score 模型不得用于 scoreT1
+            if (!ModelDeploymentContract.isContractComplete(mv)
+                    || !ModelDeploymentContract.contextMismatches(mv, "T1", ResearchConvention.HORIZON_T1,
+                    FEATURE_SET_VERSION, schemaHash, LogisticModelTrainer.OUTPUT_KIND).isEmpty()
+                    || !deployKey.equals(mv.getDeployKey())) {
+                return new T1ProbLoadResult(null, "MODEL_CONTRACT_MISMATCH");
+            }
+            if (!mv.getArtifactHash().equalsIgnoreCase(ArtifactManifestValidator.sha256Hex(mv.getArtifact()))) {
+                return new T1ProbLoadResult(null, "MODEL_HASH_MISMATCH");
             }
             Map<String, Object> art = objectMapper.readValue(mv.getArtifact(), new TypeReference<Map<String, Object>>() {});
             List<Number> weightsRaw = castNumberList(art.get("weights"));
             Number biasRaw = art.get("bias") instanceof Number num ? num : null;
-            if (weightsRaw == null || weightsRaw.isEmpty()) {
+            if (weightsRaw == null || weightsRaw.size() != 1 || biasRaw == null
+                    || !Double.isFinite(biasRaw.doubleValue())
+                    || !List.of("rule_score").equals(art.get("features"))) {
                 return new T1ProbLoadResult(null, "ARTIFACT_INVALID");
             }
             double[] weights = weightsRaw.stream().mapToDouble(Number::doubleValue).toArray();
             double bias = biasRaw != null ? biasRaw.doubleValue() : 0;
-            double featureMin = 0;
-            double featureMax = 1;
+            double featureMin = Double.NaN;
+            double featureMax = Double.NaN;
             Object pre = art.get("preprocessor");
             if (pre instanceof Map<?, ?> preMap) {
+                if (!"min_max".equals(preMap.get("type")) || !"train_only".equals(preMap.get("fit_window"))) {
+                    return new T1ProbLoadResult(null, "PREPROCESSOR_INVALID");
+                }
                 List<Number> minList = castNumberList(preMap.get("min"));
                 List<Number> maxList = castNumberList(preMap.get("max"));
                 if (minList != null && !minList.isEmpty()) {
@@ -844,15 +946,32 @@ public class T1CandidateService {
             // preprocessor.max 会显著大于当前 RULE_SCORE_MAX，min-max 归一化会把当前分数
             // 系统性压到实际区间的一半，再经 sigmoid 得到**被静默压低的伪概率**。
             // 这里 fail-closed：标度不匹配即拒绝推理并回退规则分，不输出错误标度的概率。
-            if (featureMax > RULE_SCORE_MAX * 1.5) {
+            if (!Double.isFinite(featureMin) || !Double.isFinite(featureMax) || featureMin < 0
+                    || featureMax <= featureMin || featureMax > RULE_SCORE_MAX) {
                 log.warn("T+1 champion 模型 {} 的 preprocessor.max={} 与当前 rule_score 值域 0–{} 不匹配"
                                 + "（疑似按旧 0–100 标度训练），拒绝推理并回退规则分",
                         mv.getModelVersion(), featureMax, RULE_SCORE_MAX);
                 return new T1ProbLoadResult(null,
                         "PREPROCESSOR_SCALE_MISMATCH:max=" + featureMax + ",expected<=0-" + RULE_SCORE_MAX);
             }
+            Calibrator cal = calibratorService.loadChampion("T1", ResearchConvention.HORIZON_T1,
+                    mv.getModelVersion()).orElse(null);
+            if (cal == null) {
+                return new T1ProbLoadResult(null, "NO_CHAMPION_CALIBRATOR");
+            }
+            if (!ModelDeploymentContract.calibratorPairMismatches(mv, cal).isEmpty()
+                    || !mv.getOutputKind().equals(cal.getBaseOutputKind())
+                    || cal.getFitEnd() == null || cal.getEvalStart() == null || cal.getEvalEnd() == null
+                    || !cal.getEvalStart().isAfter(cal.getFitEnd()) || cal.getEvalEnd().isBefore(cal.getEvalStart())
+                    || !cal.getEvalEnd().isBefore(asOf) || cal.getCreatedAt() == null
+                    || cal.getCreatedAt().toLocalDate().isAfter(asOf)
+                    || cal.getCalibratorJson() == null || cal.getCalibratorHash() == null
+                    || !cal.getCalibratorHash().equalsIgnoreCase(ArtifactManifestValidator.sha256Hex(cal.getCalibratorJson()))
+                    || !calibratorPayloadValid(cal)) {
+                return new T1ProbLoadResult(null, "CALIBRATOR_EVIDENCE_INVALID");
+            }
             return new T1ProbLoadResult(
-                    new T1ProbModel(weights, bias, featureMin, featureMax, mv.getModelVersion()),
+                    new T1ProbModel(weights, bias, featureMin, featureMax, mv.getModelVersion(), cal),
                     null);
         } catch (Exception e) {
             log.warn("加载 T+1 概率模型失败，回退规则分: {}", e.getMessage());
@@ -863,14 +982,52 @@ public class T1CandidateService {
     @SuppressWarnings("unchecked")
     private static List<Number> castNumberList(Object value) {
         if (value instanceof List<?> list) {
-            return (List<Number>) list;
+            if (list.stream().allMatch(v -> v instanceof Number n && Double.isFinite(n.doubleValue()))) {
+                return (List<Number>) list;
+            }
         }
         return null;
     }
 
     /** 已加载的 T+1 概率模型（含特征 min/max 预处理，推理时用同一组参数）。 */
-    private record T1ProbModel(double[] weights, double bias, double featureMin, double featureMax, String modelVersion) {
-        double predictProbability(double ruleScore) {
+    private boolean calibratorPayloadValid(Calibrator cal) throws Exception {
+        Map<String, Object> spec = objectMapper.readValue(cal.getCalibratorJson(), new TypeReference<>() {});
+        if (!cal.getOutputKind().equals(spec.get("kind")) || !cal.getInputDomain().equals(spec.get("input_domain"))) {
+            return false;
+        }
+        if (!Calibrator.INPUT_RULE_SCORE.equals(cal.getInputDomain())
+                && !Calibrator.INPUT_BASE_PROBABILITY.equals(cal.getInputDomain())) return false;
+        if (Calibrator.KIND_PAV_ISOTONIC.equals(cal.getOutputKind())) {
+            if (!(spec.get("breakpoints") instanceof List<?> points) || points.isEmpty()) return false;
+            double previousHi = Double.NEGATIVE_INFINITY;
+            double previousProb = 0;
+            for (Object point : points) {
+                if (!(point instanceof Map<?, ?> p) || !(p.get("score_lo") instanceof Number lo)
+                        || !(p.get("score_hi") instanceof Number hi) || !(p.get("calibrated_prob") instanceof Number prob)
+                        || !Double.isFinite(lo.doubleValue()) || !Double.isFinite(hi.doubleValue())
+                        || !Double.isFinite(prob.doubleValue()) || lo.doubleValue() < previousHi
+                        || hi.doubleValue() < lo.doubleValue() || prob.doubleValue() < previousProb || prob.doubleValue() > 1) return false;
+                previousHi = hi.doubleValue();
+                previousProb = prob.doubleValue();
+            }
+            return true;
+        }
+        if (!Calibrator.KIND_PLATT_SIGMOID.equals(cal.getOutputKind())
+                || !(spec.get("norm") instanceof Map<?, ?> norm) || !(spec.get("sigmoid") instanceof Map<?, ?> sig)
+                || !(norm.get("min") instanceof Number min) || !(norm.get("max") instanceof Number max)
+                || !(sig.get("a") instanceof Number a) || !(sig.get("b") instanceof Number b)) return false;
+        double upper = Calibrator.INPUT_RULE_SCORE.equals(cal.getInputDomain()) ? RULE_SCORE_MAX : 1;
+        return Double.isFinite(min.doubleValue()) && Double.isFinite(max.doubleValue())
+                && min.doubleValue() >= 0 && max.doubleValue() <= upper && max.doubleValue() > min.doubleValue()
+                && Double.isFinite(a.doubleValue()) && Double.isFinite(b.doubleValue());
+    }
+
+    private record T1ProbModel(double[] weights, double bias, double featureMin, double featureMax,
+                               String modelVersion, Calibrator calibrator) {
+        double predictProbability(CalibratorService service, double ruleScore) {
+            if (Calibrator.INPUT_RULE_SCORE.equals(calibrator.getInputDomain())) {
+                return service.apply(calibrator, ruleScore);
+            }
             double range = featureMax - featureMin;
             double norm = range > 1e-12 ? (ruleScore - featureMin) / range : 0.5;
             double z = bias;
@@ -879,10 +1036,10 @@ public class T1CandidateService {
             }
             if (z >= 0) {
                 double e = Math.exp(-z);
-                return 1.0 / (1.0 + e);
+                return service.apply(calibrator, 1.0 / (1.0 + e));
             }
             double e = Math.exp(z);
-            return e / (1.0 + e);
+            return service.apply(calibrator, e / (1.0 + e));
         }
     }
 

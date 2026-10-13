@@ -1,10 +1,10 @@
 <template>
   <PageShell>
-    <PageHeader title="T+1 次日候选（动量 · 量能 · 趋势）" subtitle="基于信号日生成次日候选，核销后回填次日表现；含市场情绪快照与历史累计绩效。评分为 rule_score（截面排序用，非概率）" />
+    <PageHeader title="T+1 次日候选（动量 · 量能 · 趋势）" subtitle="候选用于下一交易日观察；方向统计未扣费用和滑点，不代表可成交收益。规则分用于排序。" />
 
     <SectionCard>
       <el-alert type="info" :closable="false" show-icon class="note-alert"
-        :title="result?.score_type === 'CALIBRATED_PROBABILITY' || result?.score_type === 'probability'
+        :title="result?.probability_verified && (result?.score_type === 'CALIBRATED_PROBABILITY' || result?.score_type === 'probability')
           ? ('已按校准概率排序（champion 模型 ' + (result.score_model ?? '') + '）')
           : ('仅输出 RULE_SCORE，非概率' + (result?.fallback_reason ? '；回退原因：' + result.fallback_reason : '。无匹配 champion 或特征 schema 不匹配时不会加载 challenger'))" />
 
@@ -20,7 +20,11 @@
           入选阈值 {{ result.rule_score_threshold }} / 满分 {{ result.rule_score_max ?? '—' }}
         </el-tag>
         <el-tag v-if="result.pit_limited" type="danger" size="small">
-          PIT 受限：股票池来自当前截面回退（存在幸存者偏差）
+          PIT 受限：历史股票池或状态未经完整还原
+        </el-tag>
+        <el-tag v-if="result.pit_limited == null" type="warning" size="small">PIT 状态未知</el-tag>
+        <el-tag v-if="result.daily_coverage != null" type="info" size="small">
+          主表内行情覆盖 {{ pct(result.daily_coverage) }}（{{ result.daily_covered }}/{{ result.daily_expected }}）
         </el-tag>
         <el-tag v-if="result.total_scored != null" type="info" size="small">
           打分池 {{ result.total_scored }} → 合格 {{ result.eligible_count ?? 0 }}
@@ -29,6 +33,9 @@
           当日最高分 {{ fmt1(result.max_rule_score) }}
         </el-tag>
       </div>
+      <el-alert v-if="result?.note" type="info" :closable="false" class="note-alert" :title="result.note" />
+      <el-alert v-if="result?.snapshot_reused" type="info" :closable="false" class="note-alert"
+        title="读取该日期首次保存的候选快照，候选和已完成核销不会因重复生成而覆盖。" />
       <el-alert v-if="result?.candidate_invalidation" type="warning" :closable="false" show-icon
         class="note-alert" :title="'失效条件：' + result.candidate_invalidation" />
       <el-alert v-if="rejectedSummary" type="info" :closable="false" show-icon
@@ -36,15 +43,15 @@
 
       <el-form inline>
         <el-form-item label="信号日 T">
-          <el-date-picker v-model="tradeDate" type="date" value-format="YYYY-MM-DD" />
+          <el-date-picker v-model="tradeDate" type="date" value-format="YYYY-MM-DD" @change="onSelectedDateChange" />
         </el-form-item>
         <el-form-item label="TopN">
           <el-input-number v-model="topN" :min="1" :max="50" />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="genLoading" @click="generate">生成 T+1 候选</el-button>
-          <el-button :loading="settleLoading" :disabled="!result || (result.candidates?.length ?? 0) === 0" @click="settle">次日核销</el-button>
-          <el-button :disabled="!tableData.length" @click="exportOperationList">导出次日操作清单</el-button>
+          <el-button :loading="settleLoading" :disabled="!resultMatchesSelection || !tableData.length || loading" @click="settle">次日核销</el-button>
+          <el-button :disabled="!resultMatchesSelection || !tableData.length || loading" @click="exportOperationList">导出观察清单</el-button>
           <el-button :loading="recentLoading" @click="loadRecent">最近清单</el-button>
         </el-form-item>
       </el-form>
@@ -68,16 +75,16 @@
 
       <!-- 候选列表（含核销后的次日表现） -->
       <el-table v-loading="genLoading || settleLoading" :data="tableData" size="small" stripe border max-height="480">
-        <template #empty><span v-if="result">暂无数据</span></template>
+        <template #empty><span v-if="result">{{ result.note || '当日无合格候选' }}</span></template>
         <el-table-column type="index" label="#" width="46" :index="(i: number) => i + 1" />
         <el-table-column prop="stock_code" label="代码" width="90" />
         <el-table-column prop="stock_name" label="名称" min-width="100" />
         <el-table-column label="评分" width="90">
           <template #default="{ row }">
-            <b v-if="row.score_type === 'CALIBRATED_PROBABILITY' || row.score_type === 'probability'">{{ pct(row.score) }}</b>
-            <b v-else>{{ fmt1(row.score) }}</b>
-            <el-tag v-if="row.score_type === 'CALIBRATED_PROBABILITY' || row.score_type === 'probability'" type="success" size="small" class="prob-tag">概率</el-tag>
-            <el-tag v-else type="info" size="small" class="prob-tag">规则分</el-tag>
+            <b v-if="result?.probability_verified && row.is_probability">{{ pct(row.score) }}</b>
+            <b v-else>{{ fmt1(row.rule_score ?? (!row.is_probability ? row.score : undefined)) }}</b>
+            <el-tag v-if="result?.probability_verified && row.is_probability" type="success" size="small" class="prob-tag">校准概率</el-tag>
+            <el-tag v-else type="info" size="small" class="prob-tag">{{ row.is_probability ? '历史概率未验证' : '规则分' }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="涨停" width="70">
@@ -122,7 +129,7 @@
         </el-table-column>
         <el-table-column label="可买性" width="110">
           <template #default="{ row }">
-            <el-tag :type="buyabilityType(row.buyability)" size="small">{{ row.buyability || '可买' }}</el-tag>
+            <el-tag :type="buyabilityType(row.buyability)" size="small">{{ row.buyability || '待盘中核实' }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="风险" min-width="140">
@@ -159,8 +166,9 @@
         </el-table>
       </template>
 
-      <!-- 策略绩效（历史累计验证） -->
-      <el-divider content-position="left">策略绩效（历史累计）</el-divider>
+      <el-divider content-position="left">次日方向统计（未扣成本）</el-divider>
+      <el-alert type="info" :closable="false" class="note-alert"
+        title="收盘到收盘的涨跌统计，不含实际入场、费用、滑点或无法成交的影响；不能用来证明可交易收益。" />
       <el-form inline>
         <el-form-item label="起">
           <el-date-picker v-model="statsStart" type="date" value-format="YYYY-MM-DD" />
@@ -169,24 +177,25 @@
           <el-date-picker v-model="statsEnd" type="date" value-format="YYYY-MM-DD" />
         </el-form-item>
         <el-form-item>
-          <el-button :loading="statsLoading" @click="loadStats">统计绩效</el-button>
+          <el-button :loading="statsLoading" @click="loadStats">统计方向表现</el-button>
         </el-form-item>
       </el-form>
 
       <template v-if="stats">
         <div class="kpi-row">
-          <div class="kpi-card"><span class="kpi-label">已核销天数</span><b class="kpi-value">{{ stats.days }}</b></div>
+          <div class="kpi-card"><span class="kpi-label">完整核销天数</span><b class="kpi-value">{{ stats.settled_days ?? '—' }}</b></div>
+          <div class="kpi-card"><span class="kpi-label">无候选 / 未完整核销</span><b class="kpi-value">{{ stats.zero_candidate_days ?? '—' }} / {{ stats.unsettled_days ?? '—' }}</b></div>
           <div class="kpi-card"><span class="kpi-label">样本数</span><b class="kpi-value">{{ stats.total_settled ?? 0 }}</b></div>
-          <div class="kpi-card"><span class="kpi-label">命中率</span><b class="kpi-value" :class="trendClass(stats.hit_rate, 0.5)">{{ pct(stats.hit_rate) }}</b></div>
+          <div class="kpi-card"><span class="kpi-label">命中率</span><b class="kpi-value">{{ stats.total_settled ? pct(stats.hit_rate) : '—' }}</b></div>
           <div class="kpi-card"><span class="kpi-label">平均次日涨幅</span><b class="kpi-value" :class="trendClass(stats.avg_next_ret)">{{ pct(stats.avg_next_ret) }}</b></div>
           <div class="kpi-card"><span class="kpi-label">平均高开</span><b class="kpi-value">{{ pct(stats.avg_gap) }}</b></div>
           <div v-if="stats.benchmark?.available" class="kpi-card">
-            <span class="kpi-label">vs 沪深300 日均</span>
-            <b class="kpi-value" :class="stats.benchmark.outperform ? 'text-up' : 'text-down'">
-              {{ pct(stats.benchmark.index_avg_daily_return) }}（{{ stats.benchmark.outperform ? '跑赢' : '跑输' }}）
-            </b>
+            <span class="kpi-label">配对 {{ stats.benchmark.paired_days }} 日：候选 / 沪深300</span>
+            <b class="kpi-value">{{ pct(stats.benchmark.strategy_avg_daily_return) }} / {{ pct(stats.benchmark.index_avg_daily_return) }}</b>
           </div>
         </div>
+        <p v-if="!stats.benchmark?.available" class="note-line">缺少可对齐的指数数据，暂不作基准比较。</p>
+        <p v-for="caveat in stats.benchmark?.caveats || []" :key="caveat" class="note-line">{{ caveat }}</p>
         <el-table v-if="stats.daily_series?.length" :data="stats.daily_series" size="small" stripe border max-height="280" class="mt">
           <el-table-column prop="trade_date" label="信号日" min-width="110" />
           <el-table-column prop="settled" label="样本" width="70" />
@@ -234,6 +243,17 @@ const loading = computed(() => genLoading.value || settleLoading.value)
 
 /** 实际使用的数据日（后端 data_cutoff / trade_date），无则为请求日。 */
 const effDate = computed(() => result.value?.data_cutoff ?? result.value?.trade_date ?? tradeDate.value)
+const resultMatchesSelection = computed(() => Boolean(result.value && effDate.value === tradeDate.value))
+let dateSeq = 0
+
+function onSelectedDateChange() {
+  dateSeq += 1
+  result.value = null
+}
+
+function displayResult(res: T1CandidatesResponse): T1CandidatesResponse {
+  return { ...res, results: res.results ?? res.settle?.results, summary: res.summary ?? res.settle?.summary }
+}
 
 /** 被拒原因直方图（D-T1-03）：候选为空时，页面必须能说明是「没有合格标的」还是「根本没打分」。 */
 const rejectedSummary = computed(() => {
@@ -278,23 +298,24 @@ function buyabilityType(b: string | undefined): 'success' | 'warning' | 'danger'
 /** 导出次日操作清单 CSV（含可买性/风险/触发原因）。 */
 function exportOperationList() {
   const rows = tableData.value
-  if (!rows.length) return
+  if (!rows.length || !resultMatchesSelection.value) return
+  const csvRow = (cells: unknown[]) => cells.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')
   const lines: string[] = [
     // D-T1-03：导出必须写**实际使用的数据日**，而不是请求日，否则节假日导出会标错日期。
     // effDate 从 top_n 闭包外的 tradeDate 推导，取后端回传的 data_cutoff 优先。
-    `信号日,${effDate.value}`,
-    `请求日,${tradeDate.value}`,
-    `口径版本,${result.value?.threshold_version ?? ''}`,
-    `生成时刻,${result.value?.generated_at ?? ''}`,
-    `失效条件,${result.value?.candidate_invalidation ?? ''}`,
-    `PIT受限,${result.value?.pit_limited ? '是' : '否'}`,
+    csvRow(['信号日', effDate.value]),
+    csvRow(['请求日', result.value?.requested_trade_date ?? tradeDate.value]),
+    csvRow(['口径版本', result.value?.threshold_version]),
+    csvRow(['生成时刻', result.value?.generated_at]),
+    csvRow(['失效条件', result.value?.candidate_invalidation]),
+    csvRow(['PIT受限', result.value?.pit_limited == null ? '未知' : result.value.pit_limited ? '是' : '否']),
     '',
-    ['stock_code', 'stock_name', 'score', 'rule_score', 'is_limit_up', 'lianban_days', 'volume_ratio', 'change_pct', 'buyability', 'risks', 'reasons'].join(','),
-    ...rows.map((r) => [
-      r.stock_code, `"${r.stock_name ?? ''}"`, r.score ?? '', r.rule_score ?? '', r.is_limit_up ?? '', r.lianban_days ?? '',
+    csvRow(['stock_code', 'stock_name', 'calibrated_probability', 'rule_score', 'is_limit_up', 'lianban_days', 'volume_ratio', 'change_pct', 'buyability', 'risks', 'reasons']),
+    ...rows.map((r) => csvRow([
+      r.stock_code, r.stock_name, result.value?.probability_verified && r.is_probability ? r.score : '', r.rule_score ?? (!r.is_probability ? r.score : ''), r.is_limit_up ?? '', r.lianban_days ?? '',
       r.volume_ratio ?? '', r.change_pct ?? '', r.buyability ?? '', (r.risk_tags || []).join('|'),
       (r.reasons || []).join('|')
-    ].join(','))
+    ]))
   ]
   const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
@@ -311,9 +332,15 @@ async function generate() {
     return
   }
   genLoading.value = true
+  const selected = tradeDate.value
+  const mySeq = ++dateSeq
   try {
-    result.value = await generateT1Candidates({ tradeDate: tradeDate.value, topN: topN.value })
-    toast.success(`已生成 ${result.value?.top_n ?? 0} 条 T+1 候选`)
+    const res = await generateT1Candidates({ tradeDate: selected, topN: topN.value })
+    if (mySeq !== dateSeq || selected !== tradeDate.value) return
+    result.value = displayResult(res)
+    if (res.snapshot_reused) toast.info('已读取该日期原始候选快照')
+    else if (res.status !== 'OK') toast.warning(res.note || '暂不判断或当日无合格候选')
+    else toast.success(`已生成 ${res.top_n} 条 T+1 候选`)
     await loadRecent()
   } catch (e: unknown) {
     toast.error(errorText(e))
@@ -323,17 +350,21 @@ async function generate() {
 }
 
 async function settle() {
-  if (!tradeDate.value) return
+  if (!resultMatchesSelection.value) return
   settleLoading.value = true
+  const selected = effDate.value
+  const mySeq = ++dateSeq
   try {
-    const res = await settleT1Candidates({ tradeDate: tradeDate.value })
+    const res = await settleT1Candidates({ tradeDate: selected })
+    if (mySeq !== dateSeq || selected !== tradeDate.value) return
     // 合并核销结果到当前视图
     result.value = {
       ...(result.value ?? { trade_date: tradeDate.value, top_n: topN.value, candidates: [] }),
       ...res,
       candidates: res.results ?? (result.value?.candidates ?? [])
     }
-    toast.success(`核销完成：命中率 ${res.summary ? pct(res.summary.hit_rate) : '—'}`)
+    if (res.settled) toast.success(`核销完成：方向命中率 ${res.summary ? pct(res.summary.hit_rate) : '—'}`)
+    else toast.warning(res.note || res.message || '行情未完整或尚未收盘，暂不核销')
     await loadRecent()
   } catch (e: unknown) {
     toast.error(errorText(e))
@@ -341,8 +372,6 @@ async function settle() {
     settleLoading.value = false
   }
 }
-
-let dateSeq = 0
 
 async function loadDate(date: string) {
   tradeDate.value = date
@@ -353,11 +382,7 @@ async function loadDate(date: string) {
     if (res.found) {
       // 后端 getCandidates 把核销结果嵌套在 settle 字段下（settle.results / settle.summary），
       // 这里提升到顶层，使表格能展示次日涨幅/高开/命中率等已核销字段。
-      result.value = {
-        ...res,
-        results: res.settle?.results,
-        summary: res.settle?.summary
-      }
+      result.value = displayResult(res)
     } else {
       result.value = null
       toast.info('该日无候选记录')

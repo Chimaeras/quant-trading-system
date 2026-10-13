@@ -1,10 +1,12 @@
 ﻿[CmdletBinding()]
 param(
-    [string]$SignalDate = (Get-Date -Format 'yyyy-MM-dd'),
+    [string]$SignalDate = '',
     [string]$SessionId = 'analysis-paper',
     [int]$MaxCycles = 0,
-    [ValidateSet('INTERNAL_PAPER', 'EXTERNAL_PAPER')]
-    [string]$ExecutionMode = 'INTERNAL_PAPER',
+    [ValidateSet('SHADOW', 'INTERNAL_PAPER', 'EXTERNAL_PAPER')]
+    [string]$ExecutionMode = 'SHADOW',
+    [ValidateSet('T1', 'WATCHLIST', 'FULL')]
+    [string]$UniverseMode = 'T1',
     [string]$TradingCalendarFile = ''
 )
 
@@ -34,8 +36,11 @@ if ($ExecutionMode -eq 'EXTERNAL_PAPER' -and -not $env:MX_APIKEY) {
 # 真实行情/策略分析：常规扫描走公开批量行情；只有 EXTERNAL_PAPER
 # 且信号通过风控后才会调用妙想 mockTrading/trade。
 $env:PAPER_WATCH_EXECUTION_MODE = $ExecutionMode
-$env:PAPER_WATCH_LIVE = '1'
-$env:PAPER_WATCH_UNIVERSE_MODE = 'WATCHLIST'
+$paperExecution = $ExecutionMode -ne 'SHADOW'
+$env:PAPER_WATCH_LIVE = if ($paperExecution) { '1' } else { '0' }
+$env:PAPER_WATCH_UNIVERSE_MODE = $UniverseMode
+$env:PAPER_CANDIDATE_FILE = ''
+$env:PAPER_WATCHLIST_FILE = ''
 $env:PAPER_MAX_OBSERVE_CODES = '200'
 # 0 表示关闭最大持仓只数限制；资金、总仓位、单票权重等风控仍然生效。
 $env:PAPER_MAX_POSITIONS = '0'
@@ -60,7 +65,7 @@ if ($TradingCalendarFile) {
 # 国庆/中秋等法定节假日会被当作交易日。仓库已自带日历文件，这里默认自动注入；
 # 目标年份文件不存在时保持原回退行为并给出明确告警，不静默假定。
 if (-not $env:PAPER_TRADING_CALENDAR_FILE) {
-    $calendarYear = ([datetime]$SignalDate).Year
+    $calendarYear = if ($SignalDate) { ([datetime]$SignalDate).Year } else { (Get-Date).Year }
     $defaultCalendar = Join-Path $computeRoot "paper/trading-calendar.$calendarYear.json"
     if (Test-Path $defaultCalendar) {
         $env:PAPER_TRADING_CALENDAR_FILE = (Resolve-Path $defaultCalendar).Path
@@ -69,6 +74,26 @@ if (-not $env:PAPER_TRADING_CALENDAR_FILE) {
         Write-Warning "[calendar] 未找到 paper/trading-calendar.$calendarYear.json，将退化为「周一至周五」判定，法定节假日会被当作交易日；请用 -TradingCalendarFile 显式注入。"
     }
 }
+if ($UniverseMode -eq 'T1' -and -not $SignalDate) {
+    if (-not $env:PAPER_TRADING_CALENDAR_FILE) {
+        throw 'T1 模式自动选择信号日需要正式日历；请提供 -TradingCalendarFile 和上一交易日 -SignalDate。'
+    }
+    $calendar = Get-Content -LiteralPath $env:PAPER_TRADING_CALENDAR_FILE -Raw -Encoding UTF8 | ConvertFrom-Json
+    $today = (Get-Date).Date
+    for ($offset = 1; $offset -le 31; $offset++) {
+        $day = $today.AddDays(-$offset)
+        if ($day.Year -ne $today.Year) {
+            throw '跨年信号日需要上一年度正式日历，请显式提供 -SignalDate 和适用的 -TradingCalendarFile。'
+        }
+        $key = $day.ToString('yyyy-MM-dd')
+        $open = ($calendar.extra_workdays -contains $key) -or (
+            $day.DayOfWeek -ne [DayOfWeek]::Saturday -and $day.DayOfWeek -ne [DayOfWeek]::Sunday -and
+            $calendar.holidays -notcontains $key)
+        if ($open) { $SignalDate = $key; break }
+    }
+    if (-not $SignalDate) { throw '正式日历中未找到上一交易日。' }
+}
+if (-not $SignalDate) { $SignalDate = Get-Date -Format 'yyyy-MM-dd' }
 if ($ExecutionMode -eq 'EXTERNAL_PAPER' -and -not $env:PAPER_TRADING_CALENDAR_FILE) {
     throw 'EXTERNAL_PAPER 必须通过 -TradingCalendarFile 或 PAPER_TRADING_CALENDAR_FILE 注入正式交易日历。'
 }
@@ -81,9 +106,9 @@ $stderrPath = Join-Path $watchLogRoot "$logMode-watch-$stamp.stderr.log"
 $arguments = @(
     '-u', '-m', 'paper.cli', 'watch',
     '--signal-date', $SignalDate,
-    '--live', '--confirm',
     '--max-cycles', [string]$MaxCycles
 )
+if ($paperExecution) { $arguments += @('--live', '--confirm') }
 
 $startParams = @{
     FilePath = $python
@@ -101,7 +126,8 @@ $process = Start-Process @startParams
     Mode = $env:PAPER_WATCH_EXECUTION_MODE
     ExecutionMode = $env:PAPER_WATCH_EXECUTION_MODE
     Live = $env:PAPER_WATCH_LIVE
-    Confirm = $true
+    Confirm = $paperExecution
+    SignalDate = $SignalDate
     Universe = $env:PAPER_WATCH_UNIVERSE_MODE
     SessionId = $env:PAPER_SESSION_ID
     AccountScope = "$($env:PAPER_WATCH_EXECUTION_MODE):$($env:PAPER_SESSION_ID)"

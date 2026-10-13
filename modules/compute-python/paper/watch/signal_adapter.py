@@ -1,5 +1,7 @@
 """把现有 strategies 包装为持仓外置的 watch 信号适配器。"""
 from __future__ import annotations
+from datetime import timedelta
+from .. import clock
 
 import hashlib
 import json
@@ -98,13 +100,20 @@ class SignalAdapter:
         state.strategy.position = 1 if position_qty > 0 else 0
         action = state.strategy.on_bar({"close": bar.close}) or "hold"
         state.seeded_count += 1
+        end = (bar.end_ts.astimezone(clock.CN_TZ) if bar.end_ts.tzinfo is not None
+               else bar.end_ts.replace(tzinfo=clock.CN_TZ))
         return WatchSignal(
             code=code,
             action=action,
             strategy=self.strategy_name,
-            bar_ts=bar.end_ts.isoformat(),
+            bar_ts=end.isoformat(),
             reason_codes=self._reason(action),
             detail=self._indicator_detail(state.strategy),
+            strategy_version="intraday_rules_v1:" + self.parameter_hash(),
+            bar_period_min=bar.period_min,
+            valid_until=min(end + timedelta(minutes=bar.period_min),
+                            end.replace(hour=15, minute=0, second=0, microsecond=0)).isoformat(),
+            invalidation_conditions=["下一根 bar 收盘", "行情过期或缺失", "策略或观察池变化", "当日收盘"],
         )
 
     def _indicator_detail(self, strategy) -> dict:

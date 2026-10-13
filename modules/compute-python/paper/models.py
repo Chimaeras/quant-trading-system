@@ -159,6 +159,7 @@ class Candidate:
     signal_date: str = ""
     trade_date: str = ""
     source: str = "t1"
+    selection_lineage: dict = field(default_factory=dict)
 
     def board_blocked(self, allow_chinext: bool, allow_star: bool) -> str | None:
         """板块闸：返回拦截原因码或 None。创业板 300/301 开头，科创 688/689。

@@ -48,7 +48,7 @@ public class T1CandidateController {
         return ApiResponse.success(t1CandidateService.recentCandidates(limit));
     }
 
-    /** T+1 策略历史累计绩效（命中率/平均涨幅/每日命中序列 + vs 沪深300）。 */
+    /** T+1 次日方向统计（未扣费用/滑点，非可执行策略净收益）。 */
     @GetMapping("/stats")
     public ApiResponse<Map<String, Object>> stats(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,

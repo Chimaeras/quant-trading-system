@@ -30,17 +30,21 @@ import static org.mockito.Mockito.when;
 class DataQualityGateServiceTest {
 
     private DataSnapshotRepository dataSnapshotRepository;
+    private SecurityMasterHistoryRepository masterRepository;
+    private TradingCalendarDayRepository calendarRepository;
     private DataQualityGateService service;
 
     @BeforeEach
     void setUp() {
         dataSnapshotRepository = mock(DataSnapshotRepository.class);
+        masterRepository = mock(SecurityMasterHistoryRepository.class);
+        calendarRepository = mock(TradingCalendarDayRepository.class);
         service = new DataQualityGateService(
                 mock(MarketDataRepository.class),
                 mock(MarketPriceRawRepository.class),
                 mock(AdjustFactorRepository.class),
-                mock(SecurityMasterHistoryRepository.class),
-                mock(TradingCalendarDayRepository.class),
+                masterRepository,
+                calendarRepository,
                 mock(LabelSnapshotRepository.class),
                 mock(TradingCalendarService.class),
                 dataSnapshotRepository
@@ -81,6 +85,27 @@ class DataQualityGateServiceTest {
         Map<String, Object> check = checkNamed(gate, "snapshot_exists");
         assertThat(check.get("status")).isEqualTo(DataQualityGateService.STATUS_BLOCKED);
         assertThat(String.valueOf(check.get("detail"))).contains("快照不存在");
+    }
+
+    @Test
+    void aSingleOfficialRowDoesNotCertifyMixedHistory() {
+        when(masterRepository.count()).thenReturn(100L);
+        when(masterRepository.countByReliability("limited")).thenReturn(99L);
+        when(masterRepository.countUnverified()).thenReturn(99L);
+        Map<String, Object> gate = service.evaluate(DataQualityGateService.PURPOSE_PROBABILITY_PROMOTE, null);
+        assertThat(checkNamed(gate, "security_master_reliability").get("status")).isEqualTo("BLOCKED");
+    }
+
+    @Test
+    void aMissingPitDayIsNotHiddenByAverageRowCounts() {
+        var day = java.time.LocalDate.of(2025, 1, 2);
+        when(calendarRepository.findTradeDatesBetween(day, day.plusDays(1))).thenReturn(List.of(day, day.plusDays(1)));
+        when(masterRepository.countAllEffectiveAt(day)).thenReturn(100L);
+        Map<String, Object> gate = service.evaluate(DataQualityGateService.GateRequest.ofRange(
+                DataQualityGateService.PURPOSE_PROBABILITY_TRAIN, null, day, day.plusDays(1), null, null, 1));
+        Map<String, Object> check = checkNamed(gate, "range_pit_coverage");
+        assertThat(check.get("status")).isEqualTo("BLOCKED");
+        assertThat(check.get("missing_days")).isEqualTo(1);
     }
 
     @SuppressWarnings("unchecked")

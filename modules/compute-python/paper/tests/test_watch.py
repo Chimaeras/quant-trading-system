@@ -1613,6 +1613,8 @@ def test_internal_paper_keeps_valid_symbols_when_pool_coverage_is_below_threshol
     assert tick.live is True
     assert not any(error.startswith("QUOTE_COVERAGE_BLOCKED:") for error in tick.errors)
     assert tick.metrics["quote_coverage"] == 0.5
+    assert tick.metrics["decision_status"] == "PARTIAL_COVERAGE"
+    assert tick.status == "DEGRADED"
     store.close()
 
 

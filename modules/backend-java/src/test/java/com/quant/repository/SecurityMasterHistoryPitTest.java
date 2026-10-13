@@ -96,6 +96,22 @@ class SecurityMasterHistoryPitTest {
         assertThat(repo.countAllEffectiveAt(AS_OF)).isEqualTo(2);
     }
 
+    @Test
+    void unverifiedQueriesRejectBootstrapAndUnknownReliabilityWithinEffectiveDates() {
+        for (int i = 1; i <= 4; i++) {
+            SecurityMasterHistory h = new SecurityMasterHistory();
+            h.setStockCode("00000" + i); h.setExchangeType("SZSE"); h.setStockName("测试" + i);
+            h.setListDate(LocalDate.of(2010, 1, 1));
+            h.setValidFrom(i == 4 ? AS_OF.plusDays(1) : AS_OF.minusDays(1));
+            h.setSource(i == 2 ? "current_snapshot" : "official_source");
+            h.setReliability(i == 3 ? null : i == 4 ? "limited" : "official");
+            repo.save(h);
+        }
+        repo.flush();
+        assertThat(repo.countUnverified()).isEqualTo(3);
+        assertThat(repo.countUnverifiedEffectiveAt(AS_OF)).isEqualTo(2);
+    }
+
     private void save(String code, String ex, String name, LocalDate validFrom, LocalDate validTo) {
         SecurityMasterHistory h = new SecurityMasterHistory();
         h.setStockCode(code);

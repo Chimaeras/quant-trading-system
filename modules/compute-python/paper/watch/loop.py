@@ -283,6 +283,24 @@ class WatchLoop:
         candidates, source, errors = load_watch_universe(
             self.config, signal_date, candidates_override, store=self.store
         )
+        if (candidates_override is None and not self.config.candidate_file and not self.config.watchlist_file
+                and self.config.watch_universe_mode == "T1"):
+            from datetime import date
+            signal_day = date.fromisoformat(signal_date)
+            observation_day = signal_day + timedelta(days=1)
+            for _ in range(31):
+                if self.calendar.is_trading_day(observation_day):
+                    break
+                observation_day += timedelta(days=1)
+            if (not self.calendar.available or not self._calendar_explicit and not self.config.trading_calendar_file
+                    or observation_day != current.date()):
+                candidates = []
+                errors.append("T1_INVALID_OBSERVATION_DAY:必须使用正式日历下上一交易日的候选")
+                source = "t1_invalid_day"
+            if source in {"t1", "t1_no_candidate", "t1_overflow"} and self.store is not None:
+                self.store.sync_default_watch_pool([
+                    {"code": c.stock_code, "name": c.stock_name, "exchange": c.exchange_type} for c in candidates
+                ], max_size=self.config.max_observe_codes, source="t1")
         self._candidates = candidates
         self._universe_source = source
         self._prepare_errors = list(errors)
@@ -1270,6 +1288,7 @@ class WatchLoop:
                 "execution_mode": self.execution_mode,
                 "bars": len(tick.new_closed_bars), "signals": len(tick.signals),
                 "submits": len(tick.submits), "errors": len(tick.errors),
+                "metrics": tick.metrics,
             }, now=self.now_fn())
         return tick
 
@@ -1395,6 +1414,9 @@ class WatchLoop:
             return self._finish(tick)
         # 真实/内部账户即使人工观察池为空，也必须继续查询账户；已有持仓和
         # 活动委托会在账户快照后被强制并入候选。SHADOW 没有外部账户可补充。
+        tick.metrics["universe_source"] = self._universe_source
+        tick.metrics["universe_count"] = len(self._candidates)
+        tick.metrics["selection_signal_date"] = signal_date
         if not self._candidates and self.execution_mode == "SHADOW":
             tick.status = "NO_UNIVERSE"
             return self._finish(tick)
@@ -2074,6 +2096,11 @@ class WatchLoop:
         # 缺行情的标的会在上面的逐标的循环中被跳过，其他有效标的仍可本地撮合。
         # EXTERNAL_PAPER 仍保持全局覆盖率 fail-closed，避免把不完整行情送到妙想。
         quote_coverage_hard = self.execution_mode != "INTERNAL_PAPER"
+        partial_quotes = quote_coverage < self.config.min_quote_coverage
+        if partial_quotes:
+            if tick.status == "OK": tick.status = "DEGRADED"
+            tick.errors.append("PARTIAL_QUOTE_COVERAGE:覆盖不足，暂不作全观察池判断")
+            readiness["partial"] = True
         # 同理：个别持仓缺行情不应永久掐断内部 Paper 的 live。
         # 缺行情持仓本身无法定价/下单（上方循环会跳过），其余标的应继续本地撮合。
         position_quotes_hard = self.execution_mode != "INTERNAL_PAPER"
@@ -2130,7 +2157,7 @@ class WatchLoop:
         readiness["phase"] = "market_checked"
         events.emit("READINESS", cycle=self._cycle, detail=readiness, now=current)
 
-        pool_median_pct = median(pool_pcts) if pool_pcts else None
+        pool_median_pct = median(pool_pcts) if pool_pcts and not partial_quotes else None
         cycle_submits = 0
         frozen_codes: set[str] = set()
         strategy_progress: list[dict] = []
@@ -2148,6 +2175,27 @@ class WatchLoop:
                     bar,
                     position.qty if position else 0,
                 )
+                signal.quality_status = "PARTIAL_COVERAGE" if partial_quotes else "PASS"
+                signal.quality_detail = {
+                    "coverage": round(quote_coverage, 6), "minimum_coverage": self.config.min_quote_coverage,
+                    "universe_source": self._universe_source, "universe_count": len(self._candidates),
+                    "quote_source": getattr(quote, "source", ""),
+                    "market_time": (quote.market_time.replace(tzinfo=clock.CN_TZ).isoformat()
+                                    if quote.market_time is not None and quote.market_time.tzinfo is None
+                                    else quote.market_time.isoformat() if quote.market_time else None),
+                    "received_at": (quote.received_at.replace(tzinfo=clock.CN_TZ).isoformat()
+                                    if quote.received_at is not None and quote.received_at.tzinfo is None
+                                    else quote.received_at.isoformat() if quote.received_at else None),
+                    "freshness_seconds": getattr(quote, "freshness_seconds", None),
+                    "validity": getattr(getattr(quote, "validity", None), "value", "UNKNOWN"),
+                    "bar_source": bar.source,
+                    "selection_lineage": candidate.selection_lineage,
+                }
+                decision_time = current.replace(tzinfo=clock.CN_TZ) if current.tzinfo is None else current
+                if decision_time >= datetime.fromisoformat(signal.valid_until) and signal.action in {"buy", "sell"}:
+                    signal.action = "hold"
+                    signal.signal_status = "INVALIDATED"
+                    signal.reason_codes.append("EXPIRED_BAR")
                 strategy_progress.append({
                     "code": candidate.stock_code,
                     "strategy": self.adapter.strategy_name,
@@ -2157,6 +2205,7 @@ class WatchLoop:
                 })
                 if not ready_before:
                     signal.action = "hold"
+                    signal.signal_status = "WARMUP"
                     signal.reason_codes = ["WARMUP", "BAR_CLOSED"]
                 tick.signals.append(signal.to_dict())
                 events.emit("SIGNAL", code=candidate.stock_code, name=display_name, cycle=self._cycle, detail=signal.to_dict(), now=current)
@@ -2515,6 +2564,9 @@ class WatchLoop:
             ),
             "covered_quote_count": covered_quote_count,
             "quote_coverage": round(quote_coverage, 6),
+            "decision_status": "PARTIAL_COVERAGE" if partial_quotes else "OBSERVATION_ONLY",
+            "market_wide_coverage": round(quote_coverage, 6) if self._universe_source == "full_market"
+                and not any(e.startswith("FULL_UNIVERSE_") for e in self._prepare_errors) else None,
             "cached_quote_count": cached_quote_count,
             "source_quote_coverage": round(
                 max(covered_quote_count - cached_quote_count, 0) / len(self._candidates), 6

@@ -55,6 +55,20 @@ public interface SecurityMasterHistoryRepository extends JpaRepository<SecurityM
     @Query("SELECT COUNT(h) FROM SecurityMasterHistory h WHERE h.reliability = :reliability")
     long countByReliability(String reliability);
 
+    /** Bootstrap、未知可靠度或缺少上市日的记录不能充当概率研究的历史主表证据。 */
+    @Query("SELECT COUNT(h) FROM SecurityMasterHistory h WHERE " +
+            "LOWER(COALESCE(h.reliability, '')) <> 'official' " +
+            "OR LOWER(COALESCE(h.source, '')) IN ('', 'current_snapshot', 'delisted_placeholder') " +
+            "OR h.listDate IS NULL")
+    long countUnverified();
+
+    @Query("SELECT COUNT(h) FROM SecurityMasterHistory h WHERE " +
+            "h.validFrom <= :asOf AND (h.validTo IS NULL OR h.validTo > :asOf) AND " +
+            "(LOWER(COALESCE(h.reliability, '')) <> 'official' " +
+            "OR LOWER(COALESCE(h.source, '')) IN ('', 'current_snapshot', 'delisted_placeholder') " +
+            "OR h.listDate IS NULL)")
+    long countUnverifiedEffectiveAt(@Param("asOf") LocalDate asOf);
+
     /** 内容指纹：count, min(valid_from), max(valid_from), max(ingested_at)。 */
     @Query("""
             SELECT COUNT(h), MIN(h.validFrom), MAX(h.validFrom), MAX(h.ingestedAt)

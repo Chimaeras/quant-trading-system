@@ -215,6 +215,9 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
             );
             if (codexResult != null) {
                 codexResult.putAll(universe.lineage());
+                if (persist && codexResult.get("result_id") instanceof String resultId) {
+                    persistUniverseLineage(resultId, universe);
+                }
             }
             return codexResult;
         }
@@ -377,6 +380,7 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
             selectorResultItemRepository.saveAll(persistedItems);
         }
         enrichFactorSnapshot(finalResultId, persistedItems.size());
+        persistUniverseLineage(finalResultId, universe);
         int totalTargets = targetsSize(pairs);
         int finalScoredCount = candidates.size();
         progressiveResultWriter.finishResult(
@@ -441,6 +445,16 @@ public class StockSelectorService extends com.quant.service.scoring.AbstractScor
             snap.put("cross_section_count", crossSectionCount);
             snap.put("display_top_n", result.getTopN());
             result.setFactorSnapshot(snap);
+            selectorResultRepository.save(result);
+        });
+    }
+
+    private void persistUniverseLineage(String resultId, PointInTimeUniverseProvider.UniverseView universe) {
+        selectorResultRepository.findByResultId(resultId).ifPresent(result -> {
+            Map<String, Object> snapshot = result.getFactorSnapshot() != null
+                    ? new LinkedHashMap<>(result.getFactorSnapshot()) : new LinkedHashMap<>();
+            snapshot.put("universe_lineage", universe.lineage());
+            result.setFactorSnapshot(snapshot);
             selectorResultRepository.save(result);
         });
     }

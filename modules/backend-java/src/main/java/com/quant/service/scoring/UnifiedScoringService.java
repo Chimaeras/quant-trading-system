@@ -1148,6 +1148,9 @@ public class UnifiedScoringService {
         copyIfPresent(rawResult, s, "risk_level");
         copyIfPresent(rawResult, s, "macro");
         copyIfPresent(rawResult, s, "exclude_st");
+        for (String key : List.of("universe_as_of", "master_source", "master_reliability", "pit_limited", "universe_size")) {
+            copyIfPresent(rawResult, s, key);
+        }
         return s;
     }
 

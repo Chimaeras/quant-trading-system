@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  * 候选与核销结果以 JSON 落库，支持按 {@code tradeDate} 回溯历史某天的候选与命中率。
  *
  * <p>评分说明：候选排序优先用 T+1 概率（若已训练 horizon=1 模型），否则回退规则分
- * （涨停基因 + 短期动量 + 量能 + 趋势位置，rule_score 语义，非概率）。
+ * （短期动量 + 量能 + 趋势位置，0–50 的 rule_score，非概率）。概率输出要求匹配且绑定的 champion 校准器。
  */
 @Data
 @Entity

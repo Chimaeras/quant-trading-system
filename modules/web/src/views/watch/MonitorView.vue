@@ -30,8 +30,16 @@
           <span class="value">{{ lastCycle?.ts ?? '—' }}</span>
         </div>
         <div class="status-item">
-          <span class="label">L1覆盖</span>
+          <span class="label">扫描池覆盖</span>
           <span class="value">{{ l1Coverage }}</span>
+        </div>
+        <div class="status-item">
+          <span class="label">股票池来源</span>
+          <span class="value">{{ (lastCycle?.detail as any)?.metrics?.universe_source ?? '未知' }}</span>
+        </div>
+        <div class="status-item">
+          <span class="label">全市场覆盖</span>
+          <span class="value">{{ marketWideCoverage }}</span>
         </div>
         <div class="status-item">
           <span class="label">L2活跃池</span>
@@ -46,6 +54,8 @@
           <span class="value">{{ poolQuoteCoverage }}</span>
         </div>
         <div class="status-item grow">
+          <el-alert v-if="partialDecision" type="warning" :closable="false" show-icon
+            title="行情覆盖或策略就绪状态不足，暂不作全观察池判断。未覆盖或未预热股票不等于无信号。" />
           <el-alert v-if="!serviceUp" type="warning" :closable="false" show-icon
             title="watch-serve 未启动：请在 compute-python 下运行 python -m paper.cli watch-serve" />
           <el-alert v-else-if="halted" type="error" :closable="false" show-icon
@@ -62,11 +72,11 @@
       <template #header>
         <div class="panel-header">
           <div class="panel-title">
-            <span>策略推荐（{{ recommendRows.length }}）</span>
-            <span class="panel-hint">买卖信号始终展示；仓位/板块拦截只标状态，不隐藏</span>
+            <span>技术规则提醒（{{ recommendRows.length }}）</span>
+            <span class="panel-hint">持有周期未经验证，需人工判断；历史和已失效信号保留供复核</span>
           </div>
           <el-tag v-if="adviceError" type="danger" size="small">推荐数据加载失败，将自动重试</el-tag>
-          <el-tag v-else-if="!recommendRows.length && serviceUp" type="info" size="small">暂无买卖信号</el-tag>
+          <el-tag v-else-if="!recommendRows.length && serviceUp" type="info" size="small">{{ partialDecision ? '覆盖不足，暂不判断' : '本观察池暂无规则提醒' }}</el-tag>
         </div>
       </template>
       <div ref="recommendHostRef" class="table-host">
@@ -75,12 +85,13 @@
           :height="hostHeights.recommend"
           :data="recommendRows"
           size="small"
-          empty-text="暂无买卖信号（有信号时会显示在这里）"
+          :empty-text="partialDecision ? '覆盖不足，暂不作全池判断' : '本观察池暂无技术规则提醒'"
           @row-click="(row: any) => openDetail(row)"
         >
-          <el-table-column prop="ts" label="时间" min-width="96">
+          <el-table-column prop="ts" label="产生时间" min-width="96">
             <template #default="{ row }">{{ row.ts.slice(11) }}</template>
           </el-table-column>
+          <el-table-column prop="barTs" label="数据 bar 结束" min-width="140" show-overflow-tooltip />
           <el-table-column prop="code" label="代码" min-width="78">
             <template #default="{ row }">
               <el-link type="primary" :underline="false">{{ row.code }}</el-link>
@@ -93,7 +104,10 @@
             </template>
           </el-table-column>
           <el-table-column prop="strategy" label="策略" min-width="88" show-overflow-tooltip />
-          <el-table-column label="建议量" min-width="72" align="right">
+          <el-table-column prop="strategyVersion" label="策略版本 / 参数" min-width="160" show-overflow-tooltip />
+          <el-table-column prop="validUntil" label="失效时间" min-width="140" show-overflow-tooltip />
+          <el-table-column prop="qualityStatus" label="数据质量" min-width="125" show-overflow-tooltip />
+          <el-table-column label="模拟数量" min-width="72" align="right">
             <template #default="{ row }">{{ row.qty ?? '—' }}</template>
           </el-table-column>
           <el-table-column label="参考价" min-width="78" align="right">
@@ -173,13 +187,13 @@
                 <el-tag type="info" size="small">禁用</el-tag>
               </el-tooltip>
               <el-tag v-else-if="row.active" type="success" size="small">L2分析</el-tag>
-              <el-tag v-else type="info" size="small">L1扫描</el-tag>
+              <el-tag v-else type="info" size="small">{{ row.scanned ? 'L1扫描' : '未扫描' }}</el-tag>
             </template>
           </el-table-column>
           <el-table-column label="来源" min-width="78">
             <template #default="{ row }">
               <el-tag :type="row.manual ? 'warning' : 'info'" size="small">
-                {{ row.manual ? '手动' : '热门' }}
+                {{ row.manual ? '手动' : row.poolSource === 't1' ? 'T+1候选' : row.poolSource === 'hot_stocks' ? '热门' : '未知' }}
               </el-tag>
             </template>
           </el-table-column>
@@ -448,12 +462,20 @@ const halted = computed(() =>
   events.value.some((e) => e.type === 'ERROR' && String((e.detail as any).scope) === 'STOP_RUN')
 )
 const maxTrades = 20
+const partialDecision = computed(() =>
+  (lastCycle.value?.detail as any)?.metrics?.decision_status === 'PARTIAL_COVERAGE'
+  || !lastCycle.value || ['DEGRADED', 'BLOCKED', 'NO_UNIVERSE'].includes(String((lastCycle.value?.detail as any)?.status))
+)
+const marketWideCoverage = computed(() => {
+  const raw = (lastCycle.value?.detail as any)?.metrics?.market_wide_coverage
+  return raw == null ? '未扫描全市场' : `${(Number(raw) * 100).toFixed(2)}%`
+})
 const l1Coverage = computed(() => {
   const value = Number(marketSnapshot.value?.batch?.coverage)
   return Number.isFinite(value) ? `${(value * 100).toFixed(2)}%` : '—'
 })
 const strategyScanCount = computed(() => {
-  const total = Number(watchPool.value?.total || 0)
+  const total = Number((lastCycle.value?.detail as any)?.metrics?.universe_count || 0)
   if (!total) return '—'
   return `${total} 只`
 })
@@ -491,14 +513,16 @@ function quoteSourceKind(quote: any): 'realtime' | 'cache' | 'unknown' {
 }
 
 const universeRows = computed(() => {
-  const rows = new Map<string, { code: string; name?: string; last?: number; pct?: number; disabled?: string; active?: boolean; manual?: boolean }>()
+  const rows = new Map<string, { code: string; name?: string; last?: number; pct?: number; disabled?: string; active?: boolean; manual?: boolean; marketTime?: string; sourceKind?: 'realtime' | 'cache' | 'unknown'; poolSource?: string; scanned?: boolean }>()
   const active = new Set((marketSnapshot.value?.active_pool || []).map((item: any) => String(item.code)))
   for (const item of watchPool.value?.items || []) {
     rows.set(item.code, {
       code: item.code,
       name: item.name,
       active: active.has(item.code),
-      manual: Boolean(item.manual)
+      manual: Boolean(item.manual),
+      poolSource: item.source,
+      scanned: false,
     })
   }
   for (const quote of marketSnapshot.value?.quotes || []) {
@@ -516,7 +540,9 @@ const universeRows = computed(() => {
       marketTime: (quote as any).last_market_time || (quote as any).market_time || undefined,
       sourceKind: quoteSourceKind(quote),
       active: active.has(String(quote.code)),
-      manual: existing?.manual
+      manual: existing?.manual,
+      poolSource: existing?.poolSource,
+      scanned: true,
     })
   }
   for (const e of events.value) {
@@ -630,6 +656,10 @@ const recommendRows = computed(() => {
     name: string
     action: string
     strategy: string
+    strategyVersion: string
+    barTs: string
+    validUntil: string
+    qualityStatus: string
     qty?: number
     price?: number
     statusLabel: string
@@ -657,9 +687,13 @@ const recommendRows = computed(() => {
     const riskDetail = (risk?.detail || {}) as any
     const qtyRaw = Number(sizingDetail.final_qty ?? riskDetail.qty)
     const priceRaw = Number(sizingDetail.last ?? riskDetail.limit_price)
-    const status = risk
+    let status: { label: string; type: 'success' | 'warning' | 'info' | 'danger' } = risk
       ? riskStatusMeta(String(riskDetail.result || ''), String(riskDetail.reject_reason || ''))
       : { label: '待风控确认', type: 'info' as const }
+    const expiry = Date.parse(String(detail.valid_until || ''))
+    if (!Number.isFinite(expiry)) status = { label: '历史提醒·有效期未知', type: 'warning' }
+    else if (expiry <= Date.now()) status = { label: '已失效·仅供复核', type: 'info' }
+    else if (detail.quality_status !== 'PASS') status = { label: '数据受限·待人工核实', type: 'warning' }
     const reasons = Array.isArray(detail.reason_codes)
       ? detail.reason_codes.join(',')
       : String(detail.reason || detail.strategy || '—')
@@ -671,6 +705,10 @@ const recommendRows = computed(() => {
       name: eventName(event),
       action,
       strategy: String(detail.strategy || '—'),
+      strategyVersion: String(detail.strategy_version || '未知'),
+      barTs: String(detail.bar_ts || '未知'),
+      validUntil: String(detail.valid_until || '未知'),
+      qualityStatus: String(detail.quality_status || 'UNKNOWN'),
       qty: Number.isFinite(qtyRaw) && qtyRaw > 0 ? qtyRaw : undefined,
       price: Number.isFinite(priceRaw) && priceRaw > 0 ? priceRaw : undefined,
       statusLabel: status.label,

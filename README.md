@@ -2,7 +2,7 @@
 
 > 定位：个人开发者友好 · A 股数据管理 + 多策略选股打分 · 易扩展
 
-基于 **Java(Spring Boot 后端) + Vue3(前端) + Python(独立脚本)** 架构的个人量化选股系统。
+基于 **Java(Spring Boot 后端) + Vue3(前端) + Python(盘中监控与计算)** 架构的个人量化选股系统。
 
 ## 系统架构
 
@@ -25,7 +25,7 @@
 | 前端 | Vue3 + Element Plus + ECharts + TypeScript | - |
 | 后端 | Spring Boot | 3.2 |
 | 数据库 | MySQL | 8.0 |
-| 量化脚本 | Python + pandas/numpy | 3.9+（独立，未接入运行时） |
+| 盘中监控与计算 | Python + pandas/numpy | 3.10+；监控页经 Java `/pyapi` 代理访问本机 watch-serve |
 
 ## 快速开始
 
@@ -70,7 +70,7 @@ quant-trading-system/
 ├── modules/
 │   ├── web/              # 前端 Web（Vue3 + TypeScript）
 │   ├── backend-java/     # Java 后端（Spring Boot）
-│   ├── compute-python/   # Python 量化脚本（独立）
+│   ├── compute-python/   # Python 计算与盘中 watch/watch-serve
 │   └── database/         # 数据库脚本
 ├── docker/               # Docker 配置
 ├── docs/                 # 文档
@@ -158,6 +158,12 @@ quant-trading-system/
 | 账户 | `GET /api/account/info` | 模拟账户概览 |
 | 持仓 | `GET /api/position/list` | 持仓列表 |
 | 订单 | `POST /api/order/place` | 模拟下单 |
+
+## 盘中观察启动口径
+
+`scripts/start_internal_paper_watch.ps1` 默认采用 `SHADOW`（仅观察）和 `T1`（日频候选观察池）。自动确定信号日期需要交易日历；也可显式传入 `-SignalDate yyyy-MM-dd`，启动时仍会校验对应观察交易日。缺失或过期的候选不会自动切换到热门股池。需要热门/手动观察池时显式使用 `-UniverseMode WATCHLIST`。
+
+`INTERNAL_PAPER`、`EXTERNAL_PAPER` 为显式选择的模拟执行模式。T1 排名和盘中技术提醒用于人工研究；“次日方向统计”是未扣成本的统计，不代表可交易净收益，未通过校准证据门的输出显示为规则分数。
 
 ## 规划中
 

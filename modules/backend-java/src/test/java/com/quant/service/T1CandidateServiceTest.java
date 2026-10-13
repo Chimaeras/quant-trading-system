@@ -51,13 +51,15 @@ class T1CandidateServiceTest {
     private ModelVersionRepository modelVersionRepository;
     @Mock
     private IndexQuoteRepository indexQuoteRepository;
+    @Mock
+    private com.quant.research.CalibratorService calibratorService;
 
     private T1CandidateService service() {
         ObjectMapper om = com.fasterxml.jackson.databind.json.JsonMapper.builder()
                 .addModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
                 .build();
         return new T1CandidateService(marketDataRepository, pointInTimeUniverseProvider, t1CandidateRepository,
-                limitUpEcologyService, tradingCalendarService, modelVersionRepository, indexQuoteRepository, om);
+                limitUpEcologyService, tradingCalendarService, modelVersionRepository, indexQuoteRepository, om, calibratorService);
     }
 
     private void stubUniverse(LocalDate d, StockInfo info) {
@@ -68,10 +70,53 @@ class T1CandidateServiceTest {
                         d,
                         List.of(info),
                         byKey,
-                        PointInTimeUniverseProvider.SOURCE_STOCK_INFO_FALLBACK,
-                        PointInTimeUniverseProvider.RELIABILITY_LIMITED,
-                        true,
+                        PointInTimeUniverseProvider.SOURCE_PIT_HISTORY,
+                        PointInTimeUniverseProvider.RELIABILITY_OFFICIAL,
+                        false,
                         1));
+    }
+
+    private static com.quant.entity.ModelVersion championModel(int max) {
+        var mv = new com.quant.entity.ModelVersion();
+        mv.setModelVersion("logistic_v1_t1");
+        mv.setAlgorithm(com.quant.research.LogisticModelTrainer.ALGORITHM);
+        mv.setStrategyType("T1");
+        mv.setHorizon(1);
+        mv.setStage("champion");
+        mv.setFeatureSetVersion("t1_rule_score_v2");
+        mv.setSchemaHash(com.quant.research.LogisticModelTrainer.ruleScoreSchemaHash());
+        mv.setOutputKind(com.quant.research.LogisticModelTrainer.OUTPUT_KIND);
+        mv.setLabelVersion("label_v1");
+        mv.setDataSnapshotId("snap_1");
+        mv.setCodeVersion("model_test_v1");
+        mv.setCreatedAt(LocalDate.of(2024, 12, 27).atStartOfDay());
+        mv.setDeployKey(com.quant.research.artifact.ModelImportService.buildDeployKey(mv.getAlgorithm(), mv.getFeatureSetVersion(), mv.getSchemaHash()));
+        mv.setArtifact("{\"weights\":[1.0],\"bias\":0.0,\"features\":[\"rule_score\"],"
+                + "\"preprocessor\":{\"type\":\"min_max\",\"fit_window\":\"train_only\",\"min\":[0.0],\"max\":[" + max + "]}}");
+        mv.setArtifactHash(com.quant.research.artifact.ArtifactManifestValidator.sha256Hex(mv.getArtifact()));
+        return mv;
+    }
+
+    private static com.quant.entity.Calibrator championCalibrator(com.quant.entity.ModelVersion mv) {
+        var cal = new com.quant.entity.Calibrator();
+        cal.setCalibratorVersion("cal_t1_test");
+        cal.setStrategyType("T1");
+        cal.setHorizon(1);
+        cal.setStage("champion");
+        cal.setBaseModelVersion(mv.getModelVersion());
+        cal.setBaseOutputKind(mv.getOutputKind());
+        cal.setLabelVersion(mv.getLabelVersion());
+        cal.setDataSnapshotId(mv.getDataSnapshotId());
+        cal.setCodeVersion("cal_test_v1");
+        cal.setFitEnd(LocalDate.of(2024, 10, 31));
+        cal.setEvalStart(LocalDate.of(2024, 11, 1));
+        cal.setEvalEnd(LocalDate.of(2024, 12, 20));
+        cal.setCreatedAt(LocalDate.of(2024, 12, 27).atStartOfDay());
+        cal.setInputDomain("rule_score");
+        cal.setOutputKind("platt_sigmoid");
+        cal.setCalibratorJson("{\"kind\":\"platt_sigmoid\",\"input_domain\":\"rule_score\",\"norm\":{\"min\":0,\"max\":50},\"sigmoid\":{\"a\":1,\"b\":0}}");
+        cal.setCalibratorHash(com.quant.research.artifact.ArtifactManifestValidator.sha256Hex(cal.getCalibratorJson()));
+        return cal;
     }
 
     @Test
@@ -97,7 +142,7 @@ class T1CandidateServiceTest {
         when(limitUpEcologyService.ecology(any(), anyInt())).thenReturn(Map.of("limit_up_count", 1));
         when(limitUpEcologyService.historicalNextDayPremium(any(), anyInt()))
                 .thenReturn(Map.of("avg_gap", 0.01, "high_open_rate", 0.6));
-        when(modelVersionRepository.findFirstByHorizonAndStageOrderByCreatedAtDesc(any(), any()))
+        when(modelVersionRepository.findFirstByDeployKeyAndStageAndStrategyTypeAndHorizonOrderByCreatedAtDesc(any(), any(), any(), any()))
                 .thenReturn(Optional.empty());
         when(t1CandidateRepository.findByTradeDate(d)).thenReturn(Optional.empty());
 
@@ -116,7 +161,7 @@ class T1CandidateServiceTest {
         assertThat(out.get("rule_score_max")).isEqualTo(50.0);
         assertThat(out.get("threshold_version")).isEqualTo("t1_rule_v2");
         // 非涨停标的的可买性预判为「可买」（涨停才是「高开追高谨慎」）
-        assertThat(candidates.get(0).get("buyability")).isEqualTo("可买");
+        assertThat(candidates.get(0).get("buyability")).isEqualTo("待盘中核实");
     }
 
     /**
@@ -132,6 +177,7 @@ class T1CandidateServiceTest {
         double prevClose = 13.3;
         last.setPreClose(BigDecimal.valueOf(prevClose));
         last.setClosePrice(BigDecimal.valueOf(Math.round(prevClose * 1.10 * 100.0) / 100.0));
+        last.setHighPrice(last.getClosePrice().add(BigDecimal.valueOf(0.2)));
         when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
                 .thenReturn(rangeBars);
         when(marketDataRepository.findByTradeDate(d)).thenReturn(List.of(last));
@@ -178,14 +224,11 @@ class T1CandidateServiceTest {
         // horizon=1 模型存在：artifact 含权重 1.0 / bias 0 / min 0 / max 50
         // （D-T1-01 之后 rule_score 值域为 0–50，preprocessor.max 必须同标度，
         //   否则会被 PREPROCESSOR_SCALE_MISMATCH 守卫拒绝推理）
-        com.quant.entity.ModelVersion mv = new com.quant.entity.ModelVersion();
-        mv.setModelVersion("logistic_v1_t1");
-        mv.setHorizon(1);
-        mv.setStage("champion");
-        mv.setFeatureVersion("t1_rule_score_v1");
-        mv.setArtifact("{\"weights\":[1.0],\"bias\":0.0,\"features\":[\"rule_score\"],"
-                + "\"preprocessor\":{\"type\":\"min_max\",\"fit_window\":\"train_only\",\"min\":[0.0],\"max\":[50.0]}}");
-        when(modelVersionRepository.findFirstByHorizonAndStageOrderByCreatedAtDesc(any(), any()))
+        com.quant.entity.ModelVersion mv = championModel(50);
+        com.quant.entity.Calibrator cal = championCalibrator(mv);
+        when(calibratorService.loadChampion("T1", 1, mv.getModelVersion())).thenReturn(Optional.of(cal));
+        when(calibratorService.apply(org.mockito.ArgumentMatchers.eq(cal), org.mockito.ArgumentMatchers.anyDouble())).thenReturn(0.7);
+        when(modelVersionRepository.findFirstByDeployKeyAndStageAndStrategyTypeAndHorizonOrderByCreatedAtDesc(any(), any(), any(), any()))
                 .thenReturn(Optional.of(mv));
         when(t1CandidateRepository.findByTradeDate(d)).thenReturn(Optional.empty());
 
@@ -228,14 +271,8 @@ class T1CandidateServiceTest {
         when(limitUpEcologyService.historicalNextDayPremium(any(), anyInt()))
                 .thenReturn(Map.of("avg_gap", 0.01, "high_open_rate", 0.5));
         // preprocessor.max=100 是旧标度（当前满分 50）→ 必须被守卫拒绝
-        com.quant.entity.ModelVersion mv = new com.quant.entity.ModelVersion();
-        mv.setModelVersion("logistic_v1_t1_old_scale");
-        mv.setHorizon(1);
-        mv.setStage("champion");
-        mv.setFeatureVersion("t1_rule_score_v1");
-        mv.setArtifact("{\"weights\":[1.0],\"bias\":0.0,\"features\":[\"rule_score\"],"
-                + "\"preprocessor\":{\"type\":\"min_max\",\"fit_window\":\"train_only\",\"min\":[0.0],\"max\":[100.0]}}");
-        when(modelVersionRepository.findFirstByHorizonAndStageOrderByCreatedAtDesc(any(), any()))
+        com.quant.entity.ModelVersion mv = championModel(100);
+        when(modelVersionRepository.findFirstByDeployKeyAndStageAndStrategyTypeAndHorizonOrderByCreatedAtDesc(any(), any(), any(), any()))
                 .thenReturn(Optional.of(mv));
         when(t1CandidateRepository.findByTradeDate(d)).thenReturn(Optional.empty());
 
@@ -270,7 +307,7 @@ class T1CandidateServiceTest {
         when(limitUpEcologyService.ecology(any(), anyInt())).thenReturn(Map.of("limit_up_count", 0));
         when(limitUpEcologyService.historicalNextDayPremium(any(), anyInt()))
                 .thenReturn(Map.of("avg_gap", 0.0, "high_open_rate", 0.5));
-        when(modelVersionRepository.findFirstByHorizonAndStageOrderByCreatedAtDesc(any(), any()))
+        when(modelVersionRepository.findFirstByDeployKeyAndStageAndStrategyTypeAndHorizonOrderByCreatedAtDesc(any(), any(), any(), any()))
                 .thenReturn(Optional.empty());
         when(t1CandidateRepository.findByTradeDate(d)).thenReturn(Optional.empty());
 
@@ -311,6 +348,137 @@ class T1CandidateServiceTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> results = (List<Map<String, Object>>) out.get("results");
         assertThat(((Number) results.get(0).get("next_ret")).doubleValue()).isCloseTo(0.10, org.assertj.core.data.Offset.offset(1e-9));
+    }
+
+    @Test
+    void missingSignalDayDoesNotFallBackOrWriteSnapshot() {
+        LocalDate day = LocalDate.of(2025, 1, 4);
+        Map<String, Object> out = service().generateCandidates(day, 10);
+        assertThat(out.get("status")).isEqualTo("NO_DATA");
+        assertThat(out.get("trade_date")).isEqualTo(day.toString());
+        assertThat((List<?>) out.get("candidates")).isEmpty();
+        verify(marketDataRepository, org.mockito.Mockito.never()).findLatestTradeDateOnOrBefore(any());
+        verify(t1CandidateRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void pricesOutsideThePitUniverseCannotEnterTheShortlist() {
+        LocalDate day = LocalDate.of(2025, 1, 2);
+        List<MarketData> known = strongTrendBars("000001", "SZSE", day, 35);
+        List<MarketData> unknown = strongTrendBars("000002", "SZSE", day, 35);
+        List<MarketData> prices = new ArrayList<>(known); prices.addAll(unknown);
+        when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any())).thenReturn(prices);
+        when(marketDataRepository.findByTradeDate(day)).thenReturn(List.of(known.getLast(), unknown.getLast()));
+        StockInfo info = new StockInfo();
+        info.setStockCode("000001"); info.setExchangeType("SZSE"); info.setStockName("测试股份");
+        info.setStatus(1); info.setListDate(day.minusYears(2)); stubUniverse(day, info);
+        when(limitUpEcologyService.stockLimitUpFeatures(any(), any(), any())).thenReturn(Map.of("volume_ratio", 6.0));
+        Map<String, Object> out = service().generateCandidates(day, 10);
+        assertThat((List<?>) out.get("candidates")).hasSize(1);
+        assertThat(out.get("total_scored")).isEqualTo(1);
+        verify(limitUpEcologyService).stockLimitUpFeatures(any(), any(), any());
+    }
+
+    @Test
+    void partialDailyRowsAreNotCalledAWeakSignalDay() {
+        LocalDate day = LocalDate.of(2025, 1, 2);
+        StockInfo a = new StockInfo(), b = new StockInfo();
+        a.setStockCode("000001"); a.setExchangeType("SZSE"); a.setStatus(1); a.setListDate(day.minusYears(2));
+        b.setStockCode("000002"); b.setExchangeType("SZSE"); b.setStatus(1); b.setListDate(day.minusYears(2));
+        when(pointInTimeUniverseProvider.loadAsOf(day)).thenReturn(new PointInTimeUniverseProvider.UniverseView(
+                day, List.of(a,b), Map.of("000001|SZSE", a, "000002|SZSE", b), "security_master_history", "official", false, 2));
+        when(marketDataRepository.findByTradeDate(day)).thenReturn(List.of(nextBar(day, "000001", "SZSE", 10, 10)));
+        Map<String, Object> out = service().generateCandidates(day, 10);
+        assertThat(out.get("status")).isEqualTo("INCOMPLETE_DAILY_DATA");
+        assertThat(out.get("daily_coverage")).isEqualTo(0.5);
+        verify(t1CandidateRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void sameDayRequestBeforeCloseDoesNotReadPrices() {
+        T1CandidateService subject = service();
+        org.springframework.test.util.ReflectionTestUtils.setField(subject, "clock", java.time.Clock.fixed(
+                java.time.Instant.parse("2025-01-02T06:59:00Z"), java.time.ZoneId.of("Asia/Shanghai")));
+        assertThat(subject.generateCandidates(LocalDate.of(2025, 1, 2), 10).get("status")).isEqualTo("DAILY_BAR_NOT_CLOSED");
+        org.mockito.Mockito.verifyNoInteractions(marketDataRepository, t1CandidateRepository);
+    }
+
+    @Test
+    void repeatedGenerationPreservesOriginalCandidatesAndSettlement() {
+        LocalDate day = LocalDate.of(2025, 1, 2);
+        T1Candidate rec = new T1Candidate();
+        rec.setTradeDate(day);
+        rec.setCandidatesJson("[{\"stock_code\":\"000001\",\"rule_score\":37}]");
+        rec.setSettled(true);
+        rec.setSettledJson("{\"summary\":{\"settled\":1}}");
+        when(t1CandidateRepository.findByTradeDate(day)).thenReturn(Optional.of(rec));
+        Map<String, Object> out = service().generateCandidates(day, 50);
+        assertThat(out.get("snapshot_reused")).isEqualTo(true);
+        assertThat(rec.getSettled()).isTrue();
+        assertThat(rec.getCandidatesJson()).contains("37");
+        org.mockito.Mockito.verifyNoInteractions(marketDataRepository);
+        verify(t1CandidateRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void missingCandidatePriceDoesNotFinalizeSettlement() {
+        LocalDate day = LocalDate.of(2025, 1, 2);
+        T1Candidate rec = new T1Candidate();
+        rec.setTradeDate(day);
+        rec.setCandidatesJson("[{\"stock_code\":\"000001\",\"exchange_type\":\"SZSE\",\"close\":10}]");
+        when(t1CandidateRepository.findByTradeDate(day)).thenReturn(Optional.of(rec));
+        when(tradingCalendarService.findTradingDays(day, day.plusDays(7))).thenReturn(List.of(day, day.plusDays(1)));
+        Map<String, Object> out = service().settleCandidates(day);
+        assertThat(out.get("status")).isEqualTo("PARTIAL_DATA");
+        assertThat(rec.getSettled()).isFalse();
+    }
+
+    @Test
+    void finalizedSettlementIsNotRecomputedFromRevisedPrices() {
+        LocalDate day = LocalDate.of(2025, 1, 2);
+        T1Candidate rec = new T1Candidate();
+        rec.setTradeDate(day);
+        rec.setSettled(true);
+        rec.setSettledJson("{\"summary\":{\"avg_next_ret\":0.1},\"results\":[]}");
+        when(t1CandidateRepository.findByTradeDate(day)).thenReturn(Optional.of(rec));
+        assertThat(service().settleCandidates(day).get("status")).isEqualTo("ALREADY_SETTLED");
+        org.mockito.Mockito.verifyNoInteractions(marketDataRepository, tradingCalendarService);
+        verify(t1CandidateRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void benchmarkPairsSignalCloseWithExactSettlementCloseAndCountsAbstentions() {
+        LocalDate day = LocalDate.of(2025, 1, 2);
+        T1Candidate rec = new T1Candidate();
+        rec.setTradeDate(day);
+        rec.setTopN(10);
+        rec.setSettled(true);
+        rec.setCandidatesJson("[{},{}]");
+        rec.setSettledJson("{\"next_trade_date\":\"2025-01-03\",\"summary\":{\"settled\":2,\"hit_count\":2,\"avg_next_ret\":0.1}}");
+        T1Candidate empty = new T1Candidate();
+        empty.setTradeDate(day.plusDays(1));
+        empty.setCandidatesJson("[]");
+        T1Candidate partial = new T1Candidate();
+        partial.setTradeDate(day.plusDays(4));
+        partial.setCandidatesJson("[{},{}]");
+        partial.setSettledJson("{\"summary\":{\"settled\":1,\"avg_next_ret\":0.9}}");
+        when(t1CandidateRepository.findByTradeDateBetweenOrderByTradeDateAsc(day, day.plusDays(4))).thenReturn(List.of(rec, empty, partial));
+        List<com.quant.entity.IndexQuote> index = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            var quote = new com.quant.entity.IndexQuote();
+            quote.setTradeDate(day.plusDays(i));
+            quote.setClosePrice(BigDecimal.valueOf(new double[]{100, 110, 220}[i]));
+            index.add(quote);
+        }
+        when(indexQuoteRepository.findByIndexCodeAndTradeDateBetweenOrderByTradeDateAsc(any(), any(), any())).thenReturn(index);
+        Map<String, Object> out = service().strategyStats(day, day.plusDays(4));
+        Map<?, ?> bench = (Map<?, ?>) out.get("benchmark");
+        assertThat(bench.get("index_avg_daily_return")).isEqualTo(0.1);
+        assertThat(bench.get("excess_avg_daily_return")).isEqualTo(0.0);
+        assertThat(out.get("total_settled")).isEqualTo(2);
+        assertThat(out.get("total_candidates")).isEqualTo(4);
+        assertThat(out.get("zero_candidate_days")).isEqualTo(1);
+        assertThat(out.get("unsettled_days")).isEqualTo(1);
     }
 
     /**

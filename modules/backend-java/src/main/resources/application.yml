@@ -69,6 +69,17 @@ quant:
     default-admin-username: ${DEFAULT_ADMIN_USERNAME:admin}
     default-admin-password: ${DEFAULT_ADMIN_PASSWORD:admin123}
     default-sim-cash: 1000000
+  # T 日收盘后自动生成次日候选清单（DS-R030）。
+  # enabled 默认 false —— 与「默认观察、不自动产生交易动作」的既有约定一致；
+  # 需自动产出时显式置 true（或 -Dquant.t1.schedule.enabled=true）。
+  # 无论开关如何，本任务只写 t1_candidate 快照，不触碰任何下单接口。
+  t1:
+    schedule:
+      enabled: false
+      # 收盘后 15:10（上海时区）；周一至周五，实际是否执行仍由交易日历二次判定
+      cron: "0 10 15 * * MON-FRI"
+      # 漏跑自愈：在最近 N 个自然日内找最近一个「日历确认已收盘且有行情」的交易日
+      lookback-days: 10
   scoring:
     cross-section:
       enabled: false

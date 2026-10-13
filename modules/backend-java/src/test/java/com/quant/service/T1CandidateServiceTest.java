@@ -62,6 +62,21 @@ class T1CandidateServiceTest {
                 limitUpEcologyService, tradingCalendarService, modelVersionRepository, indexQuoteRepository, om, calibratorService);
     }
 
+    /**
+     * P0-3 默认夹具：把日历设定为「覆盖 2024-01-01..2026-08-19 且每日均为交易日」。
+     * <p>上界刻意取 2026-08-19，与本地实测的日历末日一致——这样「日历不覆盖」
+     * 这一分支才在夹具中真实可达，而不是靠窗口恰好包住测试日期而掩盖。
+     * <p>用 {@code lenient()} 是因为并非所有用例都会走到日历查询（例如核销类用例），
+     * Mockito 严格模式会把未使用的 stub 判为失败。
+     * 需要「非交易日」或「区间外」语义的用例可自行覆盖该 stub。
+     */
+    @org.junit.jupiter.api.BeforeEach
+    void stubCalendarAsCoveringAndTrading() {
+        org.mockito.Mockito.lenient().when(tradingCalendarService.isTradingDay(any())).thenReturn(true);
+        org.mockito.Mockito.lenient().when(tradingCalendarService.coverageWindow())
+                .thenReturn(new LocalDate[]{LocalDate.of(2024, 1, 1), LocalDate.of(2026, 8, 19)});
+    }
+
     private void stubUniverse(LocalDate d, StockInfo info) {
         Map<String, StockInfo> byKey = new HashMap<>();
         byKey.put(info.getStockCode() + "|" + info.getExchangeType(), info);
@@ -126,6 +141,8 @@ class T1CandidateServiceTest {
         when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
                 .thenReturn(rangeBars);
         when(marketDataRepository.findByTradeDate(d)).thenReturn(List.of(rangeBars.get(rangeBars.size() - 1)));
+        // D-T1-06：覆盖率分母只计「回看窗口内真实有行情」的键
+        stubActivePairs("000001", "SZSE");
         StockInfo info = new StockInfo();
         info.setStockCode("000001");
         info.setExchangeType("SZSE");
@@ -181,6 +198,8 @@ class T1CandidateServiceTest {
         when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
                 .thenReturn(rangeBars);
         when(marketDataRepository.findByTradeDate(d)).thenReturn(List.of(last));
+        // D-T1-06：覆盖率分母只计「回看窗口内真实有行情」的键
+        stubActivePairs("000001", "SZSE");
         StockInfo info = new StockInfo();
         info.setStockCode("000001");
         info.setExchangeType("SZSE");
@@ -206,6 +225,8 @@ class T1CandidateServiceTest {
         when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
                 .thenReturn(rangeBars);
         when(marketDataRepository.findByTradeDate(d)).thenReturn(List.of(rangeBars.get(rangeBars.size() - 1)));
+        // D-T1-06：覆盖率分母只计「回看窗口内真实有行情」的键
+        stubActivePairs("000001", "SZSE");
         StockInfo info = new StockInfo();
         info.setStockCode("000001");
         info.setExchangeType("SZSE");
@@ -257,6 +278,8 @@ class T1CandidateServiceTest {
         when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
                 .thenReturn(rangeBars);
         when(marketDataRepository.findByTradeDate(d)).thenReturn(List.of(rangeBars.get(rangeBars.size() - 1)));
+        // D-T1-06：覆盖率分母只计「回看窗口内真实有行情」的键
+        stubActivePairs("000001", "SZSE");
         StockInfo info = new StockInfo();
         info.setStockCode("000001");
         info.setExchangeType("SZSE");
@@ -294,6 +317,8 @@ class T1CandidateServiceTest {
         when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
                 .thenReturn(rangeBars);
         when(marketDataRepository.findByTradeDate(d)).thenReturn(List.of(rangeBars.get(rangeBars.size() - 1)));
+        // D-T1-06：覆盖率分母只计「回看窗口内真实有行情」的键
+        stubActivePairs("000001", "SZSE");
         StockInfo info = new StockInfo();
         info.setStockCode("000001");
         info.setExchangeType("SZSE");
@@ -352,13 +377,64 @@ class T1CandidateServiceTest {
 
     @Test
     void missingSignalDayDoesNotFallBackOrWriteSnapshot() {
+        // 2025-01-04 是周六；夹具日历覆盖该日但判定为交易日 → 因此这里确定是「数据缺失」。
         LocalDate day = LocalDate.of(2025, 1, 4);
         Map<String, Object> out = service().generateCandidates(day, 10);
         assertThat(out.get("status")).isEqualTo("NO_DATA");
         assertThat(out.get("trade_date")).isEqualTo(day.toString());
         assertThat((List<?>) out.get("candidates")).isEmpty();
+        assertThat(out.get("calendar_trading_day")).isEqualTo(true);
         verify(marketDataRepository, org.mockito.Mockito.never()).findLatestTradeDateOnOrBefore(any());
         verify(t1CandidateRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    /**
+     * P0-3：必须区分「非交易日」与「交易日但数据缺失」——原先两者都返回 NO_DATA。
+     */
+    @Test
+    void nonTradingDayIsReportedAsSuchNotAsMissingData() {
+        LocalDate holiday = LocalDate.of(2025, 1, 4);
+        when(tradingCalendarService.isTradingDay(holiday)).thenReturn(false);
+        Map<String, Object> out = service().generateCandidates(holiday, 10);
+
+        assertThat(out.get("status")).isEqualTo("NOT_A_TRADING_DAY");
+        assertThat(out.get("calendar_trading_day")).isEqualTo(false);
+        assertThat(out.get("note").toString()).contains("非交易日");
+        assertThat((List<?>) out.get("candidates")).isEmpty();
+        verify(t1CandidateRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    /**
+     * P0-3：日历不覆盖该日时**不得**妄断，必须给出第三态。
+     * <p>真实数据：本地日历仅到 2026-08-19，而行情到 2026-10-12。
+     * 若把区间外一律当作休市，会把 2026-09/10 的真实数据断崖说成「非交易日」。
+     */
+    @Test
+    void dayOutsideCalendarCoverageIsUnknownNotTreatedAsHoliday() {
+        LocalDate beyond = LocalDate.of(2026, 10, 12);
+        when(tradingCalendarService.isTradingDay(beyond)).thenReturn(false);
+        Map<String, Object> out = service().generateCandidates(beyond, 10);
+
+        assertThat(out.get("status")).isEqualTo("UNKNOWN");
+        assertThat(out.get("calendar_trading_day")).isEqualTo(false);
+        assertThat(out.get("note").toString()).contains("不在交易日历覆盖范围内");
+        assertThat(out.get("status")).isNotEqualTo("NOT_A_TRADING_DAY");
+        assertThat((List<?>) out.get("candidates")).isEmpty();
+    }
+
+    /**
+     * P0-3：恒为 false 的 {@code data_date_fallback} 必须消失——它暗示存在回退能力，
+     * 而本服务从无回退路径（actualDate 自始至终等于 tradeDate）。
+     */
+    @Test
+    void deadDataDateFallbackMetadataIsRemoved() {
+        LocalDate day = LocalDate.of(2025, 1, 4);
+        Map<String, Object> out = service().generateCandidates(day, 10);
+        assertThat(out).doesNotContainKey("data_date_fallback");
+        // 如实的替代字段必须存在
+        assertThat(out.get("data_cutoff")).isEqualTo(day.toString());
+        assertThat(out.get("requested_trade_date")).isEqualTo(day.toString());
+        assertThat(out).containsKey("calendar_trading_day");
     }
 
     @Test
@@ -369,6 +445,8 @@ class T1CandidateServiceTest {
         List<MarketData> prices = new ArrayList<>(known); prices.addAll(unknown);
         when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any())).thenReturn(prices);
         when(marketDataRepository.findByTradeDate(day)).thenReturn(List.of(known.getLast(), unknown.getLast()));
+        // D-T1-06：只有 PIT 池内的键进入覆盖率分母
+        stubActivePairs("000001", "SZSE", "000002", "SZSE");
         StockInfo info = new StockInfo();
         info.setStockCode("000001"); info.setExchangeType("SZSE"); info.setStockName("测试股份");
         info.setStatus(1); info.setListDate(day.minusYears(2)); stubUniverse(day, info);
@@ -388,10 +466,70 @@ class T1CandidateServiceTest {
         when(pointInTimeUniverseProvider.loadAsOf(day)).thenReturn(new PointInTimeUniverseProvider.UniverseView(
                 day, List.of(a,b), Map.of("000001|SZSE", a, "000002|SZSE", b), "security_master_history", "official", false, 2));
         when(marketDataRepository.findByTradeDate(day)).thenReturn(List.of(nextBar(day, "000001", "SZSE", 10, 10)));
+        // D-T1-06：分母是「回看窗口内真实有行情的在市标的」，两只都在活跃集合内
+        stubActivePairs("000001", "SZSE", "000002", "SZSE");
         Map<String, Object> out = service().generateCandidates(day, 10);
         assertThat(out.get("status")).isEqualTo("INCOMPLETE_DAILY_DATA");
         assertThat(out.get("daily_coverage")).isEqualTo(0.5);
         verify(t1CandidateRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    /**
+     * D-T1-06 回归：分母必须是「回看窗口内真实有行情的在市标的」。
+     *
+     * <p>缺陷复现：旧分母取 `stock_info` 全部在市键（本地实测 5,835，其中 284 个
+     * stock_code 因北交所代码迁移同时存在 BSE 与 SSE 两个 exchange_type 行），
+     * 而当日真实 bar 数最多只有 5,477 → 覆盖率上界 0.9386 < 0.95，
+     * **每个信号日**都返回 INCOMPLETE_DAILY_DATA，候选恒空。
+     *
+     * <p>本测试构造 96 只在活跃窗口内 + 4 只仅存在于证券主表但窗口内无行情的陈旧键：
+     * 修正后覆盖率 = 96/96 = 1.0 → 不被覆盖闸阻断；旧实现下 = 96/100 = 0.96 也会通过，
+     * 故这里用更强的判据——**断言 denominator 只计活跃键**（daily_expected 语义）。
+     */
+    @Test
+    void staleUniverseKeysAreExcludedFromCoverageDenominator() {
+        LocalDate day = LocalDate.of(2025, 1, 2);
+        List<MarketData> range = strongTrendBars("000001", "SZSE", day, 35);
+        when(marketDataRepository.findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc(any(), any()))
+                .thenReturn(range);
+        Map<String, StockInfo> byKey = new HashMap<>();
+        List<StockInfo> stocks = new ArrayList<>();
+        // 1 只活跃标的
+        StockInfo live = new StockInfo();
+        live.setStockCode("000001"); live.setExchangeType("SZSE"); live.setStockName("活跃股");
+        live.setStatus(1); live.setListDate(day.minusYears(2));
+        byKey.put("000001|SZSE", live); stocks.add(live);
+        // 200 只「证券主表在市、但回看窗口内完全没有行情」的陈旧键（模拟 BSE/SSE 双编码遗留）
+        for (int i = 0; i < 200; i++) {
+            StockInfo stale = new StockInfo();
+            String code = String.format("920%03d", i);
+            stale.setStockCode(code); stale.setExchangeType("SSE"); stale.setStockName("陈旧" + i);
+            stale.setStatus(1); stale.setListDate(day.minusYears(2));
+            byKey.put(code + "|SSE", stale); stocks.add(stale);
+        }
+        when(pointInTimeUniverseProvider.loadAsOf(day)).thenReturn(new PointInTimeUniverseProvider.UniverseView(
+                day, stocks, byKey, "security_master_history", "official", false, stocks.size()));
+        when(marketDataRepository.findByTradeDate(day)).thenReturn(List.of(range.getLast()));
+        when(limitUpEcologyService.stockLimitUpFeatures(any(), any(), any())).thenReturn(Map.of("volume_ratio", 6.0));
+        // 只有活跃键在回看窗口内出现
+        stubActivePairs("000001", "SZSE");
+
+        Map<String, Object> out = service().generateCandidates(day, 10);
+
+        // 旧分母 = 201 → 覆盖率 1/201 = 0.005 < 0.95 → 误判 INCOMPLETE_DAILY_DATA
+        assertThat(out.get("status")).isNotEqualTo("INCOMPLETE_DAILY_DATA");
+        assertThat(out.get("daily_expected")).isEqualTo(1L);
+        assertThat(out.get("daily_covered")).isEqualTo(1L);
+        assertThat(out.get("daily_coverage")).isEqualTo(1.0);
+    }
+
+    /** 桩：回看窗口内活跃的 (code, exchange) 键。 */
+    private void stubActivePairs(String... codeExchangePairs) {
+        List<Object[]> pairs = new ArrayList<>();
+        for (int i = 0; i < codeExchangePairs.length; i += 2) {
+            pairs.add(new Object[]{codeExchangePairs[i], codeExchangePairs[i + 1]});
+        }
+        when(marketDataRepository.findDistinctStockPairsInRange(any(), any())).thenReturn(pairs);
     }
 
     @Test

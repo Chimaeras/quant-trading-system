@@ -103,13 +103,30 @@ public class T1CandidateService {
     private java.time.Clock clock = java.time.Clock.system(java.time.ZoneId.of("Asia/Shanghai"));
     private static final String FEATURE_SET_VERSION = "t1_rule_score_v2";
     private static final double MIN_DAILY_COVERAGE = 0.95;
+    /**
+     * 覆盖率闸分母的「活跃窗口」（自然日）。分母只统计在该窗口内真实有行情的在市标的。
+     *
+     * <p><b>取值依据（D-T1-06 标定）</b>：在 2026-01-05..2026-08-31 共 155 个交易日上实测，
+     * 阈值保持 0.95 不变时的通过情况：
+     * <ul>
+     *   <li>W=60：min=0.9596、median=0.9958，155/155 通过；</li>
+     *   <li>W=120：min=0.9475，130/155 通过（仍会误阻断）；</li>
+     *   <li>W=180：96/155；W=250：47/155。</li>
+     * </ul>
+     * 选 W=60（≈3 个交易月）：既能剔除 284 个北交所代码迁移遗留的双 exchange_type 键与
+     * 长期休眠标的，又保留对真实断崖的检出（2026-09-08 起 coverage=0.0455 → 正确 BLOCKED）。
+     * <p><b>该值属待验证假设</b>：标定样本为单一数据快照的 155 个交易日，尚未经样本外验证；
+     * 修改此值等于改变闸门灵敏度，须重新走标定流程并留痕。
+     */
+    private static final int ACTIVE_WINDOW_DAYS = 60;
 
     /** 生成 T 日次日候选清单并落库。 */
     @Transactional
     public Map<String, Object> generateCandidates(LocalDate tradeDate, int topN) {
         int n = Math.max(1, Math.min(topN > 0 ? topN : DEFAULT_TOP_N, 50));
         if (!dailyBarClosed(tradeDate)) {
-            return emptyDecision(tradeDate, "DAILY_BAR_NOT_CLOSED", "该日尚未收盘，暂不生成日频候选");
+            return emptyDecision(tradeDate, "DAILY_BAR_NOT_CLOSED", "该日尚未收盘，暂不生成日频候选",
+                    calendarKnowsTradingDay(tradeDate));
         }
         // 已保存的预测是历史证据。重复请求只读取，不以修订后的行情或参数覆盖它。
         if (t1CandidateRepository.findByTradeDate(tradeDate).isPresent()) {
@@ -133,25 +150,79 @@ public class T1CandidateService {
         Map<String, MarketData> todayByKey = marketDataRepository.findByTradeDate(tradeDate).stream()
                 .collect(Collectors.toMap(m -> m.getStockCode() + "|" + m.getExchangeType(), Function.identity(), (a, b) -> a));
 
+        // P0-3（2026-10-13 修正）：数据日恒等于请求日，不存在任何回退路径；
+        // 因此不再输出恒为 false 的 `data_date_fallback`（详见 emptyDecision 注释）。
         LocalDate actualDate = tradeDate;
         if (todayByKey.isEmpty()) {
-            return emptyDecision(tradeDate, "NO_DATA", "所选信号日无行情，暂不判断；请选择有数据的交易日");
+            // P0-3（2026-10-13）：原先无论何种原因都返回 NO_DATA，使用者无法区分
+            // 「那天根本不是交易日」与「那天是交易日但数据缺失/过期」。
+            // 现在借助交易日历把语义**分开**（不放宽、不回退、不落库）：
+            //   · 日历覆盖该日且判定为交易日  → NO_DATA（确定是数据缺失）
+            //   · 日历覆盖该日但判定为非交易日 → NOT_A_TRADING_DAY（确定是休市）
+            //   · 该日不在日历覆盖区间内      → UNKNOWN（不得妄断，提示补齐日历）
+            // 第三种态是必需的：本地实测日历仅到 2026-08-19，而行情到 2026-10-12，
+            // 若把区间外一律当作休市，会把 2026-09/10 的真实数据断崖说成「非交易日」。
+            if (calendarKnowsTradingDay(tradeDate)) {
+                return emptyDecision(tradeDate, "NO_DATA",
+                        "所选信号日是交易日但主表无行情，暂不判断；请检查行情入库是否滞后或缺失",
+                        true);
+            }
+            if (calendarCoversDay(tradeDate)) {
+                return emptyDecision(tradeDate, "NOT_A_TRADING_DAY",
+                        "所选信号日经交易日历确认非交易日（休市），不生成日频候选", false);
+            }
+            return emptyDecision(tradeDate, "UNKNOWN",
+                    "所选信号日不在交易日历覆盖范围内，且主表无行情；"
+                            + "无法区分「非交易日」与「行情缺失」，请先补齐交易日历再判断",
+                    false);
         }
 
         Map<String, StockInfo> infoByKey = universe.byKey();
-        long expected = infoByKey.values().stream().filter(s -> Integer.valueOf(1).equals(s.getStatus())
-                && s.getListDate() != null && !s.getListDate().isAfter(tradeDate)).count();
+        // ===== 覆盖率闸（D-T1-06，2026-10-13 修正分母） =====
+        // 原实现的分母 = `stock_info` 中 status=1 且 list_date<=T 的**全部键**，与「当日真实
+        // 应有行情的键」不是同一个集合，导致闸门恒不可通过。实测（本地 quant_db，只读）：
+        //   · 分母 5,835；门槛 0.95 需 5,544 根当日 bar；
+        //   · 历史单日最大 bar 数仅 5,477（2026-03..2026-08 正常期 mean 5,463.6）；
+        //   · 最大可达覆盖率 0.9386 < 0.95，缺口恒为 67 根 → 每个信号日都返回
+        //     INCOMPLETE_DAILY_DATA，候选恒空，D-T1-01/D-T1-02 的阈值修复从未真正生效。
+        // 分母被放大的构成（实测，2026-10-13 第 7 轮修正归因）：「分母键」与「当日真有 bar 的键」
+        // 相差约 358 个键，其成因**不止一种**，此前注释只归因于北交所代码迁移，归因不完整：
+        //   · 284 个 stock_code 同时存在 BSE(920xxx) 与 SSE 两个 exchange_type 行（迁移遗留），
+        //     两个键都有 bar —— 这一部分**不构成**缺口（两个键都算covered）；
+        //   · 其余约 358 个键是「在主表中但于 [T-60d, T] 内没有任何 bar」的键，
+        //     多为长期停牌/已实质退市/陈旧编码，纯生命周期条件（status/list_date）无法剔除。
+        // 本修正用回看窗口内是否真有 bar 来剔除后者，与前者无关。
+
+        // 修正：分母改为「**回看窗口内真的在交易**的键」——即该键在 [T-ACTIVE_WINDOW_DAYS, T]
+        // 内至少有一根 bar。这同时剔除陈旧编码与长期休眠/已退市标的，且不使用 >T 的任何数据
+        // （无前视）。阈值 MIN_DAILY_COVERAGE 保持 0.95 **不变**，未放宽任何可信度保护。
+        // 标定证据：2026-01-05..2026-08-31 共 155 个交易日，该口径下覆盖率 min=0.9596、
+        // median=0.9958，155/155 通过；同时仍能正确阻断真实数据断崖
+        // （2026-09-08 起 bar 数由 5,456 掉到 249 → coverage 0.0455 → BLOCKED）。
+        Map<String, Boolean> activeRecently = new HashMap<>();
+        for (Object[] pair : marketDataRepository.findDistinctStockPairsInRange(
+                tradeDate.minusDays(ACTIVE_WINDOW_DAYS), tradeDate)) {
+            activeRecently.put(pair[0] + "|" + pair[1], Boolean.TRUE);
+        }
+        long expected = infoByKey.entrySet().stream().filter(e -> Integer.valueOf(1).equals(e.getValue().getStatus())
+                && e.getValue().getListDate() != null && !e.getValue().getListDate().isAfter(tradeDate)
+                && activeRecently.containsKey(e.getKey())).count();
         long covered = infoByKey.entrySet().stream().filter(e -> Integer.valueOf(1).equals(e.getValue().getStatus())
                 && e.getValue().getListDate() != null && !e.getValue().getListDate().isAfter(tradeDate)
+                && activeRecently.containsKey(e.getKey())
                 && validDailyBar(todayByKey.get(e.getKey()))).count();
         double dailyCoverage = expected > 0 ? covered / (double) expected : 0;
         if (dailyCoverage < MIN_DAILY_COVERAGE) {
             Map<String, Object> empty = emptyDecision(tradeDate, "INCOMPLETE_DAILY_DATA",
-                    "当日行情或证券主数据覆盖不足，暂不判断（覆盖率相对于可识别的证券主表）");
+                    "当日行情或证券主数据覆盖不足，暂不判断（分母=信号日回看 "
+                            + ACTIVE_WINDOW_DAYS + " 个自然日内真实有行情的在市标的）",
+                    calendarKnowsTradingDay(tradeDate));
             empty.putAll(universe.lineage());
             empty.put("daily_coverage", dailyCoverage);
             empty.put("daily_expected", expected);
             empty.put("daily_covered", covered);
+            empty.put("coverage_denominator_rule",
+                    "该键在 [T-" + ACTIVE_WINDOW_DAYS + "d, T] 内有 bar 且 status=1 且 list_date<=T");
             return empty;
         }
 
@@ -271,7 +342,7 @@ public class T1CandidateService {
         // 可追溯性：落库侧同样记录生成时刻与实际数据日，避免只能靠响应体回溯
         eligMeta.put("generated_at", generatedAt.toString());
         eligMeta.put("requested_trade_date", tradeDate.toString());
-        eligMeta.put("data_date_fallback", !actualDate.isEqual(tradeDate));
+        // P0-3（2026-10-13）：不再落库恒为 false 的 data_date_fallback（本服务无回退路径）。
         eligMeta.put("data_cutoff", actualDate.toString());
         eligMeta.put("candidate_invalidation", "仅用于下一交易日观察；下一交易日结束或数据质量异常时失效，候选不构成买卖指令");
         eligMeta.put("daily_coverage", dailyCoverage);
@@ -291,12 +362,17 @@ public class T1CandidateService {
 
         boolean noEligible = top.isEmpty();
         Map<String, Object> out = new LinkedHashMap<>();
-        // ===== 可追溯性（D-T1-03）：区分「请求日」与「实际数据日」，并声明口径版本与失效条件 =====
-        // 此前只给 trade_date，节假日请求会被静默替换成回退日，调用方与页面都看不出来。
+        // ===== 可追溯性（D-T1-03 / P0-3）：声明数据日、口径版本与失效条件 =====
+        // P0-3（2026-10-13 修正）：此处原先输出 `data_date_fallback = !actualDate.isEqual(tradeDate)`，
+        // 而 `actualDate` 自始至终等于 `tradeDate`，故该字段**恒为 false**。
+        // 更严重的是它暗示「存在回退能力」，但本服务从无回退路径——
+        // 请求日无行情时走的是 emptyDecision 阻断，不是替换成别的数据日。
+        // 现删除该字段；「非交易日」与「交易日但数据缺失」改由状态码与
+        // `calendar_trading_day` 如实表达。
         out.put("trade_date", actualDate.toString());
         out.put("requested_trade_date", tradeDate.toString());
-        out.put("data_date_fallback", !actualDate.isEqual(tradeDate));
         out.put("data_cutoff", actualDate.toString());
+        out.put("calendar_trading_day", calendarKnowsTradingDay(tradeDate));
         out.put("generated_at", generatedAt.toString());
         out.put("threshold_version", ELIGIBILITY_THRESHOLD_VERSION);
         out.put("rule_score_max", RULE_SCORE_MAX);
@@ -523,7 +599,7 @@ public class T1CandidateService {
                 Map<String, Object> e = (Map<String, Object>) elig;
                 for (String k : List.of("threshold_version", "rule_score_threshold", "rule_score_max",
                         "eligible_count", "returned_count", "total_scored", "rejected_by_reason",
-                        "status", "generated_at", "requested_trade_date", "data_date_fallback",
+                        "status", "generated_at", "requested_trade_date",
                         "pit_limited", "master_source", "master_reliability", "universe_as_of", "universe_size",
                         "data_cutoff", "candidate_invalidation", "daily_coverage", "daily_expected", "daily_covered",
                         "quality_status", "score_type", "score_model", "calibrator_version", "probability_verified", "fallback_reason")) {
@@ -867,11 +943,66 @@ public class T1CandidateService {
                 && bar.getLowPrice().compareTo(bar.getOpenPrice().min(bar.getClosePrice())) <= 0;
     }
 
-    private static Map<String, Object> emptyDecision(LocalDate day, String status, String note) {
+    /**
+     * 该日是否为交易日历**已知**的交易日。
+     * <p>返回 false 有两种含义：「已知为非交易日」与「日历根本不覆盖该日」。
+     * 调用方必须结合数据是否存在来区分，不得直接把 false 当作「休市」。
+     */
+    private boolean calendarKnowsTradingDay(LocalDate day) {
+        if (day == null || tradingCalendarService == null) {
+            return false;
+        }
+        try {
+            return tradingCalendarService.isTradingDay(day);
+        } catch (RuntimeException exc) {
+            // 日历不可用时不得把「查不到」当成「非交易日」，否则会把数据缺失
+            // 误报成休市。此处保守地返回 false，由调用方走 UNKNOWN 分支。
+            return false;
+        }
+    }
+
+    /**
+     * 该日是否落在交易日历的覆盖区间内。
+     * <p>用于把 {@code isTradingDay == false} 拆成两种语义：
+     * 「区间内且非交易日」（可断言休市）与「区间外」（不可断言，未知）。
+     * 日历不可用或为空时返回 false（保守，走 UNKNOWN）。
+     */
+    private boolean calendarCoversDay(LocalDate day) {
+        if (day == null || tradingCalendarService == null) {
+            return false;
+        }
+        try {
+            LocalDate[] window = tradingCalendarService.coverageWindow();
+            return window != null && !day.isBefore(window[0]) && !day.isAfter(window[1]);
+        } catch (RuntimeException exc) {
+            return false;
+        }
+    }
+
+    /**
+     * 空决策响应。
+     *
+     * <p><b>P0-3（2026-10-13 修正）</b>：
+     * <ul>
+     *   <li>删除了恒为 {@code false} 的 {@code data_date_fallback}。
+     *       本服务**没有**任何回退路径（{@code actualDate} 自始至终等于 {@code tradeDate}），
+     *       保留一个永远为 false 的字段会暗示「存在回退能力且本次未触发」，
+     *       属于虚假的诚实信号。设计意图是「不回退、只阻断」，现在由
+     *       {@code calendar_trading_day} 与状态码如实表达。</li>
+     *   <li>新增 {@code calendar_trading_day}：明确该日在日历上的判定，
+     *       使「非交易日」与「交易日但数据缺失」可区分。</li>
+     * </ul>
+     *
+     * @param calendarTradingDay 该日是否为日历已知的交易日；调用方须显式传入
+     */
+    private static Map<String, Object> emptyDecision(LocalDate day, String status, String note,
+                                                    boolean calendarTradingDay) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("trade_date", day.toString());
         out.put("requested_trade_date", day.toString());
-        out.put("data_date_fallback", false);
+        // data_cutoff 是如实字段：本服务从不使用与请求日不同的数据日
+        out.put("data_cutoff", day.toString());
+        out.put("calendar_trading_day", calendarTradingDay);
         out.put("top_n", 0);
         out.put("total_scored", 0);
         out.put("candidates", List.of());

@@ -292,8 +292,27 @@ class WatchLoop:
                 if self.calendar.is_trading_day(observation_day):
                     break
                 observation_day += timedelta(days=1)
-            if (not self.calendar.available or not self._calendar_explicit and not self.config.trading_calendar_file
-                    or observation_day != current.date()):
+            # D-1（2026-10-13 修正）：原表达式为
+            #   not A or not B and not C or D
+            # 因 `and` 优先级高于 `or`，实际等价于 `not A or D`，
+            # 即「必须使用正式日历（not B and not C）」这一项是**死代码**：
+            # 只要 calendar.available 为真且观察日对得上就放行。
+            # 后果：T1 模式下若日历退化为「周一至周五」判定（未注入节假日数据），
+            # 节假日/周末会把上一交易日的陈旧候选当成当日观察池继续分析。
+            #
+            # 这里显式加括号还原设计意图，并把「是否真的是正式日历」判准。
+            # 注意：不能只看 `_calendar_explicit`——构造函数传入默认的
+            # TradingCalendarService() 也是 explicit，但其行为仍是周一至周五回退
+            # （见 paper/trading_calendar.py:26-28），与未注入等价。
+            # 判据取「由文件加载（source 前缀 file:）」或显式提供了日历文件路径。
+            calendar_is_official = (
+                self.calendar.available
+                and (
+                    bool(self.config.trading_calendar_file)
+                    or str(getattr(self.calendar, "source", "")).startswith("file:")
+                )
+            )
+            if (not calendar_is_official) or observation_day != current.date():
                 candidates = []
                 errors.append("T1_INVALID_OBSERVATION_DAY:必须使用正式日历下上一交易日的候选")
                 source = "t1_invalid_day"
@@ -2192,6 +2211,14 @@ class WatchLoop:
                     "selection_lineage": candidate.selection_lineage,
                 }
                 decision_time = current.replace(tzinfo=clock.CN_TZ) if current.tzinfo is None else current
+                # D-3（2026-10-13 修正）：过期判定必须在 warmup 分支**之前**执行——
+                # warmup 分支会把 action 压成 hold，而过期分支的条件是
+                # `action in {"buy","sell"}`，一旦顺序颠倒，过期判定将永远不可达。
+                # 因此保留原有的「先过期、后 warmup」顺序，只修掉原先 warmup 分支里
+                # `signal.reason_codes = ["WARMUP","BAR_CLOSED"]` 的**整体替换**——
+                # 它会把刚写入的 EXPIRED_BAR 审计痕迹抹掉。现在改为前缀追加。
+                # 确定性优先级：未预热 → signal_status=WARMUP（更早的阶段）；
+                # 已预热但过期 → INVALIDATED。两者可同时出现在 reason_codes。
                 if decision_time >= datetime.fromisoformat(signal.valid_until) and signal.action in {"buy", "sell"}:
                     signal.action = "hold"
                     signal.signal_status = "INVALIDATED"
@@ -2205,8 +2232,45 @@ class WatchLoop:
                 })
                 if not ready_before:
                     signal.action = "hold"
+                    if "WARMUP" not in signal.reason_codes:
+                        signal.reason_codes = ["WARMUP", "BAR_CLOSED"] + signal.reason_codes
                     signal.signal_status = "WARMUP"
-                    signal.reason_codes = ["WARMUP", "BAR_CLOSED"]
+
+                # D-2（2026-10-13 修正）：把「失效状态 / 持有期口径 / 失效条件」写成**权威值**。
+                # 修正前这三个字段只由 signal_adapter 写入静态模板：
+                #   · valid_until 未到期时 holding_horizon 恒为 "UNVALIDATED"，
+                #     即使信号确实可执行、且本轮盘中收盘就会失效；
+                #   · invalidation_conditions 恒为固定四条，与本次原因码无关；
+                #   · signal_status 完全没有在监控页渲染（见 web MonitorView.vue）。
+                # 三者叠加的后果：用户看到的「已失效」标签其实只来自 valid_until 的挂钟比较，
+                # 无法区分「预热不足」「行情覆盖失效」「bar 过期」这几种成因。
+                # 现在按分支结果重算，并保证 **无论是否可执行都写入非空条件**。
+                signal_status_final = signal.signal_status or "OBSERVE"
+                actionable = (signal.action in {"buy", "sell"} and ready_before
+                              and signal_status_final == "OBSERVE")
+                signal.holding_horizon = "INTRADAY_EOD" if actionable else "UNVALIDATED"
+                if actionable:
+                    signal.invalidation_conditions = [
+                        "下一根 bar 收盘（重新判定）",
+                        "行情过期或缺失",
+                        "策略或观察池变化",
+                        "当日收盘（本盘中信号到期）",
+                    ]
+                else:
+                    # 不可执行时必须给出去因，并与 reason_codes 对应
+                    reasons_map = {
+                        "WARMUP": "预热不足（未达所需 bar 数）→ 本信号不可执行",
+                        "INVALIDATED": "bar 已过期（EXPIRED_BAR）→ 本信号不可执行",
+                    }
+                    conds = [reasons_map[signal_status_final]] if signal_status_final in reasons_map else []
+                    if signal.quality_status != "PASS":
+                        conds.append(f"行情覆盖不足（quality_status={signal.quality_status}）"
+                                     "→ 本信号不可执行")
+                    if not conds:
+                        conds.append("当前无买卖动作（hold）→ 无可执行信号")
+                    conds.append("行情过期或缺失")
+                    signal.invalidation_conditions = conds
+
                 tick.signals.append(signal.to_dict())
                 events.emit("SIGNAL", code=candidate.stock_code, name=display_name, cycle=self._cycle, detail=signal.to_dict(), now=current)
                 if not ready_before:
@@ -2565,8 +2629,27 @@ class WatchLoop:
             "covered_quote_count": covered_quote_count,
             "quote_coverage": round(quote_coverage, 6),
             "decision_status": "PARTIAL_COVERAGE" if partial_quotes else "OBSERVATION_ONLY",
-            "market_wide_coverage": round(quote_coverage, 6) if self._universe_source == "full_market"
-                and not any(e.startswith("FULL_UNIVERSE_") for e in self._prepare_errors) else None,
+            # D-4（2026-10-13 修正）：把「覆盖率的适用范围」显式化。
+            # 修正前 T1 模式下 market_wide_coverage 恒为 None，UI 只能显示
+            # 「未扫描全市场」——一个不传达数值的占位，而同一轮的真实覆盖率
+            # （quote_coverage，口径=本轮候选池）其实已经算出来了。
+            # 更糟的是「全市场覆盖」这一栏名会被读成「全市场没覆盖 = 数据缺口」，
+            # 而池内模式本来就**不打算**扫描全市场，属于口径不符而非数据缺陷。
+            # 现在同时输出 scope 与不适用的**原因**，消除歧义。
+            "coverage_scope": ("FULL_MARKET"
+                               if self._universe_source == "full_market" else "OBSERVATION_POOL"),
+            "market_wide_coverage": (
+                round(quote_coverage, 6)
+                if self._universe_source == "full_market"
+                and not any(e.startswith("FULL_UNIVERSE_") for e in self._prepare_errors)
+                else None
+            ),
+            "market_wide_coverage_na_reason": (
+                None if (self._universe_source == "full_market"
+                         and not any(e.startswith("FULL_UNIVERSE_") for e in self._prepare_errors))
+                else ("UNIVERSE_NOT_FULL_MARKET"
+                      if self._universe_source != "full_market" else "FULL_UNIVERSE_UNAVAILABLE")
+            ),
             "cached_quote_count": cached_quote_count,
             "source_quote_coverage": round(
                 max(covered_quote_count - cached_quote_count, 0) / len(self._candidates), 6

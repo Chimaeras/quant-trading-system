@@ -341,11 +341,15 @@ export interface T1CandidatesResponse {
   // 后端 getCandidates 把核销结果嵌套在 settle 字段下（含 next_trade_date/summary/results）
   settle?: { next_trade_date?: string; summary?: T1SettleSummary; results?: T1CandidateItem[] }
   // ===== D-T1-03 可追溯性字段（生成与按日回溯都会返回）=====
-  /** 实际使用的数据日（可能与 requested_trade_date 不同） */
+  /** 实际使用的数据日（与 requested_trade_date 恒等：本服务无回退路径，P0-3） */
   requested_trade_date?: string
   data_cutoff?: string
-  /** true 表示请求日无行情、已回退到 trade_date */
-  data_date_fallback?: boolean
+  /**
+   * 该请求日在交易日历上是否为已知交易日（P0-3）。
+   * 注意：`false` 既可能是「非交易日」，也可能是「日历不覆盖该日」；
+   * 需结合 `status` 判断（`NOT_A_TRADING_DAY` vs `UNKNOWN`）。
+   */
+  calendar_trading_day?: boolean
   generated_at?: string
   threshold_version?: string
   rule_score_threshold?: number

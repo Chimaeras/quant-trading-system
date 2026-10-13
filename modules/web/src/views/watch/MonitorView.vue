@@ -40,6 +40,7 @@
         <div class="status-item">
           <span class="label">全市场覆盖</span>
           <span class="value">{{ marketWideCoverage }}</span>
+          <span v-if="marketWideCoverageHint" class="muted-note">{{ marketWideCoverageHint }}</span>
         </div>
         <div class="status-item">
           <span class="label">L2活跃池</span>
@@ -105,6 +106,12 @@
           </el-table-column>
           <el-table-column prop="strategy" label="策略" min-width="88" show-overflow-tooltip />
           <el-table-column prop="strategyVersion" label="策略版本 / 参数" min-width="160" show-overflow-tooltip />
+          <el-table-column label="信号状态" min-width="96">
+            <template #default="{ row }">
+              <el-tag :type="row.signalStatusType" size="small">{{ row.signalStatusLabel }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="holdingHorizon" label="持有期口径" min-width="110" show-overflow-tooltip />
           <el-table-column prop="validUntil" label="失效时间" min-width="140" show-overflow-tooltip />
           <el-table-column prop="qualityStatus" label="数据质量" min-width="125" show-overflow-tooltip />
           <el-table-column label="模拟数量" min-width="72" align="right">
@@ -118,8 +125,11 @@
               <el-tag :type="row.statusType" size="small">{{ row.statusLabel }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="触发" min-width="160" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.reasons }}</template>
+          <el-table-column label="触发 / 失效条件" min-width="220" show-overflow-tooltip>
+            <template #default="{ row }">
+              <div>{{ row.reasons }}</div>
+              <div class="muted-note">失效条件：{{ row.invalidationConds }}</div>
+            </template>
           </el-table-column>
         </el-table>
       </div>
@@ -332,6 +342,21 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="状态 / 持有期" min-width="150">
+          <template #default="{ row }">
+            <el-tag :type="signalStatusMeta((row.detail as any).signal_status).type" size="small">
+              {{ signalStatusMeta((row.detail as any).signal_status).label }}
+            </el-tag>
+            <div class="muted-note">持有期口径：{{ (row.detail as any).holding_horizon || 'UNVALIDATED' }}</div>
+          </template>
+        </el-table-column>
+        <el-table-column label="失效条件" min-width="200">
+          <template #default="{ row }">
+            {{ Array.isArray((row.detail as any).invalidation_conditions)
+              ? (row.detail as any).invalidation_conditions.join('；')
+              : '—' }}
+          </template>
+        </el-table-column>
         <el-table-column label="指标值" min-width="240">
           <template #default="{ row }">{{ signalDetailText(row) }}</template>
         </el-table-column>
@@ -466,9 +491,35 @@ const partialDecision = computed(() =>
   (lastCycle.value?.detail as any)?.metrics?.decision_status === 'PARTIAL_COVERAGE'
   || !lastCycle.value || ['DEGRADED', 'BLOCKED', 'NO_UNIVERSE'].includes(String((lastCycle.value?.detail as any)?.status))
 )
+/**
+ * D-4（2026-10-13）：「全市场覆盖」一栏的可解释性。
+ *
+ * 修正前：`market_wide_coverage` 在 T1/观察池模式下恒为 `null`，
+ * 于是该栏永远显示固定字符串「未扫描全市场」——既不传达数值，
+ * 又容易被读成「全市场数据缺失」。但真实情况是**口径不符**：
+ * 池内模式本来就不扫描全市场，同一轮的真实覆盖率
+ * （`quote_coverage`，口径 = 本轮候选池）已经在「扫描池覆盖」一栏给出。
+ *
+ * 现在：按 `coverage_scope` 区分，并在不适用时说明原因。
+ */
 const marketWideCoverage = computed(() => {
-  const raw = (lastCycle.value?.detail as any)?.metrics?.market_wide_coverage
-  return raw == null ? '未扫描全市场' : `${(Number(raw) * 100).toFixed(2)}%`
+  const metrics = (lastCycle.value?.detail as any)?.metrics
+  const raw = metrics?.market_wide_coverage
+  if (raw != null) return `${(Number(raw) * 100).toFixed(2)}%`
+  const reason = String(metrics?.market_wide_coverage_na_reason || '')
+  if (reason === 'UNIVERSE_NOT_FULL_MARKET') return '不适用（池内模式）'
+  if (reason === 'FULL_UNIVERSE_UNAVAILABLE') return '不可用（全市场池构建失败）'
+  // 旧快照无该字段时不得撒谎，显式标为未知
+  return metrics ? '不适用（口径未标注）' : '—'
+})
+const marketWideCoverageHint = computed(() => {
+  const metrics = (lastCycle.value?.detail as any)?.metrics
+  if (!metrics) return ''
+  if (metrics.market_wide_coverage != null) return '口径=全市场'
+  const pool = Number(metrics.quote_coverage)
+  return Number.isFinite(pool)
+    ? `本栏不适用；本轮实际覆盖（口径=候选池）${(pool * 100).toFixed(2)}%`
+    : '本栏不适用'
 })
 const l1Coverage = computed(() => {
   const value = Number(marketSnapshot.value?.batch?.coverage)
@@ -609,6 +660,24 @@ function riskStatusMeta(result: string, reason: string): { label: string; type: 
   return { label: '风控拦截·仅供参考', type: 'warning' }
 }
 
+/**
+ * D-2（2026-10-13）：signal_status 的中文标签。
+ * 后端在 loop.py 中按分支结果写入 OBSERVE / WARMUP / INVALIDATED；
+ * 修正前该字段被序列化但**从未渲染**，用户无法区分三类状态。
+ */
+function signalStatusMeta(status: string): { label: string; type: 'success' | 'warning' | 'info' | 'danger' } {
+  switch (String(status || '').toUpperCase()) {
+    case 'OBSERVE':
+      return { label: '观察中', type: 'info' }
+    case 'WARMUP':
+      return { label: '预热不足', type: 'warning' }
+    case 'INVALIDATED':
+      return { label: '已失效', type: 'danger' }
+    default:
+      return { label: '状态未知', type: 'warning' }
+  }
+}
+
 const filteredEvents = computed(() => {
   const result: Array<WatchEvent & { name: string }> = []
   for (let i = events.value.length - 1; i >= 0 && result.length < DISPLAY_EVENTS; i -= 1) {
@@ -660,6 +729,11 @@ const recommendRows = computed(() => {
     barTs: string
     validUntil: string
     qualityStatus: string
+    signalStatus: string
+    signalStatusLabel: string
+    signalStatusType: 'success' | 'warning' | 'info' | 'danger'
+    holdingHorizon: string
+    invalidationConds: string
     qty?: number
     price?: number
     statusLabel: string
@@ -691,9 +765,37 @@ const recommendRows = computed(() => {
       ? riskStatusMeta(String(riskDetail.result || ''), String(riskDetail.reject_reason || ''))
       : { label: '待风控确认', type: 'info' as const }
     const expiry = Date.parse(String(detail.valid_until || ''))
-    if (!Number.isFinite(expiry)) status = { label: '历史提醒·有效期未知', type: 'warning' }
-    else if (expiry <= Date.now()) status = { label: '已失效·仅供复核', type: 'info' }
-    else if (detail.quality_status !== 'PASS') status = { label: '数据受限·待人工核实', type: 'warning' }
+    // D-2（2026-10-13）：signal_status 是后端给出的**权威**信号状态。
+    // 修正前它从未被渲染，用户只能看到由 valid_until 挂钟比较推导的「已失效」，
+    // 无法区分「预热不足(WARMUP)」「bar 过期(INVALIDATED)」与「正常观察(OBSERVE)」。
+    // 判定顺序：有效期未知/已过期 → signal_status → 数据质量。
+    const signalStatus = String(detail.signal_status || '').toUpperCase() || 'OBSERVE'
+    let holdingHorizon = String(detail.holding_horizon || 'UNVALIDATED')
+    let invalidationConds = Array.isArray(detail.invalidation_conditions)
+      ? detail.invalidation_conditions.join('；')
+      : ''
+    if (!Number.isFinite(expiry)) {
+      status = { label: '历史提醒·有效期未知', type: 'warning' }
+    } else if (expiry <= Date.now()) {
+      status = { label: '已失效·仅供复核', type: 'info' }
+      holdingHorizon = 'UNVALIDATED'
+    } else if (signalStatus === 'WARMUP') {
+      status = { label: '预热不足·暂不执行', type: 'warning' }
+      holdingHorizon = 'UNVALIDATED'
+    } else if (signalStatus === 'INVALIDATED') {
+      status = { label: 'bar 已过期·不执行', type: 'info' }
+      holdingHorizon = 'UNVALIDATED'
+    } else if (detail.quality_status !== 'PASS') {
+      status = { label: '数据受限·待人工核实', type: 'warning' }
+    }
+    if ((signalStatus === 'WARMUP' || signalStatus === 'INVALIDATED') && !invalidationConds) {
+      invalidationConds = signalStatus === 'WARMUP'
+        ? '预热不足（未达所需 bar 数）→ 不可执行'
+        : 'bar 已过期 → 不可执行'
+    }
+    if (!invalidationConds && holdingHorizon === 'UNVALIDATED') {
+      invalidationConds = '暂无持有期口径（信号不可执行）'
+    }
     const reasons = Array.isArray(detail.reason_codes)
       ? detail.reason_codes.join(',')
       : String(detail.reason || detail.strategy || '—')
@@ -709,6 +811,11 @@ const recommendRows = computed(() => {
       barTs: String(detail.bar_ts || '未知'),
       validUntil: String(detail.valid_until || '未知'),
       qualityStatus: String(detail.quality_status || 'UNKNOWN'),
+      signalStatus,
+      signalStatusLabel: signalStatusMeta(signalStatus).label,
+      signalStatusType: signalStatusMeta(signalStatus).type,
+      holdingHorizon,
+      invalidationConds: invalidationConds || '—',
       qty: Number.isFinite(qtyRaw) && qtyRaw > 0 ? qtyRaw : undefined,
       price: Number.isFinite(priceRaw) && priceRaw > 0 ? priceRaw : undefined,
       statusLabel: status.label,
@@ -1450,6 +1557,14 @@ onBeforeUnmount(() => {
 .error-code {
   font-size: 11px;
   color: var(--down);
+}
+
+/* D-2：次要说明行（失效条件 / 持有期口径），避免与主字段争夺注意力 */
+.muted-note {
+  font-size: 11px;
+  margin-top: 2px;
+  color: var(--text-3, #909399);
+  line-height: 1.3;
 }
 
 .detail-chart {

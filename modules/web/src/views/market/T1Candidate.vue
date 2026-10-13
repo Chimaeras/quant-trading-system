@@ -11,8 +11,14 @@
       <!-- D-T1-03 可追溯性：数据日 / 生成时刻 / 口径版本 / PIT 质量 / 失效条件 -->
       <div v-if="result" class="trace-row">
         <el-tag type="info" size="small">数据日 {{ result.trade_date ?? '—' }}</el-tag>
-        <el-tag v-if="result.data_date_fallback" type="warning" size="small">
-          请求日 {{ result.requested_trade_date }} 无行情，已回退到 {{ result.trade_date }}
+        <!-- P0-3：删除了 `data_date_fallback` 的渲染分支。该字段恒为 false（本服务无回退路径），
+             分支永远不会命中；「非交易日」与「交易日但数据缺失」现由状态与下方标签如实表达。 -->
+        <el-tag v-if="result.calendar_trading_day === false && result.status === 'NOT_A_TRADING_DAY'"
+                type="info" size="small">
+          该日非交易日
+        </el-tag>
+        <el-tag v-else-if="result.calendar_trading_day === false" type="warning" size="small">
+          交易日历未覆盖该日（无法区分休市与数据缺失）
         </el-tag>
         <el-tag type="info" size="small">口径版本 {{ result.threshold_version ?? '—' }}</el-tag>
         <el-tag type="info" size="small">生成于 {{ (result.generated_at ?? '').replace('T', ' ') || '—' }}</el-tag>

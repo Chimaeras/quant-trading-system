@@ -220,6 +220,24 @@ public class TradingCalendarService {
     }
 
     /**
+     * 日历覆盖的日期区间（早/晚边界），用于区分「已知为非交易日」与「日历根本不覆盖」。
+     * <p>P0-3 用途：本地实测日历仅覆盖到 2026-08-19，而行情已到 2026-10-12。
+     * 若只判断 {@link #isTradingDay(LocalDate)}，2026-10-12 会被误报为「非交易日」，
+     * 掩盖真实的数据缺失。调用方必须结合本方法判断该日是否在覆盖范围内。
+     *
+     * @return 长度为 2 的数组 {earliest, latest}；日历为空时返回 {@code null}
+     */
+    @Transactional(readOnly = true)
+    public LocalDate[] coverageWindow() {
+        Optional<LocalDate> min = tradingCalendarDayRepository.findMinTradeDate();
+        Optional<LocalDate> max = tradingCalendarDayRepository.findMaxTradeDate();
+        if (min.isEmpty() || max.isEmpty()) {
+            return null;
+        }
+        return new LocalDate[]{min.get(), max.get()};
+    }
+
+    /**
      * 严格晚于 {@code after} 的下一个市场交易日。
      * 缓冲窗口：after+1 .. after+60。
      */

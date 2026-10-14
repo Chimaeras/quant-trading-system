@@ -71,18 +71,38 @@ public class T1CandidateService {
 
     // ===== 入选阈值门禁（V2-MP-027 P1）：TopN 只是上限，不是配额 =====
     /** 门禁版本标识：阈值由冻结的实验/配置版本产生，随 snapshot 落库。 */
-    private static final String ELIGIBILITY_THRESHOLD_VERSION = "t1_rule_v2";
+    private static final String DEFAULT_ELIGIBILITY_THRESHOLD_VERSION = "t1_rule_v3";
     /**
-     * rule_score 入选下限（可行域 0-50，截面排序分，非概率）。弱信号日宁可无标的也不凑满。
+     * rule_score 入选下限兜底值（可行域 0-50，截面排序分，非概率）。弱信号日宁可无标的也不凑数。
      *
-     * <p><b>标定依据（D-T1-01）</b>：对 2026-06-30 / 2026-07-15 / 2026-08-04 / 2026-08-24 / 2026-09-07
-     * 五个信号日、通过流动性闸的 1,404~1,747 只标的实测可达分数分布，取 {@code >=35} 作为下限：
-     * 命中 0 / 0 / 2 / 1 / 1 只（旧阈值 40 为 0 / 0 / 1 / 1 / 0 只）。
-     * 该值落在可达分布的上尾而非极值端（旧阈值坐在极值端，这是候选恒空的直接原因）；
-     * 取 30 会命中 4 / 4 / 4 / 3 / 2 只，但会显著放宽标准，故不采用。
-     * <b>该阈值必须与 {@link #scoreT1} 的公式组成一起变更</b>，单独调阈值不构成修复。
+     * <p><b>标定依据（D-T1-07，2026-10-14 重标定）</b>：旧值 35.0 的标定注释声称「命中 0/0/2/1/1」，
+     * 但实测 2026-08-04..2026-10-13 共 45 个信号日、逐日复现生产打分池后为
+     * <b>日均 3.4 只、4 日零候选</b>；落库快照更显示 11 次生成中 10 次为
+     * {@code NO_ELIGIBLE_CANDIDATE}（2026-09-07 与 2026-10-12 的 1,265~1,340 只候选
+     * <b>全部</b>低于 35）——即该阈值坐在可达分布的上尾极值端，候选清单长期恒空。
+     *
+     * <p>可用实证数据由 {@link #scoreT1} 的可达分布 + 次日收益联合标定：
+     * <ul>
+     *   <li>覆盖度：阈值 35 → 日均 3.4 只 / 8.9% 零候选日；30 → 8.6 只 / 2.2%；25 → 23.8 只 / 0%。</li>
+     *   <li>预测力（326,783 样本，次日开盘买→次日收盘）：[25,30) +0.562%、
+     *       <b>[30,35) +1.016%</b>、[35,50] +1.179%，全市场基准 +0.181%。</li>
+     * </ul>
+     * 取 30.0：预测力在 [30,35) 相对 [25,30) 抬升约 1.8 倍，同时零候选日降至 2.2%。
+     *
+     * <p><b>该阈值必须与 {@link #scoreT1} 的公式一起变更</b>，单独调阈值不构成修复。
+     * 生产可用 {@code quant.t1.eligibility.rule-score-threshold} 覆盖。
      */
-    private static final double RULE_SCORE_THRESHOLD = 35.0;
+    private static final double DEFAULT_RULE_SCORE_THRESHOLD = 30.0;
+    /**
+     * 为什么「排除收盘涨停」不会让高分候选彻底消失（D-T1-07 澄清）：
+     * 曾怀疑预过滤与打分构成闭环——即「能达标的票恰好都是涨停票，故全被删掉」。
+     * 实测该闭环<b>不成立</b>：45 个信号日在排除涨停后，≥30 分的非涨停标的日均仍有 8.6 只、
+     * 仅 1 日为零。真正的原因是旧阈值 35 落在分布上尾（p99.5 以上），而非预过滤过度删除。
+     * 故本次修复只需重标定阈值；预过滤保持 {@code excludeLimitUpAtClose=true} 不变
+     * （收盘涨停股次日大概率一字板，本就买不进，纳入候选反而误导）。
+     * 为便于持续验证该判断，另输出 {@code limit_up_excluded} 诊断计数。
+     */
+    public static final double RULE_SCORE_THRESHOLD_FLOOR = 15.0;
     /**
      * rule_score 理论最高分 = 动量 20 + 量能 15 + 趋势 15（三项上限之和）。
      * 与 {@link #scoreT1} 的分量上限必须保持一致；改动公式上限时同步改这里。
@@ -90,6 +110,19 @@ public class T1CandidateService {
     private static final double RULE_SCORE_MAX = 50.0;
     /** 概率轨入选下限：仅当加载到 T+1 champion 概率模型时启用（绝对概率，非截面 percentile）。 */
     private static final double PROBABILITY_THRESHOLD = 0.55;
+
+    /**
+     * 入选阈值（可由 {@code quant.t1.eligibility.rule-score-threshold} 覆盖）。
+     * 非 static：配置注入 + 单元测试可按场景覆写，避免把标定值硬编码进不可替换的常量。
+     */
+    @org.springframework.beans.factory.annotation.Value(
+            "${quant.t1.eligibility.rule-score-threshold:" + DEFAULT_RULE_SCORE_THRESHOLD + "}")
+    private double ruleScoreThreshold = DEFAULT_RULE_SCORE_THRESHOLD;
+
+    /** 门禁版本标识（可由 {@code quant.t1.eligibility.threshold-version} 覆盖），随快照落库供回溯。 */
+    @org.springframework.beans.factory.annotation.Value(
+            "${quant.t1.eligibility.threshold-version:" + DEFAULT_ELIGIBILITY_THRESHOLD_VERSION + "}")
+    private String eligibilityThresholdVersion = DEFAULT_ELIGIBILITY_THRESHOLD_VERSION;
 
     private final MarketDataRepository marketDataRepository;
     private final PointInTimeUniverseProvider pointInTimeUniverseProvider;
@@ -238,6 +271,11 @@ public class T1CandidateService {
         String fallbackReason = modelLoad.fallbackReason();
 
         List<Map<String, Object>> scored = new ArrayList<>();
+        // D-T1-07 诊断：统计「仅因收盘涨停而被预过滤剔除」的标的，以及其中最高分。
+        // 这是持续验证「涨停闭环不成立」这一判断的证据——若某日 limit_up_excluded 很大
+        // 且其 max 分远高于阈值，说明高分标的确实集中在涨停股上，需要重新审视预过滤策略。
+        int limitUpExcludedCount = 0;
+        double limitUpExcludedMaxScore = 0.0;
         for (Map.Entry<String, MarketData> e : todayByKey.entrySet()) {
             String key = e.getKey();
             MarketData today = e.getValue();
@@ -257,6 +295,21 @@ public class T1CandidateService {
             }
             if (!ScoringUtils.isTradableForScoring(stockBars, code, exchange, name,
                     info != null ? info.getStatus() : null, true, true, true)) {
+                // 区分「因收盘涨停被剔除」与其他原因（停牌/ST/零成交等）：
+                // 用同一组参数关掉涨停闸重判，仍通过则说明唯一拒绝原因就是收盘涨停。
+                // 此时额外算出它的 rule_score 作为对照诊断（不进入候选池）。
+                if (ScoringUtils.isTradableForScoring(stockBars, code, exchange, name,
+                        info.getStatus(), true, false, true)
+                        && ScoringUtils.passesMinAvgAmount(stockBars, MIN_AVG_AMOUNT)
+                        && ScoringUtils.hasMinListingTenure(info.getListDate(), actualDate,
+                                MIN_LISTING_DAYS, stockBars)) {
+                    Map<String, Object> luEx = limitUpEcologyService.stockLimitUpFeatures(stockBars, today, name);
+                    double scoreEx = scoreT1(luEx, shortIndicators(stockBars));
+                    limitUpExcludedCount++;
+                    if (scoreEx > limitUpExcludedMaxScore) {
+                        limitUpExcludedMaxScore = scoreEx;
+                    }
+                }
                 continue;
             }
             if (!ScoringUtils.passesMinAvgAmount(stockBars, MIN_AVG_AMOUNT)) {
@@ -330,14 +383,21 @@ public class T1CandidateService {
         // 阈值门禁元数据随生态快照落库（避免 DB 迁移），供回溯/核销时溯源
         Map<String, Object> ecology = new LinkedHashMap<>(limitUpEcologyService.ecology(actualDate, 30));
         Map<String, Object> eligMeta = new LinkedHashMap<>();
-        eligMeta.put("threshold_version", ELIGIBILITY_THRESHOLD_VERSION);
-        eligMeta.put("rule_score_threshold", RULE_SCORE_THRESHOLD);
+        eligMeta.put("threshold_version", eligibilityThresholdVersion);
+        eligMeta.put("rule_score_threshold", effectiveRuleScoreThreshold());
         eligMeta.put("rule_score_max", RULE_SCORE_MAX);
         eligMeta.put("probability_threshold", probModel != null ? PROBABILITY_THRESHOLD : null);
         eligMeta.put("eligible_count", eligibleCount);
         eligMeta.put("returned_count", top.size());
         eligMeta.put("total_scored", scored.size());
         eligMeta.put("rejected_by_reason", rejectedByReason);
+        // D-T1-07：max_rule_score 必须落库。此前它只存在于生成响应（out），
+        // 落库快照里缺失，导致按日回溯时无法判断空候选是「完全没信号」还是「就差一点」，
+        // 也无法事后评估阈值是否定得过高——这正是旧阈值 35 长期未被发现的原因之一。
+        eligMeta.put("max_rule_score", eligibility.get("maxRuleScore"));
+        // 被预过滤剔除的收盘涨停股数量及其最高分（对照诊断，不进入候选池）
+        eligMeta.put("limit_up_excluded", limitUpExcludedCount);
+        eligMeta.put("limit_up_excluded_max_score", round4(limitUpExcludedMaxScore));
         eligMeta.put("status", top.isEmpty() ? "NO_ELIGIBLE_CANDIDATE" : "OK");
         // 可追溯性：落库侧同样记录生成时刻与实际数据日，避免只能靠响应体回溯
         eligMeta.put("generated_at", generatedAt.toString());
@@ -374,7 +434,7 @@ public class T1CandidateService {
         out.put("data_cutoff", actualDate.toString());
         out.put("calendar_trading_day", calendarKnowsTradingDay(tradeDate));
         out.put("generated_at", generatedAt.toString());
-        out.put("threshold_version", ELIGIBILITY_THRESHOLD_VERSION);
+        out.put("threshold_version", eligibilityThresholdVersion);
         out.put("rule_score_max", RULE_SCORE_MAX);
         out.putAll(eligMeta);
         out.put("probability_verified", probModel != null);
@@ -394,7 +454,7 @@ public class T1CandidateService {
             out.put("fallback_reason", null);
             out.put("note", "T+1 次日候选：已加载 champion 概率模型 " + probModel.modelVersion()
                     + "，按校准概率排序（rule_score 见各候选字段）；入选需 rule_score≥"
-                    + RULE_SCORE_THRESHOLD + " 且概率≥" + PROBABILITY_THRESHOLD
+                    + ruleScoreThreshold + " 且概率≥" + PROBABILITY_THRESHOLD
                     + (noEligible ? "；当日无合格标的（NO_ELIGIBLE_CANDIDATE），宁可空不凑数" : "")
                     + "；点击「次日核销」在 T+1 结束后回填表现");
         } else {
@@ -407,7 +467,7 @@ public class T1CandidateService {
             // 涨停基因/连板只是生态快照（/research/t1/ecology），不参与候选排序。
             out.put("note", "T+1 次日候选：仅输出 RULE_SCORE（短期动量+量能+趋势，0-" + RULE_SCORE_MAX
                     + "），非概率；不含涨停基因（涨停标的已在打分前排除，连板仅作生态快照展示）；"
-                    + "入选需 rule_score≥" + RULE_SCORE_THRESHOLD
+                    + "入选需 rule_score≥" + effectiveRuleScoreThreshold()
                     + "；当日最高 rule_score=" + (eligibility.get("maxRuleScore") == null ? "-"
                             : eligibility.get("maxRuleScore"))
                     + (noEligible ? "；当日无合格标的（NO_ELIGIBLE_CANDIDATE），宁可空不凑数" : "")
@@ -422,7 +482,7 @@ public class T1CandidateService {
     /**
      * 入选阈值门禁（V2-MP-027）：先按硬性条件过滤 eligible，再按 score 排序并截断到 topN。
      *
-     * <p>门槛：可交易/流动性/上市时长（打分前已过滤）+ rule_score≥{@link #RULE_SCORE_THRESHOLD}
+     * <p>门槛：可交易/流动性/上市时长（打分前已过滤）+ rule_score≥{@link #ruleScoreThreshold}
      * +（若加载了概率模型）校准概率≥{@link #PROBABILITY_THRESHOLD}。被拒原因逐条计数，
      * 用于响应与快照中的 rejected_by_reason。TopN 只是上限：eligible 不足时原样返回，不补足。
      *
@@ -433,11 +493,12 @@ public class T1CandidateService {
      */
     private Map<String, Object> applyEligibilityGate(List<Map<String, Object>> scored, T1ProbModel probModel,
                                                      int topN) {
+        double threshold = effectiveRuleScoreThreshold();
         List<Map<String, Object>> eligible = new ArrayList<>();
         Map<String, Integer> rejectedByReason = new LinkedHashMap<>();
         for (Map<String, Object> c : scored) {
             double ruleScore = ((Number) c.get("rule_score")).doubleValue();
-            if (ruleScore < RULE_SCORE_THRESHOLD) {
+            if (ruleScore < threshold) {
                 rejectedByReason.merge("BELOW_RULE_SCORE_THRESHOLD", 1, Integer::sum);
                 continue;
             }
@@ -468,6 +529,29 @@ public class T1CandidateService {
         result.put("maxRuleScore", maxRuleScore);
         result.put("rejectedByReason", rejectedByReason);
         return result;
+    }
+
+    /**
+     * 生效阈值：对配置值做边界收敛，避免运维误配把门禁关掉（=&gt;0）或配成不可达（&gt;满分）。
+     *
+     * <p>下限 {@link #RULE_SCORE_THRESHOLD_FLOOR}（15.0）：低于该值时打分池会几乎全量通过，
+     * 「入选门禁」名存实亡；上限 {@link #RULE_SCORE_MAX}：超过满分即恒空候选。
+     * 越界时记录告警并按边界值生效，不静默接受非法配置。
+     */
+    private double effectiveRuleScoreThreshold() {
+        double configured = ruleScoreThreshold;
+        if (!Double.isFinite(configured)) {
+            log.warn("quant.t1.eligibility.rule-score-threshold 非法（{}），回退默认值 {}",
+                    configured, DEFAULT_RULE_SCORE_THRESHOLD);
+            return DEFAULT_RULE_SCORE_THRESHOLD;
+        }
+        if (configured < RULE_SCORE_THRESHOLD_FLOOR || configured > RULE_SCORE_MAX) {
+            double clamped = Math.max(RULE_SCORE_THRESHOLD_FLOOR, Math.min(RULE_SCORE_MAX, configured));
+            log.warn("quant.t1.eligibility.rule-score-threshold={} 超出合法区间 [{}, {}]，按 {} 生效",
+                    configured, RULE_SCORE_THRESHOLD_FLOOR, RULE_SCORE_MAX, clamped);
+            return clamped;
+        }
+        return configured;
     }
 
     /** T+1 结束后核销：回填候选次日表现并聚合命中率。 */
@@ -602,7 +686,8 @@ public class T1CandidateService {
                         "status", "generated_at", "requested_trade_date",
                         "pit_limited", "master_source", "master_reliability", "universe_as_of", "universe_size",
                         "data_cutoff", "candidate_invalidation", "daily_coverage", "daily_expected", "daily_covered",
-                        "quality_status", "score_type", "score_model", "calibrator_version", "probability_verified", "fallback_reason")) {
+                        "quality_status", "score_type", "score_model", "calibrator_version", "probability_verified", "fallback_reason",
+                        "max_rule_score", "limit_up_excluded")) {
                     if (e.containsKey(k)) {
                         out.put(k, e.get(k));
                     }
@@ -613,6 +698,15 @@ public class T1CandidateService {
         out.putIfAbsent("probability_verified", false);
         out.putIfAbsent("data_cutoff", rec.getTradeDate().toString());
         out.putIfAbsent("candidate_invalidation", "仅用于信号日之后的下一交易日观察；历史清单不能继续作为当前候选");
+        // 可追溯性补口（D-T1-03）：note 此前只在生成响应里构造，而快照复用路径
+        // （generateCandidates 命中已有快照时直接走本方法）并不会重新生成它，
+        // 于是「这份清单是什么口径、为什么空」在复用/回溯时看不到——
+        // 与上面的 threshold_version/rule_score_threshold 同属一类缺口。
+        out.putIfAbsent("note", "T+1 次日候选（快照回放）：基于信号日 "
+                + rec.getTradeDate() + " 收盘数据生成；rule_score 为 0-" + RULE_SCORE_MAX
+                + " 截面排序分，非概率；入选需 rule_score≥" + effectiveRuleScoreThreshold()
+                + "（口径版本 " + eligibilityThresholdVersion + "）"
+                + "；行情核对与完整说明见 ecology 与生成响应");
         out.put("found", true);
         return out;
     }

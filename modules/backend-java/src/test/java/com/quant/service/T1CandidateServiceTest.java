@@ -173,10 +173,11 @@ class T1CandidateServiceTest {
         assertThat(candidates.get(0).get("stock_code")).isEqualTo("000001");
         assertThat(candidates.get(0).get("score_type")).isEqualTo("RULE_SCORE");
         // rule_score 必须真实越过入选阈值，且值域收敛到 0–50（满分 50），不再是 0–100
-        assertThat((double) candidates.get(0).get("rule_score")).isGreaterThanOrEqualTo(35.0);
+        // D-T1-07（2026-10-14）：阈值由 35 重标定为 30（见 application.yml 标定注释）
+        assertThat((double) candidates.get(0).get("rule_score")).isGreaterThanOrEqualTo(30.0);
         assertThat((double) candidates.get(0).get("score")).isLessThanOrEqualTo(50.0);
         assertThat(out.get("rule_score_max")).isEqualTo(50.0);
-        assertThat(out.get("threshold_version")).isEqualTo("t1_rule_v2");
+        assertThat(out.get("threshold_version")).isEqualTo("t1_rule_v3");
         // 非涨停标的的可买性预判为「可买」（涨停才是「高开追高谨慎」）
         assertThat(candidates.get(0).get("buyability")).isEqualTo("待盘中核实");
     }
@@ -632,7 +633,7 @@ class T1CandidateServiceTest {
      *   <li>趋势 maPos = 20.4/12.43 − 1 ≈ 64% → min(15, 0.64×15) ≈ 9.6</li>
      *   <li>量能（由 mock 注入）：vr=6.0 → min(15, (6.0−1)×10) = 15（触上限）</li>
      * </ul>
-     * 合计 ≈ 44.6 分，明确越过 35 的入选阈值且有余量（不会因小数点舍入偶发失败）。
+     * 合计 ≈ 44.6 分，明确越过 30 的入选阈值且有余量（不会因小数点舍入偶发失败）。
      *
      * <p><b>价格序列为何这样取</b>：主板涨跌停 ±10%，末值必须落在「前收 × 1.10」之内，
      * 否则会被「收盘涨停」预过滤剔除——这本身就是 D-T1-01 的核心机制。故末段每日涨幅

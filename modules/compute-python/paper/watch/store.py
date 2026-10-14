@@ -20,10 +20,12 @@ from .. import clock
 from .models import WatchBar
 
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 LEASE_NAME = "paper-watch-live"
 # account_snapshot 每轮 tick 追加，但 serve 仅读最新一条；保留最近 N 条防止长期膨胀。
 _ACCOUNT_SNAPSHOT_KEEP = 50
+# signal_event 每轮可能写入多只标的；按交易日保留最近 N 天，避免运行库无限增长。
+_SIGNAL_EVENT_KEEP_DAYS = 30
 
 
 class WatchStoreError(RuntimeError):
@@ -53,6 +55,7 @@ class WatchStore(Protocol):
                            payload: dict) -> None: ...
     def load_runtime_state(self, state_key: str, trade_date: str) -> dict | None: ...
     def save_cycle_metric(self, tick: dict) -> None: ...
+    def save_signal_events(self, tick: dict) -> int: ...
     def save_market_data_batch(self, batch: dict, quality_rows: Iterable[dict]) -> None: ...
     def save_quote_quality(self, scope: str, trade_date: str, rows: Iterable[dict]) -> None: ...
     def load_quote_quality(self, scope: str, trade_date: str) -> list[dict]: ...
@@ -213,6 +216,25 @@ class SqliteWatchStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_cycle_metric_date
                     ON cycle_metric(trade_date, started_at);
+
+                CREATE TABLE IF NOT EXISTS signal_event (
+                    run_id TEXT NOT NULL,
+                    trade_date TEXT NOT NULL,
+                    code TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    strategy TEXT NOT NULL DEFAULT '',
+                    bar_ts TEXT NOT NULL DEFAULT '',
+                    valid_until TEXT NOT NULL DEFAULT '',
+                    bar_period_min INTEGER,
+                    reason_codes TEXT NOT NULL DEFAULT '',
+                    detail_json TEXT NOT NULL DEFAULT '{}',
+                    recorded_at TEXT NOT NULL,
+                    PRIMARY KEY(run_id, code, action)
+                );
+                CREATE INDEX IF NOT EXISTS idx_signal_event_date
+                    ON signal_event(trade_date, bar_ts);
+                CREATE INDEX IF NOT EXISTS idx_signal_event_code
+                    ON signal_event(code, trade_date, bar_ts);
 
                 CREATE TABLE IF NOT EXISTS market_data_batch (
                     batch_id TEXT PRIMARY KEY,
@@ -883,6 +905,76 @@ class SqliteWatchStore:
                 )
         except (TypeError, ValueError, sqlite3.Error) as exc:
             raise WatchStoreError(f"保存周期指标失败: {type(exc).__name__}:{exc}") from exc
+
+    # ------------------------- signal plane -------------------------
+
+    def save_signal_events(self, tick: dict) -> int:
+        """把本轮产出的信号明细落库，返回写入条数。
+
+        存在意义（D-WATCH-01，2026-10-14）：此前 cycle_metric 只记录
+        ``buy_signal_count`` / ``sell_signal_count`` 两个计数，**信号对应的具体标的与
+        指标值全部丢失**——只能从被重定向的 stdout 里人工翻找，进程重启后更无从回溯。
+        结果是「信号准不准」无法在事后回答，也无法把盘中信号并入任何统计分析。
+        本方法把每条信号连同 bar 时点、原因码与指标明细一并持久化，使信号可回溯、可回验。
+
+        幂等：主键 (run_id, code, action)，同一轮重复写入只更新不重复追加。
+        """
+        signals = tick.get("signals") or []
+        if not signals:
+            return 0
+        run_id = str(tick.get("run_id", ""))
+        trade_date = str(tick.get("trade_date", ""))
+        now = clock.now().isoformat()
+        written = 0
+        try:
+            with self._transaction():
+                for signal in signals:
+                    if not isinstance(signal, dict):
+                        continue
+                    code = str(signal.get("code") or signal.get("stock_code") or "")
+                    if not code:
+                        continue
+                    reasons = signal.get("reason_codes") or []
+                    self._conn.execute(
+                        """
+                        INSERT INTO signal_event(
+                            run_id, trade_date, code, action, strategy, bar_ts, valid_until,
+                            bar_period_min, reason_codes, detail_json, recorded_at
+                        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(run_id, code, action) DO UPDATE SET
+                            strategy=excluded.strategy,
+                            bar_ts=excluded.bar_ts,
+                            valid_until=excluded.valid_until,
+                            bar_period_min=excluded.bar_period_min,
+                            reason_codes=excluded.reason_codes,
+                            detail_json=excluded.detail_json,
+                            recorded_at=excluded.recorded_at
+                        """,
+                        (
+                            run_id, trade_date, code,
+                            str(signal.get("action", "")),
+                            str(signal.get("strategy", "")),
+                            str(signal.get("bar_ts", "")),
+                            str(signal.get("valid_until", "")),
+                            signal.get("bar_period_min"),
+                            ",".join(str(r) for r in reasons),
+                            json.dumps(signal.get("detail", {}), ensure_ascii=False, default=str),
+                            now,
+                        ),
+                    )
+                    written += 1
+                # 定期清理：按交易日只保留最近 _SIGNAL_EVENT_KEEP_DAYS 天
+                distinct_dates = [
+                    row[0] for row in self._conn.execute(
+                        "SELECT DISTINCT trade_date FROM signal_event ORDER BY trade_date DESC"
+                    ).fetchall()
+                ]
+                if len(distinct_dates) > _SIGNAL_EVENT_KEEP_DAYS:
+                    for stale in distinct_dates[_SIGNAL_EVENT_KEEP_DAYS:]:
+                        self._conn.execute("DELETE FROM signal_event WHERE trade_date=?", (stale,))
+        except (TypeError, ValueError, sqlite3.Error) as exc:
+            raise WatchStoreError(f"保存信号明细失败: {type(exc).__name__}:{exc}") from exc
+        return written
 
     # ------------------------- market data plane -------------------------
 

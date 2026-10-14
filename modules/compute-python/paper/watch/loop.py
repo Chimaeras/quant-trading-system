@@ -215,6 +215,15 @@ class WatchLoop:
             else None
         )
         self._prepared_date = ""
+        # D-WATCH-02（2026-10-14 修正）：`signal_date` 由 CLI/脚本在**启动时**固定传入，
+        # 长循环跨日后不会自我更新。实测 2026-10-13 15:40 以 `--signal-date 2026-10-13`
+        # 启动的进程，到 10-14 仍在用 10-13 作为 selection_signal_date——
+        # 在 WATCHLIST 模式下它只是展示标签（观察池来自热门榜 + 人工池，与该日期无关），
+        # 会误导使用者以为「今天仍在用昨天的信号」；在 T1 模式下则更严重：会按陈旧
+        # 信号日重新加载候选（T1 观察日校验虽会 fail-closed 清空，但错误信息指向的是
+        # 传入日期而非「跨日未更新」这一真实原因）。
+        # 此处保留启动时收到的日期作为兜底，并在交易日滚动时按正式日历重算上一交易日。
+        self._signal_date_cli = ""
         self._candidates: list[Candidate] = []
         self._universe_source = ""
         self._watch_pool_revision = ""
@@ -349,10 +358,48 @@ class WatchLoop:
             self._events_date = trade_date
         return self._events
 
+    def _resolve_signal_date(self, signal_date: str, current: datetime) -> str:
+        """把「启动时固定的 signal_date」校正为当前交易日对应的上一交易日。
+
+        D-WATCH-02：仅在**交易日已滚动**（当前日不同于启动时收到的日期）时才重算，
+        因此同一交易日内反复调用结果稳定，不会把调用方显式传入的信号日改来改去。
+
+        规则与脚本口径保持一致（start_internal_paper_watch.ps1）：
+        「今天之前的最近一个交易日」；若日历不可用/未覆盖当日，则保留传入值并
+        由既有 T1 观察日校验 fail-closed，不臆造日期。
+        """
+        if not signal_date:
+            self._signal_date_cli = self._signal_date_cli or ""
+            return current.strftime("%Y-%m-%d")
+        if not self._signal_date_cli:
+            self._signal_date_cli = signal_date
+        # 交易日未滚动（或调用方显式传入了与启动值不同的日期）时，尊重传入值。
+        if signal_date != self._signal_date_cli:
+            return signal_date
+        today = current.date()
+        if today.isoformat() == signal_date:
+            # 启动当天就已经是「当天」口径（例如显式传了今天），不外推。
+            return signal_date
+        try:
+            if not self.calendar.is_trading_day(today):
+                return signal_date
+        except (OSError, TypeError, ValueError):
+            return signal_date
+        probe = today - timedelta(days=1)
+        for _ in range(31):
+            try:
+                if self.calendar.is_trading_day(probe):
+                    return probe.isoformat()
+            except (OSError, TypeError, ValueError):
+                return signal_date
+            probe -= timedelta(days=1)
+        return signal_date
+
     def prepare(self, signal_date: str, candidates_override=None, *, now: datetime | None = None) -> list[str]:
         """加载观察池、恢复状态并分批预热分钟 K 线，不混用日线 fallback。"""
         current = now or self.now_fn()
         trade_date = current.strftime("%Y-%m-%d")
+        signal_date = self._resolve_signal_date(signal_date, current)
         if self._prepared_date != trade_date:
             # forming bar 和策略价格序列都属于交易日内状态，不能把前一日
             # 的最后快照或 position-dependent strategy state 带到新的一天。
@@ -1512,6 +1559,12 @@ class WatchLoop:
         if self.store is not None:
             try:
                 self.store.save_cycle_metric(tick.to_dict())
+                # D-WATCH-01：信号明细必须落库。此前只存 buy/sell 计数，
+                # 具体标的、bar 时点与指标值一旦进程重启即不可回溯，
+                # 导致「信号准不准」只能靠翻 stdout，无法纳入任何事后回验。
+                saved = self.store.save_signal_events(tick.to_dict())
+                if saved:
+                    tick.metrics["signal_events_persisted"] = saved
             except WatchStoreError as exc:
                 tick.errors.append(f"CYCLE_METRIC_PERSIST_FAILED:{type(exc).__name__}:{exc}")
                 if tick.live:
@@ -1582,6 +1635,9 @@ class WatchLoop:
 
         if self._prepared_date != trade_date:
             try:
+                # D-WATCH-02：跨日时校正为当前交易日对应的上一交易日，
+                # 避免长循环跨日后仍标注/使用启动日的 signal_date。
+                signal_date = self._resolve_signal_date(signal_date, current)
                 self.prepare(signal_date or trade_date, candidates_override, now=current)
             except (OSError, TypeError, ValueError) as exc:
                 tick.errors.append(f"UNIVERSE_PREPARE_FAILED:{type(exc).__name__}:{exc}")
@@ -1659,7 +1715,8 @@ class WatchLoop:
         # 活动委托会在账户快照后被强制并入候选。SHADOW 没有外部账户可补充。
         tick.metrics["universe_source"] = self._universe_source
         tick.metrics["universe_count"] = len(self._candidates)
-        tick.metrics["selection_signal_date"] = signal_date
+        # D-WATCH-02：落库/展示的必须是校正后的信号日，否则跨日后指标仍显示旧日期。
+        tick.metrics["selection_signal_date"] = self._resolve_signal_date(signal_date, current)
         if not self._candidates and self.execution_mode == "SHADOW":
             tick.status = "NO_UNIVERSE"
             return self._finish(tick)

@@ -138,21 +138,33 @@ public class ProgressiveResultWriter {
     }
 
     private static void sanitizeNumericFields(SelectorResultItem item) {
+        // NOT NULL 列：null/NaN 只能退化为 0（列不允许 NULL，见 V2 DDL）
         item.setFinalScore(safe(item.getFinalScore()));
         item.setTrendScore(safe(item.getTrendScore()));
         item.setMomentumScore(safe(item.getMomentumScore()));
         item.setVolumeScore(safe(item.getVolumeScore()));
         item.setRiskPenalty(safe(item.getRiskPenalty()));
-        item.setRet20(safe(item.getRet20()));
-        item.setRet60(safe(item.getRet60()));
-        item.setVolatility20(safe(item.getVolatility20()));
-        item.setMaxDrawdown60(safe(item.getMaxDrawdown60()));
-        item.setAvgAmount20(safe(item.getAvgAmount20()));
+        // 可 NULL 列：null/NaN 必须保留为 NULL，不得写成 0。
+        // 这五列在 TREND / MULTI_DIM / COMPREHENSIVE 三套策略上历史上「整列 100% 为 0」，
+        // 那是「未计算」的占位 0，会被研究侧当特征读走（见 V25 / V30 迁移的实测证据）。
+        item.setRet20(safeNullable(item.getRet20()));
+        item.setRet60(safeNullable(item.getRet60()));
+        item.setVolatility20(safeNullable(item.getVolatility20()));
+        item.setMaxDrawdown60(safeNullable(item.getMaxDrawdown60()));
+        item.setAvgAmount20(safeNullable(item.getAvgAmount20()));
     }
 
     private static double safe(Double value) {
         if (value == null || value.isNaN() || value.isInfinite()) {
             return 0d;
+        }
+        return value;
+    }
+
+    /** 可 NULL 列的清洗：非有限值与 null 一律保留为 NULL，保证「未计算」可被表达。 */
+    private static Double safeNullable(Double value) {
+        if (value == null || value.isNaN() || value.isInfinite()) {
+            return null;
         }
         return value;
     }

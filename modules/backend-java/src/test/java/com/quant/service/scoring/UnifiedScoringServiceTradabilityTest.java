@@ -38,6 +38,7 @@ class UnifiedScoringServiceTradabilityTest {
                 multiDimScoringService,
                 mock(StockSelectorService.class),
                 mock(OversoldReboundScoringService.class),
+                mock(com.quant.service.scoring.factor.UnifiedFactorScoringService.class),
                 mock(SelectorResultRepository.class),
                 mock(SelectorResultItemRepository.class),
                 mock(UnifiedScoringTaskRepository.class),

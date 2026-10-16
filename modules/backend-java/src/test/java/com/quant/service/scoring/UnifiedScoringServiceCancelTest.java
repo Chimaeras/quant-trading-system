@@ -60,6 +60,7 @@ class UnifiedScoringServiceCancelTest {
                 mock(MultiDimScoringService.class),
                 mock(StockSelectorService.class),
                 mock(OversoldReboundScoringService.class),
+                mock(com.quant.service.scoring.factor.UnifiedFactorScoringService.class),
                 mock(SelectorResultRepository.class),
                 mock(SelectorResultItemRepository.class),
                 taskRepo,

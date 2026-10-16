@@ -113,6 +113,51 @@ def test_hot_refresh_preserves_manual_members(monkeypatch, tmp_path):
     store.close()
 
 
+def test_empty_candidate_list_does_not_wipe_hot_pool(tmp_path):
+    """D-2 回归：空候选（上游失败）不得清空非人工成员。
+
+    旧实现在 values 为空时仍执行 `DELETE FROM watch_pool_member WHERE manual=0`，
+    于是 T1 模式下一次候选获取失败就把 204 只的池子清成只剩人工成员。
+    「取不到」不等于「没有」。
+    """
+    store = SqliteWatchStore(tmp_path / "runtime.sqlite3")
+    # 先灌入热门成员（非人工）
+    store.sync_default_watch_pool(
+        [{"code": f"60{i:04d}", "name": f"热门{i}", "exchange": "SSE"} for i in range(5)],
+        max_size=200, source="hot_stocks",
+    )
+    store.upsert_watch_pool_member({"code": "300750", "name": "宁德时代", "exchange": "SZ"})
+    before = store.list_watch_pool()
+    assert len(before) == 6
+
+    # 上游失败 → 候选为空
+    store.sync_default_watch_pool([], max_size=200, source="t1")
+
+    after = store.list_watch_pool()
+    assert len(after) == 6, f"空候选把池子清了: {len(before)} -> {len(after)}"
+    assert {row["code"] for row in after} == {row["code"] for row in before}
+    store.close()
+
+
+def test_non_empty_candidate_list_still_replaces_hot_members(tmp_path):
+    """对照组：非空候选必须照旧生效，别把 D-2 修成"永不刷新"。"""
+    store = SqliteWatchStore(tmp_path / "runtime.sqlite3")
+    store.sync_default_watch_pool(
+        [{"code": "600000", "name": "旧热门", "exchange": "SSE"}], max_size=200
+    )
+    store.upsert_watch_pool_member({"code": "300750", "name": "宁德时代", "exchange": "SZ"})
+
+    store.sync_default_watch_pool(
+        [{"code": "000001", "name": "平安银行", "exchange": "SZSE"}], max_size=200, source="t1"
+    )
+
+    rows = store.list_watch_pool()
+    codes = {row["code"] for row in rows}
+    assert codes == {"300750", "000001"}, codes  # 人工保留、热门被替换
+    assert rows[0]["code"] == "300750" and rows[0]["manual"] == 1
+    store.close()
+
+
 def test_watch_serve_pool_helpers_add_list_and_remove(tmp_path):
     store_path = tmp_path / "runtime.sqlite3"
     store = SqliteWatchStore(store_path)
@@ -220,3 +265,68 @@ def test_hot_refresh_fills_capacity_when_manual_member_is_also_hot(tmp_path):
     assert "000001" in hot_codes
     assert "000050" in hot_codes
     assert "000000" not in hot_codes
+
+
+def test_drastic_candidate_shrink_does_not_wipe_pool(tmp_path):
+    """D-3 回归：**非空但极少**的候选同样不得清池。
+
+    实测缺陷：盯盘循环以 `PAPER_MAX_OBSERVE_CODES=10` 启动后，每轮都用 10 只热门股
+    覆写 204 只的池子，池子长期停在 10 只。与 D-2 不同，这种情况**日志全是 OK、
+    没有任何错误**，只能靠池子规模才能发现。
+    """
+    store = SqliteWatchStore(tmp_path / "runtime.sqlite3")
+    store.sync_default_watch_pool(
+        [{"code": f"60{i:04d}", "name": f"热门{i}", "exchange": "SSE"} for i in range(200)],
+        max_size=200, source="hot_stocks",
+    )
+    store.upsert_watch_pool_member({"code": "300750", "name": "宁德时代", "exchange": "SZ"})
+    assert len(store.list_watch_pool()) == 201
+
+    # max_size 被误配成 10 → 只送来 10 只
+    store.sync_default_watch_pool(
+        [{"code": f"00{i:04d}", "name": f"少数{i}", "exchange": "SZ"} for i in range(10)],
+        max_size=10, source="hot_stocks",
+    )
+
+    rows = store.list_watch_pool()
+    hot = [r for r in rows if r["manual"] == 0]
+    assert len(hot) == 200, f"骤降候选把池子清了: 200 -> {len(hot)}"
+    assert {r["code"] for r in rows if r["manual"] == 1} == {"300750"}
+    store.close()
+
+
+def test_moderate_refresh_still_replaces_pool(tmp_path):
+    """对照组：正常幅度的刷新必须照旧生效，别把 D-3 修成"永不刷新"。"""
+    store = SqliteWatchStore(tmp_path / "runtime.sqlite3")
+    store.sync_default_watch_pool(
+        [{"code": f"60{i:04d}", "name": f"旧{i}", "exchange": "SSE"} for i in range(20)],
+        max_size=200,
+    )
+    # 20 -> 15：不足一半的骤降不成立（15*2=30 >= 20），应正常替换
+    store.sync_default_watch_pool(
+        [{"code": f"00{i:04d}", "name": f"新{i}", "exchange": "SZ"} for i in range(15)],
+        max_size=200, source="t1",
+    )
+    hot = [r for r in store.list_watch_pool() if r["manual"] == 0]
+    assert len(hot) == 15
+    assert {r["code"] for r in hot} == {f"00{i:04d}" for i in range(15)}
+    store.close()
+
+
+def test_explicitly_reducing_pool_size_is_honoured(tmp_path):
+    """真有缩减意图时必须生效：池子小的时候不做骤降保护。
+
+    避免"为了防误配反而让用户无法主动下调 PAPER_MAX_OBSERVE_CODES"。
+    """
+    store = SqliteWatchStore(tmp_path / "runtime.sqlite3")
+    # 池子只有 3 只（< 骤降保护的门槛 4），此时 1 只候选应被接受
+    store.sync_default_watch_pool(
+        [{"code": f"60{i:04d}", "name": f"旧{i}", "exchange": "SSE"} for i in range(3)],
+        max_size=200,
+    )
+    store.sync_default_watch_pool(
+        [{"code": "000001", "name": "平安银行", "exchange": "SZSE"}], max_size=1, source="hot_stocks"
+    )
+    hot = [r for r in store.list_watch_pool() if r["manual"] == 0]
+    assert len(hot) == 1 and hot[0]["code"] == "000001"
+    store.close()

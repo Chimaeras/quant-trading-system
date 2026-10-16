@@ -153,7 +153,9 @@ public class ClassicFactorCalculator {
         if (!ScoringUtils.hasMinListingTenure(listDate, tradeDate, minListingDays, bars)) {
             return Optional.empty();
         }
-        if (!ScoringUtils.isTradableForScoring(bars, stockCode, exchangeType, name, stockStatus, excludeST, true, true)) {
+        // V30/P0-1：严格模式——缺 preClose / 名称为空时拒绝，避免涨跌停闸与 ST 闸静默失效
+        if (!ScoringUtils.evaluateTradabilityStrict(
+                bars, stockCode, exchangeType, name, stockStatus, excludeST, true, true).isTradable()) {
             return Optional.empty();
         }
 

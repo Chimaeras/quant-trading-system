@@ -499,8 +499,11 @@ public class OversoldReboundScoringService {
         item.setRiskPenalty(0.0);
         item.setRet20(r.ret20);
         item.setRet60(r.ret60);
-        item.setVolatility20(r.weightedScore);
-        item.setMaxDrawdown60(0.0);
+        // V30 修正：本列原写入 r.weightedScore（加权总分），与列名语义不符；
+        // 现写入真实 20 日波动率，加权总分为 0 时以 NULL 表达「不可用」。
+        item.setVolatility20(r.volatility20 > 0 ? r.volatility20 : null);
+        // 原为硬编码 0.0 占位；本策略确实未计算 60 日最大回撤，故改以 NULL 表达「未计算」（V30 起列可 NULL）
+        item.setMaxDrawdown60(null);
         item.setAvgAmount20(r.avgAmount20);
 
         Map<String, Object> reasons = new LinkedHashMap<>();
@@ -553,7 +556,10 @@ public class OversoldReboundScoringService {
         double lastClose = close[n - 1];
 
         String stockName = nameCache.computeIfAbsent(stockCode + ":" + exchangeType, k -> getStockName(stockCode, exchangeType));
-        if (!ScoringUtils.isTradableForScoring(bars, stockCode, exchangeType, stockName, stockStatus, excludeST, true, false)) {
+        // V30/P0-1：严格模式——缺 preClose / 名称为空时拒绝。
+        // 仍保留 excludeLimitDownAtClose=false 的超跌策略设计（本策略允许信号日跌停收盘）。
+        if (!ScoringUtils.evaluateTradabilityStrict(
+                bars, stockCode, exchangeType, stockName, stockStatus, excludeST, true, false).isTradable()) {
             return null;
         }
 
@@ -561,6 +567,14 @@ public class OversoldReboundScoringService {
         double ret60 = (n >= 61) ? ScoringUtils.pct(lastClose, close[n - 61]) : 0;
         double ret120 = (n >= 121) ? ScoringUtils.pct(lastClose, close[n - 121]) : 0;
         double ret20 = (n >= 21) ? ScoringUtils.pct(lastClose, close[n - 21]) : 0;
+
+        // 20 日波动率(%)：收益率序列标准差 × 100，与 ClassicFactorCalculator 同口径。
+        // V30 新增：本策略此前把「加权总分」写进 volatility20 列，现已改为真实波动率。
+        List<Double> closeList = new java.util.ArrayList<>(n);
+        for (double c : close) {
+            closeList.add(c);
+        }
+        double volatility20 = n >= 21 ? ScoringUtils.stdPct(closeList, 20) * 100 : 0;
 
         // 日均成交额（20日）
         double avgAmount20 = ScoringUtils.avgAmount20(bars);
@@ -677,6 +691,7 @@ public class OversoldReboundScoringService {
                 ScoringUtils.round2(weightedScore),
                 ScoringUtils.round2(ret20),
                 ScoringUtils.round2(ret60),
+                ScoringUtils.round2(volatility20),
                 ScoringUtils.round2(avgAmount20),
                 detail
         );
@@ -775,13 +790,15 @@ public class OversoldReboundScoringService {
         final double weightedScore;
         final double ret20;
         final double ret60;
+        /** 20 日波动率(%)——收益率序列标准差×100。与 {@code ClassicFactorCalculator} 同口径。 */
+        final double volatility20;
         final double avgAmount20;
         final Map<String, Object> detail;
 
         ScoreResult(String stockCode, String exchangeType, String stockName, String asOfDate,
                     int trendScore40, int volumeScore30, int oversoldScore30,
                     double totalScore, double weightedScore,
-                    double ret20, double ret60, double avgAmount20,
+                    double ret20, double ret60, double volatility20, double avgAmount20,
                     Map<String, Object> detail) {
             this.stockCode = stockCode;
             this.exchangeType = exchangeType;
@@ -794,6 +811,7 @@ public class OversoldReboundScoringService {
             this.weightedScore = weightedScore;
             this.ret20 = ret20;
             this.ret60 = ret60;
+            this.volatility20 = volatility20;
             this.avgAmount20 = avgAmount20;
             this.detail = detail;
         }
@@ -813,7 +831,9 @@ public class OversoldReboundScoringService {
             m.put("trend_score", (double) trendScore40);
             m.put("volume_score", (double) volumeScore30);
             m.put("momentum_score", (double) oversoldScore30);
-            m.put("volatility20", weightedScore);
+            // V30 修正：本列历史上写入的是 weightedScore（加权总分），导致前端把它当「加权分」展示；
+            // 现改为真实 20 日波动率，加权总分仍由上面的 weighted_score 承载（不重复 put）。
+            m.put("volatility20", volatility20);
             m.put("ret20", ret20);
             m.put("ret60", ret60);
             m.put("avg_amount20", avgAmount20);

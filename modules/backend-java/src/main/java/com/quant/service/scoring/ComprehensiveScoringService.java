@@ -559,8 +559,9 @@ public class ComprehensiveScoringService {
             skipped.incrementAndGet();
             return;
         }
-        if (!ScoringUtils.isTradableForScoring(bars, stockCode, exchangeType, stockName,
-                info != null ? info.getStatus() : null, excludeST, true, true)) {
+        // V30/P0-1：严格模式——缺 preClose / 名称为空时拒绝，避免涨跌停闸与 ST 闸静默失效
+        if (!ScoringUtils.evaluateTradabilityStrict(bars, stockCode, exchangeType, stockName,
+                info != null ? info.getStatus() : null, excludeST, true, true).isTradable()) {
             skipped.incrementAndGet();
             return;
         }

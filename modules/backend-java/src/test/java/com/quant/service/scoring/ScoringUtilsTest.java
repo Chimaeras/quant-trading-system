@@ -84,8 +84,94 @@ class ScoringUtilsTest {
                 .isTrue();
     }
 
-    private static MarketData bar(String code, String exchange, double close) {
-        MarketData signal = new MarketData();
+    // ── V30 / P0-1 回归测试：两处「静默放行」漏洞 ──────────────────────────────
+    // 旧实现在这两种情形下都无痕放行，已实测导致 ST 股进入候选池（CLASSIC_SELECTOR 3 行、TREND 4 行）。
+
+    @Test
+    void strictTradabilityRejectsBlankStockNameInsteadOfBypassingStGate() {
+        MarketData normal = new MarketData();
+        normal.setVolume(1000L);
+        MarketData prev = bar("000001", "SZSE", 10.0);
+        MarketData signal = bar("000001", "SZSE", 10.5);
+
+        // 旧行为：stockName 为 null/blank 时 `stockName != null && ...` 短路 → ST 闸整体失效。
+        // 新行为：名称缺失是数据缺陷，严格模式下拒绝。
+        // 注意：stockName 传 null 字面量会与 (MarketData signalBar, ...) 重载产生歧义（进而绑错参数），
+        // 故此处显式声明为 (String) null。
+        assertThat(ScoringUtils.evaluateTradability(
+                List.of(prev, signal), "000001", "SZSE", (String) null, 1, true, true, true, true))
+                .isEqualTo(TradabilityCheck.MISSING_STOCK_NAME);
+        assertThat(ScoringUtils.evaluateTradability(
+                List.of(prev, signal), "000001", "SZSE", "   ", 1, true, true, true, true))
+                .isEqualTo(TradabilityCheck.MISSING_STOCK_NAME);
+        // 名称缺失的拒绝**不区分严格/非严格**：生产路径上 5 套打分都会把缺失名称兜底成 ""
+        // 或股票代码，空名称本就不该出现；一旦出现宁可拒绝，也不放 ST 进来。
+        assertThat(ScoringUtils.evaluateTradability(
+                List.of(prev, signal), "000001", "SZSE", (String) null, 1, true, true, true, false))
+                .isEqualTo(TradabilityCheck.MISSING_STOCK_NAME);
+        // 名称正常时不受影响
+        assertThat(ScoringUtils.evaluateTradability(
+                List.of(prev, signal), "000001", "SZSE", "测试股份", 1, true, true, true, true))
+                .isEqualTo(TradabilityCheck.TRADABLE);
+        // ST 名称依然被拒
+        assertThat(ScoringUtils.evaluateTradability(
+                List.of(prev, signal), "000001", "SZSE", "*ST测试", 1, true, true, true, true))
+                .isEqualTo(TradabilityCheck.ST_NAME);
+    }
+
+    @Test
+    void strictTradabilityRejectsMissingPreCloseInsteadOfBypassingBothLimitGates() {
+        MarketData prev = bar("000001", "SZSE", 10.0);
+        MarketData limitUp = bar("000001", "SZSE", 11.0);
+
+        // 只有 1 根 K 线 → resolvePreClose 为 null。
+        // 旧行为：`if (preClose == null ...) return true;` 位于涨跌停判定之前 ⟹ 涨停闸与跌停闸同时失效。
+        assertThat(ScoringUtils.evaluateTradability(
+                List.of(limitUp), "000001", "SZSE", "测试股份", 1, true, true, true, true))
+                .isEqualTo(TradabilityCheck.MISSING_PRE_CLOSE);
+        // 非严格模式保留旧语义，但降级状态可被观测
+        TradabilityCheck degraded = ScoringUtils.evaluateTradability(
+                List.of(limitUp), "000001", "SZSE", "测试股份", 1, true, true, true, false);
+        assertThat(degraded).isEqualTo(TradabilityCheck.MISSING_PRE_CLOSE_DEGRADED);
+        assertThat(degraded.isTradable()).isTrue();
+        assertThat(degraded.isDegraded()).isTrue();
+        // 有 preClose 时涨停闸正常生效
+        assertThat(ScoringUtils.evaluateTradability(
+                List.of(prev, limitUp), "000001", "SZSE", "测试股份", 1, true, true, true, true))
+                .isEqualTo(TradabilityCheck.LIMIT_UP_AT_CLOSE);
+    }
+
+    @Test
+    void strictTradabilityRejectsMissingStockCode() {
+        MarketData prev = bar("000001", "SZSE", 10.0);
+        MarketData signal = bar("000001", "SZSE", 10.5);
+
+        assertThat(ScoringUtils.evaluateTradability(
+                List.of(prev, signal), null, "SZSE", "测试股份", 1, true, true, true, true))
+                .isEqualTo(TradabilityCheck.MISSING_STOCK_CODE);
+        assertThat(ScoringUtils.evaluateTradability(
+                List.of(prev, signal), "", "SZSE", "测试股份", 1, true, true, true, true))
+                .isEqualTo(TradabilityCheck.MISSING_STOCK_CODE);
+    }
+
+    @Test
+    void tradabilityCheckReasonCodesAreStableAndClassified() {
+        assertThat(TradabilityCheck.TRADABLE.isTradable()).isTrue();
+        assertThat(TradabilityCheck.TRADABLE.isDegraded()).isFalse();
+        assertThat(TradabilityCheck.ST_NAME.isTradable()).isFalse();
+        assertThat(TradabilityCheck.INACTIVE_STATUS.isTradable()).isFalse();
+        assertThat(TradabilityCheck.NO_BARS.isTradable()).isFalse();
+        assertThat(TradabilityCheck.ZERO_VOLUME.isTradable()).isFalse();
+        assertThat(TradabilityCheck.LIMIT_UP_AT_CLOSE.isTradable()).isFalse();
+        assertThat(TradabilityCheck.LIMIT_DOWN_AT_CLOSE.isTradable()).isFalse();
+        assertThat(TradabilityCheck.MISSING_STOCK_NAME.isTradable()).isFalse();
+        assertThat(TradabilityCheck.MISSING_PRE_CLOSE.isTradable()).isFalse();
+        assertThat(TradabilityCheck.MISSING_STOCK_CODE.isTradable()).isFalse();
+        assertThat(TradabilityCheck.MISSING_PRE_CLOSE_DEGRADED.isDegraded()).isTrue();
+        assertThat(TradabilityCheck.TRADABLE.code()).isEqualTo("TRADABLE");
+    }
+
+    private static MarketData bar(String code, String exchange, double close) {        MarketData signal = new MarketData();
         signal.setStockCode(code);
         signal.setExchangeType(exchange);
         signal.setClosePrice(java.math.BigDecimal.valueOf(close));
@@ -240,8 +326,20 @@ class ScoringUtilsTest {
         normal.setClosePrice(java.math.BigDecimal.TEN);
         assertThat(ScoringUtils.isTradableForScoring(
                 List.of(normal), "000001", "SZSE", "测试股份", 0, true, true, true)).isFalse();
+        // V30 修正：旧断言此处为 isTrue()，把「单根 K 线 → preClose 为 null → 涨跌停闸双双失效」
+        // 这一数据缺陷当成了正确行为。严格模式下应拒绝。
+        assertThat(ScoringUtils.evaluateTradability(
+                List.of(normal), "000001", "SZSE", "测试股份", 1, true, true, true, true))
+                .isEqualTo(TradabilityCheck.MISSING_PRE_CLOSE);
+        // 非严格模式（旧 8 参布尔重载）保留放行语义，但状态可观测为降级
+        assertThat(ScoringUtils.evaluateTradability(
+                List.of(normal), "000001", "SZSE", "测试股份", 1, true, true, true, false))
+                .isEqualTo(TradabilityCheck.MISSING_PRE_CLOSE_DEGRADED);
+        // 有前一根 K 线、preClose 可解析时，活跃状态正常通过
+        MarketData prev = bar("000001", "SZSE", 10.0);
+        MarketData signal = bar("000001", "SZSE", 10.5);
         assertThat(ScoringUtils.isTradableForScoring(
-                List.of(normal), "000001", "SZSE", "测试股份", 1, true, true, true)).isTrue();
+                List.of(prev, signal), "000001", "SZSE", "测试股份", 1, true, true, true)).isTrue();
     }
 
     private static List<MarketData> sampleAmountBars(int count, double amount) {

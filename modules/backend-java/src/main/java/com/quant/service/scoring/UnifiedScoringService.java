@@ -65,6 +65,7 @@ public class UnifiedScoringService {
     private final MultiDimScoringService multiDimScoringService;
     private final StockSelectorService stockSelectorService;
     private final OversoldReboundScoringService oversoldReboundScoringService;
+    private final com.quant.service.scoring.factor.UnifiedFactorScoringService unifiedFactorScoringService;
     private final SelectorResultRepository selectorResultRepository;
     private final SelectorResultItemRepository selectorResultItemRepository;
     private final UnifiedScoringTaskRepository unifiedScoringTaskRepository;
@@ -80,6 +81,7 @@ public class UnifiedScoringService {
             MultiDimScoringService multiDimScoringService,
             StockSelectorService stockSelectorService,
             OversoldReboundScoringService oversoldReboundScoringService,
+            com.quant.service.scoring.factor.UnifiedFactorScoringService unifiedFactorScoringService,
             SelectorResultRepository selectorResultRepository,
             SelectorResultItemRepository selectorResultItemRepository,
             UnifiedScoringTaskRepository unifiedScoringTaskRepository,
@@ -91,6 +93,7 @@ public class UnifiedScoringService {
         this.multiDimScoringService = multiDimScoringService;
         this.stockSelectorService = stockSelectorService;
         this.oversoldReboundScoringService = oversoldReboundScoringService;
+        this.unifiedFactorScoringService = unifiedFactorScoringService;
         this.selectorResultRepository = selectorResultRepository;
         this.selectorResultItemRepository = selectorResultItemRepository;
         this.unifiedScoringTaskRepository = unifiedScoringTaskRepository;
@@ -169,8 +172,11 @@ public class UnifiedScoringService {
         rawResult.put("returned_items", slicedItems.size());
 
         String resultId = null;
+        boolean deduped = false;
         if (persist) {
-            resultId = persistUnified(strategy, factorVersion, tradeDate, topN, strategyReq, rawResult, slicedItems);
+            PersistOutcome outcome = persistUnified(strategy, factorVersion, tradeDate, topN, strategyReq, rawResult, slicedItems);
+            resultId = outcome.resultId();
+            deduped = outcome.deduplicated();
         }
 
         Map<String, Object> out = new LinkedHashMap<>();
@@ -179,6 +185,11 @@ public class UnifiedScoringService {
         out.put("factor_version", factorVersion);
         out.put("trade_date", tradeDate);
         out.put("persisted", persist);
+        out.put("deduplicated", deduped);
+        out.put("deduplicated_note", deduped
+                ? "该请求（同策略 + 同参数 + 同交易日）已有成功结果，已复用既有 result_id 而未新建记录；"
+                  + "如需强制重算请传 dedupe=false"
+                : null);
         out.put("total_items", rawItems.size());
         out.put("qualified_items", qualifiedItems);
         out.put("min_total_score", minTotalScore);
@@ -533,6 +544,7 @@ public class UnifiedScoringService {
             case MULTI_DIM -> runMultiDim(req);
             case CLASSIC_SELECTOR -> runClassicSelector(req);
             case OVERSOLD_REBOUND -> runOversold(req);
+            case UNIFIED -> runUnified(req);
         };
     }
 
@@ -772,7 +784,7 @@ public class UnifiedScoringService {
 
     private static int resolveMinListingDays(Map<String, Object> strategyReq, UnifiedScoringStrategy strategy) {
         int defaultDays = switch (strategy) {
-            case CLASSIC_SELECTOR, TREND, COMPREHENSIVE, MULTI_DIM, OVERSOLD_REBOUND -> 60;
+            case CLASSIC_SELECTOR, TREND, COMPREHENSIVE, MULTI_DIM, OVERSOLD_REBOUND, UNIFIED -> 60;
         };
         return parseInt(strategyReq.get("minListingDays"), defaultDays, 0, 3650);
     }
@@ -885,7 +897,37 @@ public class UnifiedScoringService {
         return oversoldReboundScoringService.run(p);
     }
 
-    private String persistUnified(
+    /**
+     * 统一因子引擎路径（批次 C 影子模式）。
+     *
+     * <p>与其余 5 个 runXxx 的差异：那 5 个各自委托给既有服务、保留其原有结构；
+     * 本方法走新引擎，输出为统一结构（含逐因子归因）。
+     *
+     * <p>{@code persist} 被强制为 false：本阶段是影子模式，<b>只读不落库</b>。
+     * 原因是落库会引入第二套 (strategy, trade_date, stock) 记录，
+     * 与旧路径的 41% 重复率问题叠加后更难对账。待批次 D 完成对账与治理后再开放落库。
+     */
+    private Map<String, Object> runUnified(Map<String, Object> req) {
+        Map<String, Object> p = new LinkedHashMap<>(req);
+        p.put("persist", false);
+        // strategy 字段本身是 UNIFIED，引擎需要的是具体风格，故显式传递并回退到经典多因子
+        Object style = p.get("unifiedStrategy");
+        if (style == null || String.valueOf(style).isBlank()
+                || "UNIFIED".equalsIgnoreCase(String.valueOf(style))) {
+            p.put("unifiedStrategy", "CLASSIC_SELECTOR");
+        }
+        return unifiedFactorScoringService.run(p);
+    }
+
+    /**
+     * 落库结果。
+     *
+     * @param resultId   实际写入（或复用）的结果 ID
+     * @param deduplicated 本次是否因「同策略 + 同指纹 + 同交易日已有成功结果」而复用了既有记录
+     */
+    private record PersistOutcome(String resultId, boolean deduplicated) {}
+
+    private PersistOutcome persistUnified(
             UnifiedScoringStrategy strategy,
             String factorVersion,
             String tradeDate,
@@ -900,7 +942,7 @@ public class UnifiedScoringService {
                 persistUnifiedInTransaction(strategy, factorVersion, tradeDate, topN, strategyReq, rawResult, items));
     }
 
-    private String persistUnifiedInTransaction(
+    private PersistOutcome persistUnifiedInTransaction(
             UnifiedScoringStrategy strategy,
             String factorVersion,
             String tradeDate,
@@ -911,10 +953,29 @@ public class UnifiedScoringService {
 
         String fixedResultId = String.valueOf(strategyReq.getOrDefault("resultId", "")).trim();
         String requestFingerprint = buildFingerprint(strategy.name(), normalizeRequestForFingerprint(strategyReq, strategy));
+        LocalDate d = parseDate(tradeDate, LocalDate.now());
+
+        // ── 幂等去重（重复运行治理）────────────────────────────────────────
+        // 此前 resultId 每次都新生成，而重复检测只在调用方传入固定 resultId 时才有机会执行（见下方分支），
+        // 于是「同一请求执行两次」必然产生两条结果行——这是生产库 (strategy, date, stock)
+        // 重复率 41% 的成因。这里补上按 (策略 + 指纹 + 交易日) 查找既有成功结果的分支。
+        //
+        // 只复用 runStatus='SUCCESS' 的行：RUNNING/PARTIAL/FAILED 应重新计算；
+        // 排查/压测需要绕过时显式传 dedupe=false。
+        boolean dedupe = parseBool(strategyReq.get("dedupe"), true);
+        if (dedupe && fixedResultId.isBlank()) {
+            com.quant.entity.SelectorResult dup = selectorResultRepository
+                    .findFirstByStrategyTypeAndRequestFingerprintAndTradeDateAndRunStatusOrderByCreatedAtAsc(
+                            strategy.name(), requestFingerprint, d, "SUCCESS")
+                    .orElse(null);
+            if (dup != null) {
+                return new PersistOutcome(dup.getResultId(), true);
+            }
+        }
+
         String resultId = !fixedResultId.isBlank()
                 ? fixedResultId
                 : "US" + System.currentTimeMillis() + ThreadLocalRandom.current().nextInt(1000, 9999);
-        LocalDate d = parseDate(tradeDate, LocalDate.now());
 
         if (!fixedResultId.isBlank()
                 && (strategy == UnifiedScoringStrategy.CLASSIC_SELECTOR || strategy == UnifiedScoringStrategy.OVERSOLD_REBOUND)) {
@@ -940,7 +1001,8 @@ public class UnifiedScoringService {
                 existing.setFactorSnapshot(snap);
                 existing.setRunStatus("SUCCESS");
                 selectorResultRepository.save(existing);
-                return resultId;
+                // 显式 resultId 路径属于"重写同一条结果"，语义上不是去重复用
+                return new PersistOutcome(resultId, false);
             }
         }
 
@@ -1003,7 +1065,7 @@ public class UnifiedScoringService {
         sr.setFailedCandidates(Math.max(0, processed - success));
         sr.setRunStatus("SUCCESS");
         selectorResultRepository.save(sr);
-        return resultId;
+        return new PersistOutcome(resultId, false);
     }
 
     private com.quant.entity.SelectorResultItem toUnifiedItem(
@@ -1025,11 +1087,16 @@ public class UnifiedScoringService {
         e.setMomentumScore(firstDouble(item, "momentum_score", "score_bias", "score_fundamental", "oversold_score_30"));
         e.setVolumeScore(firstDouble(item, "volume_score", "score_volume", "score_sentiment", "volume_score_30"));
         e.setRiskPenalty(firstDouble(item, "risk_penalty"));
-        e.setRet20(firstDouble(item, "ret20"));
-        e.setRet60(firstDouble(item, "ret60"));
-        e.setVolatility20(firstDouble(item, "volatility20", "weighted_score"));
-        e.setMaxDrawdown60(firstDouble(item, "max_drawdown60"));
-        e.setAvgAmount20(firstDouble(item, "avg_amount20"));
+        // V30：以下五列改为「缺键即 NULL」，不再兜底成 0。
+        // 原实现用 firstDouble 兜底 0.0，使「未计算」与「真实值 0」不可区分，
+        // 实测导致 TREND / MULTI_DIM / COMPREHENSIVE 三套策略这四列整列 100% 为 0（见 V25 / V30 迁移）。
+        e.setRet20(firstDoubleOrNull(item, "ret20"));
+        e.setRet60(firstDoubleOrNull(item, "ret60"));
+        // 原为 firstDouble(item, "volatility20", "weighted_score")——把超跌策略的「加权总分」
+        // 写进了语义为「20 日波动率」的列，是 A-2 要修的语义错配。此处只认 volatility20 本身。
+        e.setVolatility20(firstDoubleOrNull(item, "volatility20"));
+        e.setMaxDrawdown60(firstDoubleOrNull(item, "max_drawdown60"));
+        e.setAvgAmount20(firstDoubleOrNull(item, "avg_amount20"));
 
         Map<String, Object> reasons = new LinkedHashMap<>();
         reasons.put("strategy", strategy.name());
@@ -1059,6 +1126,9 @@ public class UnifiedScoringService {
         putIfPresent(extra, "score_support", item.get("score_support"));
         putIfPresent(extra, "score_macd", item.get("score_macd"));
         putIfPresent(extra, "score_rsi", item.get("score_rsi"));
+        // V30：超跌策略的「加权分」原本占用 volatility20 列，现已改回真实波动率，
+        // 加权总分必须在此显式保留，否则前端「加权分」列会丢值。
+        putIfPresent(extra, "weighted_score", item.get("weighted_score"));
         if (item.get("reasons_json") instanceof String rj && !rj.isBlank()) {
             try {
                 extra.put("reasons_json", objectMapper.readValue(rj, new TypeReference<Map<String, Object>>() {
@@ -1089,11 +1159,14 @@ public class UnifiedScoringService {
         m.put("momentum_score", nvl(e.getMomentumScore(), 0d));
         m.put("volume_score", nvl(e.getVolumeScore(), 0d));
         m.put("risk_penalty", nvl(e.getRiskPenalty(), 0d));
-        m.put("ret20", nvl(e.getRet20(), 0d));
-        m.put("ret60", nvl(e.getRet60(), 0d));
-        m.put("volatility20", nvl(e.getVolatility20(), 0d));
-        m.put("max_drawdown60", nvl(e.getMaxDrawdown60(), 0d));
-        m.put("avg_amount20", nvl(e.getAvgAmount20(), 0d));
+        // V30：以下五列在库中可为 NULL，API 层必须原样透出 null，
+        // 不得再用 nvl(..., 0d) 兜底——否则 P0-3（「未计算」伪装成 0）会在响应层复活。
+        // 前端需要自行区分 null（未计算）与 0（真实值）。
+        m.put("ret20", e.getRet20());
+        m.put("ret60", e.getRet60());
+        m.put("volatility20", e.getVolatility20());
+        m.put("max_drawdown60", e.getMaxDrawdown60());
+        m.put("avg_amount20", e.getAvgAmount20());
 
         Map<String, Object> reasons = e.getReasons() != null ? e.getReasons() : Map.of();
         Map<String, Object> extra = e.getExtraMetrics() != null ? e.getExtraMetrics() : Map.of();
@@ -1189,20 +1262,32 @@ public class UnifiedScoringService {
     }
 
     private static double firstDouble(Map<String, Object> m, String... keys) {
+        Double v = firstDoubleOrNull(m, keys);
+        return v != null ? v : 0.0;
+    }
+
+    /**
+     * 与 {@link #firstDouble} 同语义，但**键缺失时返回 null 而非 0.0**。
+     * <p>用于「未计算」必须与「真实值 0」可区分的列（见 V30 迁移）。
+     */
+    private static Double firstDoubleOrNull(Map<String, Object> m, String... keys) {
         for (String k : keys) {
             Object v = m.get(k);
             if (v == null) {
                 continue;
             }
             if (v instanceof Number n) {
-                return round2(n.doubleValue());
+                double d = n.doubleValue();
+                return (Double.isNaN(d) || Double.isInfinite(d)) ? null : round2(d);
             }
             try {
-                return round2(Double.parseDouble(String.valueOf(v)));
+                double d = Double.parseDouble(String.valueOf(v).trim());
+                return (Double.isNaN(d) || Double.isInfinite(d)) ? null : round2(d);
             } catch (Exception ignored) {
+                // 该键存在但无法解析为数值：继续尝试后续键
             }
         }
-        return 0.0;
+        return null;
     }
 
     private static double parseDouble(Object v, double def, double min, double max) {

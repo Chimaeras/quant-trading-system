@@ -31,6 +31,20 @@ public interface SelectorResultRepository extends JpaRepository<SelectorResult, 
             String strategyType, String requestFingerprint, Collection<String> runStatus
     );
 
+    /**
+     * 同策略 + 同请求指纹 + 同交易日的最新成功结果。
+     *
+     * <p>用于统一打分落库的<b>幂等去重</b>：{@code persistUnified} 每次都生成新的
+     * {@code resultId}，若不做这层查找，同一个请求重复执行就会不断插入新行——
+     * 这正是生产库中 {@code (strategy, date, stock)} 重复率达 41% 的成因。
+     *
+     * <p>加上 {@code tradeDate} 是必须的：指纹由请求参数构成、<b>不含</b>交易日，
+     * 只按 {@code (strategy, fingerprint)} 查会把不同交易日的结果误判为同一次运行。
+     */
+    Optional<SelectorResult> findFirstByStrategyTypeAndRequestFingerprintAndTradeDateAndRunStatusOrderByCreatedAtAsc(
+            String strategyType, String requestFingerprint, LocalDate tradeDate, String runStatus
+    );
+
     @Query("SELECT MAX(s.tradeDate) FROM SelectorResult s WHERE s.strategyType = :strategy")
     Optional<LocalDate> findMaxTradeDateByStrategy(@Param("strategy") String strategyType);
 

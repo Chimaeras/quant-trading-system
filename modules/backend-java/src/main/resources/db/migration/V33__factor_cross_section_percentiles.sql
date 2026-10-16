@@ -1,0 +1,54 @@
+-- V33__factor_cross_section_percentiles.sql
+--
+-- ── 为什么需要逐因子百分位落库 ──────────────────────────────────────────────
+-- V32 打通了**合成分数**的全截面通路，并立刻得到一个关键结论（2026-10-15 实测）：
+--   单日截面（2026-09-28，n=1297 合格股，T+1 开盘→T+5 收盘，前复权）
+--     全截面 Rank IC = -0.0069，噪声带 1/sqrt(n) = ±0.0278  ⟹ 落在噪声内
+--     十分组平均收益：D1 -3.63% … D6 -2.95% … D10 -4.78%，**无单调性**
+--   ⟹ 分数在整个市场范围内都没有区分度，**不是**"头部被压缩"能解释的。
+--
+-- 但这只说明**合成分数**无效，无法回答"**哪个因子**在拖累"。
+-- `FactorResearchEngine` 能算 IC，却只接受一个分数序列；
+-- 而逐因子 IC 需要**每个因子各自的横截面取值**。
+--
+-- 因此把 21 个因子的 L2 百分位随全截面一起落库，
+-- 使阶段 1 能逐个因子算 Rank IC / ICIR / IC 衰减 / 分组单调性。
+--
+-- ── 为什么用 JSON 而不是独立长表 ────────────────────────────────────────────
+-- 备选方案是 `factor_cross_section_value(trade_date, strategy_code, stock_code, factor_id, percentile)`。
+-- 但那要为每行重复 trade_date/factor_version/strategy_code/legacy_strategy_type/created_at
+-- 五列元数据，21 倍放大后元数据本身就是主要体量。
+-- 而逐因子分析**全部在 Python 侧做**（IC 序列、ICIR、分组），不需要 SQL 按因子过滤。
+-- 故用一个 JSON 列存 `{"MOM_20": 87.3, ...}`，体量与可读性都更优。
+--
+-- 体量（已按 V32 实测值推算，非估计）：
+--   实测 5,237 行/策略/日（V32 落库真实值）
+--   × 5 策略 = 26,185 行/日
+--   × 21 因子 ≈ 55 万 (factor,row) 对/日
+--   JSON 形式每行约 21×14B ≈ 300B ⟹ 单日约 7.9 MB，一年 238 日约 1.9 GB。
+--   ⟹ 与 V32 一样**默认关闭**，且历史只按**抽样截面日**补算（见阶段 1 口径）。
+--
+-- ── 只读实测（本迁移编写时，仅 SELECT）─────────────────────────────────────
+--   SELECT COUNT(*) FROM information_schema.COLUMNS
+--    WHERE TABLE_SCHEMA='quant_db' AND TABLE_NAME='factor_cross_section_score'
+--      AND COLUMN_NAME='factor_percentiles';
+--      -> 0（列不存在，本迁移新增）
+--   SELECT COUNT(*) FROM factor_cross_section_score;   -- 52354（V32 两次验证运行）
+--
+-- ── 核实（迁移后执行，只读）───────────────────────────────────────────────
+--   SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE FROM information_schema.COLUMNS
+--    WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='factor_cross_section_score'
+--      AND COLUMN_NAME='factor_percentiles';
+--   SELECT COUNT(*) FROM factor_cross_section_score WHERE factor_percentiles IS NOT NULL;
+--      -- 本迁移不动数据，必为 0（旧行为 NULL，语义 = "该行未记录逐因子明细"）
+--
+-- ── 回滚（注释保留）────────────────────────────────────────────────────────
+--   ALTER TABLE factor_cross_section_score DROP COLUMN factor_percentiles;
+--
+-- ── FOLLOW-UP（本轮不做）───────────────────────────────────────────────────
+--   1) 若单因子分析需要按因子做 SQL 过滤/聚合（当前不需要），再迁到长表。
+--   2) 1.9 GB/年的体量若不可接受，需按月分区或只保留抽样日。
+
+ALTER TABLE factor_cross_section_score
+    ADD COLUMN factor_percentiles JSON DEFAULT NULL
+        COMMENT '各因子 L2 横截面百分位 {"MOM_20":87.3,...}，键为 FactorId.name()；NULL=该行未记录逐因子明细（旧行）。用于逐因子 Rank IC 诊断';

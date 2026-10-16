@@ -12,6 +12,7 @@ import com.quant.service.scoring.ScoringRules;
 import com.quant.service.scoring.ScoringUtils;
 import com.quant.service.scoring.ScoreReadAvailability;
 import com.quant.service.scoring.TechnicalIndicators;
+import com.quant.service.scoring.TradabilityCheck;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -158,6 +159,8 @@ public class StockTrendScoringService {
         long barsFetched = 0;
         String dbMode;
         AtomicInteger skippedNoBarOnTradeDate = new AtomicInteger(0);
+        // V30/P0-1：记录严格可交易性闸门的拒绝原因分布（按 TradabilityCheck 码计数）
+        ConcurrentMap<String, Integer> tradabilityRejections = new ConcurrentHashMap<>();
 
         if (bulkFetch) {
             dbMode = "bulk_range_fetch";
@@ -187,7 +190,7 @@ public class StockTrendScoringService {
                     List<MarketData> bars = grouped.getOrDefault(key, List.of());
                     Optional<StockTrendScore> row = scoreOne(
                             stockCode, exchangeType, tradeDate, bars, nameCache, listDateRef, statusRef, minListingDaysFinal,
-                            minAvgAmountFinal, biasThreshold, excludeST, skippedNoBarOnTradeDate);
+                            minAvgAmountFinal, biasThreshold, excludeST, skippedNoBarOnTradeDate, tradabilityRejections);
                     if (row.isPresent()) rows.add(row.get());
                     else k++;
                 }
@@ -211,7 +214,7 @@ public class StockTrendScoringService {
                             String exchangeType = p > 0 ? key.substring(p + 1) : "";
                             List<MarketData> bars = grouped.getOrDefault(key, List.of());
                             return scoreOne(stockCode, exchangeType, tradeDate, bars, nameCache, listDateRef, statusRef, minListingDaysFinal,
-                                    minAvgAmountFinal, biasThreshold, excludeST, skippedNoBarOnTradeDate);
+                                    minAvgAmountFinal, biasThreshold, excludeST, skippedNoBarOnTradeDate, tradabilityRejections);
                         });
                     }
 
@@ -249,7 +252,7 @@ public class StockTrendScoringService {
                 barsFetched += bars.size();
                 Optional<StockTrendScore> row = scoreOne(
                         stockCode, exchangeType, tradeDate, bars, nameCache, listDateRef, statusRef, minListingDaysFinal,
-                        minAvgAmountFinal, biasThreshold, excludeST, skippedNoBarOnTradeDate);
+                        minAvgAmountFinal, biasThreshold, excludeST, skippedNoBarOnTradeDate, tradabilityRejections);
                 if (row.isEmpty()) {
                     k++;
                     continue;
@@ -281,7 +284,7 @@ public class StockTrendScoringService {
                                 .findByStockCodeAndExchangeTypeAndTradeDateBetweenOrderByTradeDateAsc(
                                         stockCode, exchangeType, rangeStart, tradeDate);
                         return scoreOne(stockCode, exchangeType, tradeDate, bars, nameCache, listDateRef, statusRef, minListingDaysFinal,
-                                minAvgAmountFinal, biasThreshold, excludeST, skippedNoBarOnTradeDate);
+                                minAvgAmountFinal, biasThreshold, excludeST, skippedNoBarOnTradeDate, tradabilityRejections);
                     });
                 }
 
@@ -358,6 +361,12 @@ public class StockTrendScoringService {
         res.put("scored", rowsToPersist.size());
         res.put("skipped_insufficient", skipped);
         res.put("skipped_no_bar_on_trade_date", skippedNoBarOnTradeDate.get());
+        // V30/P0-1：严格闸门拒绝原因分布；total 即「因不可交易/无法判定而被剔除」的只数
+        if (!tradabilityRejections.isEmpty()) {
+            res.put("tradability_rejections", new TreeMap<>(tradabilityRejections));
+            res.put("tradability_rejected", tradabilityRejections.values().stream()
+                    .mapToInt(Integer::intValue).sum());
+        }
         res.put("elapsed_ms", elapsedMs);
         res.put("score_ms", scoreMs);
         res.put("persist_ms", persistMs);
@@ -406,7 +415,8 @@ public class StockTrendScoringService {
                                                 List<MarketData> bars, Map<String, String> nameCache,
                                                 Map<String, LocalDate> listDateCache, Map<String, Integer> statusCache,
                                                 int minListingDays, double minAvgAmount, double biasThreshold,
-                                                boolean excludeST, AtomicInteger skippedNoBarOnTradeDate) {
+                                                boolean excludeST, AtomicInteger skippedNoBarOnTradeDate,
+                                                ConcurrentMap<String, Integer> tradabilityRejections) {
         // 防御性按交易日去重（保留最后一条）：虽 market_data 有 (stock_code,exchange_type,trade_date) 唯一键，
         // 但跨渠道/历史脏数据下 bars 仍可能同一天两条，导致 close[L-1] 与 close[L] 取到同一天两根而失真。
         bars = dedupeByTradeDate(bars);
@@ -437,8 +447,15 @@ public class StockTrendScoringService {
                 listDateCache.get(stockCode + "|" + exchangeType), tradeDate, minListingDays, bars)) {
             return Optional.empty();
         }
-        if (!ScoringUtils.isTradableForScoring(bars, stockCode, exchangeType, stockName,
-                statusCache.get(stockCode + "|" + exchangeType), excludeST, true, true)) {
+        // V30/P0-1：严格模式——缺 preClose / 名称为空时拒绝，避免涨跌停闸与 ST 闸静默失效。
+        // 拒绝原因按码计数并进入结果摘要，避免「严格校验」变成新的隐性失败。
+        TradabilityCheck tradability = ScoringUtils.evaluateTradabilityStrict(
+                bars, stockCode, exchangeType, stockName,
+                statusCache.get(stockCode + "|" + exchangeType), excludeST, true, true);
+        if (!tradability.isTradable()) {
+            if (tradabilityRejections != null) {
+                tradabilityRejections.merge(tradability.code(), 1, Integer::sum);
+            }
             return Optional.empty();
         }
         if (!ScoringUtils.passesMinAvgAmount(bars, minAvgAmount)) {

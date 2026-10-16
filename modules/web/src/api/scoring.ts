@@ -92,6 +92,91 @@ export interface UnifiedScoringRunRequest {
   [key: string]: unknown
 }
 
+/** 策略目录里单个因子的权重条目。 */
+export interface ScoringStrategyWeightMeta {
+  factor: string
+  /** 中文标签，直接用于展示 */
+  label: string
+  weight: number
+  normalized_weight: number
+  fundamental: boolean
+  risk: boolean
+}
+
+/**
+ * 策略目录元数据，来自后端 `GET /api/scoring/unified/strategies`。
+ *
+ * `legacy_ui_mode` 是前端 tab 键（classic / oversold / trend / comprehensive / multi_dim），
+ * 由后端目录下发，前端据此挂载入口。
+ */
+export interface ScoringStrategyMeta {
+  code: string
+  display_name: string
+  factor_version: string
+  legacy_strategy_type: UnifiedScoringStrategy
+  legacy_ui_mode: string | null
+  min_bars: number
+  min_avg_amount: number
+  min_listing_days: number
+  missing_data_policy: string
+  min_available_weight_ratio: number
+  require_ma20_above_ma60: boolean
+  weights: ScoringStrategyWeightMeta[]
+  required_factors: string[]
+  /**
+   * 非基本面因子在归一化权重中的占比。
+   * 小于 1 表示该策略有部分权重依赖 PE/PB/财务快照——当前库这三者填充率为 0，
+   * 因此该值就是「这个策略有多少权重是悬空的」的量化。
+   */
+  non_fundamental_weight_share: number
+  fundamental_dependent: boolean
+}
+
+/**
+ * 一次打分产出的单个策略结果块。
+ *
+ * `items` 里的字段名与既有 selector_result_item 兼容（final_score / trend_score /
+ * momentum_score / volume_score / ret20 / ret60 / max_drawdown60），
+ * 因此可直接喂给现有的 5 个表格。
+ */
+export interface StrategyResultBlock {
+  legacy_strategy_type: UnifiedScoringStrategy
+  legacy_ui_mode: string | null
+  display_name: string
+  factor_version: string
+  ranked_count: number
+  rejected_count: number
+  returned_count: number
+  rejection_breakdown: Record<string, number>
+  normalization_mode: string
+  industry_neutralization_skipped: boolean
+  market_cap_neutralization_skipped: boolean
+  items: Array<Record<string, unknown>>
+}
+
+/**
+ * `POST /scoring/unified/engine/all-strategies` 的响应。
+ *
+ * `single_load` / `load_count` 是"只装载一次"的**可核对证据**：
+ * 若某天 load_count 与调用次数不再对应，说明装载逻辑被改动。
+ */
+export interface AllStrategiesResult {
+  success: boolean
+  trade_date?: string
+  load_count?: number
+  single_load?: boolean
+  message?: string
+  candidate_count?: number
+  universe_size?: number
+  tradability_rejected?: number
+  listing_days_rejected?: number
+  rejection_breakdown?: Record<string, number>
+  compatibility_note?: string
+  persisted?: boolean
+  persist_note?: string
+  strategies: StrategyResultBlock[]
+}
+
 export interface UnifiedScoringRunResult {
   result_id?: string
   strategy: UnifiedScoringStrategy
@@ -240,6 +325,35 @@ export const scoringApi = {
     return unwrap(res) ?? ({} as ComprehensiveScoresPage)
   },
 
+  /**
+   * 一次打分，5 个策略入口全部就绪。
+   *
+   * 后端只装载一次行情、只算一次 L1 特征，5 个策略共享同一份特征向量；
+   * 各策略各做一次横截面加权（权重不同 → 排序独立）。
+   * 返回的 items 已投影为既有 selector_result_item 字段名，可直接喂给现有表格。
+   *
+   * **默认只读，不落库**：传 `persist: true` 才会写入既有 selector_result /
+   * selector_result_item 结构（默认 false，因为"哪条运行是权威"的语义尚未确定）。
+   */
+  async runAllStrategies(body?: {
+    tradeDate?: string
+    lookbackDays?: number
+    topN?: number
+    excludeST?: boolean
+    minAvgAmount?: number
+    minListingDays?: number
+    includeContributions?: boolean
+    persist?: boolean
+    dedupe?: boolean
+  }) {
+    const res = await request.post<AllStrategiesResult>(
+      '/scoring/unified/engine/all-strategies',
+      body ?? {},
+      { timeout: 600000 }
+    )
+    return unwrap(res)
+  },
+
   /** 统一打分入口：通过 strategy 选择不同打分策略并统一落库。 */
   async runUnifiedScoring(body: UnifiedScoringRunRequest) {
     const res = await request.post<UnifiedScoringRunResult>(
@@ -248,6 +362,18 @@ export const scoringApi = {
       { timeout: 600000 }
     )
     return unwrap(res)
+  },
+
+  /**
+   * 策略目录（单一真相）。
+   *
+   * 后端 StrategyCatalog 是「有哪些策略、叫什么、对应哪个 tab」的唯一来源；
+   * 前端不再自己硬编码这张映射表，避免两处各写一份后漂移。
+   * 该接口只读且不查库，失败时应回退到内置目录而不是让页面空白。
+   */
+  async getScoringStrategies() {
+    const res = await request.get<Array<ScoringStrategyMeta>>('/scoring/unified/strategies')
+    return unwrap(res) ?? []
   },
 
   /** 统一查询：按策略获取最新结果（支持分页）。 */

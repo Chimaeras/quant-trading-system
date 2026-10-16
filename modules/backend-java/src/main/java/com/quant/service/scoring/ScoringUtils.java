@@ -159,13 +159,40 @@ public final class ScoringUtils {
             boolean excludeST,
             boolean excludeLimitUpAtClose,
             boolean excludeLimitDownAtClose) {
+        return evaluateTradability(
+                bars, stockCode, exchangeType, stockName, stockStatus,
+                excludeST, excludeLimitUpAtClose, excludeLimitDownAtClose, true)
+                .isTradable();
+    }
+
+    /**
+     * 带原因码的可交易性判定（推荐生产调用方使用）。
+     *
+     * <p>与 {@link #isTradableForScoring(List, String, String, String, Integer, boolean, boolean, boolean)}
+     * 判定口径完全一致，但返回 {@link TradabilityCheck}，使「因缺少 preClose 而未能判定涨跌停」
+     * 这类降级情形可以被记录，而不是静默当作通过。
+     *
+     * @param requirePreClose 严格模式：缺少 preClose / stockCode 时判定为不可交易。
+     *                        生产打分路径应传 {@code true}——这些服务的 MIN_BARS 均 ≥ 30，
+     *                        缺 preClose 意味着数据本身异常，不应带病打分。
+     */
+    public static TradabilityCheck evaluateTradability(
+            List<com.quant.entity.MarketData> bars,
+            String stockCode,
+            String exchangeType,
+            String stockName,
+            Integer stockStatus,
+            boolean excludeST,
+            boolean excludeLimitUpAtClose,
+            boolean excludeLimitDownAtClose,
+            boolean requirePreClose) {
         if (!isActiveStockStatus(stockStatus)) {
-            return false;
+            return TradabilityCheck.INACTIVE_STATUS;
         }
         if (bars == null || bars.isEmpty()) {
-            return false;
+            return TradabilityCheck.NO_BARS;
         }
-        return isTradableForScoring(
+        return evaluateTradability(
                 bars.get(bars.size() - 1),
                 resolvePreClose(bars),
                 stockCode,
@@ -173,7 +200,31 @@ public final class ScoringUtils {
                 stockName,
                 excludeST,
                 excludeLimitUpAtClose,
-                excludeLimitDownAtClose);
+                excludeLimitDownAtClose,
+                requirePreClose);
+    }
+
+    /**
+     * 严格模式的可交易性判定：缺少 preClose / stockCode / 名称时一律<b>拒绝</b>。
+     *
+     * <p>这是 5 套打分应当使用的入口。理由：这些服务的 MIN_BARS 均 ≥ 30，
+     * 出现「不足 2 根 K 线」「前一根收盘价缺失或非正」「名称为空」都意味着数据异常，
+     * 带病打分会把无法判定涨跌停的标的静默放进候选池（V30/P0-1 修复的正是这一点）。
+     *
+     * @see #evaluateTradability(List, String, String, String, Integer, boolean, boolean, boolean, boolean)
+     */
+    public static TradabilityCheck evaluateTradabilityStrict(
+            List<com.quant.entity.MarketData> bars,
+            String stockCode,
+            String exchangeType,
+            String stockName,
+            Integer stockStatus,
+            boolean excludeST,
+            boolean excludeLimitUpAtClose,
+            boolean excludeLimitDownAtClose) {
+        return evaluateTradability(
+                bars, stockCode, exchangeType, stockName, stockStatus,
+                excludeST, excludeLimitUpAtClose, excludeLimitDownAtClose, true);
     }
 
     public static Double resolvePreClose(List<com.quant.entity.MarketData> bars) {
@@ -197,25 +248,76 @@ public final class ScoringUtils {
             boolean excludeST,
             boolean excludeLimitUpAtClose,
             boolean excludeLimitDownAtClose) {
+        return evaluateTradability(
+                signalBar, preClose, stockCode, exchangeType, stockName,
+                excludeST, excludeLimitUpAtClose, excludeLimitDownAtClose, false)
+                .isTradable();
+    }
+
+    /**
+     * 单根 K 线的可交易性判定核心。
+     *
+     * <p>V30 修复（P0-1）两处静默放行：
+     * <ol>
+     *   <li><b>ST 闸在名称为空时失效</b>：旧实现为 {@code stockName != null && ...contains("ST")}，
+     *       名称为 null/blank 时整个条件短路为 false 而放行。生产路径上名称常被兜底成 {@code ""}，
+     *       于是 ST 股直接进入候选池（实测已污染输出：CLASSIC_SELECTOR 3 行、TREND 4 行）。</li>
+     *   <li><b>缺少 preClose 时连涨停闸一起跳过</b>：旧实现在涨跌停判定之前
+     *       {@code if (preClose == null || preClose <= 0 || stockCode == null || stockCode.isBlank()) return true;}，
+     *       使涨停与跌停两道闸门同时失效，且不留任何痕迹。</li>
+     * </ol>
+     * 现在：ST 闸只依赖 {@code stockName} 是否命中 "ST"；缺 preClose/stockCode 时返回
+     * {@link TradabilityCheck#MISSING_PRE_CLOSE} / {@link TradabilityCheck#MISSING_STOCK_CODE}，
+     * 由 {@code requirePreClose} 决定拒绝还是「放行但可观测」。
+     */
+    public static TradabilityCheck evaluateTradability(
+            com.quant.entity.MarketData signalBar,
+            Double preClose,
+            String stockCode,
+            String exchangeType,
+            String stockName,
+            boolean excludeST,
+            boolean excludeLimitUpAtClose,
+            boolean excludeLimitDownAtClose,
+            boolean requirePreClose) {
         if (isExplicitZeroVolume(signalBar)) {
-            return false;
+            return TradabilityCheck.ZERO_VOLUME;
         }
-        if (excludeST && stockName != null && stockName.toUpperCase().contains("ST")) {
-            return false;
+        // 修复 1：不再因名称为空而跳过 ST 闸。
+        // 名称缺失是数据缺陷，不是「不是 ST 股」的证据。生产路径上 5 套打分都会把缺失名称
+        // 兜底成 "" 或股票代码（见各服务的 nameCache 逻辑），因此「空名称」本就不该出现；
+        // 一旦出现，宁可拒绝也不能放 ST 进来。
+        if (excludeST) {
+            if (stockName == null || stockName.isBlank()) {
+                return TradabilityCheck.MISSING_STOCK_NAME;
+            }
+            if (stockName.toUpperCase().contains("ST")) {
+                return TradabilityCheck.ST_NAME;
+            }
         }
-        if (preClose == null || preClose <= 0 || stockCode == null || stockCode.isBlank()) {
-            return true;
+        // 修复 2：无法判定涨跌停时，不再静默 return true。
+        // 生产打分路径（本方法的 9 参重载 + requirePreClose=true）会拒绝这两种情形；
+        // 旧的 8 参布尔重载保留 requirePreClose=false 语义以兼容既有调用方与单测。
+        if (stockCode == null || stockCode.isBlank()) {
+            return requirePreClose
+                    ? TradabilityCheck.MISSING_STOCK_CODE
+                    : TradabilityCheck.MISSING_STOCK_CODE_DEGRADED;
+        }
+        if (preClose == null || preClose <= 0) {
+            return requirePreClose
+                    ? TradabilityCheck.MISSING_PRE_CLOSE
+                    : TradabilityCheck.MISSING_PRE_CLOSE_DEGRADED;
         }
         double limitPct = TradingLimitRules.resolveLimitPct(stockCode, exchangeType, stockName);
         if (excludeLimitUpAtClose
                 && StrategyBacktestEngine.isLimitUpAtClose(signalBar, preClose, limitPct)) {
-            return false;
+            return TradabilityCheck.LIMIT_UP_AT_CLOSE;
         }
         if (excludeLimitDownAtClose
                 && StrategyBacktestEngine.isLimitDownAtClose(signalBar, preClose, limitPct)) {
-            return false;
+            return TradabilityCheck.LIMIT_DOWN_AT_CLOSE;
         }
-        return true;
+        return TradabilityCheck.TRADABLE;
     }
 
     /**

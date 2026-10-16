@@ -7,7 +7,17 @@ param(
     [string]$ExecutionMode = 'SHADOW',
     [ValidateSet('T1', 'WATCHLIST', 'FULL')]
     [string]$UniverseMode = 'T1',
-    [string]$TradingCalendarFile = ''
+    [string]$TradingCalendarFile = '',
+    # 观察池上限（1..500）。WATCHLIST 口径下同时决定热门榜 TopN 与池容量。
+    # 默认 200 兼容既有行为；上游东财 push2/push2his 限流时可下调以降请求压力。
+    [ValidateRange(1, 500)]
+    [int]$MaxObserveCodes = 200,
+    # K 线预热并发与批次。默认串行（1）以适配上游限流：东财 push2his 对高并发
+    # 批量 K 线会直接静默断连，表现为 bars 恒为 0。调大可提速但容易再次触发限流。
+    [ValidateRange(1, 32)]
+    [int]$KlineRetryWorkers = 1,
+    [ValidateRange(1, 500)]
+    [int]$KlineRetryBatchSize = 20
 )
 
 $ErrorActionPreference = 'Stop'
@@ -41,12 +51,12 @@ $env:PAPER_WATCH_LIVE = if ($paperExecution) { '1' } else { '0' }
 $env:PAPER_WATCH_UNIVERSE_MODE = $UniverseMode
 $env:PAPER_CANDIDATE_FILE = ''
 $env:PAPER_WATCHLIST_FILE = ''
-$env:PAPER_MAX_OBSERVE_CODES = '200'
+$env:PAPER_MAX_OBSERVE_CODES = [string]$MaxObserveCodes
 # 0 表示关闭最大持仓只数限制；资金、总仓位、单票权重等风控仍然生效。
 $env:PAPER_MAX_POSITIONS = '0'
 $env:PAPER_KLINE_SOURCE = 'auto'
-$env:PAPER_KLINE_RETRY_WORKERS = '8'
-$env:PAPER_KLINE_RETRY_BATCH_SIZE = '200'
+$env:PAPER_KLINE_RETRY_WORKERS = [string]$KlineRetryWorkers
+$env:PAPER_KLINE_RETRY_BATCH_SIZE = [string]$KlineRetryBatchSize
 $env:PAPER_KLINE_REQUEST_TIMEOUT_SEC = '8'
 $env:PAPER_KLINE_MAX_RETRY = '2'
 # 分钟线沉淀到主库 market_data_minute（D-STALE-BAR-01 修复 4）：盯盘每轮把新收盘的

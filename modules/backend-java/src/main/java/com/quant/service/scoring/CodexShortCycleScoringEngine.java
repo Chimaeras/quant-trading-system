@@ -504,8 +504,10 @@ public class CodexShortCycleScoringEngine {
         if (!ScoringUtils.isSignalBarOnTradeDate(bars, ctx.tradeDate())) {
             return Optional.empty();
         }
-        if (!ScoringUtils.isTradableForScoring(
-                bars, ctx.stockCode(), ctx.exchangeType(), ctx.stockName(), ctx.stockStatus(), excludeST, true, true)) {
+        // V30/P0-1：严格模式——缺 preClose / 名称为空时拒绝，避免涨跌停闸与 ST 闸静默失效
+        if (!ScoringUtils.evaluateTradabilityStrict(
+                bars, ctx.stockCode(), ctx.exchangeType(), ctx.stockName(), ctx.stockStatus(),
+                excludeST, true, true).isTradable()) {
             return Optional.empty();
         }
         if (!ScoringUtils.hasMinListingTenure(ctx.listDate(), ctx.tradeDate(), minListingDays, bars)) {

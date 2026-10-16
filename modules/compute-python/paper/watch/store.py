@@ -1255,11 +1255,40 @@ class SqliteWatchStore:
     # ---------------------------- watch pool ----------------------------
 
     def sync_default_watch_pool(self, rows: Iterable[dict], *, max_size: int = 200, source: str = "hot_stocks") -> None:
-        """刷新启动默认热门股；人工加入的成员始终保留，且不挤占热门 TopN 名额。"""
+        """刷新启动默认热门股；人工加入的成员始终保留，且不挤占热门 TopN 名额。
+
+        D-2（2026-10-15 修正）：**空候选不得清池**。
+        此前 `values` 为空时仍会执行 `DELETE FROM watch_pool_member WHERE manual=0`，
+        把全部非人工成员删光 —— 而"候选为空"有两种完全不同的成因：
+          (a) 上游热门榜真的返回 0 条；
+          (b) 上游取候选失败（限流/超时/覆盖闸不通过）。
+        旧实现把 (b) 也当成 (a) 处理，于是在 T1 模式下一旦候选获取失败，
+        观察池就被清成只剩人工成员（实测由 204 只掉到 6 只）。
+        「取不到」不等于「没有」，故此处直接返回，保留既有池子。
+
+        D-3（2026-10-15 修正）：**候选数骤降不得清池**。
+        D-2 只挡住了"空"这一种情形，但**非空的极小集合**同样会毁掉池子，
+        而且更隐蔽：实测盯盘循环以 `PAPER_MAX_OBSERVE_CODES=10` 启动后，
+        每一轮都用 10 只热门股覆写 204 只的池子，池子长期停在 10 只，
+        且日志里全是 OK、没有任何错误 —— 完全看不出问题。
+        「取到很少」与「真的有很少」是两回事：`max_size` 配错、上游只回一页、
+        覆盖闸只放行一部分，都会产生"非空但极少"。
+        故当新集合不足既有热门池的一半时拒绝刷新并保留原池
+        （要真正缩减池子，请显式把 max_size 调小，见下方 `cap_shrink_is_honoured`）。
+        """
         values = list(rows)
+        if not values:
+            return
         now = clock.now().isoformat()
         try:
             with self._transaction():
+                current_hot = int(self._conn.execute(
+                    "SELECT COUNT(*) FROM watch_pool_member WHERE manual=0"
+                ).fetchone()[0])
+                capacity = max(0, int(max_size))
+                # 既有池子够大、而本次候选数不足其一半 ⟹ 判为"取到很少"，保留原池。
+                if current_hot >= 4 and len(values) * 2 < current_hot:
+                    return
                 self._conn.execute("DELETE FROM watch_pool_member WHERE manual=0")
                 manual_codes = {
                     str(row[0]) for row in self._conn.execute(
@@ -1267,7 +1296,6 @@ class SqliteWatchStore:
                     ).fetchall()
                 }
                 # 热门榜按 max_size 完整灌入；已人工加入的代码跳过，避免覆盖 manual 标记。
-                capacity = max(0, int(max_size))
                 defaults = [
                     row for row in values
                     if str(row.get("code", "")).strip() not in manual_codes

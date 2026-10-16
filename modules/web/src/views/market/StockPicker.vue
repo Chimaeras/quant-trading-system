@@ -3,11 +3,11 @@
     <PageHeader title="统一打分选股工作台" subtitle="先执行打分任务拿到评分池，再按 TopN 与最低分从结果中筛选关注清单。">
       <template #actions>
         <el-radio-group v-model="mode" size="small" @change="onModeChange">
-          <el-radio-button value="classic">经典多因子</el-radio-button>
-          <el-radio-button value="oversold">超跌反弹</el-radio-button>
-          <el-radio-button value="trend">趋势打分</el-radio-button>
-          <el-radio-button value="comprehensive">综合三维度</el-radio-button>
-          <el-radio-button value="multi_dim">多维度v1</el-radio-button>
+          <el-radio-button value="classic">{{ tabLabel('classic') }}</el-radio-button>
+          <el-radio-button value="oversold">{{ tabLabel('oversold') }}</el-radio-button>
+          <el-radio-button value="trend">{{ tabLabel('trend') }}</el-radio-button>
+          <el-radio-button value="comprehensive">{{ tabLabel('comprehensive') }}</el-radio-button>
+          <el-radio-button value="multi_dim">{{ tabLabel('multi_dim') }}</el-radio-button>
         </el-radio-group>
       </template>
     </PageHeader>
@@ -204,6 +204,37 @@
       </el-form-item>
     </el-form>
 
+    <!--
+      数据缺口提示：本策略有多少权重依赖 PE/PB/财务快照，而这些在当前库里填充率为 0。
+      引擎不会拿常数充数，而是就地重归一化并记录，但用户必须能看到"分数里少了什么"。
+    -->
+    <!--
+      数据来源开关（默认「已落库结果」= 原有行为）。
+      切到「统一引擎」后，本页 5 个入口的数据全部来自同一次打分：
+      一次行情装载 + 一次 L1 特征计算，然后 5 个策略各自做一次横截面加权。
+      默认不切换，因为这是数据来源的行为变更，且新路径尚未在真实库上验证过。
+    -->
+    <div class="meta">
+      <span>数据来源</span>
+      <el-radio-group v-model="dataSource" size="small" @change="onDataSourceChange">
+        <el-radio-button value="persisted">已落库结果</el-radio-button>
+        <el-radio-button value="unified">统一引擎（实时计算）</el-radio-button>
+      </el-radio-group>
+      <span v-if="dataSource === 'unified'" class="hint">
+        一次特征计算 + 5 个策略各自排名；不写库
+      </span>
+    </div>
+
+    <el-alert
+      v-if="floatingFundamentalWeight(mode) !== null && floatingFundamentalWeight(mode)! > 0"
+      class="run-alert"
+      type="warning"
+      :closable="false"
+      show-icon
+      :title="`该策略约 ${(floatingFundamentalWeight(mode)! * 100).toFixed(1)}% 的权重依赖基本面数据（PE/PB/财务快照），而当前库这些字段填充率为 0`"
+      description="引擎不会用常数填补缺失因子，而是只用可用因子并就地重归一化，同时在结果里记录缺失项与可用权重占比。因此本页分数不包含估值与质量维度。"
+    />
+
     <div class="meta" v-if="resultMeta.result_id">
       <span>结果ID: {{ resultMeta.result_id }}</span>
       <span>交易日: {{ resultMeta.trade_date }}</span>
@@ -280,9 +311,15 @@
       <el-table-column prop="trend_score" label="趋势(40)" min-width="88" sortable />
       <el-table-column prop="volume_score" label="量能(30)" min-width="88" sortable />
       <el-table-column prop="momentum_score" label="超跌(30)" min-width="88" sortable />
-      <el-table-column prop="volatility20" label="加权分" min-width="88" sortable />
-      <el-table-column prop="ret20" label="20日收益(%)" min-width="110" sortable />
-      <el-table-column prop="ret60" label="60日收益(%)" min-width="110" sortable />
+      <el-table-column label="加权分" min-width="88" sortable :sort-by="(row: any) => oversoldWeightedScore(row)">
+        <template #default="{ row }">{{ oversoldWeightedScore(row) ?? '--' }}</template>
+      </el-table-column>
+      <el-table-column label="20日收益(%)" min-width="110" sortable :sort-by="(row: any) => row.ret20">
+        <template #default="{ row }">{{ formatNullableMetric(row.ret20) }}</template>
+      </el-table-column>
+      <el-table-column label="60日收益(%)" min-width="110" sortable :sort-by="(row: any) => row.ret60">
+        <template #default="{ row }">{{ formatNullableMetric(row.ret60) }}</template>
+      </el-table-column>
       <el-table-column label="操作" min-width="90" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="showDetail(row)">详情</el-button>
@@ -329,7 +366,7 @@
         <el-descriptions-item label="趋势(40)">{{ detailRow.trend_score }}</el-descriptions-item>
         <el-descriptions-item label="量能(30)">{{ detailRow.volume_score }}</el-descriptions-item>
         <el-descriptions-item label="超跌(30)">{{ detailRow.momentum_score }}</el-descriptions-item>
-        <el-descriptions-item label="加权分">{{ detailRow.volatility20 }}</el-descriptions-item>
+        <el-descriptions-item label="加权分">{{ oversoldWeightedScore(detailRow) ?? '--' }}</el-descriptions-item>
       </template>
       <template v-else-if="isGenericMode">
         <el-descriptions-item :label="dimensionLabels.dim1">{{ detailRow.trend_score }}</el-descriptions-item>
@@ -395,7 +432,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import dayjs from 'dayjs'
 import { selectorApi } from '@/api/selector'
-import { scoringApi, type UnifiedScoringStrategy, type UnifiedScoringTaskStatus } from '@/api/scoring'
+import { scoringApi, type UnifiedScoringStrategy, type UnifiedScoringTaskStatus, type ScoringStrategyMeta } from '@/api/scoring'
 import { errorText } from '@/api/request'
 import { FOCUS_SNAPSHOT_KEY } from '@/utils/userScope'
 import { useToast } from '@/composables/useToast'
@@ -751,6 +788,29 @@ function resolveRank(row: Record<string, any>, index: number) {
   return row.rank_no ?? index + 1
 }
 
+/**
+ * 超跌反弹的「加权分」。
+ *
+ * 历史背景：后端曾把加权总分写进 volatility20 列（该列语义本是「20 日波动率」），
+ * 前端因此把 volatility20 当加权分展示。V30 起后端写入真实波动率，
+ * 加权总分改由 extra_metrics.weighted_score 承载；此处对旧数据保留回退读取。
+ */
+function oversoldWeightedScore(row: Record<string, any>) {
+  const fromExtra = row?.extra_metrics?.weighted_score
+  if (fromExtra !== undefined && fromExtra !== null) return fromExtra
+  // 旧数据回退：无法区分「加权分」与「真实波动率」，仅在加权分缺失时使用
+  return row?.weighted_score ?? row?.volatility20
+}
+
+/**
+ * 可空数值列的展示：null / undefined 表示「未计算」，必须与原值为 0 区分开。
+ * V30 起 ret20 / ret60 / volatility20 / max_drawdown60 / avg_amount20 均可能为 null。
+ */
+function formatNullableMetric(value: unknown) {
+  if (value === null || value === undefined || value === '') return '未计算'
+  return value
+}
+
 function resetTaskState() {
   taskId.value = ''
   taskStatus.value = ''
@@ -1065,15 +1125,92 @@ async function loadFocusSnapshot() {
   }
 }
 
-function currentStrategy(): UnifiedScoringStrategy {
-  const map: Record<ModeType, UnifiedScoringStrategy> = {
-    classic: 'CLASSIC_SELECTOR',
-    oversold: 'OVERSOLD_REBOUND',
-    trend: 'TREND',
-    comprehensive: 'COMPREHENSIVE',
-    multi_dim: 'MULTI_DIM'
+/**
+ * UI tab 键 -> 后端 strategy_type 映射。
+ *
+ * 默认值是**离线回退**：目录接口只读且很快，但页面不应该因为一次请求失败就变成空白。
+ * 后端目录（StrategyCatalog）才是唯一真相，拿到后即覆盖此默认值；
+ * 若两者不一致，说明前后端漂移了——下方会打印告警以便发现。
+ */
+const FALLBACK_MODE_TO_STRATEGY: Record<ModeType, UnifiedScoringStrategy> = {
+  classic: 'CLASSIC_SELECTOR',
+  oversold: 'OVERSOLD_REBOUND',
+  trend: 'TREND',
+  comprehensive: 'COMPREHENSIVE',
+  multi_dim: 'MULTI_DIM'
+}
+
+/**
+ * 数据来源。默认 'persisted'（既有的已落库结果），切到 'unified' 才实时走统一引擎。
+ * 默认不切是刻意的：新路径尚未在真实库上验证过，不能悄悄替换用户看到的数据。
+ */
+const dataSource = ref<'persisted' | 'unified'>('persisted')
+
+const modeToStrategy = ref<Record<ModeType, UnifiedScoringStrategy>>({ ...FALLBACK_MODE_TO_STRATEGY })
+const strategyCatalog = ref<ScoringStrategyMeta[]>([])
+
+/** 从后端目录加载策略元数据；失败时保留回退值，不阻塞页面。 */
+async function loadStrategyCatalog() {
+  try {
+    const list = await scoringApi.getScoringStrategies()
+    if (!list.length) return
+    const next: Record<string, UnifiedScoringStrategy> = {}
+    for (const s of list) {
+      if (s.legacy_ui_mode) {
+        next[s.legacy_ui_mode] = s.legacy_strategy_type
+      }
+    }
+    // 只覆盖目录里确实声明了 UI 入口的 tab，避免把回退项误删
+    modeToStrategy.value = { ...FALLBACK_MODE_TO_STRATEGY, ...next } as Record<ModeType, UnifiedScoringStrategy>
+    strategyCatalog.value = list
+
+    // 漂移检测：回退表与目录不一致时留痕，而不是静默使用其中一个
+    for (const key of Object.keys(FALLBACK_MODE_TO_STRATEGY) as ModeType[]) {
+      const fromCatalog = next[key]
+      const fromFallback = FALLBACK_MODE_TO_STRATEGY[key]
+      if (fromCatalog && fromCatalog !== fromFallback) {
+        console.warn(
+          `[StockPicker] 策略目录与前端回退表不一致：tab=${key} 目录=${fromCatalog} 回退=${fromFallback}`
+        )
+      }
+    }
+  } catch {
+    // 静默回退：目录拉取失败不应让打分页不可用
+    console.warn('[StockPicker] 策略目录加载失败，使用内置回退映射')
   }
-  return map[mode.value]
+}
+
+function currentStrategy(): UnifiedScoringStrategy {
+  return modeToStrategy.value[mode.value] ?? FALLBACK_MODE_TO_STRATEGY[mode.value]
+}
+
+/** tab 显示名。优先用后端目录下发的 display_name，离线时退回内置标签。 */
+const FALLBACK_TAB_LABELS: Record<ModeType, string> = {
+  classic: '经典多因子',
+  oversold: '超跌反弹',
+  trend: '趋势打分',
+  comprehensive: '综合三维度',
+  multi_dim: '多维度v1'
+}
+
+function tabLabel(m: ModeType): string {
+  const hit = strategyCatalog.value.find(s => s.legacy_ui_mode === m)
+  return hit?.display_name || FALLBACK_TAB_LABELS[m]
+}
+
+/**
+ * 当前策略有多少归一化权重依赖基本面数据（PE/PB/财务快照）。
+ *
+ * 返回 null 表示目录未加载（不显示提示），返回 0 表示不依赖基本面。
+ * 当前库这三项填充率为 0，所以 >0 就意味着这部分权重是悬空的——
+ * 引擎会按 RE_NORMALIZE_OVER_AVAILABLE 就地重归一化而非拿常数充数，
+ * 但用户有权知道"这个策略本来想用估值，而估值没有"。
+ */
+function floatingFundamentalWeight(m: ModeType): number | null {
+  const hit = strategyCatalog.value.find(s => s.legacy_ui_mode === m)
+  if (!hit) return null
+  const share = 1 - hit.non_fundamental_weight_share
+  return share > 1e-9 ? share : 0
 }
 
 function currentTradeDate() {
@@ -1426,19 +1563,66 @@ function downloadCsv(lines: string[], filename: string) {
 async function loadLatest() {
   loading.value = true
   try {
-    const data = await scoringApi.getUnifiedLatest({
-      strategy: currentStrategy(),
-      tradeDate: currentTradeDate(),
-      page: 1,
-      size: currentScorePoolSize()
-    })
-    applyResult(data)
-    if (!results.value.length) toast.info('当日暂无结果，请先执行打分')
+    if (dataSource.value === 'unified') {
+      await loadFromUnifiedEngine()
+    } else {
+      const data = await scoringApi.getUnifiedLatest({
+        strategy: currentStrategy(),
+        tradeDate: currentTradeDate(),
+        page: 1,
+        size: currentScorePoolSize()
+      })
+      applyResult(data)
+      if (!results.value.length) toast.info('当日暂无结果，请先执行打分')
+    }
   } catch (e: unknown) {
     toast.error(errorText(e))
   } finally {
     loading.value = false
   }
+}
+
+/**
+ * 走统一引擎：一次打分返回 5 个策略，这里只取当前 tab 对应的那一块。
+ *
+ * 引擎的条目已经用既有 selector_result_item 字段名（final_score / trend_score /
+ * momentum_score / ret20 …），所以只需要把 strategies[].items 提取出来喂给 applyResult，
+ * 不需要任何字段改名——这正是"与原落库结构兼容"换来的好处。
+ */
+async function loadFromUnifiedEngine() {
+  const data = await scoringApi.runAllStrategies({
+    tradeDate: currentTradeDate(),
+    topN: currentScorePoolSize()
+  })
+  const want = currentStrategy()
+  const block = (data.strategies || []).find(
+    (s) => s.legacy_strategy_type === want
+  )
+  if (!block) {
+    results.value = []
+    toast.info('统一引擎未返回该策略结果')
+    return
+  }
+  // 复用同一个 applyResult：shape 相同，排序/去重/聚焦逻辑不必重写
+  applyResult({
+    result_id: '',
+    trade_date: data.trade_date,
+    factor_version: block.factor_version,
+    run_status: data.success ? 'SUCCESS' : 'FAILED',
+    total_candidates: data.candidate_count,
+    processed_candidates: block.ranked_count,
+    top_n: block.returned_count,
+    score_type: 'rule_score',
+    score_type_note: data.compatibility_note,
+    items: block.items
+  })
+  if (!results.value.length) toast.info('统一引擎未返回可打分标的')
+}
+
+function onDataSourceChange() {
+  results.value = []
+  focusResults.value = []
+  loadLatest().catch(() => {})
 }
 
 function showDetail(row: Record<string, any>) {
@@ -1458,6 +1642,8 @@ function onModeChange() {
 }
 
 onMounted(async () => {
+  // 策略目录只读且不查库，先拿到它，后续 all loaders 才能用正确的 strategy 取值
+  await loadStrategyCatalog()
   await loadTemplates()
   await loadLatest()
   await loadRecentTasks()

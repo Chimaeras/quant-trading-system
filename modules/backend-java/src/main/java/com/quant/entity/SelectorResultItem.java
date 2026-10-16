@@ -61,19 +61,32 @@ public class SelectorResultItem {
     @Column(nullable = false)
     private Double riskPenalty;
 
-    @Column(nullable = false)
+    /**
+     * 20 日涨跌幅(%)。NULL 表示「不可用/未计算」（V30 起可表达，见 V30 迁移）。
+     * 注意 0 可能是真实值：本库实测有 4 行个股恰好回到 20 个交易日前的价格。
+     */
+    @Column
     private Double ret20;
 
-    @Column(nullable = false)
+    /** 60 日涨跌幅(%)。NULL = 不可用/未计算（V30 起）。 */
+    @Column
     private Double ret60;
 
-    @Column(nullable = false)
+    /**
+     * 20 日波动率(%)。
+     * <p>语义警示：{@code OVERSOLD_REBOUND} 策略历史上曾把「加权总分」写入本列
+     * （{@code OversoldReboundScoringService}），V30 起已改为写真实波动率；
+     * 历史行中该策略的取值仍可能是加权分，读取时须结合 {@code strategyType} 判别。
+     */
+    @Column
     private Double volatility20;
 
-    @Column(nullable = false)
+    /** 60 日最大回撤(%)。NULL = 不可用/未计算（V30 起）。 */
+    @Column
     private Double maxDrawdown60;
 
-    @Column(nullable = false)
+    /** 20 日日均成交额(万元)。NULL = 不可用/未计算（V25 起）；0 仅当 20 根有效 bar 的均值确为 0。 */
+    @Column
     private Double avgAmount20;
 
     @JdbcTypeCode(SqlTypes.JSON)

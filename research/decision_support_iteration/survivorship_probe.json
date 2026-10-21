@@ -1,0 +1,128 @@
+{
+  "market_data_keys": 5839,
+  "stock_info_keys": 5835,
+  "stock_info_active_keys": 5835,
+  "md_keys_missing_from_stock_info": [
+    "001257|SZSE",
+    "001312|SZSE",
+    "603293|SSE",
+    "603459|SSE"
+  ],
+  "count_md_missing": 4,
+  "count_md_not_active": 4,
+  "stock_info_status_null": 0,
+  "stock_info_status_not1": 0,
+  "stock_info_listdate_null": 0,
+  "stock_info_total": 5835,
+  "codes_last_bar_inside_window_then_stopped": [
+    [
+      "000004",
+      "2026-07-13"
+    ],
+    [
+      "000638",
+      "2026-04-13"
+    ],
+    [
+      "001257",
+      "2026-04-23"
+    ],
+    [
+      "001312",
+      "2026-04-23"
+    ],
+    [
+      "002231",
+      "2026-01-29"
+    ],
+    [
+      "002808",
+      "2026-07-13"
+    ],
+    [
+      "002898",
+      "2026-07-16"
+    ],
+    [
+      "300029",
+      "2026-07-09"
+    ],
+    [
+      "300344",
+      "2026-04-21"
+    ],
+    [
+      "300391",
+      "2026-04-10"
+    ],
+    [
+      "600193",
+      "2026-06-29"
+    ],
+    [
+      "600355",
+      "2026-04-03"
+    ],
+    [
+      "600421",
+      "2026-06-22"
+    ],
+    [
+      "600599",
+      "2026-06-22"
+    ],
+    [
+      "600608",
+      "2026-06-29"
+    ],
+    [
+      "600636",
+      "2026-06-22"
+    ],
+    [
+      "600696",
+      "2026-06-22"
+    ],
+    [
+      "603056",
+      "2026-01-20"
+    ],
+    [
+      "603293",
+      "2026-04-23"
+    ],
+    [
+      "603459",
+      "2026-04-23"
+    ],
+    [
+      "605081",
+      "2026-06-29"
+    ],
+    [
+      "688287",
+      "2026-06-08"
+    ],
+    [
+      "920305",
+      "2026-07-29"
+    ]
+  ],
+  "count_vanished_in_window": 23,
+  "stock_info_columns": [
+    "id",
+    "stock_code",
+    "stock_name",
+    "exchange_type",
+    "exchange_type_name",
+    "industry",
+    "sector",
+    "list_date",
+    "status",
+    "total_shares",
+    "circulating_shares",
+    "created_at",
+    "updated_at"
+  ],
+  "has_delist_column": false
+}

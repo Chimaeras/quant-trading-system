@@ -1,0 +1,21 @@
+{
+ "frozen_A": {
+  "signal_days": 155,
+  "rows_scored": 248337,
+  "eligible_total": 215,
+  "total_picks": 215,
+  "unfillable": 3,
+  "days_with_picks": 108,
+  "mean_net_ret": 0.015303550444946206
+ },
+ "cliff_B": {
+  "signal_days": 19,
+  "rows_scored": 1269,
+  "eligible_total": 0,
+  "total_picks": 0,
+  "unfillable": 0,
+  "days_with_picks": 0,
+  "mean_net_ret": null
+ },
+ "baseline_matches_frozen": true
+}

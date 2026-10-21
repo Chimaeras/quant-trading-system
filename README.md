@@ -38,9 +38,15 @@
 ### 一键启动 (Docker)
 
 ```bash
+cp docker/.env.example docker/.env
+# 编辑 docker/.env，设置 DB_PASSWORD、JWT_SECRET、DEFAULT_ADMIN_PASSWORD。
+# JWT_SECRET 可用 openssl rand -hex 32 生成；请勿提交生成的值。
 cd docker
-docker-compose up -d --build
+docker compose up -d --build
 ```
+
+服务默认只绑定本机回环地址。`.env` 中的配置会传入容器，鉴权默认开启。
+本地运行后端前也需设置 `DB_PASSWORD`；Spring Boot 不会自动读取 `docker/.env`。
 
 访问 **http://localhost:8080**
 
@@ -188,13 +194,18 @@ quant-trading-system/
 | [选股迭代优先方向](docs/选股迭代优先方向.md) | **业务主航道**：选股能力优先 |
 | [Cursor 持续优化执行手册](docs/Cursor量化系统持续优化执行手册.md) | Cursor `/loop` 流程 |
 | [Codex 持续优化执行协议](docs/Codex量化系统持续优化执行协议.md) | Codex 长期目标 / Automation |
-| [.cursor/optimization-progress.md](.cursor/optimization-progress.md) | 轮次进度（共用） |
-| [.cursor/rules/quant-optimization-loop.mdc](.cursor/rules/quant-optimization-loop.mdc) | Cursor 规则摘要 |
 
 Cursor 示例：`/loop 30s` + `@docs/Cursor量化系统持续优化执行手册.md`  
 Codex 示例：长期目标 + `@docs/Codex量化系统持续优化执行协议.md` + `@docs/选股迭代优先方向.md`
 
 
+## 开源协作与数据边界
+
+- [贡献说明](CONTRIBUTING.md)：环境准备、测试和提交方式。
+- [安全说明](SECURITY.md)：密钥管理与漏洞反馈。
+- 仓库不包含账户响应、运行日志、个人自选列表和论文全文。行情与第三方服务的数据和使用权限由使用者自行配置，MIT 许可适用于本项目代码，不覆盖第三方数据或资料。
+- 实验脚本和最新研究报告保留在 `research/`；论文索引中的外部来源供读者自行获取。
+
 ## 许可证
 
-MIT License
+[MIT License](LICENSE)

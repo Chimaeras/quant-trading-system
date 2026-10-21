@@ -67,3 +67,33 @@ quant-trading-system-startup.log
 
 ### DSH workflow artifacts (regenerable verification evidence; not for commit) ###
 /workflow/
+
+### Local settings, credentials and generated records ###
+.idea/
+.claude/
+.cursor/
+.env
+.env.*
+!.env.example
+!**/.env.example
+*.local.json
+*.local.yml
+*.local.yaml
+*.local.properties
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.log
+output/
+logs/
+node_modules/
+dist/
+Download/
+docs/paper-captures/
+research/paper_loop/papers/
+
+**/.api_token
+research/**/_scratch/

@@ -1,0 +1,420 @@
+{
+  "_provenance": "由 make_config.py 在冻结时从 run_turnover_audit.py 的模块常数导出；运行期 verify_config_frozen() 逐项比对；常数本身的权威文本是 rounds/R008_prereg.md（先于本文件与本脚本冻结）",
+  "round": "R008",
+  "prereg": "rounds/R008_prereg.md",
+  "variants": {
+    "A1a": "V01",
+    "A1b": "V02",
+    "A2a": "V03",
+    "A2b": "V04",
+    "A2c": "V06",
+    "A2d": "V05",
+    "A3a": "V07",
+    "A3b": "V08",
+    "A3c": "V09",
+    "A4a": "V10",
+    "A4b": "V11",
+    "A4c": "V12",
+    "A5a": "V13",
+    "A5b": "V14",
+    "A5c": "V15",
+    "A6a": "V16",
+    "A6b": "V17",
+    "A7a": "V18",
+    "A7b": "V19",
+    "A8a": "V20",
+    "A8b": "V21"
+  },
+  "by_axis": {
+    "A1": [
+      "A1a",
+      "A1b"
+    ],
+    "A2": [
+      "A2a",
+      "A2b",
+      "A2c",
+      "A2d"
+    ],
+    "A3": [
+      "A3a",
+      "A3b",
+      "A3c"
+    ],
+    "A4": [
+      "A4a",
+      "A4b",
+      "A4c"
+    ],
+    "A5": [
+      "A5a",
+      "A5b",
+      "A5c"
+    ],
+    "A6": [
+      "A6a",
+      "A6b"
+    ],
+    "A7": [
+      "A7a",
+      "A7b"
+    ],
+    "A8": [
+      "A8a",
+      "A8b"
+    ]
+  },
+  "frozen_axis_counts": {
+    "A1": 2,
+    "A2": 4,
+    "A3": 3,
+    "A4": 3,
+    "A5": 3,
+    "A6": 2,
+    "A7": 2,
+    "A8": 2
+  },
+  "frozen_total": 21,
+  "kill_conditions": [
+    {
+      "id": "K1",
+      "condition": "A2a == VIOLATED（两侧短员且集合完全相同，载荷报 0.7 而定义值 0.0）",
+      "outcome": "REJECTED",
+      "refs": [
+        "A2a"
+      ]
+    },
+    {
+      "id": "K2",
+      "condition": "A2b == VIOLATED（单侧短员，与定义值绝对偏差 0.35 >= TH_MAT = 0.10）",
+      "outcome": "REJECTED",
+      "refs": [
+        "A2b"
+      ]
+    },
+    {
+      "id": "K3",
+      "condition": "A3a == VIOLATED（strategy=null 时把同日不同策略当作「相邻日」配对）",
+      "outcome": "REJECTED",
+      "refs": [
+        "A3a"
+      ]
+    },
+    {
+      "id": "K4",
+      "condition": "A1b == CONTRACT_MISLABEL（声明了「两日均有 topN 个候选」而代码无 guard）",
+      "outcome": "CONTRACT_MISLABEL",
+      "refs": [
+        "A1b"
+      ]
+    },
+    {
+      "id": "K5",
+      "condition": "A6a == CONTRACT_AMBIGUOUS 或 A6b == CONTRACT_AMBIGUOUS",
+      "outcome": "CONTRACT_AMBIGUOUS",
+      "refs": [
+        "A6a",
+        "A6b"
+      ]
+    },
+    {
+      "id": "K6",
+      "condition": "A3b == CONTRACT_AMBIGUOUS 或 A2c == CONTRACT_AMBIGUOUS",
+      "outcome": "CONTRACT_AMBIGUOUS",
+      "refs": [
+        "A3b",
+        "A2c"
+      ]
+    },
+    {
+      "id": "K7",
+      "condition": "A2c / A4b / A5a / A5b / A5c / A7b / A8b 中任一判定词 ∉ {NOT_VIOLATED}",
+      "outcome": "REGISTERED_ONLY",
+      "refs": [
+        "A2c",
+        "A4b",
+        "A5a",
+        "A5b",
+        "A5c",
+        "A7b",
+        "A8b"
+      ]
+    },
+    {
+      "id": "K8",
+      "condition": "行和交叉校验失败（§3.5：轴数/变体映射/config.json 冻结比对任一不等）",
+      "outcome": "INCONCLUSIVE",
+      "refs": []
+    },
+    {
+      "id": "K9",
+      "condition": "阳性对照未通过（§3.6：G3 门 / 反向锚点 / 21 对金丝雀 / 与既有测试一致性 / 表外判定词）",
+      "outcome": "INCONCLUSIVE",
+      "refs": []
+    },
+    {
+      "id": "K10",
+      "condition": "A8a == VIOLATED（同一输入同一顺序两次调用不一致）",
+      "outcome": "INCONCLUSIVE",
+      "refs": [
+        "A8a"
+      ]
+    }
+  ],
+  "count_expectations": {
+    "C1": {
+      "src": 13,
+      "raw": 17,
+      "by_file": {
+        "BacktestTurnoverService.java": 2,
+        "DataService.java": 4,
+        "BacktestTurnoverServiceTest.java": 3,
+        "backtest.ts": 1,
+        "data.ts": 1,
+        "ScoringBacktest.vue": 1,
+        "DataManagement.vue": 1
+      },
+      "note": "avg_turnover 于 modules/**"
+    },
+    "C2": {
+      "src": 6,
+      "raw": 8,
+      "by_file": {
+        "BacktestTurnoverService.java": 2,
+        "BacktestTurnoverServiceTest.java": 2,
+        "backtest.ts": 1,
+        "ScoringBacktest.vue": 1
+      },
+      "note": "daily_turnover 于 modules/**"
+    },
+    "C3": {
+      "src": 8,
+      "raw": 8,
+      "by_file": {
+        "ScoringBacktest.vue": 4,
+        "DataManagement.vue": 2,
+        "StockDetailView.vue": 1,
+        "StockPicker.vue": 1
+      },
+      "note": "换手 于 modules/web/src/**"
+    },
+    "C4": {
+      "src": 6,
+      "raw": 6,
+      "by_file": {
+        "BacktestTurnoverController.java": 2,
+        "BacktestTurnoverService.java": 1,
+        "BacktestTurnoverServiceTest.java": 3
+      },
+      "note": "BacktestTurnoverService 于 modules/**"
+    },
+    "C5": {
+      "src": 2,
+      "raw": 2,
+      "by_file": {
+        "BacktestTurnoverService.java": 2
+      },
+      "note": "put(\"note\" 于 BacktestTurnoverService.java（:71 / :127）"
+    },
+    "C6": {
+      "src": 21,
+      "raw": 26,
+      "note": "turnover_rate 于 modules/**（明细见报告 §10）"
+    },
+    "C7": {
+      "src": 2,
+      "raw": 4,
+      "by_file": {
+        "BacktestTurnoverController.java": 1,
+        "backtest.ts": 1
+      },
+      "note": "backtest/turnover 于 modules/**（raw 多 2 = 构建产物）"
+    },
+    "C8": {
+      "src": 1,
+      "raw": 1,
+      "by_file": {
+        "RollingExperimentService.java": 1
+      },
+      "note": "\"turnover\" 于 RollingExperimentService.java（:473）"
+    },
+    "C9": {
+      "src": 6,
+      "raw": 11,
+      "note": "turnover 于 **/*.sql"
+    },
+    "C10": {
+      "src": 114,
+      "files": 25,
+      "note": "[Tt]urnover 于 modules/**/*.java"
+    },
+    "C11": {
+      "src": 9,
+      "note": "[Tt]urnover 于 modules/web/src/**（.vue/.ts）"
+    }
+  },
+  "verdict_vocab": [
+    "NOT_VIOLATED",
+    "VIOLATED",
+    "CONVENTION_DIVERGENCE",
+    "CONTRACT_AMBIGUOUS",
+    "CONTRACT_MISLABEL",
+    "REGISTERED_ONLY",
+    "NOT_REACHABLE",
+    "INCONCLUSIVE"
+  ],
+  "thresholds": {
+    "TOL_BIT": 1e-12,
+    "TH_MAT": 0.1,
+    "N_GRID": [
+      8,
+      10,
+      12
+    ],
+    "P_GRID": [
+      2,
+      3,
+      4
+    ],
+    "RANGE_LO": 0.0,
+    "RANGE_HI": 1.0,
+    "EXISTING_TEST_TOL": 1e-12,
+    "CONTROL_ONE_WAY_FACTOR": 0.5
+  },
+  "probe_panels_documentation": {
+    "_note": "面板全部在 probe/R008Probe.java 内以构造方式冻结（无随机、无种子、无 DB）；两个 Spring Data 仓库由 JDK 动态代理伪造，未预期方法一律抛异常",
+    "V01_4day_full_panel": {
+      "d1": "S01..S10",
+      "d2": "S01..S08,S11,S12",
+      "d3": "S01..S07,S11,S12,S13",
+      "d4": "S01..S07,S14,S15,S16",
+      "absI": [
+        8,
+        9,
+        7
+      ],
+      "turnover": [
+        0.2,
+        0.1,
+        0.3
+      ]
+    },
+    "V01_panelB_declared": {
+      "d1": "S01..S10",
+      "d2": "S01..S09,S11",
+      "absI": 9
+    },
+    "V03_both_short": {
+      "topN": 10,
+      "sets": [
+        "{A,B,C}",
+        "{A,B,C}"
+      ],
+      "absI": 3
+    },
+    "V04_one_short": {
+      "topN": 10,
+      "prev": 10,
+      "curr": 3,
+      "absI": 3
+    },
+    "V05_grid": {
+      "n": [
+        8,
+        10,
+        12
+      ],
+      "p": [
+        2,
+        3,
+        4
+      ],
+      "cells": 18,
+      "kinds": [
+        "both(prev=curr=p)",
+        "one(prev=n, curr=p, absI=p)"
+      ]
+    },
+    "V06_degenerate": {
+      "panels": [
+        "signal_days=1",
+        "signal_days=0(empty)"
+      ],
+      "expected_daily_len": 0
+    },
+    "V07_multi_strategy": {
+      "strategies": [
+        "P1",
+        "P2"
+      ],
+      "days": [
+        1,
+        2
+      ],
+      "per_strategy_sets_identical_across_days": true,
+      "P1_vs_P2_disjoint": true
+    },
+    "V09_same_key_two_results": {
+      "resultId": [
+        "R_X(10:00)",
+        "R_Y(11:00)"
+      ],
+      "proxy_returns": "createdAt DESC（模拟查询方法名）"
+    },
+    "V12_reverse_solve": {
+      "prev": "{A,B,C,D}",
+      "curr": "{A,E,F,G}",
+      "absI": 1,
+      "topN_grid": [
+        null,
+        0,
+        -5,
+        3,
+        10,
+        4
+      ],
+      "exact_capable": [
+        null,
+        0,
+        -5,
+        10,
+        4
+      ],
+      "note": "topN=3 在 round4 的 1e-4 量化下不可精确反解，只作描述"
+    },
+    "V18_value_universe": "全部变体中被生产实现返回过的每一个 turnover/avg/max/min 值",
+    "V21_tie": {
+      "d1": "S01..S09,X",
+      "d2_rankNo": "[1..9, 10, 10, 10]",
+      "tie_members": [
+        "X",
+        "Y",
+        "Z"
+      ],
+      "orders": [
+        "XYZ",
+        "ZYX"
+      ]
+    }
+  },
+  "canary_mode": {
+    "harness": "normalized-pair",
+    "cln_and_inj_both_on_normalized_ctx": true,
+    "rule": "每个检查器恰好一对 CLN/INJ；CLN 写到检查器实际读取的那个键；两条期望值在运行前确定；要求 clean != inj",
+    "entries": 21
+  },
+  "readonly": {
+    "db_statements": 0,
+    "production_files_modified": 0,
+    "test_files_modified": 0,
+    "files_written": [
+      "run.log",
+      "result.json",
+      "probe/out/*（运行后删除）"
+    ]
+  },
+  "not_applicable_clauses": {
+    "interval_lower_bound": "prereg §5.4：本轮零抽样、零随机种子、全部为构造面板、计数为穷举枚举 ⟹ 区间下界类判据不适用；真实短员日占比不可测 ⟹ 登记 B-R008-01",
+    "lookahead_survivorship": "prereg §5.2：本轮不产生收益序列、不做选样、不算 IC ⟹ 前视/幸存者偏差对测量不适用；被审计对象自身 note 声明了幸存者偏差，本轮只登记其存在"
+  }
+}

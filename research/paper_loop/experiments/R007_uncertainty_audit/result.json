@@ -1,0 +1,6148 @@
+{
+  "round": "R007",
+  "started_at": "2026-09-14T21:21:25.236272",
+  "prereg": "rounds/R007_prereg.md",
+  "review": "rounds/R007_review.md",
+  "criteria_source": "Harvey-Liu-Zhu, NBER WP 20592 (2014)",
+  "audited_target": "hac_std / ci_lower / ci_upper（FactorResearchEngine → FactorResearchService → 前端标签）",
+  "hypothesis_H0": "载荷键忠实对应其名称与定义（HAC 标准误 / 同一均值的 95% 区间）；定义失效时不输出看起来像估计值的具体实数",
+  "readonly_attestation": {
+    "db_statements_executed": 0,
+    "note": "本轮不访问任何数据库；仅读文件系统 + 在 JVM 内调用生产类（只读方法）",
+    "files_written": [
+      "run.log",
+      "result.json",
+      "probe/out/*（运行后删除）"
+    ],
+    "production_files_modified": 0,
+    "test_files_modified": 0
+  },
+  "gate_G3": {
+    "engine_code_source": "file:/E:/Project/quant-trading-system/modules/backend-java/target/classes/",
+    "expected": "E:\\Project\\quant-trading-system\\modules\\backend-java\\target\\classes",
+    "is_repo_classes": true,
+    "class": "com.quant.service.backtest.FactorResearchEngine",
+    "classloader": "jdk.internal.loader.ClassLoaders$AppClassLoader@6bc7c054",
+    "sentinel_nw_reverse": 1.3496913227351899,
+    "sentinel_nw_lag3_control": 1.4465476141489433,
+    "sentinel_nw_lag2_control_probe_key_perm": 1.3496913227351899,
+    "sentinel_reverse_differs_from_lag3": true,
+    "sentinel_reverse_equals_lag2_control": true,
+    "sentinel_note": "探针键名 ..._perm_control 实现的是 lag=2 对照；n=10 的 cbrt 规则 lag=2，故生产值与它相等是预期；门只要求「与 lag3 对照不同」（反向锚点）",
+    "sentinel_t1_hac": 0.0,
+    "sentinel_t1_ci": [
+      0.0,
+      0.0
+    ]
+  },
+  "gate_existing_test_consistency": {
+    "existing_test": "FactorResearchEngineTest.neweyWestHacStd*:145-153",
+    "probe_prod": 0.013064200447533455,
+    "probe_expected": 0.0229978259842099,
+    "abs_diff": 0.009933625536676446,
+    "test_tolerance_abs": 0.01,
+    "passes": true
+  },
+  "variant_budget": {
+    "by_axis": {
+      "A1": 2,
+      "A2": 4,
+      "A3": 4,
+      "A4": 2,
+      "A5": 3,
+      "A6": 2,
+      "A7": 2,
+      "A8": 2
+    },
+    "frozen_axis_counts": {
+      "A1": 2,
+      "A2": 4,
+      "A3": 4,
+      "A4": 2,
+      "A5": 3,
+      "A6": 2,
+      "A7": 2,
+      "A8": 2
+    },
+    "total_variants": 21,
+    "frozen_total": 21,
+    "declared_checkers": 21,
+    "axis_keys_match": true,
+    "variant_map_complete": true,
+    "variant_ids_unique": true,
+    "ok": true,
+    "config_frozen_match": true,
+    "config_frozen_detail": {
+      "variants": true,
+      "by_axis": true,
+      "frozen_axis_counts": true,
+      "frozen_total": true,
+      "kill_conditions": true,
+      "count_expectations": true,
+      "verdict_vocab": true,
+      "thresholds": true,
+      "simulation": true
+    }
+  },
+  "counts_C1_C9": {
+    "C1": {
+      "actual": 9,
+      "frozen_expected": 9,
+      "match": true,
+      "command": "grep -rn \"hac_std\" --include=*.java --include=*.vue --include=*.ts --include=*.js --include=*.sql --include=*.py .",
+      "by_file_src": {
+        "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java": 5,
+        "modules/web/src/api/factor.ts": 2,
+        "modules/web/src/views/factor/FactorResearch.vue": 2
+      },
+      "raw_incl_build_artifacts": 11,
+      "research": 46
+    },
+    "C2": {
+      "actual": 18,
+      "frozen_expected": 18,
+      "match": true,
+      "command": "grep -rn \"ci_lower\\|ci_upper\" --include=*.java --include=*.vue --include=*.ts --include=*.js --include=*.sql --include=*.py .",
+      "by_file_src": {
+        "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java": 10,
+        "modules/web/src/api/factor.ts": 4,
+        "modules/web/src/views/factor/FactorResearch.vue": 4
+      },
+      "raw_incl_build_artifacts": 22,
+      "research": 44
+    },
+    "C3": {
+      "actual": 2,
+      "frozen_expected": 2,
+      "match": true,
+      "command": "grep -rn \"HAC 95%CI\" modules/web/src",
+      "lines": [
+        "modules/web/src/views/factor/FactorResearch.vue:139:                <span>HAC 95%CI：{{ fmt4(blk.ci_lower) }} ~ {{ fmt4(blk.ci_upper) }}</span>",
+        "modules/web/src/views/factor/FactorResearch.vue:322:            <el-table-column label=\"HAC 95%CI\" min-width=\"130\">"
+      ]
+    },
+    "C4": {
+      "actual": 2,
+      "frozen_expected": 2,
+      "match": true,
+      "command": "grep -rn \"neweyWestHacStd(\\|blockBootstrapCi(\" modules/backend-java/src",
+      "prod_decl": 2,
+      "prod_decl_expected": 2,
+      "test": 6,
+      "test_expected": 6,
+      "all_hits": 10
+    },
+    "C5": {
+      "actual": 1,
+      "frozen_expected": 1,
+      "match": true,
+      "command": "grep -n '\"status\"' .../FactorResearchService.java",
+      "lines": [
+        "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java:560:        block.put(\"status\", \"UNAVAILABLE\");"
+      ]
+    },
+    "C6": {
+      "actual": 3,
+      "frozen_expected": null,
+      "match": true,
+      "command": "grep -rn \"RANK_IC_EMBARGO_NOTE\" --include=*.java . ; grep -rn \"embargo_note\" modules/web/src",
+      "def": 1,
+      "def_expected": 1,
+      "refs": 2,
+      "refs_expected": 2,
+      "fe_bindings_vue": 1,
+      "fe_expected": 1,
+      "fe_ts_declarations": 2,
+      "fe_note": "冻结期望记的是 vue:329 的绑定（1）；factor.ts 的两处是 TS 字段声明，另列",
+      "lines": [
+        "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java:83:    private static final String RANK_IC_EMBARGO_NOTE =",
+        "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java:534:        block.put(\"embargo_note\", RANK_IC_EMBARGO_NOTE);",
+        "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java:653:        block.put(\"embargo_note\", RANK_IC_EMBARGO_NOTE);"
+      ],
+      "fe_lines": [
+        "modules/web/src/api/factor.ts:102:  embargo_note?: string",
+        "modules/web/src/api/factor.ts:194:  embargo_note?: string",
+        "modules/web/src/views/factor/FactorResearch.vue:329:            <p v-if=\"unifiedResult.by_horizon[0]?.embargo_note\">Embargo：{{ unifiedResult.by_horizon[0].embargo_note }}</p>"
+      ]
+    },
+    "C7": {
+      "actual": 1,
+      "frozen_expected": 1,
+      "match": true,
+      "command": "grep -n \"net_ic\" modules/web/src/views/factor/FactorResearch.vue",
+      "all_net_ic_mentions": 3
+    },
+    "C8": {
+      "actual": 1,
+      "frozen_expected": 1,
+      "match": true,
+      "command": "grep -rn \"1000, 42L\" --include=*.java modules/backend-java/src",
+      "test": 3,
+      "test_expected": 3
+    },
+    "C9": {
+      "actual": 0,
+      "frozen_expected": 0,
+      "match": true,
+      "command": "grep -rni \"hac\\|ci_lower\\|ci_upper\" --include=*.sql ."
+    },
+    "_all_match": true,
+    "_note": "计数不匹配按 prereg §8 只写入报告附录 A，不改变任何判定词；raw_incl_build_artifacts = 未排除 target/dist 的原始命令口径（冻结命令未加 --exclude-dir，故含前端构建产物）"
+  },
+  "canaries": {
+    "rows": [
+      {
+        "axis": "A1a",
+        "variant": "V01",
+        "clean_expected": "INCONCLUSIVE",
+        "clean_actual": "INCONCLUSIVE",
+        "inj_expected": "NOT_VIOLATED",
+        "inj_actual": "NOT_VIOLATED",
+        "passed": true,
+        "cln_op_kind": "multi",
+        "inj_op_kind": "multi",
+        "intent": "CLN：ci_* 被改成与 normal-lo/hi 同源 ⟹ 无法支撑「值来自另一估计量」；INJ：仅在面板 0 上人为偏移 ⟹ 差异重新出现",
+        "clean_evidence_digest": "{'panels': [{'panel': 0, 'T': 17, 'holding': 5, 'mean': 0.03411764705882353, 'hac_std': 0.012259752076398804, 'ci': [0.010088532989081873, 0.05814676112856519], 'normal_ci': [0.010088532989081873, 0.05814676112856519], '",
+        "inj_evidence_digest": "{'panels': [{'panel': 0, 'T': 17, 'holding': 5, 'mean': 0.03411764705882353, 'hac_std': 0.012259752076398804, 'ci': [0.0, 0.0], 'normal_ci': [0.010088532989081873, 0.05814676112856519], 'abs_diff': [0.010088532989081873,"
+      },
+      {
+        "axis": "A1b",
+        "variant": "V02",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "CONTRACT_MISLABEL",
+        "inj_actual": "CONTRACT_MISLABEL",
+        "passed": true,
+        "cln_op_kind": "multi",
+        "inj_op_kind": "multi",
+        "intent": "CLN：标签（含表格列头语料）改称 Bootstrap ⟹ 指称与实际估计量一致；INJ：恢复原标签（HAC 95%CI）",
+        "clean_evidence_digest": "{'label_hits': ['Bootstrap 95%CI'], 'labels_from_ci_lines': ['modules/web/src/views/factor/FactorResearch.vue:139: <span>Bootstrap 95%CI：{{ fmt4(blk.ci_lower) }} ~ {{ fmt4(blk.ci_upper) }}</span>'], 'labels_from_c3_corpu",
+        "inj_evidence_digest": "{'label_hits': ['HAC 95%CI', 'HAC 95%CI', 'HAC 95%CI'], 'labels_from_ci_lines': ['modules/web/src/api/factor.ts:113:  ci_lower: number', 'modules/web/src/api/factor.ts:114:  ci_upper: number', 'modules/web/src/api/factor"
+      },
+      {
+        "axis": "A2a",
+        "variant": "V03",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "cln_op_kind": "probe_set",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：截面日数改成 4（不再触发 T=1 退化并存）；INJ：恢复 T=1",
+        "clean_evidence_digest": "{'input_dates': 1, 'input_obs_on_that_day': 10, 'cross_section_days': 4, 'total_observations': 10, 'rank_ic_mean': -0.9878787878787879, 'hac_std': 0.0, 'ci': [0.0, 0.0], 'ci_is_zero_width': 1, 'ci_contains_mean': 0, 'mea",
+        "inj_evidence_digest": "{'input_dates': 1, 'input_obs_on_that_day': 10, 'cross_section_days': 1, 'total_observations': 10, 'rank_ic_mean': -0.9878787878787879, 'hac_std': 0.0, 'ci': [0.0, 0.0], 'ci_is_zero_width': 1, 'ci_contains_mean': 0, 'mea"
+      },
+      {
+        "axis": "A2b",
+        "variant": "V04",
+        "clean_expected": "VIOLATED",
+        "clean_actual": "VIOLATED",
+        "inj_expected": "REGISTERED_ONLY",
+        "inj_actual": "REGISTERED_ONLY",
+        "passed": true,
+        "cln_op_kind": "multi",
+        "inj_op_kind": "multi",
+        "intent": "CLN：抹掉 status 与 cross_section_days==0 两个信号 ⟹ 弱可区分性消失；INJ：恢复两个信号（必须识别出弱可区分性存在）",
+        "clean_evidence_digest": "{'empty': {'cross_section_days': 1, 'total_observations': 0, 'hac_std': 0.0, 'ci': [0.0, 0.0], 'rank_ic_mean': 0.0, 'monotonicity': 'N/A', 'universe_note': 'probe-empty-note'}, 'unavailable_scope_block_status_lines': [],",
+        "inj_evidence_digest": "{'empty': {'cross_section_days': 0, 'total_observations': 0, 'hac_std': 0.0, 'ci': [0.0, 0.0], 'rank_ic_mean': 0.0, 'monotonicity': 'N/A', 'universe_note': 'probe-empty-note'}, 'unavailable_scope_block_status_lines': ['m"
+      },
+      {
+        "axis": "A2c",
+        "variant": "V05",
+        "clean_expected": "REGISTERED_ONLY",
+        "clean_actual": "REGISTERED_ONLY",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "cln_op_kind": "probe_map",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：所有单元钳位率置 0；INJ：把一个 n>=10 单元置 0.10（越过 5% 阈值）",
+        "clean_evidence_digest": "{'threshold': 0.05, 'cells': [{'n': 5, 'dgp': 'IID_NORMAL', 'reps': 1000, 'var_positive_reps': 1000, 'clamp_zero_count': 0, 'clamp_rate': 0.0}, {'n': 5, 'dgp': 'AR1_0.2', 'reps': 1000, 'var_positive_reps': 1000, 'clamp_z",
+        "inj_evidence_digest": "{'threshold': 0.05, 'cells': [{'n': 5, 'dgp': 'IID_NORMAL', 'reps': 1000, 'var_positive_reps': 1000, 'clamp_zero_count': 0, 'clamp_rate': 0.0}, {'n': 5, 'dgp': 'AR1_0.2', 'reps': 1000, 'var_positive_reps': 1000, 'clamp_z"
+      },
+      {
+        "axis": "A2d",
+        "variant": "V06",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "CONTRACT_AMBIGUOUS",
+        "inj_actual": "CONTRACT_AMBIGUOUS",
+        "passed": true,
+        "cln_op_kind": "src_insert_early",
+        "inj_op_kind": "src_restore",
+        "intent": "CLN：早返回分支补上 hac_std/ci_lower/ci_upper ⟹ 两种键集一致；INJ：恢复原状",
+        "clean_evidence_digest": "{'early_range_lines': (659, 671), 'early_keys': ['ci_lower', 'ci_upper', 'cost_net_ic', 'cross_section_days', 'daily_rank_ic', 'grouped_returns', 'hac_std', 'long_short_spread', 'rank_ic_ir', 'rank_ic_mean', 'rank_ic_pos",
+        "inj_evidence_digest": "{'early_range_lines': (659, 671), 'early_keys': ['cost_net_ic', 'cross_section_days', 'daily_rank_ic', 'grouped_returns', 'long_short_spread', 'rank_ic_ir', 'rank_ic_mean', 'rank_ic_positive_rate', 'rank_ic_std', 'total_"
+      },
+      {
+        "axis": "A3a",
+        "variant": "V07",
+        "clean_expected": "INCONCLUSIVE",
+        "clean_actual": "INCONCLUSIVE",
+        "inj_expected": "REGISTERED_ONLY",
+        "inj_actual": "REGISTERED_ONLY",
+        "passed": true,
+        "cln_op_kind": "probe_set",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：反射结果说 HAC 函数有整型入参（窗口可随 h 变）⟹ 签名事实不成立；INJ：恢复",
+        "clean_evidence_digest": "{'nw_param_count': 1, 'nw_param_types': 'java.util.List', 'nw_has_integral_param': 1, 'bb_param_count': 4, 'bb_param_types': 'java.util.List int int long', 'bb_has_integral_param': 1, 'bb_found': 1, 'nw_found': 1, 'summa",
+        "inj_evidence_digest": "{'nw_param_count': 1, 'nw_param_types': 'java.util.List', 'nw_has_integral_param': 0, 'bb_param_count': 4, 'bb_param_types': 'java.util.List int int long', 'bb_has_integral_param': 1, 'bb_found': 1, 'nw_found': 1, 'summa"
+      },
+      {
+        "axis": "A3b",
+        "variant": "V08",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "cln_op_kind": "probe_map",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：全部单元偏差置 0（逐位一致）；INJ：把单元 0 的偏差置 1e-6（越过 1e-12 容差）",
+        "clean_evidence_digest": "{'cells': 120, 'tol': 1e-12, 'mismatching_cells': [], 'max_abs_diff': 0.0, 'cells_with_longer_h_window': 65, 'sentinel_prod_vs_lag3': [0.0028284271247461888, 0.0024494897427831787], 'reading': '生产实现 == 滞后 floor(n^(1/3)) ",
+        "inj_evidence_digest": "{'cells': 120, 'tol': 1e-12, 'mismatching_cells': [{'cell': 0, 'n': 5, 'h': 1, 'dgp': 'IID_NORMAL', 'prod': 0.36013310096998324, 'ctrl': 0.36013310096998324, 'diff': 1e-06}], 'max_abs_diff': 1e-06, 'cells_with_longer_h_w"
+      },
+      {
+        "axis": "A3c",
+        "variant": "V09",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "CONVENTION_DIVERGENCE",
+        "inj_actual": "CONVENTION_DIVERGENCE",
+        "passed": true,
+        "cln_op_kind": "probe_map",
+        "inj_op_kind": "probe_map",
+        "intent": "CLN：所有 h>=5 单元比值置 0.95（未达 0.90 材料性）；INJ：把一个置 0.85",
+        "clean_evidence_digest": "{'statistic': 'median(prod)/median(ctrl_hm1) 逐单元；中位数在 200 次重复上取', 'threshold': 0.9, 'cells': [{'n': 5, 'h': 1, 'dgp': 'IID_NORMAL', 'dom_cbrt': 1, 'dom_hm1': 1, 'prod_median': 0.36013310096998324, 'ctrl_hm1_median': 0.36",
+        "inj_evidence_digest": "{'statistic': 'median(prod)/median(ctrl_hm1) 逐单元；中位数在 200 次重复上取', 'threshold': 0.9, 'cells': [{'n': 5, 'h': 1, 'dgp': 'IID_NORMAL', 'dom_cbrt': 1, 'dom_hm1': 1, 'prod_median': 0.36013310096998324, 'ctrl_hm1_median': 0.36"
+      },
+      {
+        "axis": "A3d",
+        "variant": "V10",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "CONTRACT_MISLABEL",
+        "inj_actual": "CONTRACT_MISLABEL",
+        "passed": true,
+        "cln_op_kind": "text_set",
+        "inj_op_kind": "multi",
+        "intent": "CLN：承诺文本不再以 HAC 为基准 ⟹ 与窗口解耦无关；INJ：恢复承诺文本并让 A3c 达材料性",
+        "clean_evidence_digest": "{'embargo_note_decl_lines': ['    private static final String RANK_IC_EMBARGO_NOTE =', '            \"信号日接近数据末端（forward 区间未形成）自动跳过，不外推、不使用未来数据；\"', '                    + \"重叠持有期 IC 序列的显著性以 HAC 标准误与 block bootstrap CI 为准\";'",
+        "inj_evidence_digest": "{'embargo_note_decl_lines': ['    private static final String RANK_IC_EMBARGO_NOTE =', '            \"信号日接近数据末端（forward 区间未形成）自动跳过，不外推、不使用未来数据；\"', '                    + \"重叠持有期 IC 序列的显著性以 HAC 标准误与 block bootstrap CI 为准\";'"
+      },
+      {
+        "axis": "A4a",
+        "variant": "V11",
+        "clean_expected": "REGISTERED_ONLY",
+        "clean_actual": "REGISTERED_ONLY",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "cln_op_kind": "probe_map",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：识别结果 = 规则值；INJ：把面板 0 的识别结果置 none（识别失败）",
+        "clean_evidence_digest": "{'panels': [{'h': 1, 'n': 10, 'matched_bs': '1', 'rule_expected_bs': 1, 'prod_ci': [0.089, 0.11199999999999999], 'prod_ci_width': 0.022999999999999993, 'matched_bs_list': [1], 'rule_expected_in_matched': True}, {'h': 2, ",
+        "inj_evidence_digest": "{'panels': [{'h': 1, 'n': 10, 'matched_bs': 'none', 'rule_expected_bs': 1, 'prod_ci': [0.089, 0.11199999999999999], 'prod_ci_width': 0.022999999999999993, 'matched_bs_list': [], 'rule_expected_in_matched': False}, {'h': "
+      },
+      {
+        "axis": "A4b",
+        "variant": "V12",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "CONTRACT_AMBIGUOUS",
+        "inj_actual": "CONTRACT_AMBIGUOUS",
+        "passed": true,
+        "cln_op_kind": "text_set",
+        "inj_op_kind": "multi",
+        "intent": "CLN：javadoc 改成与实现一致的块长公式；INJ：恢复 javadoc 并给出 bs<h 的实测",
+        "clean_evidence_digest": "{'javadoc_lines': ['probe: Block bootstrap 置信区间（块大小 = min(blockSize, floor(sqrt(n)), n-1)）'], 'javadoc_claims_block_equals_h': False, 'a4a_verdict': 'REGISTERED_ONLY', 'bs_less_than_h': [{'h': 5, 'n': 10, 'matched_bs': '",
+        "inj_evidence_digest": "{'javadoc_lines': ['modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java:355:     * Block bootstrap 置信区间（处理序列相关，块大小 = 持有期 h）。', 'modules/backend-java/src/main/java/com/quant/service/bac"
+      },
+      {
+        "axis": "A5a",
+        "variant": "V13",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "cln_op_kind": "probe_map",
+        "inj_op_kind": "probe_map",
+        "intent": "CLN：期望值置为实测值（零偏差）；INJ：期望值改成 ÷√(T−1) 的口径（§7 INJ-3）",
+        "clean_evidence_digest": "{'tolerance_relative': 0.05, 'panels': [{'panel': 0, 'T': 10, 'kind': 'fixed_panel', 'prod': 0.0028284271247461888, 'expected': 0.0028284271247461888, 'rel_diff': 0.0, 'rel_diff_emitted': 0.5285954792089684}, {'panel': 1",
+        "inj_evidence_digest": "{'tolerance_relative': 0.05, 'panels': [{'panel': 0, 'T': 10, 'kind': 'fixed_panel', 'prod': 0.0028284271247461888, 'expected': 0.006324555320336759, 'rel_diff': 0.5527864045000422, 'rel_diff_emitted': 0.5285954792089684"
+      },
+      {
+        "axis": "A5b",
+        "variant": "V14",
+        "clean_expected": "REGISTERED_ONLY",
+        "clean_actual": "REGISTERED_ONLY",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "cln_op_kind": "probe_map",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：锚点保持不动；INJ：把 1/√T 锚点改成 0.999（与冻结期望 0.316 不符）",
+        "clean_evidence_digest": "{'panels': [{'T': 10, 'inv_sqrt_T': 0.31622776601683794, 'rank_ic_std': 0.018973665961010275, 'hac_std': 0.0028284271247461888, 'ratio': 6.708203932499372, 'frozen_expected_inv_sqrt_T': 0.316}, {'T': 17, 'inv_sqrt_T': 0.",
+        "inj_evidence_digest": "{'panels': [{'T': 10, 'inv_sqrt_T': 0.999, 'rank_ic_std': 0.018973665961010275, 'hac_std': 0.0028284271247461888, 'ratio': 6.708203932499372, 'frozen_expected_inv_sqrt_T': 0.316}, {'T': 17, 'inv_sqrt_T': 0.24253562503633"
+      },
+      {
+        "axis": "A5c",
+        "variant": "V15",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "cln_op_kind": "multi",
+        "inj_op_kind": "multi",
+        "intent": "CLN：全部单元 950/1000（§7 CLN-4）；INJ：把一个单元改成 800/1000（§7 INJ-4）",
+        "clean_evidence_digest": "{'threshold_coverage': 0.85, 'cp_alpha': 0.01, 'cp_equivalence': 'L<0.85 ⟺ P(X>=k | p=0.85) > 0.01（tail 对 p 单调递增）', 'cells': [{'n': 5, 'h': 1, 'dgp': 'IID_NORMAL', 'reps': 1000, 'mu_true': 0.0, 'arm': 'BOOT_CI', 'arm2': ",
+        "inj_evidence_digest": "{'threshold_coverage': 0.85, 'cp_alpha': 0.01, 'cp_equivalence': 'L<0.85 ⟺ P(X>=k | p=0.85) > 0.01（tail 对 p 单调递增）', 'cells': [{'n': 5, 'h': 1, 'dgp': 'IID_NORMAL', 'reps': 1000, 'mu_true': 0.0, 'arm': 'BOOT_CI', 'arm2': "
+      },
+      {
+        "axis": "A6a",
+        "variant": "V16",
+        "clean_expected": "REGISTERED_ONLY",
+        "clean_actual": "REGISTERED_ONLY",
+        "inj_expected": "NOT_VIOLATED",
+        "inj_actual": "NOT_VIOLATED",
+        "passed": true,
+        "cln_op_kind": "text_set",
+        "inj_op_kind": "text_set",
+        "intent": "CLN：生产面 0 命中；INJ：注入一行 nominal 标注 ⟹ 批评不再适用",
+        "clean_evidence_digest": "{'scan_root_production': 'modules/（排除 node_modules / target / dist）', 'prod_hits': [], 'repo_hits_including_research': ['research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:377:    c[\"c_nomina",
+        "inj_evidence_digest": "{'scan_root_production': 'modules/（排除 node_modules / target / dist）', 'prod_hits': ['modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java:1:// nominal 95% CI（未做多重检验校正）'], 'repo_hits_including_r"
+      },
+      {
+        "axis": "A6b",
+        "variant": "V17",
+        "clean_expected": "REGISTERED_ONLY",
+        "clean_actual": "REGISTERED_ONLY",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "cln_op_kind": "probe_map",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：t 值 = mean/hac_std（算术恒等成立）；INJ：人为把 t 值 +1（恒等式破裂）",
+        "clean_evidence_digest": "{'panels': [{'T': 17, 'mean': 0.03411764705882353, 'hac_std': 0.012259752076398804, 't_hac': 2.7828986137903446, 't_matches_ratio': True, 'hurdles': [1.96, 3.0, 3.9]}, {'T': 10, 'mean': 0.09999999999999999, 'hac_std': 0.",
+        "inj_evidence_digest": "{'panels': [{'T': 17, 'mean': 0.03411764705882353, 'hac_std': 0.012259752076398804, 't_hac': 3.7828986137903446, 't_matches_ratio': False, 'hurdles': [1.96, 3.0, 3.9]}, {'T': 10, 'mean': 0.09999999999999999, 'hac_std': 0"
+      },
+      {
+        "axis": "A7a",
+        "variant": "V18",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "cln_op_kind": "multi",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：两次调用结果一致；INJ：置 ci_identical=0（不可复现）",
+        "clean_evidence_digest": "{'ci_a': [-0.0035294117647058773, 0.06647058823529413], 'ci_b': [-0.0035294117647058773, 0.06647058823529413], 'hac_a': 0.012259752076398804, 'hac_b': 0.012259752076398804, 'ci_identical': 1, 'hac_identical': 1, 'summari",
+        "inj_evidence_digest": "{'ci_a': [-0.0035294117647058773, 0.06647058823529413], 'ci_b': [-0.0035294117647058773, 0.06647058823529413], 'hac_a': 0.012259752076398804, 'hac_b': 0.012259752076398804, 'ci_identical': 0, 'hac_identical': 1, 'summari"
+      },
+      {
+        "axis": "A7b",
+        "variant": "V19",
+        "clean_expected": "NOT_REACHABLE",
+        "clean_actual": "NOT_REACHABLE",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "cln_op_kind": "text_set",
+        "inj_op_kind": "text_set",
+        "intent": "CLN：调用点硬编码 1000（不可达退化分支）；INJ：注入 50 次迭代的调用点",
+        "clean_evidence_digest": "{'call_sites': ['modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java:191:        double[] ci = blockBootstrapCi(icSeries, Math.max(1, holdingDays), 1000, 42L);'], 'call_sites_with_1000",
+        "inj_evidence_digest": "{'call_sites': ['modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java:191:        double[] ci = blockBootstrapCi(icSeries, Math.max(1, holdingDays), 50, 42L);'], 'call_sites_with_1000_4"
+      },
+      {
+        "axis": "A8a",
+        "variant": "V20",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "CONTRACT_MISLABEL",
+        "inj_actual": "CONTRACT_MISLABEL",
+        "passed": true,
+        "cln_op_kind": "text_copy",
+        "inj_op_kind": "text_copy",
+        "intent": "CLN：表头改成带 cost_ 前缀、值来自 cost_net_ic ⟹ 命名与口径一致；INJ：恢复原表头",
+        "clean_evidence_digest": "{'csv_method_lines': (498, 519), 'header_line': \"    ['holding_days', 'rank_ic', 'pearson_ic', 'icir', 'positive_rate', 'monotonicity', 'spread', 'cost_net_ic_rank_ic_mean', 'hac_std', 'ci_lower', 'ci_upper'].join(','),\"",
+        "inj_evidence_digest": "{'csv_method_lines': (498, 519), 'header_line': \"    ['holding_days', 'rank_ic', 'pearson_ic', 'icir', 'positive_rate', 'monotonicity', 'spread', 'net_ic', 'hac_std', 'ci_lower', 'ci_upper'].join(','),\", 'value_line': \" "
+      },
+      {
+        "axis": "A8b",
+        "variant": "V21",
+        "clean_expected": "REGISTERED_ONLY",
+        "clean_actual": "REGISTERED_ONLY",
+        "inj_expected": "NOT_VIOLATED",
+        "inj_actual": "NOT_VIOLATED",
+        "passed": true,
+        "cln_op_kind": "text_copy",
+        "inj_op_kind": "text_copy",
+        "intent": "CLN：net_ic 之后紧随毛收益块三列（同排不同口径）；INJ：紧随三列也改成成本后块",
+        "clean_evidence_digest": "{'header_tokens': ['holding_days', 'rank_ic', 'pearson_ic', 'icir', 'positive_rate', 'monotonicity', 'spread', 'net_ic', 'hac_std', 'ci_lower', 'ci_upper'], 'header_after_net_ic': ['hac_std', 'ci_lower', 'ci_upper'], 'va",
+        "inj_evidence_digest": "{'header_tokens': ['holding_days', 'rank_ic', 'pearson_ic', 'icir', 'positive_rate', 'monotonicity', 'spread', 'net_ic', 'hac_std', 'ci_lower', 'ci_upper'], 'header_after_net_ic': ['hac_std', 'ci_lower', 'ci_upper'], 'va"
+      }
+    ],
+    "checkers": 21,
+    "canaries": 21,
+    "checkers_without_canary": [],
+    "harness_note": "CLN 与 INJ 均作用于归一化上下文（两条期望值可在运行前确定）；成对存在且要求 clean != inj",
+    "all_passed": true
+  },
+  "axis_verdicts": {
+    "A1a": "NOT_VIOLATED",
+    "A1b": "CONTRACT_MISLABEL",
+    "A2a": "VIOLATED",
+    "A2b": "REGISTERED_ONLY",
+    "A2c": "REGISTERED_ONLY",
+    "A2d": "CONTRACT_AMBIGUOUS",
+    "A3a": "REGISTERED_ONLY",
+    "A3b": "NOT_VIOLATED",
+    "A3c": "CONVENTION_DIVERGENCE",
+    "A3d": "CONTRACT_MISLABEL",
+    "A4a": "REGISTERED_ONLY",
+    "A4b": "CONTRACT_AMBIGUOUS",
+    "A5a": "VIOLATED",
+    "A5b": "REGISTERED_ONLY",
+    "A5c": "VIOLATED",
+    "A6a": "REGISTERED_ONLY",
+    "A6b": "REGISTERED_ONLY",
+    "A7a": "NOT_VIOLATED",
+    "A7b": "NOT_REACHABLE",
+    "A8a": "CONTRACT_MISLABEL",
+    "A8b": "REGISTERED_ONLY"
+  },
+  "axis_variants": {
+    "A1a": "V01",
+    "A1b": "V02",
+    "A2a": "V03",
+    "A2b": "V04",
+    "A2c": "V05",
+    "A2d": "V06",
+    "A3a": "V07",
+    "A3b": "V08",
+    "A3c": "V09",
+    "A3d": "V10",
+    "A4a": "V11",
+    "A4b": "V12",
+    "A5a": "V13",
+    "A5b": "V14",
+    "A5c": "V15",
+    "A6a": "V16",
+    "A6b": "V17",
+    "A7a": "V18",
+    "A7b": "V19",
+    "A8a": "V20",
+    "A8b": "V21"
+  },
+  "axis_evidence": {
+    "A1a": {
+      "panels": [
+        {
+          "panel": 0,
+          "T": 17,
+          "holding": 5,
+          "mean": 0.03411764705882353,
+          "hac_std": 0.012259752076398804,
+          "ci": [
+            -0.0035294117647058773,
+            0.06647058823529413
+          ],
+          "normal_ci": [
+            0.010088532989081873,
+            0.05814676112856519
+          ],
+          "abs_diff": [
+            0.01361794475378775,
+            0.008323827106728937
+          ],
+          "abs_diff_emitted": [
+            0.01361794475378775,
+            0.008323827106728937
+          ],
+          "recomputed_matches_emitted": true,
+          "ci_width": 0.07,
+          "normal_width": 0.04805822813948332,
+          "ci_contains_mean": 1
+        },
+        {
+          "panel": 1,
+          "T": 10,
+          "holding": 3,
+          "mean": 0.09999999999999999,
+          "hac_std": 0.0028284271247461888,
+          "ci": [
+            0.094,
+            0.10600000000000001
+          ],
+          "normal_ci": [
+            0.09445628283549747,
+            0.10554371716450252
+          ],
+          "abs_diff": [
+            0.0004562828354974652,
+            0.00045628283549749293
+          ],
+          "abs_diff_emitted": [
+            0.0004562828354974652,
+            0.00045628283549749293
+          ],
+          "recomputed_matches_emitted": true,
+          "ci_width": 0.01200000000000001,
+          "normal_width": 0.011087434329005053,
+          "ci_contains_mean": 1
+        }
+      ],
+      "tol": 1e-09,
+      "any_panel_differs_beyond_tol": true,
+      "reading": "ci_* 与 [mean ± 1.96·SE] 不是同一个数；两者都合法，差值本身不是缺陷（断言问的是「是否逐位一致」）"
+    },
+    "A1b": {
+      "label_hits": [
+        "HAC 95%CI",
+        "HAC 95%CI",
+        "HAC 95%CI"
+      ],
+      "labels_from_ci_lines": [
+        "modules/web/src/api/factor.ts:113:  ci_lower: number",
+        "modules/web/src/api/factor.ts:114:  ci_upper: number",
+        "modules/web/src/api/factor.ts:204:  ci_lower: number",
+        "modules/web/src/api/factor.ts:205:  ci_upper: number",
+        "modules/web/src/views/factor/FactorResearch.vue:139:                <span>HAC 95%CI：{{ fmt4(blk.ci_lower) }} ~ {{ fmt4(blk.ci_upper) }}</span>",
+        "modules/web/src/views/factor/FactorResearch.vue:323:              <template #default=\"{ row }\">{{ fmt4(row.ci_lower) }} ~ {{ fmt4(row.ci_upper) }}</template>",
+        "modules/web/src/views/factor/FactorResearch.vue:506:    ['holding_days', 'rank_ic', 'pearson_ic', 'icir', 'positive_rate', 'monotonicity', 'spread', 'net_ic', 'hac_std', 'ci_lower', 'ci_upper'].join(','),",
+        "modules/web/src/views/factor/FactorResearch.vue:510:      row.cost_net_ic?.rank_ic_mean ?? '', row.hac_std, row.ci_lower, row.ci_upper"
+      ],
+      "labels_from_c3_corpus": [
+        "HAC 95%CI",
+        "HAC 95%CI"
+      ],
+      "says_hac": [
+        "HAC 95%CI",
+        "HAC 95%CI",
+        "HAC 95%CI"
+      ],
+      "says_bootstrap": [],
+      "value_source": "FactorResearchEngine:191 blockBootstrapCi(icSeries, max(1,holdingDays),1000,42L)",
+      "hac_std_also_in_block": true,
+      "reading": "标签指称 HAC 标准误，而 ci_lower/ci_upper 的值来自 block bootstrap"
+    },
+    "A2a": {
+      "input_dates": 1,
+      "input_obs_on_that_day": 10,
+      "cross_section_days": 1,
+      "total_observations": 10,
+      "rank_ic_mean": -0.9878787878787879,
+      "hac_std": 0.0,
+      "ci": [
+        0.0,
+        0.0
+      ],
+      "ci_is_zero_width": 1,
+      "ci_contains_mean": 0,
+      "mean_is_nonzero": 1,
+      "rank_ic_std": 0.0,
+      "rank_ic_ir": 0.0,
+      "snapshot_block_keys": [
+        "metric_scope",
+        "basis_note",
+        "embargo_note",
+        "universe_note",
+        "cross_section_days",
+        "total_observations",
+        "rank_ic_mean",
+        "rank_ic_std",
+        "rank_ic_ir",
+        "rank_ic_positive_rate",
+        "pearson_ic_mean",
+        "monotonicity",
+        "hac_std",
+        "ci_lower",
+        "ci_upper",
+        "long_short_spread",
+        "daily_rank_ic",
+        "grouped_returns",
+        "note"
+      ],
+      "snapshot_has_status_key": false,
+      "snapshot_has_note_key": true,
+      "note_guard_lines": [
+        550
+      ],
+      "engine_record_field_names": "holdingDays,groupCount,crossSectionDays,totalObservations,rankIcMean,rankIcStd,rankIcIr,rankIcPositiveRate,pearsonIcMean,monotonicity,hacStd,ciLower,ciUpper,dailyRankIc,groupedReturns,longShortSpread,universeNote",
+      "engine_record_has_universe_note": 1,
+      "payload_transform": "FactorResearchService:544-546（scope 块）与 :764-766（buildRankIc）对 hac_std/ci_* 套 round4(v)=Math.round(v*10000.0)/10000.0；0.0 经 round4 仍为 0.0 ⟹ 本退化在 HTTP 载荷层同样成立",
+      "t1_zero_width_with_real_point_estimate": true,
+      "no_degeneracy_marker_in_block": true,
+      "marker_reading": "note 仅在 totalObservations()==0 时写入；status 只出现在 unavailableScopeBlock；T=1 且当日 n=10 时两者都不触发"
+    },
+    "A2b": {
+      "empty": {
+        "cross_section_days": 0,
+        "total_observations": 0,
+        "hac_std": 0.0,
+        "ci": [
+          0.0,
+          0.0
+        ],
+        "rank_ic_mean": 0.0,
+        "monotonicity": "N/A",
+        "universe_note": "probe-empty-note"
+      },
+      "unavailable_scope_block_status_lines": [
+        "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java:560:        block.put(\"status\", \"UNAVAILABLE\");"
+      ],
+      "unavailable_block_keys": [
+        "metric_scope",
+        "status",
+        "basis_note",
+        "cross_section_days",
+        "total_observations",
+        "rank_ic_mean",
+        "rank_ic_std",
+        "rank_ic_ir",
+        "rank_ic_positive_rate",
+        "pearson_ic_mean",
+        "monotonicity",
+        "hac_std",
+        "ci_lower",
+        "ci_upper",
+        "long_short_spread",
+        "daily_rank_ic",
+        "grouped_returns",
+        "note"
+      ],
+      "status_in_unavailable_block": true,
+      "snapshot_block_keys": [
+        "metric_scope",
+        "basis_note",
+        "embargo_note",
+        "universe_note",
+        "cross_section_days",
+        "total_observations",
+        "rank_ic_mean",
+        "rank_ic_std",
+        "rank_ic_ir",
+        "rank_ic_positive_rate",
+        "pearson_ic_mean",
+        "monotonicity",
+        "hac_std",
+        "ci_lower",
+        "ci_upper",
+        "long_short_spread",
+        "daily_rank_ic",
+        "grouped_returns",
+        "note"
+      ],
+      "partial_2dates": {
+        "input_dates": 2,
+        "cross_section_days": 1,
+        "hac_std": 0.0,
+        "ci": [
+          0.0,
+          0.0
+        ]
+      },
+      "reading": "三处都输出 0.0/0.0；弱可区分信号 = cross_section_days==0（全空）与 status=='UNAVAILABLE'（口径不可用块）；不得叙述为「完全不可区分」",
+      "weak_distinguishability_present": true
+    },
+    "A2c": {
+      "threshold": 0.05,
+      "cells": [
+        {
+          "n": 5,
+          "dgp": "IID_NORMAL",
+          "reps": 1000,
+          "var_positive_reps": 1000,
+          "clamp_zero_count": 0,
+          "clamp_rate": 0.0
+        },
+        {
+          "n": 5,
+          "dgp": "AR1_0.2",
+          "reps": 1000,
+          "var_positive_reps": 1000,
+          "clamp_zero_count": 0,
+          "clamp_rate": 0.0
+        },
+        {
+          "n": 5,
+          "dgp": "AR1_0.5",
+          "reps": 1000,
+          "var_positive_reps": 1000,
+          "clamp_zero_count": 0,
+          "clamp_rate": 0.0
+        },
+        {
+          "n": 5,
+          "dgp": "AR1_0.7",
+          "reps": 1000,
+          "var_positive_reps": 1000,
+          "clamp_zero_count": 0,
+          "clamp_rate": 0.0
+        },
+        {
+          "n": 5,
+          "dgp": "MA_equal_hm1",
+          "reps": 1000,
+          "var_positive_reps": 1000,
+          "clamp_zero_count": 0,
+          "clamp_rate": 0.0
+        },
+        {
+          "n": 10,
+          "dgp": "IID_NORMAL",
+          "reps": 1000,
+          "var_positive_reps": 1000,
+          "clamp_zero_count": 0,
+          "clamp_rate": 0.0
+        },
+        {
+          "n": 10,
+          "dgp": "AR1_0.2",
+          "reps": 1000,
+          "var_positive_reps": 1000,
+          "clamp_zero_count": 0,
+          "clamp_rate": 0.0
+        },
+        {
+          "n": 10,
+          "dgp": "AR1_0.5",
+          "reps": 1000,
+          "var_positive_reps": 1000,
+          "clamp_zero_count": 0,
+          "clamp_rate": 0.0
+        },
+        {
+          "n": 10,
+          "dgp": "AR1_0.7",
+          "reps": 1000,
+          "var_positive_reps": 1000,
+          "clamp_zero_count": 0,
+          "clamp_rate": 0.0
+        },
+        {
+          "n": 10,
+          "dgp": "MA_equal_hm1",
+          "reps": 1000,
+          "var_positive_reps": 1000,
+          "clamp_zero_count": 0,
+          "clamp_rate": 0.0
+        },
+        {
+          "n": 17,
+          "dgp": "IID_NORMAL",
+          "reps": 1000,
+          "var_positive_reps": 1000,
+          "clamp_zero_count": 0,
+          "clamp_rate": 0.0
+        },
+        {
+          "n": 17,
+          "dgp": "AR1_0.2",
+          "reps": 1000,
+          "var_positive_reps": 1000,
+          "clamp_zero_count": 0,
+          "clamp_rate": 0.0
+        },
+        {
+          "n": 17,
+          "dgp": "AR1_0.5",
+          "reps": 1000,
+          "var_positive_reps": 1000,
+          "clamp_zero_count": 0,
+          "clamp_rate": 0.0
+        },
+        {
+          "n": 17,
+          "dgp": "AR1_0.7",
+          "reps": 1000,
+          "var_positive_reps": 1000,
+          "clamp_zero_count": 0,
+          "clamp_rate": 0.0
+        },
+        {
+          "n": 17,
+          "dgp": "MA_equal_hm1",
+          "reps": 1000,
+          "var_positive_reps": 1000,
+          "clamp_zero_count": 0,
+          "clamp_rate": 0.0
+        },
+        {
+          "n": 27,
+          "dgp": "IID_NORMAL",
+          "reps": 1000,
+          "var_positive_reps": 1000,
+          "clamp_zero_count": 0,
+          "clamp_rate": 0.0
+        },
+        {
+          "n": 27,
+          "dgp": "AR1_0.2",
+          "reps": 1000,
+          "var_positive_reps": 1000,
+          "clamp_zero_count": 0,
+          "clamp_rate": 0.0
+        },
+        {
+          "n": 27,
+          "dgp": "AR1_0.5",
+          "reps": 1000,
+          "var_positive_reps": 1000,
+          "clamp_zero_count": 0,
+          "clamp_rate": 0.0
+        },
+        {
+          "n": 27,
+          "dgp": "AR1_0.7",
+          "reps": 1000,
+          "var_positive_reps": 1000,
+          "clamp_zero_count": 0,
+          "clamp_rate": 0.0
+        },
+        {
+          "n": 27,
+          "dgp": "MA_equal_hm1",
+          "reps": 1000,
+          "var_positive_reps": 1000,
+          "clamp_zero_count": 0,
+          "clamp_rate": 0.0
+        }
+      ],
+      "n_ge_10_cells_over_threshold": [],
+      "total_draws": 20000,
+      "clamp_events_total": 0,
+      "min_rate": 0.0,
+      "max_rate": 0.0,
+      "posthoc_negative_ar_cells": [
+        {
+          "n": 5,
+          "dgp": "AR1_-0.3",
+          "clamp_rate": 0.0,
+          "clamp_zero_count": 0,
+          "reps": 1000
+        },
+        {
+          "n": 5,
+          "dgp": "AR1_-0.5",
+          "clamp_rate": 0.0,
+          "clamp_zero_count": 0,
+          "reps": 1000
+        },
+        {
+          "n": 5,
+          "dgp": "AR1_-0.7",
+          "clamp_rate": 0.0,
+          "clamp_zero_count": 0,
+          "reps": 1000
+        },
+        {
+          "n": 10,
+          "dgp": "AR1_-0.3",
+          "clamp_rate": 0.0,
+          "clamp_zero_count": 0,
+          "reps": 1000
+        },
+        {
+          "n": 10,
+          "dgp": "AR1_-0.5",
+          "clamp_rate": 0.0,
+          "clamp_zero_count": 0,
+          "reps": 1000
+        },
+        {
+          "n": 10,
+          "dgp": "AR1_-0.7",
+          "clamp_rate": 0.0,
+          "clamp_zero_count": 0,
+          "reps": 1000
+        },
+        {
+          "n": 17,
+          "dgp": "AR1_-0.3",
+          "clamp_rate": 0.0,
+          "clamp_zero_count": 0,
+          "reps": 1000
+        },
+        {
+          "n": 17,
+          "dgp": "AR1_-0.5",
+          "clamp_rate": 0.0,
+          "clamp_zero_count": 0,
+          "reps": 1000
+        },
+        {
+          "n": 17,
+          "dgp": "AR1_-0.7",
+          "clamp_rate": 0.0,
+          "clamp_zero_count": 0,
+          "reps": 1000
+        },
+        {
+          "n": 27,
+          "dgp": "AR1_-0.3",
+          "clamp_rate": 0.0,
+          "clamp_zero_count": 0,
+          "reps": 1000
+        },
+        {
+          "n": 27,
+          "dgp": "AR1_-0.5",
+          "clamp_rate": 0.0,
+          "clamp_zero_count": 0,
+          "reps": 1000
+        },
+        {
+          "n": 27,
+          "dgp": "AR1_-0.7",
+          "clamp_rate": 0.0,
+          "clamp_zero_count": 0,
+          "reps": 1000
+        }
+      ],
+      "posthoc_note": "V05p 是网格外补充（负自相关 DGP），prereg §4：不参与判定合成",
+      "reading": "钳位是否在网格上真实发生；0 发生率 ⟹ 该防御分支在本网格（含负自相关）上从未被触发，退化零来自 n<2 守卫而非钳位"
+    },
+    "A2d": {
+      "early_range_lines": [
+        659,
+        671
+      ],
+      "early_keys": [
+        "cost_net_ic",
+        "cross_section_days",
+        "daily_rank_ic",
+        "grouped_returns",
+        "long_short_spread",
+        "rank_ic_ir",
+        "rank_ic_mean",
+        "rank_ic_positive_rate",
+        "rank_ic_std",
+        "total_observations"
+      ],
+      "normal_keys": [
+        "ci_lower",
+        "ci_upper",
+        "cost_net_ic",
+        "cross_section_days",
+        "daily_rank_ic",
+        "grouped_returns",
+        "hac_std",
+        "long_short_spread",
+        "monotonicity",
+        "pearson_ic_mean",
+        "rank_ic_ir",
+        "rank_ic_mean",
+        "rank_ic_positive_rate",
+        "rank_ic_std",
+        "total_observations"
+      ],
+      "early_keys_any_receiver": [],
+      "missing_in_early": [
+        "ci_lower",
+        "ci_upper",
+        "hac_std"
+      ],
+      "present_in_normal": [
+        "ci_lower",
+        "ci_upper",
+        "hac_std"
+      ],
+      "missing_in_early_all_keys": [
+        "ci_lower",
+        "ci_upper",
+        "hac_std",
+        "monotonicity",
+        "pearson_ic_mean"
+      ],
+      "reading": "同一 block 在 latestPerKey 为空的早返回分支下不含统计不确定性三键（也不含 pearson_ic_mean / monotonicity），正常路径含 ⟹ 键集随数据可用性变化"
+    },
+    "A3a": {
+      "nw_param_count": 1,
+      "nw_param_types": "java.util.List",
+      "nw_has_integral_param": 0,
+      "bb_param_count": 4,
+      "bb_param_types": "java.util.List int int long",
+      "bb_has_integral_param": 1,
+      "bb_found": 1,
+      "nw_found": 1,
+      "summarize_param_count": 5,
+      "panels_prod_vs_lags": {
+        "prod": 0.0028284271247461888,
+        "lag1": 0.0036055512754639895,
+        "lag2": 0.0028284271247461905,
+        "lag3": 0.0024494897427831787,
+        "cbrt": 0.0028284271247461905
+      },
+      "reading": "neweyWestHacStd 入参只有序列（无整型参数）⟹ 结构上不可能感知重叠阶数 h；同引擎的 blockBootstrapCi 有整型块长入参",
+      "signature_fact_established": true
+    },
+    "A3b": {
+      "cells": 120,
+      "tol": 1e-12,
+      "mismatching_cells": [],
+      "max_abs_diff": 5.551115123125783e-17,
+      "cells_with_longer_h_window": 65,
+      "sentinel_prod_vs_lag3": [
+        0.0028284271247461888,
+        0.0024494897427831787
+      ],
+      "reading": "生产实现 == 滞后 floor(n^(1/3)) 的 Bartlett 控制实现（与 h 无关）⟹ 滞后阶只由 n 决定；同输入并列打印的对照值保证这不是断言对象"
+    },
+    "A3c": {
+      "statistic": "median(prod)/median(ctrl_hm1) 逐单元；中位数在 200 次重复上取",
+      "threshold": 0.9,
+      "cells": [
+        {
+          "n": 5,
+          "h": 1,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 1,
+          "dom_hm1": 1,
+          "prod_median": 0.36013310096998324,
+          "ctrl_hm1_median": 0.36013310096998324,
+          "ratio": 1.0,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 5,
+          "h": 2,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 1,
+          "dom_hm1": 1,
+          "prod_median": 0.31499431894668445,
+          "ctrl_hm1_median": 0.31499431894668445,
+          "ratio": 1.0,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 5,
+          "h": 3,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 1,
+          "dom_hm1": 2,
+          "prod_median": 0.34130787858960226,
+          "ctrl_hm1_median": 0.2934904749320061,
+          "ratio": 1.162926594700132,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 5,
+          "h": 5,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 1,
+          "dom_hm1": 4,
+          "prod_median": 0.3118304481448949,
+          "ctrl_hm1_median": 0.21813553240557845,
+          "ratio": 1.4295261514988302,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 5,
+          "h": 10,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 1,
+          "dom_hm1": 4,
+          "prod_median": 0.3405257560951367,
+          "ctrl_hm1_median": 0.21932416223723245,
+          "ratio": 1.552613960183768,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 5,
+          "h": 20,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 1,
+          "dom_hm1": 4,
+          "prod_median": 0.2846129803096542,
+          "ctrl_hm1_median": 0.18667346494641532,
+          "ratio": 1.52465686749508,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 5,
+          "h": 1,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 1,
+          "dom_hm1": 1,
+          "prod_median": 0.35708639442735907,
+          "ctrl_hm1_median": 0.35708639442735907,
+          "ratio": 1.0,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 5,
+          "h": 2,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 1,
+          "dom_hm1": 1,
+          "prod_median": 0.32169052453118946,
+          "ctrl_hm1_median": 0.32169052453118946,
+          "ratio": 1.0,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 5,
+          "h": 3,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 1,
+          "dom_hm1": 2,
+          "prod_median": 0.3406776396031056,
+          "ctrl_hm1_median": 0.3038857389374339,
+          "ratio": 1.1210714948135378,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 5,
+          "h": 5,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 1,
+          "dom_hm1": 4,
+          "prod_median": 0.3072194793712508,
+          "ctrl_hm1_median": 0.22568463219120322,
+          "ratio": 1.3612777989729055,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 5,
+          "h": 10,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 1,
+          "dom_hm1": 4,
+          "prod_median": 0.3447912462590082,
+          "ctrl_hm1_median": 0.2299071996586654,
+          "ratio": 1.4996974725928844,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 5,
+          "h": 20,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 1,
+          "dom_hm1": 4,
+          "prod_median": 0.29484757073131196,
+          "ctrl_hm1_median": 0.18402872717009564,
+          "ratio": 1.6021823074328376,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 5,
+          "h": 1,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 1,
+          "dom_hm1": 1,
+          "prod_median": 0.3768131350185445,
+          "ctrl_hm1_median": 0.3768131350185445,
+          "ratio": 1.0,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 5,
+          "h": 2,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 1,
+          "dom_hm1": 1,
+          "prod_median": 0.325683101841956,
+          "ctrl_hm1_median": 0.325683101841956,
+          "ratio": 1.0,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 5,
+          "h": 3,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 1,
+          "dom_hm1": 2,
+          "prod_median": 0.35636086703428194,
+          "ctrl_hm1_median": 0.30739566186578976,
+          "ratio": 1.1592904885881916,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 5,
+          "h": 5,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 1,
+          "dom_hm1": 4,
+          "prod_median": 0.3208810799412454,
+          "ctrl_hm1_median": 0.23441835047308274,
+          "ratio": 1.3688394244463844,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 5,
+          "h": 10,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 1,
+          "dom_hm1": 4,
+          "prod_median": 0.34038632383189477,
+          "ctrl_hm1_median": 0.23695229241671678,
+          "ratio": 1.4365183824990115,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 5,
+          "h": 20,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 1,
+          "dom_hm1": 4,
+          "prod_median": 0.2995946000131512,
+          "ctrl_hm1_median": 0.19641206939871206,
+          "ratio": 1.5253370168662137,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 5,
+          "h": 1,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 1,
+          "dom_hm1": 1,
+          "prod_median": 0.39476038168571054,
+          "ctrl_hm1_median": 0.39476038168571054,
+          "ratio": 1.0,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 5,
+          "h": 2,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 1,
+          "dom_hm1": 1,
+          "prod_median": 0.33832517583080257,
+          "ctrl_hm1_median": 0.33832517583080257,
+          "ratio": 1.0,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 5,
+          "h": 3,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 1,
+          "dom_hm1": 2,
+          "prod_median": 0.364194910587224,
+          "ctrl_hm1_median": 0.3134567965190007,
+          "ratio": 1.1618663708417873,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 5,
+          "h": 5,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 1,
+          "dom_hm1": 4,
+          "prod_median": 0.33468259879459467,
+          "ctrl_hm1_median": 0.24791852984965995,
+          "ratio": 1.3499700849208376,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 5,
+          "h": 10,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 1,
+          "dom_hm1": 4,
+          "prod_median": 0.3558596874377133,
+          "ctrl_hm1_median": 0.24552906388119436,
+          "ratio": 1.4493587105838732,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 5,
+          "h": 20,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 1,
+          "dom_hm1": 4,
+          "prod_median": 0.30433123621413766,
+          "ctrl_hm1_median": 0.21548626812377952,
+          "ratio": 1.4122999059936563,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 5,
+          "h": 1,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 1,
+          "dom_hm1": 1,
+          "prod_median": 0.36013310096998324,
+          "ctrl_hm1_median": 0.36013310096998324,
+          "ratio": 1.0,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 5,
+          "h": 2,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 1,
+          "dom_hm1": 1,
+          "prod_median": 0.23320260552316344,
+          "ctrl_hm1_median": 0.23320260552316344,
+          "ratio": 1.0,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 5,
+          "h": 3,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 1,
+          "dom_hm1": 2,
+          "prod_median": 0.17012453766547497,
+          "ctrl_hm1_median": 0.15625729399475113,
+          "ratio": 1.0887462166802253,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 5,
+          "h": 5,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 1,
+          "dom_hm1": 4,
+          "prod_median": 0.09387326867233396,
+          "ctrl_hm1_median": 0.06736051253521377,
+          "ratio": 1.393594928828076,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 5,
+          "h": 10,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 1,
+          "dom_hm1": 4,
+          "prod_median": 0.05115538685523777,
+          "ctrl_hm1_median": 0.0371273610965725,
+          "ratio": 1.3778352499165447,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 5,
+          "h": 20,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 1,
+          "dom_hm1": 4,
+          "prod_median": 0.02198501108947558,
+          "ctrl_hm1_median": 0.0163751715731324,
+          "ratio": 1.3425820298303033,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 10,
+          "h": 1,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 2,
+          "dom_hm1": 1,
+          "prod_median": 0.24817202639763092,
+          "ctrl_hm1_median": 0.27508209242956466,
+          "ratio": 0.9021744171194127,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 10,
+          "h": 2,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 2,
+          "dom_hm1": 1,
+          "prod_median": 0.22897020754031494,
+          "ctrl_hm1_median": 0.2594024963250284,
+          "ratio": 0.8826831305949264,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 10,
+          "h": 3,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 2,
+          "dom_hm1": 2,
+          "prod_median": 0.24207450208547865,
+          "ctrl_hm1_median": 0.24207450208547865,
+          "ratio": 1.0,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 10,
+          "h": 5,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 2,
+          "dom_hm1": 4,
+          "prod_median": 0.2463067005037789,
+          "ctrl_hm1_median": 0.2127852528975176,
+          "ratio": 1.1575365169803662,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 10,
+          "h": 10,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 2,
+          "dom_hm1": 9,
+          "prod_median": 0.23409109877188905,
+          "ctrl_hm1_median": 0.14350497129709627,
+          "ratio": 1.631240344191656,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 10,
+          "h": 20,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 2,
+          "dom_hm1": 9,
+          "prod_median": 0.267555927990141,
+          "ctrl_hm1_median": 0.16979047037148345,
+          "ratio": 1.5758006171062318,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 10,
+          "h": 1,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 2,
+          "dom_hm1": 1,
+          "prod_median": 0.2758919265492002,
+          "ctrl_hm1_median": 0.29255727786873864,
+          "ratio": 0.9430355948040517,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 10,
+          "h": 2,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 2,
+          "dom_hm1": 1,
+          "prod_median": 0.2556977360080186,
+          "ctrl_hm1_median": 0.2774807793954967,
+          "ratio": 0.921497108971175,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 10,
+          "h": 3,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 2,
+          "dom_hm1": 2,
+          "prod_median": 0.26589904880264736,
+          "ctrl_hm1_median": 0.26589904880264736,
+          "ratio": 1.0,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 10,
+          "h": 5,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 2,
+          "dom_hm1": 4,
+          "prod_median": 0.2693620848271181,
+          "ctrl_hm1_median": 0.23310765388708443,
+          "ratio": 1.1555265575174767,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 10,
+          "h": 10,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 2,
+          "dom_hm1": 9,
+          "prod_median": 0.2586480316442017,
+          "ctrl_hm1_median": 0.1587139463441062,
+          "ratio": 1.629649048505349,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 10,
+          "h": 20,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 2,
+          "dom_hm1": 9,
+          "prod_median": 0.2939971519825914,
+          "ctrl_hm1_median": 0.18677856751136088,
+          "ratio": 1.5740411541849357,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 10,
+          "h": 1,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 2,
+          "dom_hm1": 1,
+          "prod_median": 0.32420609198673167,
+          "ctrl_hm1_median": 0.3323571392614896,
+          "ratio": 0.9754750347988015,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 10,
+          "h": 2,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 2,
+          "dom_hm1": 1,
+          "prod_median": 0.3079365932810261,
+          "ctrl_hm1_median": 0.3113912384764533,
+          "ratio": 0.9889057726468807,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 10,
+          "h": 3,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 2,
+          "dom_hm1": 2,
+          "prod_median": 0.3210285681091852,
+          "ctrl_hm1_median": 0.3210285681091852,
+          "ratio": 1.0,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 10,
+          "h": 5,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 2,
+          "dom_hm1": 4,
+          "prod_median": 0.31727912448328743,
+          "ctrl_hm1_median": 0.28671255080395824,
+          "ratio": 1.1066105184220878,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 10,
+          "h": 10,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 2,
+          "dom_hm1": 9,
+          "prod_median": 0.3036768965584309,
+          "ctrl_hm1_median": 0.20685743602393325,
+          "ratio": 1.4680492149351387,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 10,
+          "h": 20,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 2,
+          "dom_hm1": 9,
+          "prod_median": 0.3390127049789369,
+          "ctrl_hm1_median": 0.22425572558151155,
+          "ratio": 1.5117237435068918,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 10,
+          "h": 1,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 2,
+          "dom_hm1": 1,
+          "prod_median": 0.37614077670751195,
+          "ctrl_hm1_median": 0.3633619489963455,
+          "ratio": 1.0351683156325622,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 10,
+          "h": 2,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 2,
+          "dom_hm1": 1,
+          "prod_median": 0.3534194074429503,
+          "ctrl_hm1_median": 0.3536591530653372,
+          "ratio": 0.999322099766657,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 10,
+          "h": 3,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 2,
+          "dom_hm1": 2,
+          "prod_median": 0.3655874229305996,
+          "ctrl_hm1_median": 0.3655874229305996,
+          "ratio": 1.0,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 10,
+          "h": 5,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 2,
+          "dom_hm1": 4,
+          "prod_median": 0.36549665810421833,
+          "ctrl_hm1_median": 0.33137589500816345,
+          "ratio": 1.1029669436131264,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 10,
+          "h": 10,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 2,
+          "dom_hm1": 9,
+          "prod_median": 0.35218481207275015,
+          "ctrl_hm1_median": 0.2593681744085873,
+          "ratio": 1.357856694931072,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 10,
+          "h": 20,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 2,
+          "dom_hm1": 9,
+          "prod_median": 0.37397191495328014,
+          "ctrl_hm1_median": 0.2646903619515273,
+          "ratio": 1.412865629847775,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 10,
+          "h": 1,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 2,
+          "dom_hm1": 1,
+          "prod_median": 0.24817202639763092,
+          "ctrl_hm1_median": 0.27508209242956466,
+          "ratio": 0.9021744171194127,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 10,
+          "h": 2,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 2,
+          "dom_hm1": 1,
+          "prod_median": 0.19234878153959917,
+          "ctrl_hm1_median": 0.20052897386666102,
+          "ratio": 0.9592069307026866,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 10,
+          "h": 3,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 2,
+          "dom_hm1": 2,
+          "prod_median": 0.17403348093716106,
+          "ctrl_hm1_median": 0.17403348093716106,
+          "ratio": 1.0,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 10,
+          "h": 5,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 2,
+          "dom_hm1": 4,
+          "prod_median": 0.11893433007423529,
+          "ctrl_hm1_median": 0.11565978590479693,
+          "ratio": 1.0283118643513116,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 10,
+          "h": 10,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 2,
+          "dom_hm1": 9,
+          "prod_median": 0.06213423328861362,
+          "ctrl_hm1_median": 0.04959833817157542,
+          "ratio": 1.2527482891397048,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 10,
+          "h": 20,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 2,
+          "dom_hm1": 9,
+          "prod_median": 0.03188057340590908,
+          "ctrl_hm1_median": 0.026297103599601624,
+          "ratio": 1.2123226151184208,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 17,
+          "h": 1,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 2,
+          "dom_hm1": 1,
+          "prod_median": 0.20653424818610136,
+          "ctrl_hm1_median": 0.21235225173128383,
+          "ratio": 0.9726021104191317,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 17,
+          "h": 2,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 2,
+          "dom_hm1": 1,
+          "prod_median": 0.21314525623529515,
+          "ctrl_hm1_median": 0.21805076367343196,
+          "ratio": 0.9775029109942324,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 17,
+          "h": 3,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 2,
+          "dom_hm1": 2,
+          "prod_median": 0.20251607057728047,
+          "ctrl_hm1_median": 0.20251607057728047,
+          "ratio": 1.0,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 17,
+          "h": 5,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 2,
+          "dom_hm1": 4,
+          "prod_median": 0.20099535307916408,
+          "ctrl_hm1_median": 0.1901479330823551,
+          "ratio": 1.0570472674668037,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 17,
+          "h": 10,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 2,
+          "dom_hm1": 9,
+          "prod_median": 0.2049553590507343,
+          "ctrl_hm1_median": 0.14914313054961822,
+          "ratio": 1.3742192368863277,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 17,
+          "h": 20,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 2,
+          "dom_hm1": 16,
+          "prod_median": 0.22402391669824817,
+          "ctrl_hm1_median": 0.12756210922203856,
+          "ratio": 1.756194829832307,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 17,
+          "h": 1,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 2,
+          "dom_hm1": 1,
+          "prod_median": 0.23022326084910952,
+          "ctrl_hm1_median": 0.23031317716691124,
+          "ratio": 0.9996095910841586,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 17,
+          "h": 2,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 2,
+          "dom_hm1": 1,
+          "prod_median": 0.2408170964994495,
+          "ctrl_hm1_median": 0.23795094306677633,
+          "ratio": 1.0120451442458407,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 17,
+          "h": 3,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 2,
+          "dom_hm1": 2,
+          "prod_median": 0.2266213751857975,
+          "ctrl_hm1_median": 0.2266213751857975,
+          "ratio": 1.0,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 17,
+          "h": 5,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 2,
+          "dom_hm1": 4,
+          "prod_median": 0.22731244444273732,
+          "ctrl_hm1_median": 0.2183601566093414,
+          "ratio": 1.0409978082650493,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 17,
+          "h": 10,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 2,
+          "dom_hm1": 9,
+          "prod_median": 0.23122897554529231,
+          "ctrl_hm1_median": 0.1726886582737112,
+          "ratio": 1.3389934107820494,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 17,
+          "h": 20,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 2,
+          "dom_hm1": 16,
+          "prod_median": 0.2519472660908892,
+          "ctrl_hm1_median": 0.148616262229585,
+          "ratio": 1.695287327988889,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 17,
+          "h": 1,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 2,
+          "dom_hm1": 1,
+          "prod_median": 0.2898232573396947,
+          "ctrl_hm1_median": 0.27687530771014857,
+          "ratio": 1.0467645516555089,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 17,
+          "h": 2,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 2,
+          "dom_hm1": 1,
+          "prod_median": 0.30426288265464635,
+          "ctrl_hm1_median": 0.28848103292625354,
+          "ratio": 1.0547067152675762,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 17,
+          "h": 3,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 2,
+          "dom_hm1": 2,
+          "prod_median": 0.27488158737390606,
+          "ctrl_hm1_median": 0.27488158737390606,
+          "ratio": 1.0,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 17,
+          "h": 5,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 2,
+          "dom_hm1": 4,
+          "prod_median": 0.2933622230692108,
+          "ctrl_hm1_median": 0.29384675557599044,
+          "ratio": 0.9983510707619354,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 17,
+          "h": 10,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 2,
+          "dom_hm1": 9,
+          "prod_median": 0.2894473063001557,
+          "ctrl_hm1_median": 0.23025538242447216,
+          "ratio": 1.2570707501054814,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 17,
+          "h": 20,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 2,
+          "dom_hm1": 16,
+          "prod_median": 0.31605329576647423,
+          "ctrl_hm1_median": 0.19522704321043194,
+          "ratio": 1.6189012063549295,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 17,
+          "h": 1,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 2,
+          "dom_hm1": 1,
+          "prod_median": 0.3529565658000151,
+          "ctrl_hm1_median": 0.3232504977995749,
+          "ratio": 1.0918979806764564,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 17,
+          "h": 2,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 2,
+          "dom_hm1": 1,
+          "prod_median": 0.36472660797891376,
+          "ctrl_hm1_median": 0.33688481435064,
+          "ratio": 1.0826448460787408,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 17,
+          "h": 3,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 2,
+          "dom_hm1": 2,
+          "prod_median": 0.33019871150640107,
+          "ctrl_hm1_median": 0.33019871150640107,
+          "ratio": 1.0,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 17,
+          "h": 5,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 2,
+          "dom_hm1": 4,
+          "prod_median": 0.35566554128517486,
+          "ctrl_hm1_median": 0.3811001997665909,
+          "ratio": 0.9332599182656064,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 17,
+          "h": 10,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 2,
+          "dom_hm1": 9,
+          "prod_median": 0.3446320116969621,
+          "ctrl_hm1_median": 0.308500350601735,
+          "ratio": 1.1171203242549053,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 17,
+          "h": 20,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 2,
+          "dom_hm1": 16,
+          "prod_median": 0.3760312786244021,
+          "ctrl_hm1_median": 0.2636906934825136,
+          "ratio": 1.4260316648199731,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 17,
+          "h": 1,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 2,
+          "dom_hm1": 1,
+          "prod_median": 0.20653424818610136,
+          "ctrl_hm1_median": 0.21235225173128383,
+          "ratio": 0.9726021104191317,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 17,
+          "h": 2,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 2,
+          "dom_hm1": 1,
+          "prod_median": 0.18611284794231422,
+          "ctrl_hm1_median": 0.18092946252141617,
+          "ratio": 1.028648653174905,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 17,
+          "h": 3,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 2,
+          "dom_hm1": 2,
+          "prod_median": 0.1556298690503056,
+          "ctrl_hm1_median": 0.15562986905030557,
+          "ratio": 1.0000000000000002,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 17,
+          "h": 5,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 2,
+          "dom_hm1": 4,
+          "prod_median": 0.12408046239592815,
+          "ctrl_hm1_median": 0.135622082742216,
+          "ratio": 0.9148986646354222,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 17,
+          "h": 10,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 2,
+          "dom_hm1": 9,
+          "prod_median": 0.0750793182939009,
+          "ctrl_hm1_median": 0.07891640097645784,
+          "ratio": 0.9513778804522318,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 17,
+          "h": 20,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 2,
+          "dom_hm1": 16,
+          "prod_median": 0.039084948325814266,
+          "ctrl_hm1_median": 0.03388812666658308,
+          "ratio": 1.1533522850159714,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 27,
+          "h": 1,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 3,
+          "dom_hm1": 1,
+          "prod_median": 0.17023351720870297,
+          "ctrl_hm1_median": 0.18335749848490734,
+          "ratio": 0.928424082000199,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 27,
+          "h": 2,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 3,
+          "dom_hm1": 1,
+          "prod_median": 0.17108301290122568,
+          "ctrl_hm1_median": 0.18354075468662756,
+          "ratio": 0.9321254736765582,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 27,
+          "h": 3,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 3,
+          "dom_hm1": 2,
+          "prod_median": 0.17369672595383742,
+          "ctrl_hm1_median": 0.17775933059809462,
+          "ratio": 0.9771454773676969,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 27,
+          "h": 5,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 3,
+          "dom_hm1": 4,
+          "prod_median": 0.16876731805145034,
+          "ctrl_hm1_median": 0.16517085975706,
+          "ratio": 1.0217741694853448,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 27,
+          "h": 10,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 3,
+          "dom_hm1": 9,
+          "prod_median": 0.17141573479746186,
+          "ctrl_hm1_median": 0.1439145382348609,
+          "ratio": 1.1910939429741314,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 27,
+          "h": 20,
+          "dgp": "IID_NORMAL",
+          "dom_cbrt": 3,
+          "dom_hm1": 19,
+          "prod_median": 0.1683998575546771,
+          "ctrl_hm1_median": 0.1143916806361494,
+          "ratio": 1.47213378296551,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 27,
+          "h": 1,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 3,
+          "dom_hm1": 1,
+          "prod_median": 0.19890208627460057,
+          "ctrl_hm1_median": 0.20208853067559351,
+          "ratio": 0.9842324332294342,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 27,
+          "h": 2,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 3,
+          "dom_hm1": 1,
+          "prod_median": 0.1966870337816714,
+          "ctrl_hm1_median": 0.20051113568181744,
+          "ratio": 0.9809282318054677,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 27,
+          "h": 3,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 3,
+          "dom_hm1": 2,
+          "prod_median": 0.20185459551317747,
+          "ctrl_hm1_median": 0.20248436462814956,
+          "ratio": 0.9968897889171412,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 27,
+          "h": 5,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 3,
+          "dom_hm1": 4,
+          "prod_median": 0.19522167125831724,
+          "ctrl_hm1_median": 0.19257909886710123,
+          "ratio": 1.0137220103674889,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 27,
+          "h": 10,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 3,
+          "dom_hm1": 9,
+          "prod_median": 0.1976692253407554,
+          "ctrl_hm1_median": 0.1704472731564871,
+          "ratio": 1.1597089333267063,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 27,
+          "h": 20,
+          "dgp": "AR1_0.2",
+          "dom_cbrt": 3,
+          "dom_hm1": 19,
+          "prod_median": 0.19420924841229525,
+          "ctrl_hm1_median": 0.13846047400894165,
+          "ratio": 1.4026331326856023,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 27,
+          "h": 1,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 3,
+          "dom_hm1": 1,
+          "prod_median": 0.2684151876761001,
+          "ctrl_hm1_median": 0.24269917314885114,
+          "ratio": 1.1059583936508797,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 27,
+          "h": 2,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 3,
+          "dom_hm1": 1,
+          "prod_median": 0.25913343353643653,
+          "ctrl_hm1_median": 0.24177399128552465,
+          "ratio": 1.0718002881890265,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 27,
+          "h": 3,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 3,
+          "dom_hm1": 2,
+          "prod_median": 0.2702716862005452,
+          "ctrl_hm1_median": 0.2613537520634992,
+          "ratio": 1.0341220819163113,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 27,
+          "h": 5,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 3,
+          "dom_hm1": 4,
+          "prod_median": 0.2620116405220189,
+          "ctrl_hm1_median": 0.26579272247894237,
+          "ratio": 0.9857743209759138,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 27,
+          "h": 10,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 3,
+          "dom_hm1": 9,
+          "prod_median": 0.2622393578654216,
+          "ctrl_hm1_median": 0.24360255777487821,
+          "ratio": 1.076504944204101,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 27,
+          "h": 20,
+          "dgp": "AR1_0.5",
+          "dom_cbrt": 3,
+          "dom_hm1": 19,
+          "prod_median": 0.26545801754577636,
+          "ctrl_hm1_median": 0.20372676680802707,
+          "ratio": 1.3030100153502118,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 27,
+          "h": 1,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 3,
+          "dom_hm1": 1,
+          "prod_median": 0.34348355140198317,
+          "ctrl_hm1_median": 0.2935115258079859,
+          "ratio": 1.1702557521597594,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 27,
+          "h": 2,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 3,
+          "dom_hm1": 1,
+          "prod_median": 0.3375130460092794,
+          "ctrl_hm1_median": 0.28644933660212485,
+          "ratio": 1.1782643660930572,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 27,
+          "h": 3,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 3,
+          "dom_hm1": 2,
+          "prod_median": 0.34265384848389474,
+          "ctrl_hm1_median": 0.32521461243286115,
+          "ratio": 1.0536237776051156,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 27,
+          "h": 5,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 3,
+          "dom_hm1": 4,
+          "prod_median": 0.34724394266904896,
+          "ctrl_hm1_median": 0.35411754999508754,
+          "ratio": 0.9805894756525512,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 27,
+          "h": 10,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 3,
+          "dom_hm1": 9,
+          "prod_median": 0.3415200648141341,
+          "ctrl_hm1_median": 0.34887685231049126,
+          "ratio": 0.9789129389134427,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 27,
+          "h": 20,
+          "dgp": "AR1_0.7",
+          "dom_cbrt": 3,
+          "dom_hm1": 19,
+          "prod_median": 0.34679096162778184,
+          "ctrl_hm1_median": 0.2907552543612762,
+          "ratio": 1.1927246590593985,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 27,
+          "h": 1,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 3,
+          "dom_hm1": 1,
+          "prod_median": 0.17023351720870297,
+          "ctrl_hm1_median": 0.18335749848490734,
+          "ratio": 0.928424082000199,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 27,
+          "h": 2,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 3,
+          "dom_hm1": 1,
+          "prod_median": 0.1524857905717081,
+          "ctrl_hm1_median": 0.1532176045903827,
+          "ratio": 0.9952236949492126,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 27,
+          "h": 3,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 3,
+          "dom_hm1": 2,
+          "prod_median": 0.14181339203753598,
+          "ctrl_hm1_median": 0.14004052637521122,
+          "ratio": 1.0126596615152297,
+          "hm1_window_longer": 0
+        },
+        {
+          "n": 27,
+          "h": 5,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 3,
+          "dom_hm1": 4,
+          "prod_median": 0.1189338942514821,
+          "ctrl_hm1_median": 0.12444749319214891,
+          "ratio": 0.955695379639719,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 27,
+          "h": 10,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 3,
+          "dom_hm1": 9,
+          "prod_median": 0.07339920000803053,
+          "ctrl_hm1_median": 0.08294732547691482,
+          "ratio": 0.8848892907156888,
+          "hm1_window_longer": 1
+        },
+        {
+          "n": 27,
+          "h": 20,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 3,
+          "dom_hm1": 19,
+          "prod_median": 0.043023981387300396,
+          "ctrl_hm1_median": 0.0453769092201619,
+          "ratio": 0.948147022939675,
+          "hm1_window_longer": 1
+        }
+      ],
+      "h_ge_5_cells": 60,
+      "material_cells": [
+        {
+          "n": 27,
+          "h": 10,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 3,
+          "dom_hm1": 9,
+          "prod_median": 0.07339920000803053,
+          "ctrl_hm1_median": 0.08294732547691482,
+          "ratio": 0.8848892907156888,
+          "hm1_window_longer": 1
+        }
+      ],
+      "min_ratio_h_ge_5": 0.8848892907156888,
+      "cells_ratio_lt_1": 10,
+      "posthoc_paired_median_ratios": [
+        {
+          "n": 5,
+          "h": 1,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 1.0,
+          "frac_ratio_lt_1": 0.03
+        },
+        {
+          "n": 5,
+          "h": 2,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 1.0,
+          "frac_ratio_lt_1": 0.055
+        },
+        {
+          "n": 5,
+          "h": 3,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 1.115961276254012,
+          "frac_ratio_lt_1": 0.205
+        },
+        {
+          "n": 5,
+          "h": 5,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 1.4313676774560553,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 5,
+          "h": 10,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 1.421749310875662,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 5,
+          "h": 20,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 1.4441778747823284,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 5,
+          "h": 1,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 1.0,
+          "frac_ratio_lt_1": 0.045
+        },
+        {
+          "n": 5,
+          "h": 2,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 1.0,
+          "frac_ratio_lt_1": 0.055
+        },
+        {
+          "n": 5,
+          "h": 3,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 1.120800016386527,
+          "frac_ratio_lt_1": 0.195
+        },
+        {
+          "n": 5,
+          "h": 5,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 1.4114442407771186,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 5,
+          "h": 10,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 1.3910090536838673,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 5,
+          "h": 20,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 1.4194836297499729,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 5,
+          "h": 1,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 1.0,
+          "frac_ratio_lt_1": 0.065
+        },
+        {
+          "n": 5,
+          "h": 2,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 1.0,
+          "frac_ratio_lt_1": 0.05
+        },
+        {
+          "n": 5,
+          "h": 3,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 1.112378631711892,
+          "frac_ratio_lt_1": 0.18
+        },
+        {
+          "n": 5,
+          "h": 5,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 1.3398033860140688,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 5,
+          "h": 10,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 1.361651226631963,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 5,
+          "h": 20,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 1.3769161568434058,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 5,
+          "h": 1,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 1.0,
+          "frac_ratio_lt_1": 0.06
+        },
+        {
+          "n": 5,
+          "h": 2,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 1.0,
+          "frac_ratio_lt_1": 0.04
+        },
+        {
+          "n": 5,
+          "h": 3,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 1.0882948915444954,
+          "frac_ratio_lt_1": 0.205
+        },
+        {
+          "n": 5,
+          "h": 5,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 1.3093568616317046,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 5,
+          "h": 10,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 1.3338857590879512,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 5,
+          "h": 20,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 1.3330547681255105,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 5,
+          "h": 1,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 1.0,
+          "frac_ratio_lt_1": 0.03
+        },
+        {
+          "n": 5,
+          "h": 2,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 1.0,
+          "frac_ratio_lt_1": 0.05
+        },
+        {
+          "n": 5,
+          "h": 3,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 1.0402853151146074,
+          "frac_ratio_lt_1": 0.27
+        },
+        {
+          "n": 5,
+          "h": 5,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 1.2706685984919246,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 5,
+          "h": 10,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 1.2622103794819775,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 5,
+          "h": 20,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 1.274817770755119,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 10,
+          "h": 1,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 0.9462739008954997,
+          "frac_ratio_lt_1": 0.695
+        },
+        {
+          "n": 10,
+          "h": 2,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 0.9428793041718233,
+          "frac_ratio_lt_1": 0.725
+        },
+        {
+          "n": 10,
+          "h": 3,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 1.0,
+          "frac_ratio_lt_1": 0.065
+        },
+        {
+          "n": 10,
+          "h": 5,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 1.1327024513575452,
+          "frac_ratio_lt_1": 0.155
+        },
+        {
+          "n": 10,
+          "h": 10,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 1.5985148189581189,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 10,
+          "h": 20,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 1.5695804050939675,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 10,
+          "h": 1,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 0.9668702374541832,
+          "frac_ratio_lt_1": 0.63
+        },
+        {
+          "n": 10,
+          "h": 2,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 0.9653921607476074,
+          "frac_ratio_lt_1": 0.645
+        },
+        {
+          "n": 10,
+          "h": 3,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 1.0,
+          "frac_ratio_lt_1": 0.04
+        },
+        {
+          "n": 10,
+          "h": 5,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 1.1163008302031228,
+          "frac_ratio_lt_1": 0.185
+        },
+        {
+          "n": 10,
+          "h": 10,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 1.5972639745354777,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 10,
+          "h": 20,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 1.505922458529156,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 10,
+          "h": 1,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 1.0066602017371562,
+          "frac_ratio_lt_1": 0.455
+        },
+        {
+          "n": 10,
+          "h": 2,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 1.0165224892743752,
+          "frac_ratio_lt_1": 0.44
+        },
+        {
+          "n": 10,
+          "h": 3,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 1.0,
+          "frac_ratio_lt_1": 0.065
+        },
+        {
+          "n": 10,
+          "h": 5,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 1.0864336320512604,
+          "frac_ratio_lt_1": 0.25
+        },
+        {
+          "n": 10,
+          "h": 10,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 1.4986334168953224,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 10,
+          "h": 20,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 1.4415117206391177,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 10,
+          "h": 1,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 1.03401235611267,
+          "frac_ratio_lt_1": 0.38
+        },
+        {
+          "n": 10,
+          "h": 2,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 1.0417667118380893,
+          "frac_ratio_lt_1": 0.315
+        },
+        {
+          "n": 10,
+          "h": 3,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 1.0,
+          "frac_ratio_lt_1": 0.07
+        },
+        {
+          "n": 10,
+          "h": 5,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 1.0468528922454592,
+          "frac_ratio_lt_1": 0.355
+        },
+        {
+          "n": 10,
+          "h": 10,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 1.3979327434672508,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 10,
+          "h": 20,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 1.3753435602703483,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 10,
+          "h": 1,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 0.9462739008954997,
+          "frac_ratio_lt_1": 0.695
+        },
+        {
+          "n": 10,
+          "h": 2,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 0.9679526593275218,
+          "frac_ratio_lt_1": 0.62
+        },
+        {
+          "n": 10,
+          "h": 3,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 1.0,
+          "frac_ratio_lt_1": 0.055
+        },
+        {
+          "n": 10,
+          "h": 5,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 1.0141468259687263,
+          "frac_ratio_lt_1": 0.465
+        },
+        {
+          "n": 10,
+          "h": 10,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 1.2124893629650222,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 10,
+          "h": 20,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 1.2323798577339682,
+          "frac_ratio_lt_1": 0.0
+        },
+        {
+          "n": 17,
+          "h": 1,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 0.9607509658698142,
+          "frac_ratio_lt_1": 0.61
+        },
+        {
+          "n": 17,
+          "h": 2,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 0.9769686752098893,
+          "frac_ratio_lt_1": 0.605
+        },
+        {
+          "n": 17,
+          "h": 3,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 1.0,
+          "frac_ratio_lt_1": 0.05
+        },
+        {
+          "n": 17,
+          "h": 5,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 1.0701941415147538,
+          "frac_ratio_lt_1": 0.32
+        },
+        {
+          "n": 17,
+          "h": 10,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 1.3920240444271632,
+          "frac_ratio_lt_1": 0.09
+        },
+        {
+          "n": 17,
+          "h": 20,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 1.7988114899103065,
+          "frac_ratio_lt_1": 0.02
+        },
+        {
+          "n": 17,
+          "h": 1,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 0.995711216020275,
+          "frac_ratio_lt_1": 0.525
+        },
+        {
+          "n": 17,
+          "h": 2,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 1.0102537286671494,
+          "frac_ratio_lt_1": 0.475
+        },
+        {
+          "n": 17,
+          "h": 3,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 1.0,
+          "frac_ratio_lt_1": 0.065
+        },
+        {
+          "n": 17,
+          "h": 5,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 1.039606083430608,
+          "frac_ratio_lt_1": 0.365
+        },
+        {
+          "n": 17,
+          "h": 10,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 1.350510505229578,
+          "frac_ratio_lt_1": 0.13
+        },
+        {
+          "n": 17,
+          "h": 20,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 1.7409125551488192,
+          "frac_ratio_lt_1": 0.02
+        },
+        {
+          "n": 17,
+          "h": 1,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 1.052842467245326,
+          "frac_ratio_lt_1": 0.26
+        },
+        {
+          "n": 17,
+          "h": 2,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 1.061331358237923,
+          "frac_ratio_lt_1": 0.23
+        },
+        {
+          "n": 17,
+          "h": 3,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 1.0,
+          "frac_ratio_lt_1": 0.08
+        },
+        {
+          "n": 17,
+          "h": 5,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 0.9903244031652121,
+          "frac_ratio_lt_1": 0.555
+        },
+        {
+          "n": 17,
+          "h": 10,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 1.2330898178853298,
+          "frac_ratio_lt_1": 0.22
+        },
+        {
+          "n": 17,
+          "h": 20,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 1.6243496078813884,
+          "frac_ratio_lt_1": 0.05
+        },
+        {
+          "n": 17,
+          "h": 1,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 1.0915834917216416,
+          "frac_ratio_lt_1": 0.13
+        },
+        {
+          "n": 17,
+          "h": 2,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 1.0981901602411444,
+          "frac_ratio_lt_1": 0.07
+        },
+        {
+          "n": 17,
+          "h": 3,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 1.0,
+          "frac_ratio_lt_1": 0.095
+        },
+        {
+          "n": 17,
+          "h": 5,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 0.9389692230691041,
+          "frac_ratio_lt_1": 0.7
+        },
+        {
+          "n": 17,
+          "h": 10,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 1.1041505221601562,
+          "frac_ratio_lt_1": 0.325
+        },
+        {
+          "n": 17,
+          "h": 20,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 1.4830067514552598,
+          "frac_ratio_lt_1": 0.075
+        },
+        {
+          "n": 17,
+          "h": 1,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 0.9607509658698142,
+          "frac_ratio_lt_1": 0.61
+        },
+        {
+          "n": 17,
+          "h": 2,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 1.0242754404034047,
+          "frac_ratio_lt_1": 0.385
+        },
+        {
+          "n": 17,
+          "h": 3,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 1.0,
+          "frac_ratio_lt_1": 0.06
+        },
+        {
+          "n": 17,
+          "h": 5,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 0.9127174743249004,
+          "frac_ratio_lt_1": 0.865
+        },
+        {
+          "n": 17,
+          "h": 10,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 0.9065025524908135,
+          "frac_ratio_lt_1": 0.63
+        },
+        {
+          "n": 17,
+          "h": 20,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 1.0676620254542162,
+          "frac_ratio_lt_1": 0.395
+        },
+        {
+          "n": 27,
+          "h": 1,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 0.9381662384870182,
+          "frac_ratio_lt_1": 0.725
+        },
+        {
+          "n": 27,
+          "h": 2,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 0.9670007411873559,
+          "frac_ratio_lt_1": 0.645
+        },
+        {
+          "n": 27,
+          "h": 3,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 0.9725901314411454,
+          "frac_ratio_lt_1": 0.69
+        },
+        {
+          "n": 27,
+          "h": 5,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 1.0249345784807513,
+          "frac_ratio_lt_1": 0.305
+        },
+        {
+          "n": 27,
+          "h": 10,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 1.1642030756506592,
+          "frac_ratio_lt_1": 0.185
+        },
+        {
+          "n": 27,
+          "h": 20,
+          "dgp": "IID_NORMAL",
+          "ratio_paired_median": 1.5421186658209063,
+          "frac_ratio_lt_1": 0.095
+        },
+        {
+          "n": 27,
+          "h": 1,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 0.9825029897111626,
+          "frac_ratio_lt_1": 0.57
+        },
+        {
+          "n": 27,
+          "h": 2,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 1.0176136719588673,
+          "frac_ratio_lt_1": 0.445
+        },
+        {
+          "n": 27,
+          "h": 3,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 0.9895728222486417,
+          "frac_ratio_lt_1": 0.585
+        },
+        {
+          "n": 27,
+          "h": 5,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 1.0169059256542792,
+          "frac_ratio_lt_1": 0.4
+        },
+        {
+          "n": 27,
+          "h": 10,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 1.1306689981485283,
+          "frac_ratio_lt_1": 0.245
+        },
+        {
+          "n": 27,
+          "h": 20,
+          "dgp": "AR1_0.2",
+          "ratio_paired_median": 1.4677714226868335,
+          "frac_ratio_lt_1": 0.13
+        },
+        {
+          "n": 27,
+          "h": 1,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 1.0910020658696638,
+          "frac_ratio_lt_1": 0.175
+        },
+        {
+          "n": 27,
+          "h": 2,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 1.1145314960549058,
+          "frac_ratio_lt_1": 0.195
+        },
+        {
+          "n": 27,
+          "h": 3,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 1.030207118959776,
+          "frac_ratio_lt_1": 0.285
+        },
+        {
+          "n": 27,
+          "h": 5,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 0.9931339755365287,
+          "frac_ratio_lt_1": 0.565
+        },
+        {
+          "n": 27,
+          "h": 10,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 1.0486154714880307,
+          "frac_ratio_lt_1": 0.39
+        },
+        {
+          "n": 27,
+          "h": 20,
+          "dgp": "AR1_0.5",
+          "ratio_paired_median": 1.3485111866912758,
+          "frac_ratio_lt_1": 0.215
+        },
+        {
+          "n": 27,
+          "h": 1,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 1.1811276464345193,
+          "frac_ratio_lt_1": 0.05
+        },
+        {
+          "n": 27,
+          "h": 2,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 1.1825829725382295,
+          "frac_ratio_lt_1": 0.04
+        },
+        {
+          "n": 27,
+          "h": 3,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 1.0645073818129986,
+          "frac_ratio_lt_1": 0.11
+        },
+        {
+          "n": 27,
+          "h": 5,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 0.9694352113565704,
+          "frac_ratio_lt_1": 0.77
+        },
+        {
+          "n": 27,
+          "h": 10,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 0.9728722499964616,
+          "frac_ratio_lt_1": 0.555
+        },
+        {
+          "n": 27,
+          "h": 20,
+          "dgp": "AR1_0.7",
+          "ratio_paired_median": 1.2235708211676979,
+          "frac_ratio_lt_1": 0.325
+        },
+        {
+          "n": 27,
+          "h": 1,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 0.9381662384870182,
+          "frac_ratio_lt_1": 0.725
+        },
+        {
+          "n": 27,
+          "h": 2,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 1.0295110082573755,
+          "frac_ratio_lt_1": 0.41
+        },
+        {
+          "n": 27,
+          "h": 3,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 1.0164593132551896,
+          "frac_ratio_lt_1": 0.345
+        },
+        {
+          "n": 27,
+          "h": 5,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 0.9600187696131198,
+          "frac_ratio_lt_1": 0.855
+        },
+        {
+          "n": 27,
+          "h": 10,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 0.8590784563192323,
+          "frac_ratio_lt_1": 0.845
+        },
+        {
+          "n": 27,
+          "h": 20,
+          "dgp": "MA_equal_hm1",
+          "ratio_paired_median": 0.9106420083559292,
+          "frac_ratio_lt_1": 0.565
+        }
+      ],
+      "posthoc_note": "V09p 把统计量换成「逐次配对比值的中位数」（同一种子重分析），prereg §4：不参与判定合成",
+      "reading": "比值 < 1 ⟹ 生产窗口比 (h−1) 窗口给出更小的标准误（低估不确定性）；方向在各单元间并不一致（见 cells_ratio_lt_1）"
+    },
+    "A3d": {
+      "embargo_note_decl_lines": [
+        "    private static final String RANK_IC_EMBARGO_NOTE =",
+        "            \"信号日接近数据末端（forward 区间未形成）自动跳过，不外推、不使用未来数据；\"",
+        "                    + \"重叠持有期 IC 序列的显著性以 HAC 标准误与 block bootstrap CI 为准\";"
+      ],
+      "embargo_text_from_corpus": [
+        "    private static final String RANK_IC_EMBARGO_NOTE =",
+        "            \"信号日接近数据末端（forward 区间未形成）自动跳过，不外推、不使用未来数据；\"",
+        "                    + \"重叠持有期 IC 序列的显著性以 HAC 标准误与 block bootstrap CI 为准\";"
+      ],
+      "corpus_equals_source": true,
+      "embargo_note_text": "private static final String RANK_IC_EMBARGO_NOTE =             \"信号日接近数据末端（forward 区间未形成）自动跳过，不外推、不使用未来数据；\"                     + \"重叠持有期 IC 序列的显著性以 HAC 标准误与 block bootstrap CI 为准\";",
+      "note_says_hac_std": true,
+      "a3a_verdict": "REGISTERED_ONLY",
+      "a3c_verdict": "CONVENTION_DIVERGENCE",
+      "a3c_material_cells_top": [
+        {
+          "n": 27,
+          "h": 10,
+          "dgp": "MA_equal_hm1",
+          "dom_cbrt": 3,
+          "dom_hm1": 9,
+          "prod_median": 0.07339920000803053,
+          "ctrl_hm1_median": 0.08294732547691482,
+          "ratio": 0.8848892907156888,
+          "hm1_window_longer": 1
+        }
+      ],
+      "window_decoupled_from_h": true,
+      "reading": "承诺「重叠持有期 IC 序列的显著性以 HAC 标准误为准」，而 HAC 窗口与 h 解耦、且存在材料性单元"
+    },
+    "A4a": {
+      "panels": [
+        {
+          "h": 1,
+          "n": 10,
+          "matched_bs": "1",
+          "rule_expected_bs": 1,
+          "prod_ci": [
+            0.089,
+            0.11199999999999999
+          ],
+          "prod_ci_width": 0.022999999999999993,
+          "matched_bs_list": [
+            1
+          ],
+          "rule_expected_in_matched": true
+        },
+        {
+          "h": 2,
+          "n": 10,
+          "matched_bs": "2",
+          "rule_expected_bs": 2,
+          "prod_ci": [
+            0.094,
+            0.10699999999999998
+          ],
+          "prod_ci_width": 0.012999999999999984,
+          "matched_bs_list": [
+            2
+          ],
+          "rule_expected_in_matched": true
+        },
+        {
+          "h": 3,
+          "n": 10,
+          "matched_bs": "3",
+          "rule_expected_bs": 3,
+          "prod_ci": [
+            0.094,
+            0.10600000000000001
+          ],
+          "prod_ci_width": 0.01200000000000001,
+          "matched_bs_list": [
+            3
+          ],
+          "rule_expected_in_matched": true
+        },
+        {
+          "h": 5,
+          "n": 10,
+          "matched_bs": "3",
+          "rule_expected_bs": 3,
+          "prod_ci": [
+            0.094,
+            0.10600000000000001
+          ],
+          "prod_ci_width": 0.01200000000000001,
+          "matched_bs_list": [
+            3
+          ],
+          "rule_expected_in_matched": true
+        },
+        {
+          "h": 10,
+          "n": 10,
+          "matched_bs": "3",
+          "rule_expected_bs": 3,
+          "prod_ci": [
+            0.094,
+            0.10600000000000001
+          ],
+          "prod_ci_width": 0.01200000000000001,
+          "matched_bs_list": [
+            3
+          ],
+          "rule_expected_in_matched": true
+        }
+      ],
+      "identification": "生产 CI 与按 bs=1..n-1 复刻的对照 CI 逐位（1e-15）相等者即为实际块长",
+      "matched_bs_format": "逗号串联清单（探针原样输出 matched.toString()）；none = 无匹配",
+      "ambiguous_identification_cells": [],
+      "bs_less_than_h": [
+        {
+          "h": 5,
+          "n": 10,
+          "matched_bs": "3",
+          "effective_bs": 3
+        },
+        {
+          "h": 10,
+          "n": 10,
+          "matched_bs": "3",
+          "effective_bs": 3
+        }
+      ],
+      "bs_equals_rule": true,
+      "reading": "实测有效块长 = min(h, floor(sqrt(n)), n−1)，故 h > floor(sqrt(n)) 时实际块长 < h"
+    },
+    "A4b": {
+      "javadoc_lines": [
+        "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java:355:     * Block bootstrap 置信区间（处理序列相关，块大小 = 持有期 h）。",
+        "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java:363:        // 块大小 = min(blockSize, floor(sqrt(n)), n-1)：避免块大小接近/等于样本量时"
+      ],
+      "javadoc_claims_block_equals_h": true,
+      "a4a_verdict": "REGISTERED_ONLY",
+      "bs_less_than_h": [
+        {
+          "h": 5,
+          "n": 10,
+          "matched_bs": "3",
+          "effective_bs": 3
+        },
+        {
+          "h": 10,
+          "n": 10,
+          "matched_bs": "3",
+          "effective_bs": 3
+        }
+      ],
+      "inline_comment_discloses_clamp": true,
+      "reading": "javadoc 说块长 = h，实现把块长钳到 floor(sqrt(n)) ⟹ 文档/实现漂移（行内注释已披露理由）"
+    },
+    "A5a": {
+      "tolerance_relative": 0.05,
+      "panels": [
+        {
+          "panel": 0,
+          "T": 10,
+          "kind": "fixed_panel",
+          "prod": 0.0028284271247461888,
+          "expected": 0.005999999999999999,
+          "rel_diff": 0.5285954792089684,
+          "rel_diff_emitted": 0.5285954792089684
+        },
+        {
+          "panel": 1,
+          "T": 17,
+          "kind": "fixed_panel",
+          "prod": 0.012259752076398804,
+          "expected": 0.027989850156531028,
+          "rel_diff": 0.561992936445279,
+          "rel_diff_emitted": 0.561992936445279
+        },
+        {
+          "panel": 2,
+          "T": 27,
+          "kind": "dgp_IID_NORMAL_T27",
+          "prod": 0.16541188302298251,
+          "expected": 0.2138130131388048,
+          "rel_diff": 0.22637130175234405,
+          "rel_diff_emitted": 0.22637130175234405
+        }
+      ],
+      "existing_test_input": {
+        "prod": 0.013064200447533455,
+        "expected": 0.0229978259842099,
+        "abs_diff": 0.009933625536676446,
+        "test_tolerance_abs": 0.01,
+        "test_assertion_holds": true,
+        "test_tolerance_relative_pct": 43.482370928738696
+      },
+      "reading": "既有测试用绝对容差 0.01 断言同一不变式；本轮冻结用相对容差 5%",
+      "disposition": "既有测试输入上的交叉核对一致（其绝对容差 0.01 满足）⟹ 记事实；按冻结文本 A5a 不是杀死条件，不单独构成 REJECTED"
+    },
+    "A5b": {
+      "panels": [
+        {
+          "T": 10,
+          "inv_sqrt_T": 0.31622776601683794,
+          "rank_ic_std": 0.018973665961010275,
+          "hac_std": 0.0028284271247461888,
+          "ratio": 6.708203932499372,
+          "frozen_expected_inv_sqrt_T": 0.316
+        },
+        {
+          "T": 17,
+          "inv_sqrt_T": 0.24253562503633297,
+          "rank_ic_std": 0.11540510864058844,
+          "hac_std": 0.012259752076398804,
+          "ratio": 9.41333135624776,
+          "frozen_expected_inv_sqrt_T": 0.243
+        }
+      ],
+      "frozen_anchor_match": true,
+      "reading": "两个字段都叫 std：rank_ic_std 是日序列标准差，hac_std 是**均值**的标准误；后者量级 ≈ 前者/√T；实测比值大于 √T，因为该关系只在 i.i.d. 下严格成立"
+    },
+    "A5c": {
+      "threshold_coverage": 0.85,
+      "cp_alpha": 0.01,
+      "cp_equivalence": "L<0.85 ⟺ P(X>=k | p=0.85) > 0.01（tail 对 p 单调递增）",
+      "cells": [
+        {
+          "n": 5,
+          "h": 1,
+          "dgp": "IID_NORMAL",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 825,
+            "coverage": 0.825,
+            "cov_emitted": 0.825,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 772,
+            "coverage": 0.772,
+            "cov_emitted": 0.772,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 5,
+          "h": 1,
+          "dgp": "AR1_0.2",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 751,
+            "coverage": 0.751,
+            "cov_emitted": 0.751,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 715,
+            "coverage": 0.715,
+            "cov_emitted": 0.715,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 5,
+          "h": 1,
+          "dgp": "AR1_0.5",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 592,
+            "coverage": 0.592,
+            "cov_emitted": 0.592,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 593,
+            "coverage": 0.593,
+            "cov_emitted": 0.593,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 5,
+          "h": 1,
+          "dgp": "AR1_0.7",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 445,
+            "coverage": 0.445,
+            "cov_emitted": 0.445,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 459,
+            "coverage": 0.459,
+            "cov_emitted": 0.459,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 5,
+          "h": 1,
+          "dgp": "MA_equal_hm1",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 825,
+            "coverage": 0.825,
+            "cov_emitted": 0.825,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 772,
+            "coverage": 0.772,
+            "cov_emitted": 0.772,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 5,
+          "h": 2,
+          "dgp": "IID_NORMAL",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 709,
+            "coverage": 0.709,
+            "cov_emitted": 0.709,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 770,
+            "coverage": 0.77,
+            "cov_emitted": 0.77,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 5,
+          "h": 2,
+          "dgp": "AR1_0.2",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 631,
+            "coverage": 0.631,
+            "cov_emitted": 0.631,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 705,
+            "coverage": 0.705,
+            "cov_emitted": 0.705,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 5,
+          "h": 2,
+          "dgp": "AR1_0.5",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 473,
+            "coverage": 0.473,
+            "cov_emitted": 0.473,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 558,
+            "coverage": 0.558,
+            "cov_emitted": 0.558,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 5,
+          "h": 2,
+          "dgp": "AR1_0.7",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 363,
+            "coverage": 0.363,
+            "cov_emitted": 0.363,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 430,
+            "coverage": 0.43,
+            "cov_emitted": 0.43,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 5,
+          "h": 2,
+          "dgp": "MA_equal_hm1",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 624,
+            "coverage": 0.624,
+            "cov_emitted": 0.624,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 667,
+            "coverage": 0.667,
+            "cov_emitted": 0.667,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 5,
+          "h": 3,
+          "dgp": "IID_NORMAL",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 740,
+            "coverage": 0.74,
+            "cov_emitted": 0.74,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 789,
+            "coverage": 0.789,
+            "cov_emitted": 0.789,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 5,
+          "h": 3,
+          "dgp": "AR1_0.2",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 663,
+            "coverage": 0.663,
+            "cov_emitted": 0.663,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 741,
+            "coverage": 0.741,
+            "cov_emitted": 0.741,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 5,
+          "h": 3,
+          "dgp": "AR1_0.5",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 537,
+            "coverage": 0.537,
+            "cov_emitted": 0.537,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 606,
+            "coverage": 0.606,
+            "cov_emitted": 0.606,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 5,
+          "h": 3,
+          "dgp": "AR1_0.7",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 419,
+            "coverage": 0.419,
+            "cov_emitted": 0.419,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 490,
+            "coverage": 0.49,
+            "cov_emitted": 0.49,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 5,
+          "h": 3,
+          "dgp": "MA_equal_hm1",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 516,
+            "coverage": 0.516,
+            "cov_emitted": 0.516,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 575,
+            "coverage": 0.575,
+            "cov_emitted": 0.575,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 5,
+          "h": 5,
+          "dgp": "IID_NORMAL",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 764,
+            "coverage": 0.764,
+            "cov_emitted": 0.764,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 790,
+            "coverage": 0.79,
+            "cov_emitted": 0.79,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 5,
+          "h": 5,
+          "dgp": "AR1_0.2",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 704,
+            "coverage": 0.704,
+            "cov_emitted": 0.704,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 727,
+            "coverage": 0.727,
+            "cov_emitted": 0.727,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 5,
+          "h": 5,
+          "dgp": "AR1_0.5",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 572,
+            "coverage": 0.572,
+            "cov_emitted": 0.572,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 609,
+            "coverage": 0.609,
+            "cov_emitted": 0.609,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 5,
+          "h": 5,
+          "dgp": "AR1_0.7",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 450,
+            "coverage": 0.45,
+            "cov_emitted": 0.45,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 483,
+            "coverage": 0.483,
+            "cov_emitted": 0.483,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 5,
+          "h": 5,
+          "dgp": "MA_equal_hm1",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 344,
+            "coverage": 0.344,
+            "cov_emitted": 0.344,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 392,
+            "coverage": 0.392,
+            "cov_emitted": 0.392,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 10,
+          "h": 1,
+          "dgp": "IID_NORMAL",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 891,
+            "coverage": 0.891,
+            "cov_emitted": 0.891,
+            "zero_width": 0,
+            "cp_lower_below_th": false,
+            "trigger": false
+          },
+          "hac": {
+            "ok": 846,
+            "coverage": 0.846,
+            "cov_emitted": 0.846,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 10,
+          "h": 1,
+          "dgp": "AR1_0.2",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 825,
+            "coverage": 0.825,
+            "cov_emitted": 0.825,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 802,
+            "coverage": 0.802,
+            "cov_emitted": 0.802,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 10,
+          "h": 1,
+          "dgp": "AR1_0.5",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 673,
+            "coverage": 0.673,
+            "cov_emitted": 0.673,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 706,
+            "coverage": 0.706,
+            "cov_emitted": 0.706,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 10,
+          "h": 1,
+          "dgp": "AR1_0.7",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 503,
+            "coverage": 0.503,
+            "cov_emitted": 0.503,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 570,
+            "coverage": 0.57,
+            "cov_emitted": 0.57,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 10,
+          "h": 1,
+          "dgp": "MA_equal_hm1",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 891,
+            "coverage": 0.891,
+            "cov_emitted": 0.891,
+            "zero_width": 0,
+            "cp_lower_below_th": false,
+            "trigger": false
+          },
+          "hac": {
+            "ok": 846,
+            "coverage": 0.846,
+            "cov_emitted": 0.846,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 10,
+          "h": 2,
+          "dgp": "IID_NORMAL",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 850,
+            "coverage": 0.85,
+            "cov_emitted": 0.85,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": false
+          },
+          "hac": {
+            "ok": 846,
+            "coverage": 0.846,
+            "cov_emitted": 0.846,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 10,
+          "h": 2,
+          "dgp": "AR1_0.2",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 784,
+            "coverage": 0.784,
+            "cov_emitted": 0.784,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 800,
+            "coverage": 0.8,
+            "cov_emitted": 0.8,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 10,
+          "h": 2,
+          "dgp": "AR1_0.5",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 667,
+            "coverage": 0.667,
+            "cov_emitted": 0.667,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 691,
+            "coverage": 0.691,
+            "cov_emitted": 0.691,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 10,
+          "h": 2,
+          "dgp": "AR1_0.7",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 521,
+            "coverage": 0.521,
+            "cov_emitted": 0.521,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 560,
+            "coverage": 0.56,
+            "cov_emitted": 0.56,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 10,
+          "h": 2,
+          "dgp": "MA_equal_hm1",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 788,
+            "coverage": 0.788,
+            "cov_emitted": 0.788,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 775,
+            "coverage": 0.775,
+            "cov_emitted": 0.775,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 10,
+          "h": 3,
+          "dgp": "IID_NORMAL",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 807,
+            "coverage": 0.807,
+            "cov_emitted": 0.807,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 852,
+            "coverage": 0.852,
+            "cov_emitted": 0.852,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": false
+          }
+        },
+        {
+          "n": 10,
+          "h": 3,
+          "dgp": "AR1_0.2",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 756,
+            "coverage": 0.756,
+            "cov_emitted": 0.756,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 811,
+            "coverage": 0.811,
+            "cov_emitted": 0.811,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 10,
+          "h": 3,
+          "dgp": "AR1_0.5",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 621,
+            "coverage": 0.621,
+            "cov_emitted": 0.621,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 695,
+            "coverage": 0.695,
+            "cov_emitted": 0.695,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 10,
+          "h": 3,
+          "dgp": "AR1_0.7",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 484,
+            "coverage": 0.484,
+            "cov_emitted": 0.484,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 550,
+            "coverage": 0.55,
+            "cov_emitted": 0.55,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 10,
+          "h": 3,
+          "dgp": "MA_equal_hm1",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 674,
+            "coverage": 0.674,
+            "cov_emitted": 0.674,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 726,
+            "coverage": 0.726,
+            "cov_emitted": 0.726,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 10,
+          "h": 5,
+          "dgp": "IID_NORMAL",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 809,
+            "coverage": 0.809,
+            "cov_emitted": 0.809,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 854,
+            "coverage": 0.854,
+            "cov_emitted": 0.854,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": false
+          }
+        },
+        {
+          "n": 10,
+          "h": 5,
+          "dgp": "AR1_0.2",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 754,
+            "coverage": 0.754,
+            "cov_emitted": 0.754,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 814,
+            "coverage": 0.814,
+            "cov_emitted": 0.814,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 10,
+          "h": 5,
+          "dgp": "AR1_0.5",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 657,
+            "coverage": 0.657,
+            "cov_emitted": 0.657,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 721,
+            "coverage": 0.721,
+            "cov_emitted": 0.721,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 10,
+          "h": 5,
+          "dgp": "AR1_0.7",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 524,
+            "coverage": 0.524,
+            "cov_emitted": 0.524,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 584,
+            "coverage": 0.584,
+            "cov_emitted": 0.584,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 10,
+          "h": 5,
+          "dgp": "MA_equal_hm1",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 521,
+            "coverage": 0.521,
+            "cov_emitted": 0.521,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 592,
+            "coverage": 0.592,
+            "cov_emitted": 0.592,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 17,
+          "h": 1,
+          "dgp": "IID_NORMAL",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 925,
+            "coverage": 0.925,
+            "cov_emitted": 0.925,
+            "zero_width": 0,
+            "cp_lower_below_th": false,
+            "trigger": false
+          },
+          "hac": {
+            "ok": 897,
+            "coverage": 0.897,
+            "cov_emitted": 0.897,
+            "se_zero": 0,
+            "cp_lower_below_th": false,
+            "trigger": false
+          }
+        },
+        {
+          "n": 17,
+          "h": 1,
+          "dgp": "AR1_0.2",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 858,
+            "coverage": 0.858,
+            "cov_emitted": 0.858,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": false
+          },
+          "hac": {
+            "ok": 869,
+            "coverage": 0.869,
+            "cov_emitted": 0.869,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": false
+          }
+        },
+        {
+          "n": 17,
+          "h": 1,
+          "dgp": "AR1_0.5",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 697,
+            "coverage": 0.697,
+            "cov_emitted": 0.697,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 766,
+            "coverage": 0.766,
+            "cov_emitted": 0.766,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 17,
+          "h": 1,
+          "dgp": "AR1_0.7",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 511,
+            "coverage": 0.511,
+            "cov_emitted": 0.511,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 629,
+            "coverage": 0.629,
+            "cov_emitted": 0.629,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 17,
+          "h": 1,
+          "dgp": "MA_equal_hm1",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 925,
+            "coverage": 0.925,
+            "cov_emitted": 0.925,
+            "zero_width": 0,
+            "cp_lower_below_th": false,
+            "trigger": false
+          },
+          "hac": {
+            "ok": 897,
+            "coverage": 0.897,
+            "cov_emitted": 0.897,
+            "se_zero": 0,
+            "cp_lower_below_th": false,
+            "trigger": false
+          }
+        },
+        {
+          "n": 17,
+          "h": 2,
+          "dgp": "IID_NORMAL",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 899,
+            "coverage": 0.899,
+            "cov_emitted": 0.899,
+            "zero_width": 0,
+            "cp_lower_below_th": false,
+            "trigger": false
+          },
+          "hac": {
+            "ok": 875,
+            "coverage": 0.875,
+            "cov_emitted": 0.875,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": false
+          }
+        },
+        {
+          "n": 17,
+          "h": 2,
+          "dgp": "AR1_0.2",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 851,
+            "coverage": 0.851,
+            "cov_emitted": 0.851,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": false
+          },
+          "hac": {
+            "ok": 849,
+            "coverage": 0.849,
+            "cov_emitted": 0.849,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 17,
+          "h": 2,
+          "dgp": "AR1_0.5",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 729,
+            "coverage": 0.729,
+            "cov_emitted": 0.729,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 771,
+            "coverage": 0.771,
+            "cov_emitted": 0.771,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 17,
+          "h": 2,
+          "dgp": "AR1_0.7",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 572,
+            "coverage": 0.572,
+            "cov_emitted": 0.572,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 621,
+            "coverage": 0.621,
+            "cov_emitted": 0.621,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 17,
+          "h": 2,
+          "dgp": "MA_equal_hm1",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 834,
+            "coverage": 0.834,
+            "cov_emitted": 0.834,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 839,
+            "coverage": 0.839,
+            "cov_emitted": 0.839,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 17,
+          "h": 3,
+          "dgp": "IID_NORMAL",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 873,
+            "coverage": 0.873,
+            "cov_emitted": 0.873,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": false
+          },
+          "hac": {
+            "ok": 891,
+            "coverage": 0.891,
+            "cov_emitted": 0.891,
+            "se_zero": 0,
+            "cp_lower_below_th": false,
+            "trigger": false
+          }
+        },
+        {
+          "n": 17,
+          "h": 3,
+          "dgp": "AR1_0.2",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 840,
+            "coverage": 0.84,
+            "cov_emitted": 0.84,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 859,
+            "coverage": 0.859,
+            "cov_emitted": 0.859,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": false
+          }
+        },
+        {
+          "n": 17,
+          "h": 3,
+          "dgp": "AR1_0.5",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 738,
+            "coverage": 0.738,
+            "cov_emitted": 0.738,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 766,
+            "coverage": 0.766,
+            "cov_emitted": 0.766,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 17,
+          "h": 3,
+          "dgp": "AR1_0.7",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 608,
+            "coverage": 0.608,
+            "cov_emitted": 0.608,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 649,
+            "coverage": 0.649,
+            "cov_emitted": 0.649,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 17,
+          "h": 3,
+          "dgp": "MA_equal_hm1",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 766,
+            "coverage": 0.766,
+            "cov_emitted": 0.766,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 793,
+            "coverage": 0.793,
+            "cov_emitted": 0.793,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 17,
+          "h": 5,
+          "dgp": "IID_NORMAL",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 843,
+            "coverage": 0.843,
+            "cov_emitted": 0.843,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 895,
+            "coverage": 0.895,
+            "cov_emitted": 0.895,
+            "se_zero": 0,
+            "cp_lower_below_th": false,
+            "trigger": false
+          }
+        },
+        {
+          "n": 17,
+          "h": 5,
+          "dgp": "AR1_0.2",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 818,
+            "coverage": 0.818,
+            "cov_emitted": 0.818,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 861,
+            "coverage": 0.861,
+            "cov_emitted": 0.861,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": false
+          }
+        },
+        {
+          "n": 17,
+          "h": 5,
+          "dgp": "AR1_0.5",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 723,
+            "coverage": 0.723,
+            "cov_emitted": 0.723,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 783,
+            "coverage": 0.783,
+            "cov_emitted": 0.783,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 17,
+          "h": 5,
+          "dgp": "AR1_0.7",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 618,
+            "coverage": 0.618,
+            "cov_emitted": 0.618,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 652,
+            "coverage": 0.652,
+            "cov_emitted": 0.652,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 17,
+          "h": 5,
+          "dgp": "MA_equal_hm1",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 662,
+            "coverage": 0.662,
+            "cov_emitted": 0.662,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 703,
+            "coverage": 0.703,
+            "cov_emitted": 0.703,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 27,
+          "h": 1,
+          "dgp": "IID_NORMAL",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 933,
+            "coverage": 0.933,
+            "cov_emitted": 0.933,
+            "zero_width": 0,
+            "cp_lower_below_th": false,
+            "trigger": false
+          },
+          "hac": {
+            "ok": 911,
+            "coverage": 0.911,
+            "cov_emitted": 0.911,
+            "se_zero": 0,
+            "cp_lower_below_th": false,
+            "trigger": false
+          }
+        },
+        {
+          "n": 27,
+          "h": 1,
+          "dgp": "AR1_0.2",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 869,
+            "coverage": 0.869,
+            "cov_emitted": 0.869,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": false
+          },
+          "hac": {
+            "ok": 882,
+            "coverage": 0.882,
+            "cov_emitted": 0.882,
+            "se_zero": 0,
+            "cp_lower_below_th": false,
+            "trigger": false
+          }
+        },
+        {
+          "n": 27,
+          "h": 1,
+          "dgp": "AR1_0.5",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 715,
+            "coverage": 0.715,
+            "cov_emitted": 0.715,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 819,
+            "coverage": 0.819,
+            "cov_emitted": 0.819,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 27,
+          "h": 1,
+          "dgp": "AR1_0.7",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 567,
+            "coverage": 0.567,
+            "cov_emitted": 0.567,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 716,
+            "coverage": 0.716,
+            "cov_emitted": 0.716,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 27,
+          "h": 1,
+          "dgp": "MA_equal_hm1",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 933,
+            "coverage": 0.933,
+            "cov_emitted": 0.933,
+            "zero_width": 0,
+            "cp_lower_below_th": false,
+            "trigger": false
+          },
+          "hac": {
+            "ok": 911,
+            "coverage": 0.911,
+            "cov_emitted": 0.911,
+            "se_zero": 0,
+            "cp_lower_below_th": false,
+            "trigger": false
+          }
+        },
+        {
+          "n": 27,
+          "h": 2,
+          "dgp": "IID_NORMAL",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 921,
+            "coverage": 0.921,
+            "cov_emitted": 0.921,
+            "zero_width": 0,
+            "cp_lower_below_th": false,
+            "trigger": false
+          },
+          "hac": {
+            "ok": 894,
+            "coverage": 0.894,
+            "cov_emitted": 0.894,
+            "se_zero": 0,
+            "cp_lower_below_th": false,
+            "trigger": false
+          }
+        },
+        {
+          "n": 27,
+          "h": 2,
+          "dgp": "AR1_0.2",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 876,
+            "coverage": 0.876,
+            "cov_emitted": 0.876,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": false
+          },
+          "hac": {
+            "ok": 868,
+            "coverage": 0.868,
+            "cov_emitted": 0.868,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": false
+          }
+        },
+        {
+          "n": 27,
+          "h": 2,
+          "dgp": "AR1_0.5",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 769,
+            "coverage": 0.769,
+            "cov_emitted": 0.769,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 808,
+            "coverage": 0.808,
+            "cov_emitted": 0.808,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 27,
+          "h": 2,
+          "dgp": "AR1_0.7",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 634,
+            "coverage": 0.634,
+            "cov_emitted": 0.634,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 701,
+            "coverage": 0.701,
+            "cov_emitted": 0.701,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 27,
+          "h": 2,
+          "dgp": "MA_equal_hm1",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 856,
+            "coverage": 0.856,
+            "cov_emitted": 0.856,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": false
+          },
+          "hac": {
+            "ok": 864,
+            "coverage": 0.864,
+            "cov_emitted": 0.864,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": false
+          }
+        },
+        {
+          "n": 27,
+          "h": 3,
+          "dgp": "IID_NORMAL",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 896,
+            "coverage": 0.896,
+            "cov_emitted": 0.896,
+            "zero_width": 0,
+            "cp_lower_below_th": false,
+            "trigger": false
+          },
+          "hac": {
+            "ok": 896,
+            "coverage": 0.896,
+            "cov_emitted": 0.896,
+            "se_zero": 0,
+            "cp_lower_below_th": false,
+            "trigger": false
+          }
+        },
+        {
+          "n": 27,
+          "h": 3,
+          "dgp": "AR1_0.2",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 873,
+            "coverage": 0.873,
+            "cov_emitted": 0.873,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": false
+          },
+          "hac": {
+            "ok": 876,
+            "coverage": 0.876,
+            "cov_emitted": 0.876,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": false
+          }
+        },
+        {
+          "n": 27,
+          "h": 3,
+          "dgp": "AR1_0.5",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 784,
+            "coverage": 0.784,
+            "cov_emitted": 0.784,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 802,
+            "coverage": 0.802,
+            "cov_emitted": 0.802,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 27,
+          "h": 3,
+          "dgp": "AR1_0.7",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 665,
+            "coverage": 0.665,
+            "cov_emitted": 0.665,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 703,
+            "coverage": 0.703,
+            "cov_emitted": 0.703,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 27,
+          "h": 3,
+          "dgp": "MA_equal_hm1",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 817,
+            "coverage": 0.817,
+            "cov_emitted": 0.817,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 841,
+            "coverage": 0.841,
+            "cov_emitted": 0.841,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 27,
+          "h": 5,
+          "dgp": "IID_NORMAL",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 882,
+            "coverage": 0.882,
+            "cov_emitted": 0.882,
+            "zero_width": 0,
+            "cp_lower_below_th": false,
+            "trigger": false
+          },
+          "hac": {
+            "ok": 896,
+            "coverage": 0.896,
+            "cov_emitted": 0.896,
+            "se_zero": 0,
+            "cp_lower_below_th": false,
+            "trigger": false
+          }
+        },
+        {
+          "n": 27,
+          "h": 5,
+          "dgp": "AR1_0.2",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 848,
+            "coverage": 0.848,
+            "cov_emitted": 0.848,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 877,
+            "coverage": 0.877,
+            "cov_emitted": 0.877,
+            "se_zero": 0,
+            "cp_lower_below_th": false,
+            "trigger": false
+          }
+        },
+        {
+          "n": 27,
+          "h": 5,
+          "dgp": "AR1_0.5",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 773,
+            "coverage": 0.773,
+            "cov_emitted": 0.773,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 808,
+            "coverage": 0.808,
+            "cov_emitted": 0.808,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 27,
+          "h": 5,
+          "dgp": "AR1_0.7",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 688,
+            "coverage": 0.688,
+            "cov_emitted": 0.688,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 710,
+            "coverage": 0.71,
+            "cov_emitted": 0.71,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        },
+        {
+          "n": 27,
+          "h": 5,
+          "dgp": "MA_equal_hm1",
+          "reps": 1000,
+          "mu_true": 0.0,
+          "arm": "BOOT_CI",
+          "arm2": "HAC_CI",
+          "boot": {
+            "ok": 767,
+            "coverage": 0.767,
+            "cov_emitted": 0.767,
+            "zero_width": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          },
+          "hac": {
+            "ok": 778,
+            "coverage": 0.778,
+            "cov_emitted": 0.778,
+            "se_zero": 0,
+            "cp_lower_below_th": true,
+            "trigger": true
+          }
+        }
+      ],
+      "n_cells": 80,
+      "triggering_cells": [
+        {
+          "n": 5,
+          "h": 1,
+          "dgp": "IID_NORMAL",
+          "boot_cov": 0.825,
+          "hac_cov": 0.772
+        },
+        {
+          "n": 5,
+          "h": 1,
+          "dgp": "AR1_0.2",
+          "boot_cov": 0.751,
+          "hac_cov": 0.715
+        },
+        {
+          "n": 5,
+          "h": 1,
+          "dgp": "AR1_0.5",
+          "boot_cov": 0.592,
+          "hac_cov": 0.593
+        },
+        {
+          "n": 5,
+          "h": 1,
+          "dgp": "AR1_0.7",
+          "boot_cov": 0.445,
+          "hac_cov": 0.459
+        },
+        {
+          "n": 5,
+          "h": 1,
+          "dgp": "MA_equal_hm1",
+          "boot_cov": 0.825,
+          "hac_cov": 0.772
+        },
+        {
+          "n": 5,
+          "h": 2,
+          "dgp": "IID_NORMAL",
+          "boot_cov": 0.709,
+          "hac_cov": 0.77
+        },
+        {
+          "n": 5,
+          "h": 2,
+          "dgp": "AR1_0.2",
+          "boot_cov": 0.631,
+          "hac_cov": 0.705
+        },
+        {
+          "n": 5,
+          "h": 2,
+          "dgp": "AR1_0.5",
+          "boot_cov": 0.473,
+          "hac_cov": 0.558
+        },
+        {
+          "n": 5,
+          "h": 2,
+          "dgp": "AR1_0.7",
+          "boot_cov": 0.363,
+          "hac_cov": 0.43
+        },
+        {
+          "n": 5,
+          "h": 2,
+          "dgp": "MA_equal_hm1",
+          "boot_cov": 0.624,
+          "hac_cov": 0.667
+        },
+        {
+          "n": 5,
+          "h": 3,
+          "dgp": "IID_NORMAL",
+          "boot_cov": 0.74,
+          "hac_cov": 0.789
+        },
+        {
+          "n": 5,
+          "h": 3,
+          "dgp": "AR1_0.2",
+          "boot_cov": 0.663,
+          "hac_cov": 0.741
+        },
+        {
+          "n": 5,
+          "h": 3,
+          "dgp": "AR1_0.5",
+          "boot_cov": 0.537,
+          "hac_cov": 0.606
+        },
+        {
+          "n": 5,
+          "h": 3,
+          "dgp": "AR1_0.7",
+          "boot_cov": 0.419,
+          "hac_cov": 0.49
+        },
+        {
+          "n": 5,
+          "h": 3,
+          "dgp": "MA_equal_hm1",
+          "boot_cov": 0.516,
+          "hac_cov": 0.575
+        },
+        {
+          "n": 5,
+          "h": 5,
+          "dgp": "IID_NORMAL",
+          "boot_cov": 0.764,
+          "hac_cov": 0.79
+        },
+        {
+          "n": 5,
+          "h": 5,
+          "dgp": "AR1_0.2",
+          "boot_cov": 0.704,
+          "hac_cov": 0.727
+        },
+        {
+          "n": 5,
+          "h": 5,
+          "dgp": "AR1_0.5",
+          "boot_cov": 0.572,
+          "hac_cov": 0.609
+        },
+        {
+          "n": 5,
+          "h": 5,
+          "dgp": "AR1_0.7",
+          "boot_cov": 0.45,
+          "hac_cov": 0.483
+        },
+        {
+          "n": 5,
+          "h": 5,
+          "dgp": "MA_equal_hm1",
+          "boot_cov": 0.344,
+          "hac_cov": 0.392
+        },
+        {
+          "n": 10,
+          "h": 1,
+          "dgp": "IID_NORMAL",
+          "boot_cov": 0.891,
+          "hac_cov": 0.846
+        },
+        {
+          "n": 10,
+          "h": 1,
+          "dgp": "AR1_0.2",
+          "boot_cov": 0.825,
+          "hac_cov": 0.802
+        },
+        {
+          "n": 10,
+          "h": 1,
+          "dgp": "AR1_0.5",
+          "boot_cov": 0.673,
+          "hac_cov": 0.706
+        },
+        {
+          "n": 10,
+          "h": 1,
+          "dgp": "AR1_0.7",
+          "boot_cov": 0.503,
+          "hac_cov": 0.57
+        },
+        {
+          "n": 10,
+          "h": 1,
+          "dgp": "MA_equal_hm1",
+          "boot_cov": 0.891,
+          "hac_cov": 0.846
+        },
+        {
+          "n": 10,
+          "h": 2,
+          "dgp": "IID_NORMAL",
+          "boot_cov": 0.85,
+          "hac_cov": 0.846
+        },
+        {
+          "n": 10,
+          "h": 2,
+          "dgp": "AR1_0.2",
+          "boot_cov": 0.784,
+          "hac_cov": 0.8
+        },
+        {
+          "n": 10,
+          "h": 2,
+          "dgp": "AR1_0.5",
+          "boot_cov": 0.667,
+          "hac_cov": 0.691
+        },
+        {
+          "n": 10,
+          "h": 2,
+          "dgp": "AR1_0.7",
+          "boot_cov": 0.521,
+          "hac_cov": 0.56
+        },
+        {
+          "n": 10,
+          "h": 2,
+          "dgp": "MA_equal_hm1",
+          "boot_cov": 0.788,
+          "hac_cov": 0.775
+        },
+        {
+          "n": 10,
+          "h": 3,
+          "dgp": "IID_NORMAL",
+          "boot_cov": 0.807,
+          "hac_cov": 0.852
+        },
+        {
+          "n": 10,
+          "h": 3,
+          "dgp": "AR1_0.2",
+          "boot_cov": 0.756,
+          "hac_cov": 0.811
+        },
+        {
+          "n": 10,
+          "h": 3,
+          "dgp": "AR1_0.5",
+          "boot_cov": 0.621,
+          "hac_cov": 0.695
+        },
+        {
+          "n": 10,
+          "h": 3,
+          "dgp": "AR1_0.7",
+          "boot_cov": 0.484,
+          "hac_cov": 0.55
+        },
+        {
+          "n": 10,
+          "h": 3,
+          "dgp": "MA_equal_hm1",
+          "boot_cov": 0.674,
+          "hac_cov": 0.726
+        },
+        {
+          "n": 10,
+          "h": 5,
+          "dgp": "IID_NORMAL",
+          "boot_cov": 0.809,
+          "hac_cov": 0.854
+        },
+        {
+          "n": 10,
+          "h": 5,
+          "dgp": "AR1_0.2",
+          "boot_cov": 0.754,
+          "hac_cov": 0.814
+        },
+        {
+          "n": 10,
+          "h": 5,
+          "dgp": "AR1_0.5",
+          "boot_cov": 0.657,
+          "hac_cov": 0.721
+        },
+        {
+          "n": 10,
+          "h": 5,
+          "dgp": "AR1_0.7",
+          "boot_cov": 0.524,
+          "hac_cov": 0.584
+        },
+        {
+          "n": 10,
+          "h": 5,
+          "dgp": "MA_equal_hm1",
+          "boot_cov": 0.521,
+          "hac_cov": 0.592
+        },
+        {
+          "n": 17,
+          "h": 1,
+          "dgp": "AR1_0.5",
+          "boot_cov": 0.697,
+          "hac_cov": 0.766
+        },
+        {
+          "n": 17,
+          "h": 1,
+          "dgp": "AR1_0.7",
+          "boot_cov": 0.511,
+          "hac_cov": 0.629
+        },
+        {
+          "n": 17,
+          "h": 2,
+          "dgp": "AR1_0.2",
+          "boot_cov": 0.851,
+          "hac_cov": 0.849
+        },
+        {
+          "n": 17,
+          "h": 2,
+          "dgp": "AR1_0.5",
+          "boot_cov": 0.729,
+          "hac_cov": 0.771
+        },
+        {
+          "n": 17,
+          "h": 2,
+          "dgp": "AR1_0.7",
+          "boot_cov": 0.572,
+          "hac_cov": 0.621
+        },
+        {
+          "n": 17,
+          "h": 2,
+          "dgp": "MA_equal_hm1",
+          "boot_cov": 0.834,
+          "hac_cov": 0.839
+        },
+        {
+          "n": 17,
+          "h": 3,
+          "dgp": "AR1_0.2",
+          "boot_cov": 0.84,
+          "hac_cov": 0.859
+        },
+        {
+          "n": 17,
+          "h": 3,
+          "dgp": "AR1_0.5",
+          "boot_cov": 0.738,
+          "hac_cov": 0.766
+        },
+        {
+          "n": 17,
+          "h": 3,
+          "dgp": "AR1_0.7",
+          "boot_cov": 0.608,
+          "hac_cov": 0.649
+        },
+        {
+          "n": 17,
+          "h": 3,
+          "dgp": "MA_equal_hm1",
+          "boot_cov": 0.766,
+          "hac_cov": 0.793
+        },
+        {
+          "n": 17,
+          "h": 5,
+          "dgp": "IID_NORMAL",
+          "boot_cov": 0.843,
+          "hac_cov": 0.895
+        },
+        {
+          "n": 17,
+          "h": 5,
+          "dgp": "AR1_0.2",
+          "boot_cov": 0.818,
+          "hac_cov": 0.861
+        },
+        {
+          "n": 17,
+          "h": 5,
+          "dgp": "AR1_0.5",
+          "boot_cov": 0.723,
+          "hac_cov": 0.783
+        },
+        {
+          "n": 17,
+          "h": 5,
+          "dgp": "AR1_0.7",
+          "boot_cov": 0.618,
+          "hac_cov": 0.652
+        },
+        {
+          "n": 17,
+          "h": 5,
+          "dgp": "MA_equal_hm1",
+          "boot_cov": 0.662,
+          "hac_cov": 0.703
+        },
+        {
+          "n": 27,
+          "h": 1,
+          "dgp": "AR1_0.5",
+          "boot_cov": 0.715,
+          "hac_cov": 0.819
+        },
+        {
+          "n": 27,
+          "h": 1,
+          "dgp": "AR1_0.7",
+          "boot_cov": 0.567,
+          "hac_cov": 0.716
+        },
+        {
+          "n": 27,
+          "h": 2,
+          "dgp": "AR1_0.5",
+          "boot_cov": 0.769,
+          "hac_cov": 0.808
+        },
+        {
+          "n": 27,
+          "h": 2,
+          "dgp": "AR1_0.7",
+          "boot_cov": 0.634,
+          "hac_cov": 0.701
+        },
+        {
+          "n": 27,
+          "h": 3,
+          "dgp": "AR1_0.5",
+          "boot_cov": 0.784,
+          "hac_cov": 0.802
+        },
+        {
+          "n": 27,
+          "h": 3,
+          "dgp": "AR1_0.7",
+          "boot_cov": 0.665,
+          "hac_cov": 0.703
+        },
+        {
+          "n": 27,
+          "h": 3,
+          "dgp": "MA_equal_hm1",
+          "boot_cov": 0.817,
+          "hac_cov": 0.841
+        },
+        {
+          "n": 27,
+          "h": 5,
+          "dgp": "AR1_0.2",
+          "boot_cov": 0.848,
+          "hac_cov": 0.877
+        },
+        {
+          "n": 27,
+          "h": 5,
+          "dgp": "AR1_0.5",
+          "boot_cov": 0.773,
+          "hac_cov": 0.808
+        },
+        {
+          "n": 27,
+          "h": 5,
+          "dgp": "AR1_0.7",
+          "boot_cov": 0.688,
+          "hac_cov": 0.71
+        },
+        {
+          "n": 27,
+          "h": 5,
+          "dgp": "MA_equal_hm1",
+          "boot_cov": 0.767,
+          "hac_cov": 0.778
+        }
+      ],
+      "n_triggering_cells": 66,
+      "min_boot_cov": 0.344,
+      "min_hac_cov": 0.392,
+      "max_boot_cov": 0.933,
+      "effective_cut_disclosed_in_prereg": "≈0.87（reps=1000）",
+      "reading": "名义 95% 区间在冻结 DGP 网格上的实测覆盖率；DGP 是重叠依赖的风格化表征，不是对真实 IC 序列依赖结构的主张"
+    },
+    "A6a": {
+      "scan_root_production": "modules/（排除 node_modules / target / dist）",
+      "prod_hits": [],
+      "repo_hits_including_research": [
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:377:    c[\"c_nominal_prod\"] = walk_lines([mods], exts_all,",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:378:                                     r\"nominal|多重检验|多重比较|bonferroni|benjamini|\"",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:379:                                     r\"\\bFDR\\b|adjusted p|multiple testing\",",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:381:    c[\"c_nominal_all\"] = walk_lines([REPO], exts_all,",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:382:                                    r\"nominal|多重检验|多重比较|bonferroni|benjamini|\"",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:383:                                    r\"\\bFDR\\b|adjusted p|multiple testing\")",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:902:    \"\"\"是否存在名义/多重检验标注（生产面）。\"\"\"",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:903:    prod = ctx[\"text\"][\"c_nominal_prod\"]",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:904:    allh = ctx[\"text\"][\"c_nominal_all\"]",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:908:          \"reading\": (\"生产面 0 命中 ⟹ 区间未标注为「名义 95%」，也未提示多重检验；\"",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:1177:        \"cln_op\": (\"text_set\", \"c_nominal_prod\", []),",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:1179:        \"inj_op\": (\"text_set\", \"c_nominal_prod\",",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:1181:                    \"// nominal 95% CI（未做多重检验校正）\"]),",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:1182:        \"intent\": \"CLN：生产面 0 命中；INJ：注入一行 nominal 标注 ⟹ 批评不再适用\"}"
+      ],
+      "research_hits_excluded_by_design": [
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:377:    c[\"c_nominal_prod\"] = walk_lines([mods], exts_all,",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:378:                                     r\"nominal|多重检验|多重比较|bonferroni|benjamini|\"",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:379:                                     r\"\\bFDR\\b|adjusted p|multiple testing\",",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:381:    c[\"c_nominal_all\"] = walk_lines([REPO], exts_all,",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:382:                                    r\"nominal|多重检验|多重比较|bonferroni|benjamini|\"",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:383:                                    r\"\\bFDR\\b|adjusted p|multiple testing\")",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:902:    \"\"\"是否存在名义/多重检验标注（生产面）。\"\"\"",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:903:    prod = ctx[\"text\"][\"c_nominal_prod\"]",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:904:    allh = ctx[\"text\"][\"c_nominal_all\"]",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:908:          \"reading\": (\"生产面 0 命中 ⟹ 区间未标注为「名义 95%」，也未提示多重检验；\"",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:1177:        \"cln_op\": (\"text_set\", \"c_nominal_prod\", []),",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:1179:        \"inj_op\": (\"text_set\", \"c_nominal_prod\",",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:1181:                    \"// nominal 95% CI（未做多重检验校正）\"]),",
+        "research/paper_loop/experiments/R007_uncertainty_audit/run_uncertainty_audit.py:1182:        \"intent\": \"CLN：生产面 0 命中；INJ：注入一行 nominal 标注 ⟹ 批评不再适用\"}"
+      ],
+      "reading": "生产面 0 命中 ⟹ 区间未标注为「名义 95%」，也未提示多重检验；research/ 下的命中是本轮自己的研究文本，按扫描根声明排除"
+    },
+    "A6b": {
+      "panels": [
+        {
+          "T": 17,
+          "mean": 0.03411764705882353,
+          "hac_std": 0.012259752076398804,
+          "t_hac": 2.7828986137903446,
+          "t_matches_ratio": true,
+          "hurdles": [
+            1.96,
+            3.0,
+            3.9
+          ]
+        },
+        {
+          "T": 10,
+          "mean": 0.09999999999999999,
+          "hac_std": 0.0028284271247461888,
+          "t_hac": 35.35533905932739,
+          "t_matches_ratio": true,
+          "hurdles": [
+            1.96,
+            3.0,
+            3.9
+          ]
+        }
+      ],
+      "arithmetic_identity_holds": true,
+      "series_kind": "注入的**合成**固定序列，非项目真实 IC 序列",
+      "narrative_ban": "禁止任何「因子显著性」叙述（prereg §9.7）；本项只登记对照",
+      "reading": "仅登记 t 值与门槛的算术关系；两个序列均为探针合成输入"
+    },
+    "A7a": {
+      "ci_a": [
+        -0.0035294117647058773,
+        0.06647058823529413
+      ],
+      "ci_b": [
+        -0.0035294117647058773,
+        0.06647058823529413
+      ],
+      "hac_a": 0.012259752076398804,
+      "hac_b": 0.012259752076398804,
+      "ci_identical": 1,
+      "hac_identical": 1,
+      "summarize_ci_identical": 1,
+      "summarize_hac_identical": 1,
+      "reading": "固定种子 ⟹ 逐位可复现"
+    },
+    "A7b": {
+      "call_sites": [
+        "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java:191:        double[] ci = blockBootstrapCi(icSeries, Math.max(1, holdingDays), 1000, 42L);"
+      ],
+      "call_sites_with_1000_42L": [
+        "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java:191:        double[] ci = blockBootstrapCi(icSeries, Math.max(1, holdingDays), 1000, 42L);"
+      ],
+      "declaration_lines": [
+        "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java:358:    public static double[] blockBootstrapCi(List<Double> values, int blockSize, int iterations, long seed) {"
+      ],
+      "reading": "产品调用点硬编码 iterations=1000 ⟹ iterations<100 的退化分支在 API 面不可达"
+    },
+    "A8a": {
+      "csv_method_lines": [
+        498,
+        519
+      ],
+      "header_line": "    ['holding_days', 'rank_ic', 'pearson_ic', 'icir', 'positive_rate', 'monotonicity', 'spread', 'net_ic', 'hac_std', 'ci_lower', 'ci_upper'].join(','),",
+      "value_line": "      row.cost_net_ic?.rank_ic_mean ?? '', row.hac_std, row.ci_lower, row.ci_upper",
+      "header_tokens": [
+        "holding_days",
+        "rank_ic",
+        "pearson_ic",
+        "icir",
+        "positive_rate",
+        "monotonicity",
+        "spread",
+        "net_ic",
+        "hac_std",
+        "ci_lower",
+        "ci_upper"
+      ],
+      "from_repo_source": true,
+      "header_has_plain_net_ic": true,
+      "value_from_cost_net_ic": true,
+      "value_is_rank_ic_mean": true,
+      "reading": "表头 token 写 net_ic（无 cost_ 前缀、无 rank_ 限定），值取 cost_net_ic.rank_ic_mean"
+    },
+    "A8b": {
+      "header_tokens": [
+        "holding_days",
+        "rank_ic",
+        "pearson_ic",
+        "icir",
+        "positive_rate",
+        "monotonicity",
+        "spread",
+        "net_ic",
+        "hac_std",
+        "ci_lower",
+        "ci_upper"
+      ],
+      "header_after_net_ic": [
+        "hac_std",
+        "ci_lower",
+        "ci_upper"
+      ],
+      "value_line_uses_row_scope": [
+        "hac_std",
+        "ci_lower",
+        "ci_upper"
+      ],
+      "reading": "net_ic 列取成本后块（cost_net_ic.rank_ic_mean），紧随的 hac_std/ci_* 取 row（毛收益块）⟹ 同一行内两种口径并列"
+    }
+  },
+  "verdict_vocab_violations": [],
+  "kill_conditions_fired": {
+    "K1": true,
+    "K2": false,
+    "K3": true,
+    "K4": true,
+    "K5": true,
+    "K6": true,
+    "K7": true,
+    "K8": false,
+    "K9": false,
+    "K10": false
+  },
+  "h0_alive": false,
+  "h0_alive_definition": "K1 与 K2 与 K3 全部未触发（prereg §6 冻结）",
+  "total_verdict": "REJECTED",
+  "total_verdict_reason": "H0 被杀：K1/K3 触发",
+  "verdict_synthesis_rule": "按序短路：K8/K9/K10 -> INCONCLUSIVE；K1/K2/K3 -> REJECTED；K4/K5 -> CONTRACT_MISLABEL；K6 -> CONTRACT_AMBIGUOUS；否则 NOT_VIOLATED",
+  "finished_at": "2026-09-14T21:21:56.891573"
+}

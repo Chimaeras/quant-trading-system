@@ -1,0 +1,1496 @@
+{
+  "round": "R008",
+  "started_at": "2026-09-14T21:57:14.296490",
+  "prereg": "rounds/R008_prereg.md",
+  "review": "rounds/R008_review.md",
+  "criteria_source": "Yao & Zheng, arXiv:2606.08285v1 (2026-06-06)",
+  "audited_target": "avg_turnover / max_turnover / min_turnover / daily_turnover[]（BacktestTurnoverService.analyze → GET /api/backtest/turnover → ScoringBacktest.vue）",
+  "hypothesis_H0": "载荷族在任何输入下忠实对应声明口径 换手率 = 1 − |相邻两日 TopN 交集| / topN；且口径不适用时（任一日候选数 < topN，或配对的不是同策略相邻信号日）不输出看起来像测量值的实数",
+  "readonly_attestation": {
+    "db_statements_executed": 0,
+    "note": "本轮不访问任何数据库；仅读文件系统 + 在 JVM 内调用生产类（只读方法）",
+    "files_written": [
+      "run.log",
+      "result.json",
+      "probe/out/*（运行后删除）"
+    ],
+    "production_files_modified": 0,
+    "test_files_modified": 0
+  },
+  "gate_G3": {
+    "engine_code_source": "file:/E:/Project/quant-trading-system/modules/backend-java/target/classes/",
+    "expected": "E:\\Project\\quant-trading-system\\modules\\backend-java\\target\\classes",
+    "is_repo_classes": true,
+    "class": "com.quant.service.BacktestTurnoverService",
+    "classloader": "jdk.internal.loader.ClassLoaders$AppClassLoader@6bc7c054",
+    "sentinel_short_prod": 0.7,
+    "sentinel_short_control": 0.0,
+    "sentinel_reverse_differs": true,
+    "sentinel_full_prod": 0.1,
+    "sentinel_full_control": 0.09999999999999998,
+    "sentinel_full_member_equals": true,
+    "sentinel_note": "反向锚点 = A2a 面板（两日各 3 条、集合相同）：生产 0.7 vs 定义 0.0，必须不同；正向锚点 = 满员 |I|=9 面板：生产值必须逐位等于 1 − 9/10"
+  },
+  "gate_existing_test_consistency": {
+    "existing_test": "BacktestTurnoverServiceTest.analyzeComputesTurnoverBetweenDays:51-71",
+    "test_literal_lines": [
+      "modules/backend-java/src/test/java/com/quant/service/BacktestTurnoverServiceTest.java:54:        // day1: A B C ; day2: A B D → 交集 2，turnover = 1 - 2/3 = 0.3333",
+      "modules/backend-java/src/test/java/com/quant/service/BacktestTurnoverServiceTest.java:66:        assertThat(out.get(\"avg_turnover\")).isEqualTo(0.3333);"
+    ],
+    "test_asserts_0_3333": true,
+    "probe_prod": 0.3333,
+    "probe_expected_literal": 0.3333,
+    "abs_diff": 0.0,
+    "test_tolerance_abs": 1e-12,
+    "passes": true
+  },
+  "counts_C1_C11": {
+    "C1": {
+      "actual": 13,
+      "frozen_expected": 13,
+      "match": true,
+      "by_file": {
+        "modules/backend-java/src/main/java/com/quant/service/BacktestTurnoverService.java": 2,
+        "modules/backend-java/src/main/java/com/quant/service/DataService.java": 4,
+        "modules/backend-java/src/test/java/com/quant/service/BacktestTurnoverServiceTest.java": 3,
+        "modules/web/src/api/backtest.ts": 1,
+        "modules/web/src/api/data.ts": 1,
+        "modules/web/src/views/backtest/ScoringBacktest.vue": 1,
+        "modules/web/src/views/data/DataManagement.vue": 1
+      },
+      "raw": 17,
+      "raw_expected": 17,
+      "by_file_expected": {
+        "BacktestTurnoverService.java": 2,
+        "DataService.java": 4,
+        "BacktestTurnoverServiceTest.java": 3,
+        "backtest.ts": 1,
+        "data.ts": 1,
+        "ScoringBacktest.vue": 1,
+        "DataManagement.vue": 1
+      }
+    },
+    "C2": {
+      "actual": 6,
+      "frozen_expected": 6,
+      "match": true,
+      "by_file": {
+        "modules/backend-java/src/main/java/com/quant/service/BacktestTurnoverService.java": 2,
+        "modules/backend-java/src/test/java/com/quant/service/BacktestTurnoverServiceTest.java": 2,
+        "modules/web/src/api/backtest.ts": 1,
+        "modules/web/src/views/backtest/ScoringBacktest.vue": 1
+      },
+      "raw": 8,
+      "raw_expected": 8,
+      "by_file_expected": {
+        "BacktestTurnoverService.java": 2,
+        "BacktestTurnoverServiceTest.java": 2,
+        "backtest.ts": 1,
+        "ScoringBacktest.vue": 1
+      }
+    },
+    "C3": {
+      "actual": 8,
+      "frozen_expected": 8,
+      "match": true,
+      "by_file": {
+        "modules/web/src/views/backtest/ScoringBacktest.vue": 4,
+        "modules/web/src/views/data/DataManagement.vue": 2,
+        "modules/web/src/views/market/StockDetailView.vue": 1,
+        "modules/web/src/views/market/StockPicker.vue": 1
+      },
+      "raw": 8,
+      "raw_expected": 8,
+      "by_file_expected": {
+        "ScoringBacktest.vue": 4,
+        "DataManagement.vue": 2,
+        "StockDetailView.vue": 1,
+        "StockPicker.vue": 1
+      }
+    },
+    "C4": {
+      "actual": 6,
+      "frozen_expected": 6,
+      "match": true,
+      "by_file": {
+        "modules/backend-java/src/main/java/com/quant/controller/BacktestTurnoverController.java": 2,
+        "modules/backend-java/src/main/java/com/quant/service/BacktestTurnoverService.java": 1,
+        "modules/backend-java/src/test/java/com/quant/service/BacktestTurnoverServiceTest.java": 3
+      },
+      "raw": 6,
+      "raw_expected": 6,
+      "by_file_expected": {
+        "BacktestTurnoverController.java": 2,
+        "BacktestTurnoverService.java": 1,
+        "BacktestTurnoverServiceTest.java": 3
+      }
+    },
+    "C5": {
+      "actual": 2,
+      "frozen_expected": 2,
+      "match": true,
+      "lines": [
+        "modules/backend-java/src/main/java/com/quant/service/BacktestTurnoverService.java:71:            out.put(\"note\", \"信号日不足 2 天，无法计算换手率\");",
+        "modules/backend-java/src/main/java/com/quant/service/BacktestTurnoverService.java:127:        out.put(\"note\", \"换手率 = 1 - 相邻日 TopN 交集 / topN；衡量候选集合变动程度，高换手意味候选不稳定；存在幸存者偏差\");"
+      ]
+    },
+    "C6": {
+      "actual": 21,
+      "frozen_expected": 21,
+      "match": true,
+      "by_file": {
+        "modules/backend-java/src/main/java/com/quant/service/DataService.java": 1,
+        "modules/backend-java/src/main/java/com/quant/service/MarketService.java": 2,
+        "modules/backend-java/src/main/java/com/quant/service/StockTrendScoringService.java": 1,
+        "modules/backend-java/src/main/java/com/quant/service/T1CandidateService.java": 1,
+        "modules/backend-java/src/main/java/com/quant/service/scoring/LimitUpEcologyService.java": 1,
+        "modules/backend-java/src/main/resources/db/migration/V1__baseline_core.sql": 1,
+        "modules/backend-java/src/main/resources/db/migration/V2__research_tables.sql": 2,
+        "modules/backend-java/src/test/java/com/quant/service/T1CandidateServiceTest.java": 3,
+        "modules/database/01_init_schema.sql": 1,
+        "modules/database/migrate_stock_daily.py": 4,
+        "modules/web/src/api/market.ts": 2,
+        "modules/web/src/api/research.ts": 1,
+        "modules/web/src/views/market/StockDetailView.vue": 1
+      },
+      "raw": 26,
+      "raw_expected": 26
+    },
+    "C7": {
+      "actual": 2,
+      "frozen_expected": 2,
+      "match": true,
+      "lines": [
+        "modules/backend-java/src/main/java/com/quant/controller/BacktestTurnoverController.java:19:@RequestMapping(\"/api/backtest/turnover\")",
+        "modules/web/src/api/backtest.ts:224:  const res = await request.get<TurnoverResponse>('/backtest/turnover', { params })"
+      ],
+      "raw": 4,
+      "raw_expected": 4,
+      "raw_lines": [
+        "modules/backend-java/src/main/java/com/quant/controller/BacktestTurnoverController.java:19:@RequestMapping(\"/api/backtest/turnover\")",
+        "modules/backend-java/target/classes/static/assets/backtest-B-RDRxU9.js:1:import{r as a,u as e}from\"./request-nzbjpgW6.js\";const c={async runBacktest(t){const s=await a.post(\"/backtest/scoring\",t,{timeout:12e4});return e(s)},async getStrategies(){const t=await a.get(\"/backtest/scoring/strategies\");return e(t)??[]},async getRuns(t=20){const s=await a.get(\"/backtest/scoring/runs\",{params:{limit:t}});return e(s)??[]},async getRun(t){const s=await a.get(`/backtest/scoring/run/${t}`);return e(s)},async runStrategyBacktest(t){const s=await a.post(\"/backtest/strategy/run\",t,{timeout:12e4});return e(s)},async getStrategyTypes(){const t=await a.get(\"/backtest/strategy/strategies\");return e(t)??[]}};async function i(t){const s=await a.get(\"/backtest/turnover\",{params:t});return e(s)}async function u(t){const s=await a.get(\"/backtest/stability\",{params:t});return e(s)}async function g(t){const s=await a.post(\"/backtest/portfolio/run\",t,{timeout:3e4});return e(s)}async function y(t){const s=await a.get(`/backtest/portfolio/${t}/status`);return e(s)}async function k(t){const s=await a.get(`/backtest/portfolio/${t}`);return e(s)}async function f(t,s=1,r=50){const n=await a.get(`/backtest/portfolio/${t}/orders`,{params:{page:s,size:r}});return e(n)}async function b(t=1,s=10){const r=await a.get(\"/backtest/portfolio/list\",{params:{page:t,size:s}});return e(r)}export{i as a,c as b,u as c,k as d,f as e,y as g,b as l,g as r};",
+        "modules/web/dist/assets/backtest-Dnnc2Zff.js:1:import{r as a,u as e}from\"./index-eBMM2Gtn.js\";const c={async runBacktest(t){const s=await a.post(\"/backtest/scoring\",t,{timeout:12e4});return e(s)},async getStrategies(){const t=await a.get(\"/backtest/scoring/strategies\");return e(t)??[]},async getRuns(t=20){const s=await a.get(\"/backtest/scoring/runs\",{params:{limit:t}});return e(s)??[]},async getRun(t){const s=await a.get(`/backtest/scoring/run/${t}`);return e(s)},async runStrategyBacktest(t){const s=await a.post(\"/backtest/strategy/run\",t,{timeout:12e4});return e(s)},async getStrategyTypes(){const t=await a.get(\"/backtest/strategy/strategies\");return e(t)??[]}};async function i(t){const s=await a.get(\"/backtest/turnover\",{params:t});return e(s)}async function u(t){const s=await a.get(\"/backtest/stability\",{params:t});return e(s)}async function g(t){const s=await a.post(\"/backtest/portfolio/run\",t,{timeout:3e4});return e(s)}async function y(t){const s=await a.get(`/backtest/portfolio/${t}/status`);return e(s)}async function k(t){const s=await a.get(`/backtest/portfolio/${t}`);return e(s)}async function f(t,s=1,r=50){const n=await a.get(`/backtest/portfolio/${t}/orders`,{params:{page:s,size:r}});return e(n)}async function b(t=1,s=10){const r=await a.get(\"/backtest/portfolio/list\",{params:{page:t,size:s}});return e(r)}export{i as a,c as b,u as c,k as d,f as e,y as g,b as l,g as r};",
+        "modules/web/src/api/backtest.ts:224:  const res = await request.get<TurnoverResponse>('/backtest/turnover', { params })"
+      ]
+    },
+    "C8": {
+      "actual": 1,
+      "frozen_expected": 1,
+      "match": true,
+      "lines": [
+        "modules/backend-java/src/main/java/com/quant/research/RollingExperimentService.java:473:        summary.put(\"turnover\", \"UNAVAILABLE\");"
+      ]
+    },
+    "C9": {
+      "actual": 6,
+      "frozen_expected": 6,
+      "match": true,
+      "by_file": {
+        "modules/backend-java/src/main/resources/db/migration/V1__baseline_core.sql": 1,
+        "modules/backend-java/src/main/resources/db/migration/V2__research_tables.sql": 3,
+        "modules/backend-java/src/main/resources/db/migration/V7__market_cap_reliability.sql": 1,
+        "modules/database/01_init_schema.sql": 1
+      },
+      "raw": 11,
+      "raw_expected": 11
+    },
+    "C10": {
+      "actual": 114,
+      "frozen_expected": 114,
+      "match": true,
+      "files": 25,
+      "files_expected": 25,
+      "by_file": {
+        "modules/backend-java/src/main/java/com/quant/controller/BacktestTurnoverController.java": 5,
+        "modules/backend-java/src/main/java/com/quant/entity/MarketData.java": 3,
+        "modules/backend-java/src/main/java/com/quant/entity/MarketPriceRaw.java": 1,
+        "modules/backend-java/src/main/java/com/quant/entity/StockTrendScore.java": 2,
+        "modules/backend-java/src/main/java/com/quant/research/RollingExperimentService.java": 2,
+        "modules/backend-java/src/main/java/com/quant/service/BacktestTurnoverService.java": 18,
+        "modules/backend-java/src/main/java/com/quant/service/DataService.java": 4,
+        "modules/backend-java/src/main/java/com/quant/service/HistoricalDataService.java": 13,
+        "modules/backend-java/src/main/java/com/quant/service/MarketService.java": 2,
+        "modules/backend-java/src/main/java/com/quant/service/StockSelectorService.java": 1,
+        "modules/backend-java/src/main/java/com/quant/service/StockTrendScoringService.java": 9,
+        "modules/backend-java/src/main/java/com/quant/service/T1CandidateService.java": 1,
+        "modules/backend-java/src/main/java/com/quant/service/scoring/CrossSectionNeutralizer.java": 4,
+        "modules/backend-java/src/main/java/com/quant/service/scoring/DynamicWeightingService.java": 3,
+        "modules/backend-java/src/main/java/com/quant/service/scoring/LimitUpEcologyService.java": 2,
+        "modules/backend-java/src/main/java/com/quant/service/scoring/MarketEnvironmentAnalyzer.java": 5,
+        "modules/backend-java/src/main/java/com/quant/service/scoring/ScoringRules.java": 6,
+        "modules/backend-java/src/main/java/com/quant/service/scoring/StrategyFormulaRegistry.java": 3,
+        "modules/backend-java/src/main/java/com/quant/service/scoring/TechnicalIndicators.java": 5,
+        "modules/backend-java/src/test/java/com/quant/service/BacktestTurnoverServiceTest.java": 10,
+        "modules/backend-java/src/test/java/com/quant/service/HistoricalDataServiceRawParseTest.java": 1,
+        "modules/backend-java/src/test/java/com/quant/service/HistoricalDataServiceTest.java": 2,
+        "modules/backend-java/src/test/java/com/quant/service/T1CandidateServiceTest.java": 3,
+        "modules/backend-java/src/test/java/com/quant/service/scoring/CodexShortCycleScoringEngineTest.java": 2,
+        "modules/backend-java/src/test/java/com/quant/service/scoring/CrossSectionNeutralizerTest.java": 7
+      }
+    },
+    "C11": {
+      "actual": 45,
+      "frozen_expected": 9,
+      "match": false,
+      "by_file": {
+        "modules/web/src/api/backtest.ts": 10,
+        "modules/web/src/api/data.ts": 1,
+        "modules/web/src/api/market.ts": 2,
+        "modules/web/src/api/research.ts": 3,
+        "modules/web/src/views/backtest/ScoringBacktest.vue": 24,
+        "modules/web/src/views/data/DataManagement.vue": 1,
+        "modules/web/src/views/market/StockDetailView.vue": 1,
+        "modules/web/src/views/market/StockPicker.vue": 1,
+        "modules/web/src/views/research/RollingWalkForward.vue": 2
+      },
+      "raw": 45
+    },
+    "_all_match": false,
+    "_note": "计数不匹配按 prereg §7 只写入报告附录 A，不改变任何判定词；raw = 不排除 target/dist 的原始口径"
+  },
+  "variant_budget": {
+    "by_axis": {
+      "A1": 2,
+      "A2": 4,
+      "A3": 3,
+      "A4": 3,
+      "A5": 3,
+      "A6": 2,
+      "A7": 2,
+      "A8": 2
+    },
+    "frozen_axis_counts": {
+      "A1": 2,
+      "A2": 4,
+      "A3": 3,
+      "A4": 3,
+      "A5": 3,
+      "A6": 2,
+      "A7": 2,
+      "A8": 2
+    },
+    "total_variants": 21,
+    "frozen_total": 21,
+    "declared_checkers": 21,
+    "axis_keys_match": true,
+    "variant_map_complete": true,
+    "variant_ids_unique": true,
+    "variant_ids_all_used": true,
+    "ok": true,
+    "config_frozen_match": true,
+    "config_frozen_detail": {
+      "variants": true,
+      "by_axis": true,
+      "frozen_axis_counts": true,
+      "frozen_total": true,
+      "kill_conditions": true,
+      "count_expectations": true,
+      "verdict_vocab": true,
+      "thresholds": true
+    }
+  },
+  "canaries": {
+    "rows": [
+      {
+        "axis": "A1a",
+        "variant": "V01",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "cln_op_kind": "multi",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：逐对 turnover 直接写成对照值、聚合值同源、panelB 亦对齐 ⟹ 零偏差；INJ：把 pair0 的 turnover 置 0.0（与对照 0.1 差 0.1）",
+        "clean_evidence_digest": "{'tolerance_bit': 1e-12, 'pairs': [{'pair': 0, 'date': '2026-05-06', 'turnover': 0.09999999999999998, 'new_count': 1, 'exit_count': 1, 'intersection': 9, 'control_1_minus_k_over_n': 0.09999999999999998, 'abs_diff': 0.0, ",
+        "inj_evidence_digest": "{'tolerance_bit': 1e-12, 'pairs': [{'pair': 0, 'date': '2026-05-06', 'turnover': 0.0, 'new_count': 1, 'exit_count': 1, 'intersection': 9, 'control_1_minus_k_over_n': 0.09999999999999998, 'abs_diff': 0.09999999999999998, "
+      },
+      {
+        "axis": "A1b",
+        "variant": "V02",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "CONTRACT_MISLABEL",
+        "inj_actual": "CONTRACT_MISLABEL",
+        "passed": true,
+        "cln_op_kind": "src_set",
+        "inj_op_kind": "src_restore",
+        "intent": "CLN：给方法体注入一行候选数守卫 ⟹ 前置条件被强制；INJ：恢复无守卫的方法体",
+        "clean_evidence_digest": "{'declared_precondition_lines': [28], 'declared_text': ['*   <li>换手率 = 1 - |相邻两日 TopN 交集| / topN（两日均有 topN 个候选时）。</li>'], 'guard_lines': [103], 'guard_text': ['double turnover = n > 0 ? 1.0 - (double) intersection.size()",
+        "inj_evidence_digest": "{'declared_precondition_lines': [28], 'declared_text': ['*   <li>换手率 = 1 - |相邻两日 TopN 交集| / topN（两日均有 topN 个候选时）。</li>'], 'guard_lines': [], 'guard_text': [], 'analyze_range': (40, 128), 'early_branch_keys': ['avg_turnov"
+      },
+      {
+        "axis": "A2a",
+        "variant": "V03",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "cln_op_kind": "probe_set",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：载荷值改成与定义值一致（0.0）；INJ：恢复实测的 0.7",
+        "clean_evidence_digest": "{'top_n': 10.0, 'prev_size': 3, 'curr_size': 3, 'intersection': 3, 'reported': 0.0, 'defined_oneway_p_c_k': 0.0, 'abs_diff': 0.0, 'new_count': 0.0, 'exit_count': 0.0, 'avg_max_min': [0.7, 0.7, 0.7], 'reading': '两日候选集合完全相",
+        "inj_evidence_digest": "{'top_n': 10.0, 'prev_size': 3, 'curr_size': 3, 'intersection': 3, 'reported': 0.7, 'defined_oneway_p_c_k': 0.0, 'abs_diff': 0.7, 'new_count': 0.0, 'exit_count': 0.0, 'avg_max_min': [0.7, 0.7, 0.7], 'reading': '两日候选集合完全相"
+      },
+      {
+        "axis": "A2b",
+        "variant": "V04",
+        "clean_expected": "REGISTERED_ONLY",
+        "clean_actual": "REGISTERED_ONLY",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "cln_op_kind": "probe_set",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：偏差降到 0（< 0.10）；INJ：恢复 0.7（偏差 0.35 ≥ 0.10）",
+        "clean_evidence_digest": "{'top_n': 10.0, 'p': 10, 'c': 3, 'intersection': 3, 'reported': 0.35, 'defined_oneway_p_c_k': 0.35, 'abs_diff': 0.0, 'abs_diff_emitted': 0.35, 'threshold_TH_MAT': 0.1, 'threshold_magnitude_line': '实测 0.35 vs 阈值 0.10', 'r",
+        "inj_evidence_digest": "{'top_n': 10.0, 'p': 10, 'c': 3, 'intersection': 3, 'reported': 0.7, 'defined_oneway_p_c_k': 0.35, 'abs_diff': 0.35, 'abs_diff_emitted': 0.35, 'threshold_TH_MAT': 0.1, 'threshold_magnitude_line': '实测 0.35 vs 阈值 0.10', 'r"
+      },
+      {
+        "axis": "A2c",
+        "variant": "V06",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "REGISTERED_ONLY",
+        "inj_actual": "REGISTERED_ONLY",
+        "passed": true,
+        "cln_op_kind": "probe_set",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：响应含机器可读的不可用标记键；INJ：恢复无标记（signal_days<2 且空 daily）",
+        "clean_evidence_digest": "{'one_signal_days': 1.0, 'one_avg_max_min': [0.0, 0.0, 0.0], 'one_daily_len': 0, 'one_keys': 'strategy,start_date,end_date,top_n,signal_days,avg_turnover,max_turnover,min_turnover,daily_turnover,note', 'one_note': '�ź��ղ",
+        "inj_evidence_digest": "{'one_signal_days': 1.0, 'one_avg_max_min': [0.0, 0.0, 0.0], 'one_daily_len': 0, 'one_keys': 'strategy,start_date,end_date,top_n,signal_days,avg_turnover,max_turnover,min_turnover,daily_turnover,note', 'one_note': '�ź��ղ"
+      },
+      {
+        "axis": "A2d",
+        "variant": "V05",
+        "clean_expected": "REGISTERED_ONLY",
+        "clean_actual": "REGISTERED_ONLY",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "cln_op_kind": "probe_map",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：每格 recorded 值等于定义值（err=0）；INJ：把首格偏移 0.5（越过 0.10）",
+        "clean_evidence_digest": "{'threshold_TH_MAT': 0.1, 'grid_n': [8, 10, 12], 'grid_p': [2, 3, 4], 'cells': [{'cell': 0, 'kind': 'both', 'n': 8, 'p': 2, 'c': 2, 'intersection': 2, 'reported': 0.0, 'defined': 0.0, 'err': 0.0, 'err_emitted': 0.75}, {'",
+        "inj_evidence_digest": "{'threshold_TH_MAT': 0.1, 'grid_n': [8, 10, 12], 'grid_p': [2, 3, 4], 'cells': [{'cell': 0, 'kind': 'both', 'n': 8, 'p': 2, 'c': 2, 'intersection': 2, 'reported': 0.5, 'defined': 0.0, 'err': 0.5, 'err_emitted': 0.75}, {'"
+      },
+      {
+        "axis": "A3a",
+        "variant": "V07",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "cln_op_kind": "probe_set",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：不存在「相邻 pair 同日」⟹ 未触发；INJ：恢复实测的 1（同日不同策略被配对）",
+        "clean_evidence_digest": "{'signal_days': 4.0, 'distinct_dates_in_window': 2, 'daily_len': 3, 'strategy_echo': 'ALL', 'pair_dates': '2026-05-01,2026-05-06,2026-05-06', 'pair_turnovers': [1.0, 1.0, 1.0], 'adjacent_same_date': 0, 'avg_turnover': 1.",
+        "inj_evidence_digest": "{'signal_days': 4.0, 'distinct_dates_in_window': 2, 'daily_len': 3, 'strategy_echo': 'ALL', 'pair_dates': '2026-05-01,2026-05-06,2026-05-06', 'pair_turnovers': [1.0, 1.0, 1.0], 'adjacent_same_date': 1, 'avg_turnover': 1."
+      },
+      {
+        "axis": "A3b",
+        "variant": "V08",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "CONTRACT_AMBIGUOUS",
+        "inj_actual": "CONTRACT_AMBIGUOUS",
+        "passed": true,
+        "cln_op_kind": "probe_set",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：两次回显相同（不存在歧义）；INJ：恢复回显 \"ALL\" vs 空串",
+        "clean_evidence_digest": "{'echo_null': 'ALL', 'echo_blank': 'ALL', 'turnovers_identical': 1, 'turnover_first_null': 1.0, 'turnover_first_blank': 1.0, 'signal_days_null': 4.0, 'signal_days_blank': 4.0, 'source_conditions': '过滤 :46 strategy != nul",
+        "inj_evidence_digest": "{'echo_null': 'ALL', 'echo_blank': '', 'turnovers_identical': 1, 'turnover_first_null': 1.0, 'turnover_first_blank': 1.0, 'signal_days_null': 4.0, 'signal_days_blank': 4.0, 'source_conditions': '过滤 :46 strategy != null &"
+      },
+      {
+        "axis": "A3c",
+        "variant": "V09",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "NOT_REACHABLE",
+        "inj_actual": "NOT_REACHABLE",
+        "passed": true,
+        "cln_op_kind": "src_set",
+        "inj_op_kind": "src_restore",
+        "intent": "CLN：源码含 createdAt 比较 ⟹ 「取最新」自证；INJ：恢复无比较的源码",
+        "clean_evidence_digest": "{'createdat_any_mention_lines': [], 'createdat_compare_lines': [58], 'chosen_result_id': 'R_Y', 'expected_if_latest': 'R_Y', 'n_results_same_strategy_same_date': 2, 'turnover': 0.1, 'query_name': 'findByTradeDateBetweenO",
+        "inj_evidence_digest": "{'createdat_any_mention_lines': [], 'createdat_compare_lines': [], 'chosen_result_id': 'R_Y', 'expected_if_latest': 'R_Y', 'n_results_same_strategy_same_date': 2, 'turnover': 0.1, 'query_name': 'findByTradeDateBetweenOrd"
+      },
+      {
+        "axis": "A4a",
+        "variant": "V10",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "cln_op_kind": "multi",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：逐对把 (new, exit) 从满员实测值改成 (turnover×n+1, turnover×n−1) —— 状态确实改变（如 pair0 从 (1,1) 变 (2,0)），但 (new+exit)/2 = turnover×n ⟹ 恒等式仍成立；INJ：把 pair0 的 turnover 置 0.9 ⟹ 重算缺口 |9.0 − 1.0| = 8.0",
+        "clean_evidence_digest": "{'tolerance_bit': 1e-12, 'pairs': [{'pair': 0, 'date': '2026-05-06', 'turnover': 0.1, 'n': 10.0, 'new_count': 2.0, 'exit_count': 0.0, 'lhs': 1.0, 'rhs': 1.0, 'gap_recomputed': 0.0, 'gap_emitted': 0.0, 'emitted_consistent",
+        "inj_evidence_digest": "{'tolerance_bit': 1e-12, 'pairs': [{'pair': 0, 'date': '2026-05-06', 'turnover': 0.9, 'n': 10.0, 'new_count': 1.0, 'exit_count': 1.0, 'lhs': 9.0, 'rhs': 1.0, 'gap_recomputed': 8.0, 'gap_emitted': 0.0, 'emitted_consistent"
+      },
+      {
+        "axis": "A4b",
+        "variant": "V11",
+        "clean_expected": "REGISTERED_ONLY",
+        "clean_actual": "REGISTERED_ONLY",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "cln_op_kind": "probe_set",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：逐日行含规模字段 ⟹ 只登记；INJ：恢复不含（重算缺口 7.0 > 1e-12）",
+        "clean_evidence_digest": "{'turnover': 0.7, 'top_n': 10.0, 'new_count': 0.0, 'exit_count': 0.0, 'lhs_turnover_x_n': 7.0, 'rhs_new_plus_exit_over_2': 0.0, 'gap_recomputed': 7.0, 'gap_emitted': 7.0, 'emitted_consistent': True, 'generic_tolerance': ",
+        "inj_evidence_digest": "{'turnover': 0.7, 'top_n': 10.0, 'new_count': 0.0, 'exit_count': 0.0, 'lhs_turnover_x_n': 7.0, 'rhs_new_plus_exit_over_2': 0.0, 'gap_recomputed': 7.0, 'gap_emitted': 7.0, 'emitted_consistent': True, 'generic_tolerance': "
+      },
+      {
+        "axis": "A4c",
+        "variant": "V12",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "cln_op_kind": "multi",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：回显全对且反解零偏差；INJ：把首格反解偏差置 1.0",
+        "clean_evidence_digest": "{'formula_used': 'n_recovered = |I| / (1 − reported)，|I| = 1（面板 prev={A,B,C,D}, curr={A,E,F,G}）', 'prereg_literal_formula': 'prereg §4 A4c 字面写 `n_recovered = 4/(1−0.75) = 16`，分子用了「集合大小 k=4」；算术上应为 |I| = 1 ⟹ 见附录 A-03', 'fr",
+        "inj_evidence_digest": "{'formula_used': 'n_recovered = |I| / (1 − reported)，|I| = 1（面板 prev={A,B,C,D}, curr={A,E,F,G}）', 'prereg_literal_formula': 'prereg §4 A4c 字面写 `n_recovered = 4/(1−0.75) = 16`，分子用了「集合大小 k=4」；算术上应为 |I| = 1 ⟹ 见附录 A-03', 'fr"
+      },
+      {
+        "axis": "A5a",
+        "variant": "V13",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "REGISTERED_ONLY",
+        "inj_actual": "REGISTERED_ONLY",
+        "passed": true,
+        "cln_op_kind": "probe_set",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：逐日行含全部规模字段；INJ：恢复缺失两键",
+        "clean_evidence_digest": "{'daily_keys': 'trade_date,turnover,new_count,exit_count', 'needed_keys': 'prev_size,curr_size', 'missing_keys': '', 'top_keys': 'strategy,start_date,end_date,top_n,signal_days,avg_turnover,max_turnover,min_turnover,dail",
+        "inj_evidence_digest": "{'daily_keys': 'trade_date,turnover,new_count,exit_count', 'needed_keys': 'prev_size,curr_size', 'missing_keys': 'prev_size,curr_size', 'top_keys': 'strategy,start_date,end_date,top_n,signal_days,avg_turnover,max_turnove"
+      },
+      {
+        "axis": "A5b",
+        "variant": "V14",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "REGISTERED_ONLY",
+        "inj_actual": "REGISTERED_ONLY",
+        "passed": true,
+        "cln_op_kind": "probe_set",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：载荷含结构化口径字段；INJ：恢复只有 note 自由文本",
+        "clean_evidence_digest": "{'top_keys': 'strategy,start_date,end_date,top_n,signal_days,avg_turnover,max_turnover,min_turnover,daily_turnover,note', 'has_structured_basis': 1, 'note_len': 58, 'source_top_level_keys': ['strategy', 'start_date', 'en",
+        "inj_evidence_digest": "{'top_keys': 'strategy,start_date,end_date,top_n,signal_days,avg_turnover,max_turnover,min_turnover,daily_turnover,note', 'has_structured_basis': 0, 'note_len': 58, 'source_top_level_keys': ['strategy', 'start_date', 'en"
+      },
+      {
+        "axis": "A5c",
+        "variant": "V15",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "CONVENTION_DIVERGENCE",
+        "inj_actual": "CONVENTION_DIVERGENCE",
+        "passed": true,
+        "cln_op_kind": "text_set",
+        "inj_op_kind": "text_restore",
+        "intent": "CLN：抹掉 RollingExperimentService 的 UNAVAILABLE 结论 ⟹ 两处不再相反；INJ：恢复两处相反的惯例",
+        "clean_evidence_digest": "{'rolling_unavailable_lines': [], 'rolling_reason_lines': [], 'bts_note_lines': ['modules/backend-java/src/main/java/com/quant/service/BacktestTurnoverService.java:71:            out.put(\"note\", \"信号日不足 2 天，无法计算换手率\");', '",
+        "inj_evidence_digest": "{'rolling_unavailable_lines': ['modules/backend-java/src/main/java/com/quant/research/RollingExperimentService.java:473:        summary.put(\"turnover\", \"UNAVAILABLE\");'], 'rolling_reason_lines': ['modules/backend-java/sr"
+      },
+      {
+        "axis": "A6a",
+        "variant": "V16",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "CONTRACT_AMBIGUOUS",
+        "inj_actual": "CONTRACT_AMBIGUOUS",
+        "passed": true,
+        "cln_op_kind": "text_set",
+        "inj_op_kind": "multi",
+        "intent": "CLN：抹掉「候选替换率 ×100」这一处单位证据 ⟹ 无法证明同名量单位不同；INJ：恢复（同名 avg_turnover 一为分数、一为百分数）",
+        "clean_evidence_digest": "{'semantic_groups': {'market_turnover_sql': ['modules/backend-java/src/main/java/com/quant/service/DataService.java:127:                        AVG(COALESCE(m.turnover_rate, 0)) AS avg_turnover,', 'modules/backend-java/s",
+        "inj_evidence_digest": "{'semantic_groups': {'market_turnover_sql': ['modules/backend-java/src/main/java/com/quant/service/DataService.java:127:                        AVG(COALESCE(m.turnover_rate, 0)) AS avg_turnover,', 'modules/backend-java/s"
+      },
+      {
+        "axis": "A6b",
+        "variant": "V17",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "CONTRACT_AMBIGUOUS",
+        "inj_actual": "CONTRACT_AMBIGUOUS",
+        "passed": true,
+        "cln_op_kind": "text_set",
+        "inj_op_kind": "text_restore",
+        "intent": "CLN：抹掉候选替换率那处的「换手」渲染 ⟹ 同标签只指一种量；INJ：恢复三处并存",
+        "clean_evidence_digest": "{'market_render_lines': ['modules/web/src/views/market/StockDetailView.vue:79:        <div class=\"info-row\"><span class=\"label\">换手率</span><span class=\"val\">{{ detail.turnover_rate != null ? detail.turnover_rate.toFixed(2",
+        "inj_evidence_digest": "{'market_render_lines': ['modules/web/src/views/market/StockDetailView.vue:79:        <div class=\"info-row\"><span class=\"label\">换手率</span><span class=\"val\">{{ detail.turnover_rate != null ? detail.turnover_rate.toFixed(2"
+      },
+      {
+        "axis": "A7a",
+        "variant": "V18",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "cln_op_kind": "multi",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：全部取值标记为在域内、非 NaN/Inf、round4 保序；INJ：把首值标记为越界",
+        "clean_evidence_digest": "{'range': [0.0, 1.0], 'n_values': 46, 'min_value': 0.0, 'max_value': 1.0, 'out_of_range_values': [], 'out_of_range_count': 0, 'nan_values': [], 'nan_count': 0, 'inf_values': [], 'round4_monotone_on_0_1': 1, 'round4_grid_",
+        "inj_evidence_digest": "{'range': [0.0, 1.0], 'n_values': 46, 'min_value': 0.0, 'max_value': 1.0, 'out_of_range_values': [{'i': 0, 'src': 'V01.pair0', 'value': 0.1, 'in_range': 0, 'is_nan': 0, 'is_inf': 0}], 'out_of_range_count': 0, 'nan_values"
+      },
+      {
+        "axis": "A7b",
+        "variant": "V19",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "REGISTERED_ONLY",
+        "inj_actual": "REGISTERED_ONLY",
+        "passed": true,
+        "cln_op_kind": "text_set",
+        "inj_op_kind": "text_set",
+        "intent": "CLN：被审计面存在单双向声明；INJ：恢复无任何声明",
+        "clean_evidence_digest": "{'audited_surface_hits': ['probe: 载荷的换手率按单向口径（不乘 2）'], 'audited_surface_raw_hits_before_cooccurrence_filter': ['modules/web/src/views/backtest/ScoringBacktest.vue:67:      title=\"收益按信号后下一交易日开盘买入、持有期末收盘卖出计算，并扣除双边佣金、卖出税费和双",
+        "inj_evidence_digest": "{'audited_surface_hits': [], 'audited_surface_raw_hits_before_cooccurrence_filter': ['modules/web/src/views/backtest/ScoringBacktest.vue:67:      title=\"收益按信号后下一交易日开盘买入、持有期末收盘卖出计算，并扣除双边佣金、卖出税费和双边滑点。\"'], 'cooccurrence_req"
+      },
+      {
+        "axis": "A8a",
+        "variant": "V20",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "cln_op_kind": "probe_set",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：两次调用逐位相同；INJ：置为不可复现",
+        "clean_evidence_digest": "{'identical': 1, 'run1_avg': 0.0, 'run2_avg': 0.0, 'run1_keys': 'strategy,start_date,end_date,top_n,signal_days,avg_turnover,max_turnover,min_turnover,daily_turnover,note', 'run2_keys': 'strategy,start_date,end_date,top_",
+        "inj_evidence_digest": "{'identical': 0, 'run1_avg': 0.0, 'run2_avg': 0.0, 'run1_keys': 'strategy,start_date,end_date,top_n,signal_days,avg_turnover,max_turnover,min_turnover,daily_turnover,note', 'run2_keys': 'strategy,start_date,end_date,top_"
+      },
+      {
+        "axis": "A8b",
+        "variant": "V21",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "cln_op_kind": "probe_set",
+        "inj_op_kind": "probe_set",
+        "intent": "CLN：两种行序给出相同换手率；INJ：恢复行序依赖",
+        "clean_evidence_digest": "{'turnover_order_XYZ': 0.0, 'turnover_order_ZYX': 0.1, 'changed': 0, 'tie_rank': 10, 'tie_members': 3, 'note': '���� d1={S01..S09,X}��d2 �� rankNo Ϊ 1..9(S01..S09) + 10(X) + 10(Y) + 10(Z)', 'schema_fact': {'rankno_column",
+        "inj_evidence_digest": "{'turnover_order_XYZ': 0.0, 'turnover_order_ZYX': 0.1, 'changed': 1, 'tie_rank': 10, 'tie_members': 3, 'note': '���� d1={S01..S09,X}��d2 �� rankNo Ϊ 1..9(S01..S09) + 10(X) + 10(Y) + 10(Z)', 'schema_fact': {'rankno_column"
+      }
+    ],
+    "checkers": 21,
+    "canaries": 21,
+    "checkers_without_canary": [],
+    "harness_note": "CLN 与 INJ 均作用于归一化上下文（两条期望值可在运行前确定）；CLN 写到检查器实际读取的键；要求 clean != inj",
+    "all_passed": true
+  },
+  "axis_verdicts": {
+    "A1a": "NOT_VIOLATED",
+    "A1b": "CONTRACT_MISLABEL",
+    "A2a": "VIOLATED",
+    "A2b": "VIOLATED",
+    "A2c": "REGISTERED_ONLY",
+    "A2d": "VIOLATED",
+    "A3a": "VIOLATED",
+    "A3b": "CONTRACT_AMBIGUOUS",
+    "A3c": "NOT_REACHABLE",
+    "A4a": "NOT_VIOLATED",
+    "A4b": "VIOLATED",
+    "A4c": "NOT_VIOLATED",
+    "A5a": "REGISTERED_ONLY",
+    "A5b": "REGISTERED_ONLY",
+    "A5c": "CONVENTION_DIVERGENCE",
+    "A6a": "CONTRACT_AMBIGUOUS",
+    "A6b": "CONTRACT_AMBIGUOUS",
+    "A7a": "NOT_VIOLATED",
+    "A7b": "REGISTERED_ONLY",
+    "A8a": "NOT_VIOLATED",
+    "A8b": "VIOLATED"
+  },
+  "axis_variants": {
+    "A1a": "V01",
+    "A1b": "V02",
+    "A2a": "V03",
+    "A2b": "V04",
+    "A2c": "V06",
+    "A2d": "V05",
+    "A3a": "V07",
+    "A3b": "V08",
+    "A3c": "V09",
+    "A4a": "V10",
+    "A4b": "V11",
+    "A4c": "V12",
+    "A5a": "V13",
+    "A5b": "V14",
+    "A5c": "V15",
+    "A6a": "V16",
+    "A6b": "V17",
+    "A7a": "V18",
+    "A7b": "V19",
+    "A8a": "V20",
+    "A8b": "V21"
+  },
+  "axis_evidence": {
+    "A1a": {
+      "tolerance_bit": 1e-12,
+      "pairs": [
+        {
+          "pair": 0,
+          "date": "2026-05-06",
+          "turnover": 0.1,
+          "new_count": 1,
+          "exit_count": 1,
+          "intersection": 9,
+          "control_1_minus_k_over_n": 0.09999999999999998,
+          "abs_diff": 2.7755575615628914e-17,
+          "abs_diff_emitted": 2.7755575615628914e-17,
+          "recomputed_matches_emitted": true
+        },
+        {
+          "pair": 1,
+          "date": "2026-05-07",
+          "turnover": 0.2,
+          "new_count": 2,
+          "exit_count": 2,
+          "intersection": 8,
+          "control_1_minus_k_over_n": 0.19999999999999996,
+          "abs_diff": 5.551115123125783e-17,
+          "abs_diff_emitted": 5.551115123125783e-17,
+          "recomputed_matches_emitted": true
+        }
+      ],
+      "aggregates": {
+        "avg": {
+          "prod": 0.15,
+          "ctrl_from_daily": 0.15000000000000002,
+          "abs_diff": 2.7755575615628914e-17,
+          "abs_diff_emitted": 2.7755575615628914e-17
+        },
+        "max": {
+          "prod": 0.2,
+          "ctrl_from_daily": 0.2,
+          "abs_diff": 0.0,
+          "abs_diff_emitted": 0.0
+        },
+        "min": {
+          "prod": 0.1,
+          "ctrl_from_daily": 0.1,
+          "abs_diff": 0.0,
+          "abs_diff_emitted": 0.0
+        }
+      },
+      "panelB_declared_input_absI_9": {
+        "turnover": 0.1,
+        "control": 0.09999999999999998,
+        "abs_diff": 2.7755575615628914e-17,
+        "keys": "trade_date,turnover,new_count,exit_count"
+      },
+      "panel_design_selfcheck": {
+        "frozen_panelM": "3 日全满员（每日 10 条）⟹ 2 个 pair，|I| 期望 [9, 8]",
+        "panelM_intersections": [
+          9,
+          8
+        ],
+        "panelM_matches": true,
+        "panelB_frozen_input": "d1 = S01..S10；d2 = S01..S09 + S11 ⟹ |I| = 9",
+        "panelB_intersection": 9,
+        "panelB_matches": true
+      },
+      "pair_abs_diff_max": 5.551115123125783e-17,
+      "aggregate_abs_diff_max": 2.7755575615628914e-17,
+      "reading": "满员路径上生产值 == 1 − |I|/n（偏差只来自 round4 的 1e-4 量化前的双精度差，量级 1e-17）；avg/max/min 与逐日值自洽；该轴问的是「声明口径是否被忠实实现」，不涉及短员路径"
+    },
+    "A1b": {
+      "declared_precondition_lines": [
+        28
+      ],
+      "declared_text": [
+        "*   <li>换手率 = 1 - |相邻两日 TopN 交集| / topN（两日均有 topN 个候选时）。</li>"
+      ],
+      "guard_lines": [],
+      "guard_text": [],
+      "analyze_range": [
+        40,
+        128
+      ],
+      "early_branch_keys": [
+        "avg_turnover",
+        "max_turnover",
+        "min_turnover",
+        "daily_turnover",
+        "note"
+      ],
+      "daily_row_keys": [
+        "trade_date",
+        "turnover",
+        "new_count",
+        "exit_count"
+      ],
+      "top_level_keys": [
+        "strategy",
+        "start_date",
+        "end_date",
+        "top_n",
+        "signal_days",
+        "avg_turnover",
+        "max_turnover",
+        "min_turnover",
+        "daily_turnover",
+        "note"
+      ],
+      "early_branch_has_size_key": false,
+      "dividend_line": "BacktestTurnoverService:103  double turnover = n > 0 ? 1.0 - (double) intersection.size() / n : 0.0;",
+      "reading": "javadoc 声明前置条件「两日均有 topN 个候选」，方法体内没有任何把实际候选数与 n 比较的守卫，也没有任何 size 字段 ⟹ 声明了未被强制的前置条件"
+    },
+    "A2a": {
+      "top_n": 10.0,
+      "prev_size": 3,
+      "curr_size": 3,
+      "intersection": 3,
+      "reported": 0.7,
+      "defined_oneway_p_c_k": 0.0,
+      "abs_diff": 0.7,
+      "new_count": 0.0,
+      "exit_count": 0.0,
+      "avg_max_min": [
+        0.7,
+        0.7,
+        0.7
+      ],
+      "reading": "两日候选集合完全相同、new/exit 都是 0（自认无替换），载荷仍报 0.7 = 1 − 3/10；定义值（换手率定义在实际持仓权重上）在等权下为 0.0 ⟹ 实数来自分母是**请求参数**"
+    },
+    "A2b": {
+      "top_n": 10.0,
+      "p": 10,
+      "c": 3,
+      "intersection": 3,
+      "reported": 0.7,
+      "defined_oneway_p_c_k": 0.35,
+      "abs_diff": 0.35,
+      "abs_diff_emitted": 0.35,
+      "threshold_TH_MAT": 0.1,
+      "threshold_magnitude_line": "实测 0.35 vs 阈值 0.10",
+      "reading": "实际候选数 3 < topN 10；载荷把分母钉在 10，定义值按实际规模 3/10 折算 ⟹ 偏差 0.35，远超阈值"
+    },
+    "A2c": {
+      "one_signal_days": 1.0,
+      "one_avg_max_min": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "one_daily_len": 0,
+      "one_keys": "strategy,start_date,end_date,top_n,signal_days,avg_turnover,max_turnover,min_turnover,daily_turnover,note",
+      "one_note": "�ź��ղ��� 2 �죬�޷����㻻����",
+      "one_has_status_key": 0,
+      "zero_signal_days": 0.0,
+      "zero_avg_turnover": 0.0,
+      "zero_daily_len": 0,
+      "zero_keys": "strategy,start_date,end_date,top_n,signal_days,avg_turnover,max_turnover,min_turnover,daily_turnover,note",
+      "zero_strategy_echo": "ALL",
+      "has_status_key": 0,
+      "signal_days_max": 1.0,
+      "daily_len_min": 0,
+      "marker_key_scan": "status / available / basis* / *scope* / *definition*",
+      "reading": "退化分支输出 avg/max/min = 0.0 + 空数组 + 人类可读 note，**无**任何机器可读的不可用标记键；但 signal_days < 2 与空 daily_turnover 联合可推出「0.0 是占位」"
+    },
+    "A2d": {
+      "threshold_TH_MAT": 0.1,
+      "grid_n": [
+        8,
+        10,
+        12
+      ],
+      "grid_p": [
+        2,
+        3,
+        4
+      ],
+      "cells": [
+        {
+          "cell": 0,
+          "kind": "both",
+          "n": 8,
+          "p": 2,
+          "c": 2,
+          "intersection": 2,
+          "reported": 0.75,
+          "defined": 0.0,
+          "err": 0.75,
+          "err_emitted": 0.75
+        },
+        {
+          "cell": 1,
+          "kind": "both",
+          "n": 8,
+          "p": 3,
+          "c": 3,
+          "intersection": 3,
+          "reported": 0.625,
+          "defined": 0.0,
+          "err": 0.625,
+          "err_emitted": 0.625
+        },
+        {
+          "cell": 2,
+          "kind": "both",
+          "n": 8,
+          "p": 4,
+          "c": 4,
+          "intersection": 4,
+          "reported": 0.5,
+          "defined": 0.0,
+          "err": 0.5,
+          "err_emitted": 0.5
+        },
+        {
+          "cell": 3,
+          "kind": "both",
+          "n": 10,
+          "p": 2,
+          "c": 2,
+          "intersection": 2,
+          "reported": 0.8,
+          "defined": 0.0,
+          "err": 0.8,
+          "err_emitted": 0.8
+        },
+        {
+          "cell": 4,
+          "kind": "both",
+          "n": 10,
+          "p": 3,
+          "c": 3,
+          "intersection": 3,
+          "reported": 0.7,
+          "defined": 0.0,
+          "err": 0.7,
+          "err_emitted": 0.7
+        },
+        {
+          "cell": 5,
+          "kind": "both",
+          "n": 10,
+          "p": 4,
+          "c": 4,
+          "intersection": 4,
+          "reported": 0.6,
+          "defined": 0.0,
+          "err": 0.6,
+          "err_emitted": 0.6
+        },
+        {
+          "cell": 6,
+          "kind": "both",
+          "n": 12,
+          "p": 2,
+          "c": 2,
+          "intersection": 2,
+          "reported": 0.8333,
+          "defined": 0.0,
+          "err": 0.8333,
+          "err_emitted": 0.8333
+        },
+        {
+          "cell": 7,
+          "kind": "both",
+          "n": 12,
+          "p": 3,
+          "c": 3,
+          "intersection": 3,
+          "reported": 0.75,
+          "defined": 0.0,
+          "err": 0.75,
+          "err_emitted": 0.75
+        },
+        {
+          "cell": 8,
+          "kind": "both",
+          "n": 12,
+          "p": 4,
+          "c": 4,
+          "intersection": 4,
+          "reported": 0.6667,
+          "defined": 0.0,
+          "err": 0.6667,
+          "err_emitted": 0.6667
+        },
+        {
+          "cell": 9,
+          "kind": "one",
+          "n": 8,
+          "p": 8,
+          "c": 2,
+          "intersection": 2,
+          "reported": 0.75,
+          "defined": 0.375,
+          "err": 0.375,
+          "err_emitted": 0.375
+        },
+        {
+          "cell": 10,
+          "kind": "one",
+          "n": 8,
+          "p": 8,
+          "c": 3,
+          "intersection": 3,
+          "reported": 0.625,
+          "defined": 0.3125,
+          "err": 0.3125,
+          "err_emitted": 0.3125
+        },
+        {
+          "cell": 11,
+          "kind": "one",
+          "n": 8,
+          "p": 8,
+          "c": 4,
+          "intersection": 4,
+          "reported": 0.5,
+          "defined": 0.25,
+          "err": 0.25,
+          "err_emitted": 0.25
+        },
+        {
+          "cell": 12,
+          "kind": "one",
+          "n": 10,
+          "p": 10,
+          "c": 2,
+          "intersection": 2,
+          "reported": 0.8,
+          "defined": 0.4,
+          "err": 0.4,
+          "err_emitted": 0.4
+        },
+        {
+          "cell": 13,
+          "kind": "one",
+          "n": 10,
+          "p": 10,
+          "c": 3,
+          "intersection": 3,
+          "reported": 0.7,
+          "defined": 0.35,
+          "err": 0.35,
+          "err_emitted": 0.35
+        },
+        {
+          "cell": 14,
+          "kind": "one",
+          "n": 10,
+          "p": 10,
+          "c": 4,
+          "intersection": 4,
+          "reported": 0.6,
+          "defined": 0.3,
+          "err": 0.3,
+          "err_emitted": 0.3
+        },
+        {
+          "cell": 15,
+          "kind": "one",
+          "n": 12,
+          "p": 12,
+          "c": 2,
+          "intersection": 2,
+          "reported": 0.8333,
+          "defined": 0.4166666666666667,
+          "err": 0.41663333333333336,
+          "err_emitted": 0.41663333333333336
+        },
+        {
+          "cell": 16,
+          "kind": "one",
+          "n": 12,
+          "p": 12,
+          "c": 3,
+          "intersection": 3,
+          "reported": 0.75,
+          "defined": 0.375,
+          "err": 0.375,
+          "err_emitted": 0.375
+        },
+        {
+          "cell": 17,
+          "kind": "one",
+          "n": 12,
+          "p": 12,
+          "c": 4,
+          "intersection": 4,
+          "reported": 0.6667,
+          "defined": 0.3333333333333333,
+          "err": 0.33336666666666664,
+          "err_emitted": 0.33336666666666664
+        }
+      ],
+      "n_cells": 18,
+      "cells_over_threshold": 18,
+      "min_err": 0.25,
+      "max_err": 0.8333,
+      "err_by_kind": {
+        "both": [
+          0.5,
+          0.6,
+          0.625,
+          0.6667,
+          0.7,
+          0.75,
+          0.8,
+          0.8333
+        ],
+        "one": [
+          0.25,
+          0.3,
+          0.3125,
+          0.333367,
+          0.35,
+          0.375,
+          0.4,
+          0.416633
+        ]
+      },
+      "reading": "±20% 的 topN 与 p/c 网格上，偏差只由「分母是请求参数」决定，对 n 的取值敏感度远低于对短员规模的敏感度；双侧短员的偏差 = 1 − p/n，单侧 = (n−c)/(2n)"
+    },
+    "A3a": {
+      "signal_days": 4.0,
+      "distinct_dates_in_window": 2,
+      "daily_len": 3,
+      "strategy_echo": "ALL",
+      "pair_dates": "2026-05-01,2026-05-06,2026-05-06",
+      "pair_turnovers": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "adjacent_same_date": 1,
+      "avg_turnover": 1.0,
+      "control_within_strategy": 0.0,
+      "controller_default": "BacktestTurnoverController: @RequestParam(required=false) String strategy ⟹ 默认路径 strategy=null",
+      "reading": "4 条 SelectorResult = 2 策略 × 2 日；载荷把「同一天的两个不同策略」当成相邻项配对，len(daily) = 策略数×日数 − 1 = 3，而窗口内只有 2 个日期；严格按同策略相邻日配对时各策略两日集合完全相同 ⟹ 换手率 0.0"
+    },
+    "A3b": {
+      "echo_null": "ALL",
+      "echo_blank": "",
+      "turnovers_identical": 1,
+      "turnover_first_null": 1.0,
+      "turnover_first_blank": 1.0,
+      "signal_days_null": 4.0,
+      "signal_days_blank": 4.0,
+      "source_conditions": "过滤 :46 strategy != null && !strategy.isBlank()；回显 :60 strategy != null ? strategy : \"ALL\"",
+      "reading": "两者进入同一条混合策略路径（isBlank 与 null 都不过滤）⟹ 计算逐位相同；但回显分别是 \"ALL\" 与 空串 ⟹ 读者无法从载荷判断这两次调用是同一口径还是不同口径"
+    },
+    "A3c": {
+      "createdat_any_mention_lines": [],
+      "createdat_compare_lines": [],
+      "chosen_result_id": "R_Y",
+      "expected_if_latest": "R_Y",
+      "n_results_same_strategy_same_date": 2,
+      "turnover": 0.1,
+      "query_name": "findByTradeDateBetweenOrderByCreatedAtDesc",
+      "reading": "「同策略同日取最新」完全依赖查询方法名里的 ORDER BY createdAt DESC，代码自身不做任何 createdAt 比较 ⟹ 载荷无法自证；并列 createdAt 的取舍在无 DB 的本机不可构造，故该轴不可测"
+    },
+    "A4a": {
+      "tolerance_bit": 1e-12,
+      "pairs": [
+        {
+          "pair": 0,
+          "date": "2026-05-06",
+          "turnover": 0.1,
+          "n": 10.0,
+          "new_count": 1.0,
+          "exit_count": 1.0,
+          "lhs": 1.0,
+          "rhs": 1.0,
+          "gap_recomputed": 0.0,
+          "gap_emitted": 0.0,
+          "emitted_consistent": true
+        },
+        {
+          "pair": 1,
+          "date": "2026-05-07",
+          "turnover": 0.2,
+          "n": 10.0,
+          "new_count": 2.0,
+          "exit_count": 2.0,
+          "lhs": 2.0,
+          "rhs": 2.0,
+          "gap_recomputed": 0.0,
+          "gap_emitted": 0.0,
+          "emitted_consistent": true
+        },
+        {
+          "pair": 2,
+          "date": "2026-05-08",
+          "turnover": 0.3,
+          "n": 10.0,
+          "new_count": 3.0,
+          "exit_count": 3.0,
+          "lhs": 3.0,
+          "rhs": 3.0,
+          "gap_recomputed": 0.0,
+          "gap_emitted": 0.0,
+          "emitted_consistent": true
+        }
+      ],
+      "max_gap_recomputed": 0.0,
+      "identity": "满员等权下 单向换手率 = (new + exit)/(2n) ⟹ turnover × n = (new + exit)/2",
+      "panel_design_selfcheck": {
+        "frozen_requirement": "全满员面板，每个 pair 的 |I| ∈ {7,8,9} ⟹ turnover ∈ {0.1,0.2,0.3}",
+        "pair_intersections": [
+          9.0,
+          8.0,
+          7.0
+        ],
+        "pair_turnovers": [
+          0.1,
+          0.2,
+          0.3
+        ],
+        "intersections_in_frozen_set": true,
+        "turnovers_in_frozen_set": true
+      },
+      "judged_on": "由生产载荷字段 (turnover, top_n, new_count, exit_count) 在编排侧重算的 gap；探针自报的 gap 仅作并列交叉核对",
+      "reading": "满员路径上恒等式逐位成立（|I| ∈ {7,8,9} ⟹ turnover ∈ {0.1,0.2,0.3}）（A 档纯算术推论）"
+    },
+    "A4b": {
+      "turnover": 0.7,
+      "top_n": 10.0,
+      "new_count": 0.0,
+      "exit_count": 0.0,
+      "lhs_turnover_x_n": 7.0,
+      "rhs_new_plus_exit_over_2": 0.0,
+      "gap_recomputed": 7.0,
+      "gap_emitted": 7.0,
+      "emitted_consistent": true,
+      "generic_tolerance": 1e-12,
+      "has_size_field": 0,
+      "daily_keys": "trade_date,turnover,new_count,exit_count",
+      "size_key_candidates": [
+        "prev_size",
+        "curr_size",
+        "candidate_count",
+        "prev_n",
+        "curr_n"
+      ],
+      "reading": "同一面板在短员日下 lhs = 7.0、rhs = 0.0（new/exit 都是 0）⟹ 恒等式破裂；逐日行的 4 键不含任何候选规模字段 ⟹ 读者无法从载荷察觉分母不是当日集合大小"
+    },
+    "A4c": {
+      "formula_used": "n_recovered = |I| / (1 − reported)，|I| = 1（面板 prev={A,B,C,D}, curr={A,E,F,G}）",
+      "prereg_literal_formula": "prereg §4 A4c 字面写 `n_recovered = 4/(1−0.75) = 16`，分子用了「集合大小 k=4」；算术上应为 |I| = 1 ⟹ 见附录 A-03",
+      "frozen_literal_values": [
+        40.00000000000001,
+        40.00000000000001,
+        40.00000000000001,
+        12.001200120012,
+        40.00000000000001,
+        16.0
+      ],
+      "tolerance_bit": 1e-12,
+      "judged_cells": [
+        {
+          "cell": 0,
+          "input_topN": "null",
+          "echo_top_n": 10.0,
+          "reported": 0.9,
+          "intersection": 1.0,
+          "n_recovered": 10.000000000000002,
+          "n_rec_absdiff": 1.7763568394002505e-15,
+          "n_recovered_frozen_literal": 40.00000000000001,
+          "echo_match": 1,
+          "exact_capable": 1
+        },
+        {
+          "cell": 1,
+          "input_topN": "0",
+          "echo_top_n": 10.0,
+          "reported": 0.9,
+          "intersection": 1.0,
+          "n_recovered": 10.000000000000002,
+          "n_rec_absdiff": 1.7763568394002505e-15,
+          "n_recovered_frozen_literal": 40.00000000000001,
+          "echo_match": 1,
+          "exact_capable": 1
+        },
+        {
+          "cell": 2,
+          "input_topN": "-5",
+          "echo_top_n": 10.0,
+          "reported": 0.9,
+          "intersection": 1.0,
+          "n_recovered": 10.000000000000002,
+          "n_rec_absdiff": 1.7763568394002505e-15,
+          "n_recovered_frozen_literal": 40.00000000000001,
+          "echo_match": 1,
+          "exact_capable": 1
+        },
+        {
+          "cell": 4,
+          "input_topN": "10",
+          "echo_top_n": 10.0,
+          "reported": 0.9,
+          "intersection": 1.0,
+          "n_recovered": 10.000000000000002,
+          "n_rec_absdiff": 1.7763568394002505e-15,
+          "n_recovered_frozen_literal": 40.00000000000001,
+          "echo_match": 1,
+          "exact_capable": 1
+        },
+        {
+          "cell": 5,
+          "input_topN": "4",
+          "echo_top_n": 4.0,
+          "reported": 0.75,
+          "intersection": 1.0,
+          "n_recovered": 4.0,
+          "n_rec_absdiff": 0.0,
+          "n_recovered_frozen_literal": 16.0,
+          "echo_match": 1,
+          "exact_capable": 1
+        }
+      ],
+      "descriptive_cells_excluded": [
+        {
+          "cell": 3,
+          "input_topN": "3",
+          "echo_top_n": 3.0,
+          "reported": 0.6667,
+          "intersection": 1.0,
+          "n_recovered": 3.000300030003,
+          "n_rec_absdiff": 0.0003000300029998293,
+          "n_recovered_frozen_literal": 12.001200120012,
+          "echo_match": 1,
+          "exact_capable": 0
+        }
+      ],
+      "max_absdiff_judged": 1.7763568394002505e-15,
+      "excluded_reason": "topN=3 时 |I|/n = 1/3 在 round4 的 1e-4 量化下无法精确反解 ⟹ 该格只作描述（附录 A-04），不参与判定",
+      "reading": "null/0/-5 被钳位到 10 并回显 top_n = 10；反解出的分母与回显逐位一致 ⟹ 分母对读者透明"
+    },
+    "A5a": {
+      "daily_keys": "trade_date,turnover,new_count,exit_count",
+      "needed_keys": "prev_size,curr_size",
+      "missing_keys": "prev_size,curr_size",
+      "top_keys": "strategy,start_date,end_date,top_n,signal_days,avg_turnover,max_turnover,min_turnover,daily_turnover,note",
+      "source_daily_row_keys": [
+        "trade_date",
+        "turnover",
+        "new_count",
+        "exit_count"
+      ],
+      "early_branch_daily_keys": [],
+      "reading": "逐日行只有 trade_date / turnover / new_count / exit_count 四键；缺少 prev_size / curr_size ⟹ 读者只能反解出分母（A4c），无法直接看到两日实际规模"
+    },
+    "A5b": {
+      "top_keys": "strategy,start_date,end_date,top_n,signal_days,avg_turnover,max_turnover,min_turnover,daily_turnover,note",
+      "has_structured_basis": 0,
+      "note_len": 58,
+      "source_top_level_keys": [
+        "strategy",
+        "start_date",
+        "end_date",
+        "top_n",
+        "signal_days",
+        "avg_turnover",
+        "max_turnover",
+        "min_turnover",
+        "daily_turnover",
+        "note"
+      ],
+      "source_early_branch_keys": [
+        "avg_turnover",
+        "max_turnover",
+        "min_turnover",
+        "daily_turnover",
+        "note"
+      ],
+      "pattern": "basis|definition|metric_scope|convention|one_way|round_trip|口径",
+      "reading": "载荷只有 note 一段人类自由文本（声明幸存者偏差），没有任何机器可读的口径/单位/方向字段 ⟹ 「口径须声明到可判断」的要求只被部分满足（mention 但 implementation incomplete）"
+    },
+    "A5c": {
+      "rolling_unavailable_lines": [
+        "modules/backend-java/src/main/java/com/quant/research/RollingExperimentService.java:473:        summary.put(\"turnover\", \"UNAVAILABLE\");"
+      ],
+      "rolling_reason_lines": [
+        "modules/backend-java/src/main/java/com/quant/research/RollingExperimentService.java:474:        summary.put(\"turnover_note\", \"换手需组合执行口径（MP-020/021 回测与模拟账户）才可评估，本研究不产生持仓序列\");"
+      ],
+      "bts_note_lines": [
+        "modules/backend-java/src/main/java/com/quant/service/BacktestTurnoverService.java:71:            out.put(\"note\", \"信号日不足 2 天，无法计算换手率\");",
+        "modules/backend-java/src/main/java/com/quant/service/BacktestTurnoverService.java:127:        out.put(\"note\", \"换手率 = 1 - 相邻日 TopN 交集 / topN；衡量候选集合变动程度，高换手意味候选不稳定；存在幸存者偏差\");"
+      ],
+      "bts_note_text": [
+        "out.put(\"note\", \"信号日不足 2 天，无法计算换手率\");",
+        "out.put(\"note\", \"换手率 = 1 - 相邻日 TopN 交集 / topN；衡量候选集合变动程度，高换手意味候选不稳定；存在幸存者偏差\");"
+      ],
+      "bts_any_unavailable_marker": [],
+      "analyze_signature": "analyze(String strategy, LocalDate startDate, LocalDate endDate, Integer topN) —— 无任何持仓/组合入参",
+      "bts_reports_numeric_turnover": 0.7,
+      "reading": "RollingExperimentService 明确写「换手需组合执行口径（MP-020/021）才可评估，本研究不产生持仓序列」并输出 UNAVAILABLE；BacktestTurnoverService 在同样没有持仓序列的前提下输出数值换手率 ⟹ 项目内两处惯例结论相反（两处各自都非「错」，只是口径不同）"
+    },
+    "A6a": {
+      "semantic_groups": {
+        "market_turnover_sql": [
+          "modules/backend-java/src/main/java/com/quant/service/DataService.java:127:                        AVG(COALESCE(m.turnover_rate, 0)) AS avg_turnover,",
+          "modules/backend-java/src/main/java/com/quant/service/DataService.java:168:                    ROUND(r.avg_turnover, 2) AS avg_turnover,",
+          "modules/backend-java/src/main/java/com/quant/service/DataService.java:177:                        0.25 * LEAST(GREATEST(r.avg_turnover, 0) / 12, 1) +",
+          "modules/backend-java/src/main/java/com/quant/service/DataService.java:209:            item.put(\"avg_turnover\", doubleValue(row[7]));"
+        ],
+        "candidate_replacement_rate_ts": [
+          "modules/web/src/api/backtest.ts:211:  avg_turnover: number"
+        ],
+        "log_mv_from_turnover": [
+          "modules/backend-java/src/main/java/com/quant/service/scoring/CrossSectionNeutralizer.java:55:    public static final String LOG_MV_FROM_TURNOVER = \"turnover_amount\";",
+          "modules/backend-java/src/main/java/com/quant/service/scoring/CrossSectionNeutralizer.java:61:    public static final String REL_FLOAT_CAP_APPROX = \"FLOAT_CAP_APPROX\";",
+          "modules/backend-java/src/main/java/com/quant/service/scoring/CrossSectionNeutralizer.java:65:            \"MARKET_CAP_RELIABILITY_INSUFFICIENT: skip MV neutralization for UNKNOWN_LEGACY/FLOAT_CAP_APPROX\";",
+          "modules/backend-java/src/main/java/com/quant/service/scoring/CrossSectionNeutralizer.java:68:     * 仅官方总市值口径视为可靠；amount/turnover 推算为 FLOAT_CAP_APPROX / UNKNOWN_LEGACY（MP-025），",
+          "modules/backend-java/src/main/java/com/quant/service/scoring/CrossSectionNeutralizer.java:89:        if (LOG_MV_FROM_TOTAL_MV.equals(source) || LOG_MV_FROM_TURNOVER.equals(source)) {",
+          "modules/backend-java/src/main/java/com/quant/service/scoring/CrossSectionNeutralizer.java:93:            return REL_FLOAT_CAP_APPROX;",
+          "modules/backend-java/src/main/java/com/quant/service/scoring/CrossSectionNeutralizer.java:277:                return new LogMvEstimate(Math.log(Math.max(mv, 1.0)), LOG_MV_FROM_TURNOVER, REL_FLOAT_CAP_APPROX);",
+          "modules/backend-java/src/main/java/com/quant/service/scoring/CrossSectionNeutralizer.java:283:            return new LogMvEstimate(Math.log(Math.max(notional, 1.0)), LOG_MV_FROM_NOTIONAL, REL_FLOAT_CAP_APPROX);",
+          "modules/backend-java/src/main/java/com/quant/service/scoring/CrossSectionNeutralizer.java:285:        return new LogMvEstimate(Math.log(Math.max(avgAmount20, 1.0)), LOG_MV_FROM_AVG_AMOUNT, REL_FLOAT_CAP_APPROX);"
+        ],
+        "rolling_unavailable": [
+          "modules/backend-java/src/main/java/com/quant/research/RollingExperimentService.java:473:        summary.put(\"turnover\", \"UNAVAILABLE\");",
+          "modules/backend-java/src/main/java/com/quant/research/RollingExperimentService.java:474:        summary.put(\"turnover_note\", \"换手需组合执行口径（MP-020/021 回测与模拟账户）才可评估，本研究不产生持仓序列\");"
+        ]
+      },
+      "n_semantic_groups_present": 4,
+      "unit_fraction_hits": [
+        "modules/web/src/views/backtest/ScoringBacktest.vue:484:              <span>平均换手：{{ (turnover.avg_turnover * 100).toFixed(2) }}%</span>"
+      ],
+      "unit_percent_hits": [
+        "modules/web/src/views/data/DataManagement.vue:293:            <template #default=\"{ row }\">{{ formatNumber(row.avg_turnover, 2) }}%</template>",
+        "modules/web/src/views/market/StockDetailView.vue:79:        <div class=\"info-row\"><span class=\"label\">换手率</span><span class=\"val\">{{ detail.turnover_rate != null ? detail.turnover_rate.toFixed(2) + '%' : '--' }}</span></div>"
+      ],
+      "turnover_java_hits_C10": 114,
+      "turnover_java_files_C10": 25,
+      "reading": "同名 avg_turnover 至少两种量：DataService 的 SQL AVG(turnover_rate)（市场换手率，%）与 TurnoverResponse.avg_turnover（候选替换率，分数，前端 ×100）；另有 CrossSectionNeutralizer 把 turnover_amount 当市值推算来源"
+    },
+    "A6b": {
+      "market_render_lines": [
+        "modules/web/src/views/market/StockDetailView.vue:79:        <div class=\"info-row\"><span class=\"label\">换手率</span><span class=\"val\">{{ detail.turnover_rate != null ? detail.turnover_rate.toFixed(2) + '%' : '--' }}</span></div>"
+      ],
+      "candidate_render_lines": [
+        "modules/web/src/views/backtest/ScoringBacktest.vue:479:        <el-collapse-item title=\"候选换手率分析\" name=\"turnover\">",
+        "modules/web/src/views/backtest/ScoringBacktest.vue:480:          <el-button type=\"primary\" size=\"small\" :loading=\"turnoverLoading\" @click=\"runTurnover\">分析换手率</el-button>",
+        "modules/web/src/views/backtest/ScoringBacktest.vue:484:              <span>平均换手：{{ (turnover.avg_turnover * 100).toFixed(2) }}%</span>",
+        "modules/web/src/views/backtest/ScoringBacktest.vue:490:              <el-table-column label=\"换手率\" min-width=\"100\">"
+      ],
+      "data_render_lines": [
+        "modules/web/src/views/data/DataManagement.vue:292:          <el-table-column label=\"均换手率\" min-width=\"100\" sortable>",
+        "modules/web/src/views/data/DataManagement.vue:356:  formula: '35%成交额规模 + 25%换手率 + 25%量能放大 + 15%上涨天数占比',"
+      ],
+      "all_web_huanshou_hits": [
+        "modules/web/src/views/backtest/ScoringBacktest.vue:479:        <el-collapse-item title=\"候选换手率分析\" name=\"turnover\">",
+        "modules/web/src/views/backtest/ScoringBacktest.vue:480:          <el-button type=\"primary\" size=\"small\" :loading=\"turnoverLoading\" @click=\"runTurnover\">分析换手率</el-button>",
+        "modules/web/src/views/backtest/ScoringBacktest.vue:484:              <span>平均换手：{{ (turnover.avg_turnover * 100).toFixed(2) }}%</span>",
+        "modules/web/src/views/backtest/ScoringBacktest.vue:490:              <el-table-column label=\"换手率\" min-width=\"100\">",
+        "modules/web/src/views/data/DataManagement.vue:292:          <el-table-column label=\"均换手率\" min-width=\"100\" sortable>",
+        "modules/web/src/views/data/DataManagement.vue:356:  formula: '35%成交额规模 + 25%换手率 + 25%量能放大 + 15%上涨天数占比',",
+        "modules/web/src/views/market/StockDetailView.vue:79:        <div class=\"info-row\"><span class=\"label\">换手率</span><span class=\"val\">{{ detail.turnover_rate != null ? detail.turnover_rate.toFixed(2) + '%' : '--' }}</span></div>",
+        "modules/web/src/views/market/StockPicker.vue:711:    turnover_amount: '换手率×成交额',"
+      ],
+      "reading": "StockDetailView 的「换手率」= 个股市场换手率 turnover_rate（%）；ScoringBacktest 的「平均换手/最高/最低」= 候选替换率 avg_turnover（分数 ×100）；DataManagement 的「换手率」= 市场换手率 ⟹ 同一中文标签指代两种量"
+    },
+    "A7a": {
+      "range": [
+        0.0,
+        1.0
+      ],
+      "n_values": 46,
+      "min_value": 0.0,
+      "max_value": 1.0,
+      "out_of_range_values": [],
+      "out_of_range_count": 0,
+      "nan_values": [],
+      "nan_count": 0,
+      "inf_values": [],
+      "round4_monotone_on_0_1": 1,
+      "round4_grid_values": 10001,
+      "sources_covered": [
+        "V01",
+        "V03",
+        "V04",
+        "V05",
+        "V06",
+        "V07",
+        "V09",
+        "V10",
+        "V12"
+      ],
+      "reading": "值域由构造保证（|I|/n ∈ [0,1]），但 round4 的 NaN→0.0 / ±Inf→饱和 是实测项：本轮全部取值实测落在 [0,1]、无 NaN/±Inf、round4 在 0..1 网格上保序"
+    },
+    "A7b": {
+      "audited_surface_hits": [],
+      "audited_surface_raw_hits_before_cooccurrence_filter": [
+        "modules/web/src/views/backtest/ScoringBacktest.vue:67:      title=\"收益按信号后下一交易日开盘买入、持有期末收盘卖出计算，并扣除双边佣金、卖出税费和双边滑点。\""
+      ],
+      "cooccurrence_requirement": "命中行须同行情含 [Tt]urnover|换手（被测量的是「对换手的单向/双向声明」）",
+      "scan_scope": "被审计面：BacktestTurnoverService.java + backtest.ts + 三个前端标签",
+      "pattern": "one-way|two-way|单向|双向|round-trip|双边|归一约定",
+      "modules_wide_hits_disclosed": [
+        "modules/compute-python/paper/watch/oms.py:1:\"\"\"持久化本地 OMS：幂等订单、单向状态机、柜台状态归一化。\"\"\"",
+        "modules/compute-python/paper/watch/oms.py:44:# 单向状态机（fail-closed）：未列出的边一律拒绝。因此必须以「柜台可能发出什么」为准，",
+        "modules/web/src/views/backtest/ScoringBacktest.vue:67:      title=\"收益按信号后下一交易日开盘买入、持有期末收盘卖出计算，并扣除双边佣金、卖出税费和双边滑点。\""
+      ],
+      "prereg_criterion_has_no_convention": "判据来源（arXiv:2606.08285）亦未给出单向/双向的归一约定 ⟹ 按 prereg 只登记，不判死",
+      "value_relation": "载荷的 1 − |I|/n 是**单向**替换率；判据来源 Eq.(3) 的 Σ|Δw| 是**双向**；两者相差 2 倍，而载荷与文档都没有声明采用哪一种"
+    },
+    "A8a": {
+      "identical": 1,
+      "run1_avg": 0.0,
+      "run2_avg": 0.0,
+      "run1_keys": "strategy,start_date,end_date,top_n,signal_days,avg_turnover,max_turnover,min_turnover,daily_turnover,note",
+      "run2_keys": "strategy,start_date,end_date,top_n,signal_days,avg_turnover,max_turnover,min_turnover,daily_turnover,note",
+      "reading": "无随机性、无时钟依赖 ⟹ 逐位可复现"
+    },
+    "A8b": {
+      "turnover_order_XYZ": 0.0,
+      "turnover_order_ZYX": 0.1,
+      "changed": 1,
+      "tie_rank": 10,
+      "tie_members": 3,
+      "note": "���� d1={S01..S09,X}��d2 �� rankNo Ϊ 1..9(S01..S09) + 10(X) + 10(Y) + 10(Z)",
+      "schema_fact": {
+        "rankno_column_lines": [
+          21,
+          34
+        ],
+        "unique_constraint_on_rankno_lines": [],
+        "writer_rank_lines": [
+          69,
+          72
+        ]
+      },
+      "reachability_caveat": "ProgressiveResultWriter 赋唯一 rank=1..N；其它插入路径（OversaveReboundScoringService / UnifiedScoringService / saveItemIfAbsent）是否产生并列 rankNo **本轮不判定** ⟹ 若 changed，须同时登记「可达性未定」",
+      "reading": "同 rankNo 三只证券的相对顺序由查询返回顺序决定，`.limit(n)` 取到的成员随之改变，换手率从 0.0 变为 0.1 ⟹ 载荷取决于数据库未钉住的行序"
+    }
+  },
+  "verdict_vocab_violations": [],
+  "kill_conditions_fired": {
+    "K1": true,
+    "K2": true,
+    "K3": true,
+    "K4": true,
+    "K5": true,
+    "K6": true,
+    "K7": true,
+    "K8": false,
+    "K9": false,
+    "K10": false
+  },
+  "h0_alive": false,
+  "h0_alive_definition": "K1 与 K2 与 K3 全部未触发（prereg §6.2 冻结）",
+  "total_verdict": "REJECTED",
+  "total_verdict_reason": "H0 被杀：K1/K2/K3 触发",
+  "verdict_synthesis_rule": "按序短路：K8/K9/K10 -> INCONCLUSIVE；K1/K2/K3 -> REJECTED；K4/K5 -> CONTRACT_MISLABEL；K6 -> CONTRACT_AMBIGUOUS；K7 -> REGISTERED_ONLY；否则 NOT_VIOLATED",
+  "finished_at": "2026-09-14T21:57:54.663025"
+}

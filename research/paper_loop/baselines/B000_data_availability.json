@@ -1,0 +1,524 @@
+{
+  "probe_time": "2026-09-14T18:23:35",
+  "db": {
+    "host": "localhost",
+    "port": 3306,
+    "database": "quant_db",
+    "server": "8.0.41"
+  },
+  "tables_approx_rows": {
+    "market_data": 2282787,
+    "market_price_raw": 0,
+    "adjust_factor": 0,
+    "stock_info": 5336,
+    "security_master_history": 0,
+    "trading_calendar": 485,
+    "index_quote": 1923,
+    "technical_indicators": 1530765,
+    "stock_financial_snapshot": 0,
+    "selector_result": 66,
+    "selector_result_item": 4834,
+    "t1_candidate": 7,
+    "backtest_run": 1,
+    "label_snapshot": 0,
+    "feature_snapshot_row": 0,
+    "stock_trend_score": 3328,
+    "stock_multi_dim_score": 0
+  },
+  "market_data": {
+    "rows": 2455536,
+    "distinct_codes": 5555,
+    "distinct_dates": 5411,
+    "min_date": "2003-12-16",
+    "max_date": "2026-09-07",
+    "duplicate_key_rows_sample": [
+      {
+        "code": "920000",
+        "date": "2025-09-22",
+        "n": 2
+      },
+      {
+        "code": "920000",
+        "date": "2025-09-23",
+        "n": 2
+      },
+      {
+        "code": "920000",
+        "date": "2025-09-24",
+        "n": 2
+      },
+      {
+        "code": "920000",
+        "date": "2025-09-25",
+        "n": 2
+      },
+      {
+        "code": "920000",
+        "date": "2025-09-26",
+        "n": 2
+      }
+    ],
+    "duplicate_key_count": 4965
+  },
+  "by_year": [
+    {
+      "year": 2003,
+      "rows": 12,
+      "codes": 1,
+      "dates": 12
+    },
+    {
+      "year": 2004,
+      "rows": 241,
+      "codes": 1,
+      "dates": 241
+    },
+    {
+      "year": 2005,
+      "rows": 216,
+      "codes": 1,
+      "dates": 216
+    },
+    {
+      "year": 2006,
+      "rows": 239,
+      "codes": 1,
+      "dates": 239
+    },
+    {
+      "year": 2007,
+      "rows": 238,
+      "codes": 1,
+      "dates": 238
+    },
+    {
+      "year": 2008,
+      "rows": 245,
+      "codes": 1,
+      "dates": 245
+    },
+    {
+      "year": 2009,
+      "rows": 241,
+      "codes": 1,
+      "dates": 241
+    },
+    {
+      "year": 2010,
+      "rows": 239,
+      "codes": 1,
+      "dates": 239
+    },
+    {
+      "year": 2011,
+      "rows": 239,
+      "codes": 1,
+      "dates": 239
+    },
+    {
+      "year": 2012,
+      "rows": 221,
+      "codes": 1,
+      "dates": 221
+    },
+    {
+      "year": 2013,
+      "rows": 238,
+      "codes": 1,
+      "dates": 238
+    },
+    {
+      "year": 2014,
+      "rows": 215,
+      "codes": 1,
+      "dates": 215
+    },
+    {
+      "year": 2015,
+      "rows": 239,
+      "codes": 1,
+      "dates": 239
+    },
+    {
+      "year": 2016,
+      "rows": 244,
+      "codes": 1,
+      "dates": 244
+    },
+    {
+      "year": 2017,
+      "rows": 242,
+      "codes": 1,
+      "dates": 242
+    },
+    {
+      "year": 2018,
+      "rows": 243,
+      "codes": 1,
+      "dates": 243
+    },
+    {
+      "year": 2019,
+      "rows": 244,
+      "codes": 1,
+      "dates": 244
+    },
+    {
+      "year": 2020,
+      "rows": 486,
+      "codes": 2,
+      "dates": 243
+    },
+    {
+      "year": 2021,
+      "rows": 486,
+      "codes": 2,
+      "dates": 243
+    },
+    {
+      "year": 2022,
+      "rows": 484,
+      "codes": 2,
+      "dates": 242
+    },
+    {
+      "year": 2023,
+      "rows": 484,
+      "codes": 2,
+      "dates": 242
+    },
+    {
+      "year": 2024,
+      "rows": 798829,
+      "codes": 3346,
+      "dates": 242
+    },
+    {
+      "year": 2025,
+      "rows": 837763,
+      "codes": 3615,
+      "dates": 243
+    },
+    {
+      "year": 2026,
+      "rows": 813208,
+      "codes": 5488,
+      "dates": 160
+    }
+  ],
+  "cross_section_width_recent": [
+    {
+      "year": 2015,
+      "avg_codes_per_date": 1.0
+    },
+    {
+      "year": 2016,
+      "avg_codes_per_date": 1.0
+    },
+    {
+      "year": 2017,
+      "avg_codes_per_date": 1.0
+    },
+    {
+      "year": 2018,
+      "avg_codes_per_date": 1.0
+    },
+    {
+      "year": 2019,
+      "avg_codes_per_date": 1.0
+    },
+    {
+      "year": 2020,
+      "avg_codes_per_date": 2.0
+    },
+    {
+      "year": 2021,
+      "avg_codes_per_date": 2.0
+    },
+    {
+      "year": 2022,
+      "avg_codes_per_date": 2.0
+    },
+    {
+      "year": 2023,
+      "avg_codes_per_date": 2.0
+    },
+    {
+      "year": 2024,
+      "avg_codes_per_date": 3300.9463
+    },
+    {
+      "year": 2025,
+      "avg_codes_per_date": 3430.4691
+    },
+    {
+      "year": 2026,
+      "avg_codes_per_date": 5077.5125
+    }
+  ],
+  "field_fill": [
+    {
+      "n_rows": 2455536,
+      "bad_close": "757",
+      "bad_open": "758",
+      "high_lt_low": "0",
+      "no_pre_close": "755",
+      "zero_volume": "0",
+      "zero_amount": "0",
+      "has_turnover": "2455162",
+      "has_mktcap": "267494",
+      "has_pe": "0",
+      "has_pb": "0"
+    }
+  ],
+  "mktcap_fill_by_year": [
+    {
+      "y": 2010,
+      "n_rows": 239,
+      "has_mktcap": "0",
+      "has_turnover": "239",
+      "derivable_float": "239"
+    },
+    {
+      "y": 2011,
+      "n_rows": 239,
+      "has_mktcap": "0",
+      "has_turnover": "239",
+      "derivable_float": "239"
+    },
+    {
+      "y": 2012,
+      "n_rows": 221,
+      "has_mktcap": "0",
+      "has_turnover": "221",
+      "derivable_float": "221"
+    },
+    {
+      "y": 2013,
+      "n_rows": 238,
+      "has_mktcap": "0",
+      "has_turnover": "238",
+      "derivable_float": "238"
+    },
+    {
+      "y": 2014,
+      "n_rows": 215,
+      "has_mktcap": "0",
+      "has_turnover": "215",
+      "derivable_float": "215"
+    },
+    {
+      "y": 2015,
+      "n_rows": 239,
+      "has_mktcap": "0",
+      "has_turnover": "239",
+      "derivable_float": "239"
+    },
+    {
+      "y": 2016,
+      "n_rows": 244,
+      "has_mktcap": "0",
+      "has_turnover": "244",
+      "derivable_float": "244"
+    },
+    {
+      "y": 2017,
+      "n_rows": 242,
+      "has_mktcap": "0",
+      "has_turnover": "242",
+      "derivable_float": "242"
+    },
+    {
+      "y": 2018,
+      "n_rows": 243,
+      "has_mktcap": "0",
+      "has_turnover": "243",
+      "derivable_float": "243"
+    },
+    {
+      "y": 2019,
+      "n_rows": 244,
+      "has_mktcap": "0",
+      "has_turnover": "244",
+      "derivable_float": "244"
+    },
+    {
+      "y": 2020,
+      "n_rows": 486,
+      "has_mktcap": "0",
+      "has_turnover": "486",
+      "derivable_float": "486"
+    },
+    {
+      "y": 2021,
+      "n_rows": 486,
+      "has_mktcap": "0",
+      "has_turnover": "486",
+      "derivable_float": "486"
+    },
+    {
+      "y": 2022,
+      "n_rows": 484,
+      "has_mktcap": "0",
+      "has_turnover": "484",
+      "derivable_float": "484"
+    },
+    {
+      "y": 2023,
+      "n_rows": 484,
+      "has_mktcap": "0",
+      "has_turnover": "484",
+      "derivable_float": "484"
+    },
+    {
+      "y": 2024,
+      "n_rows": 798829,
+      "has_mktcap": "0",
+      "has_turnover": "798706",
+      "derivable_float": "798706"
+    },
+    {
+      "y": 2025,
+      "n_rows": 837763,
+      "has_mktcap": "0",
+      "has_turnover": "837653",
+      "derivable_float": "837653"
+    },
+    {
+      "y": 2026,
+      "n_rows": 813208,
+      "has_mktcap": "267494",
+      "has_turnover": "813067",
+      "derivable_float": "813067"
+    }
+  ],
+  "limit_move_feasibility": [
+    {
+      "y": 2015,
+      "n_rows": 239,
+      "has_chg_pct": "239",
+      "approx_limit_moves": "47"
+    },
+    {
+      "y": 2016,
+      "n_rows": 244,
+      "has_chg_pct": "244",
+      "approx_limit_moves": "14"
+    },
+    {
+      "y": 2017,
+      "n_rows": 242,
+      "has_chg_pct": "242",
+      "approx_limit_moves": "1"
+    },
+    {
+      "y": 2018,
+      "n_rows": 243,
+      "has_chg_pct": "243",
+      "approx_limit_moves": "3"
+    },
+    {
+      "y": 2019,
+      "n_rows": 244,
+      "has_chg_pct": "244",
+      "approx_limit_moves": "6"
+    },
+    {
+      "y": 2020,
+      "n_rows": 486,
+      "has_chg_pct": "486",
+      "approx_limit_moves": "8"
+    },
+    {
+      "y": 2021,
+      "n_rows": 486,
+      "has_chg_pct": "486",
+      "approx_limit_moves": "6"
+    },
+    {
+      "y": 2022,
+      "n_rows": 484,
+      "has_chg_pct": "484",
+      "approx_limit_moves": "2"
+    },
+    {
+      "y": 2023,
+      "n_rows": 484,
+      "has_chg_pct": "484",
+      "approx_limit_moves": "2"
+    },
+    {
+      "y": 2024,
+      "n_rows": 798829,
+      "has_chg_pct": "798829",
+      "approx_limit_moves": "25597"
+    },
+    {
+      "y": 2025,
+      "n_rows": 837763,
+      "has_chg_pct": "837763",
+      "approx_limit_moves": "21120"
+    },
+    {
+      "y": 2026,
+      "n_rows": 813208,
+      "has_chg_pct": "813208",
+      "approx_limit_moves": "23613"
+    }
+  ],
+  "trading_calendar": {
+    "rows": 485,
+    "trading_days": 485,
+    "min_date": "2024-08-19",
+    "max_date": "2026-08-19"
+  },
+  "index_quote": [
+    {
+      "code": "000001",
+      "rows": 490,
+      "min": "2024-08-12",
+      "max": "2026-08-19"
+    },
+    {
+      "code": "000300",
+      "rows": 485,
+      "min": "2024-08-19",
+      "max": "2026-08-19"
+    },
+    {
+      "code": "000852",
+      "rows": 490,
+      "min": "2024-08-12",
+      "max": "2026-08-19"
+    },
+    {
+      "code": "000905",
+      "rows": 490,
+      "min": "2024-08-12",
+      "max": "2026-08-19"
+    }
+  ],
+  "sparse_research_artifacts": {
+    "selector_result_runs": 67,
+    "selector_result_items": 5156,
+    "selector_result_distinct_dates": 17,
+    "t1_candidate": 8,
+    "backtest_run": 1,
+    "label_snapshot": 0
+  },
+  "stock_info": {
+    "rows": 5835,
+    "status_breakdown": [
+      {
+        "status": 1,
+        "n": 5835
+      }
+    ],
+    "min_list_date": "2003-12-16",
+    "max_list_date": "2026-03-31"
+  },
+  "qfq_sanity": {
+    "nonpos_close": "757",
+    "extreme_jump": "142"
+  }
+}

@@ -1,0 +1,2973 @@
+{
+  "meta": {
+    "market_data_rows_total": 2455536,
+    "rows_loaded_since_2023_11_01": 2449886,
+    "duplicate_rows_dropped": 4965,
+    "rows_nonpositive_price_dropped": 0,
+    "distinct_codes": 5555,
+    "distinct_dates": 688,
+    "segment_trading_days": {
+      "IS_A": 242,
+      "IS_B": 243,
+      "IS": 485,
+      "OOS": 160
+    }
+  },
+  "cost_models": [
+    {
+      "id": "M0_zero",
+      "kind": "uniform",
+      "bp": 0.0,
+      "desc": "零成本（工具校验：净必须等于毛）"
+    },
+    {
+      "id": "M1_frozen_12bp",
+      "kind": "uniform",
+      "bp": 12.0,
+      "desc": "冻结口径 12bp（工具校验：必须逐位复现 R001）"
+    },
+    {
+      "id": "M2_tick1",
+      "kind": "tick",
+      "mult": 1.0,
+      "desc": "一跳下界（模型自由；符号为真实成本下界）"
+    },
+    {
+      "id": "M3_tick2",
+      "kind": "tick",
+      "mult": 2.0,
+      "desc": "2× 一跳（**显式假设**：价差 ≤2 跳；不是定理）"
+    },
+    {
+      "id": "M4_frozen_x2_24bp",
+      "kind": "uniform",
+      "bp": 24.0,
+      "desc": "2× 冻结（H2 低端，等权惩罚 2×）"
+    },
+    {
+      "id": "M5_frozen_x3_36bp",
+      "kind": "uniform",
+      "bp": 36.0,
+      "desc": "3× 冻结（H2 高端，等权惩罚 3×）"
+    },
+    {
+      "id": "M6_frozen_c19p6bp",
+      "kind": "uniform",
+      "bp": 9.6,
+      "desc": "冻结 −20%（敏感性）"
+    },
+    {
+      "id": "M7_frozen_c214p4bp",
+      "kind": "uniform",
+      "bp": 14.4,
+      "desc": "冻结 +20%（敏感性）"
+    },
+    {
+      "id": "M8_mono_6bp",
+      "kind": "uniform",
+      "bp": 6.0,
+      "desc": "K2 单调性检查点（prereg §4 明列 c_rt=6bp）"
+    }
+  ],
+  "segments": {
+    "IS": [
+      {
+        "segment": "IS",
+        "N": 20,
+        "h": 2,
+        "cost_model": "M0_zero",
+        "cost_desc": "零成本（工具校验：净必须等于毛）",
+        "cost_bp": 0.0,
+        "gross_d1": 0.0058738444775458505,
+        "gross_d10": 0.0028299457941692477,
+        "gross_spread": 0.003043898683376603,
+        "gross_spread_t_nw": 2.0458931201426482,
+        "gross_spread_t_naive": 2.331019962249995,
+        "d1_net_mean": 0.0058738444775458505,
+        "d10_net_mean": 0.0028299457941692477,
+        "spread_net_d1_d10": 0.003043898683376603,
+        "spread_net_t_nw": 2.0458931201426482,
+        "d1_net_t_nw": 2.3859723078739687,
+        "universe_net_mean": 0.004412195978392606,
+        "universe_days": 465,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.0058738444775458505,
+            "days": 465
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.004864529894139575,
+            "days": 465
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.004683108632709678,
+            "days": 465
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.004726393387413774,
+            "days": 465
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.004598314869835614,
+            "days": 465
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.004433591885367666,
+            "days": 465
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.004256418569860143,
+            "days": 465
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.004207802556517595,
+            "days": 465
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0036454454071134868,
+            "days": 465
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0028299457941692477,
+            "days": 465
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": 30.438986833766,
+          "ls_net_spread_t_nw": 2.0458931201426482
+        },
+        "ic_mean": -0.04956236837824513,
+        "ic_t_nw": -6.38464488433934,
+        "ic_days": 465,
+        "ic_lag": 24
+      },
+      {
+        "segment": "IS",
+        "N": 20,
+        "h": 2,
+        "cost_model": "M1_frozen_12bp",
+        "cost_desc": "冻结口径 12bp（工具校验：必须逐位复现 R001）",
+        "cost_bp": 12.0,
+        "gross_d1": 0.0058738444775458505,
+        "gross_d10": 0.0028299457941692477,
+        "gross_spread": 0.003043898683376603,
+        "gross_spread_t_nw": 2.0458931201426482,
+        "gross_spread_t_naive": 2.331019962249995,
+        "d1_net_mean": 0.004365888366746907,
+        "d10_net_mean": 0.0013265529451008428,
+        "spread_net_d1_d10": 0.003039335421646064,
+        "spread_net_t_nw": 2.045893120142649,
+        "d1_net_t_nw": 1.7760988924815944,
+        "universe_net_mean": 0.002906431098430654,
+        "universe_days": 465,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.004365888366746907,
+            "days": 465
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.003358086897636352,
+            "days": 465
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.0031769376139512756,
+            "days": 465
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.00322015747830087,
+            "days": 465
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.0030922709696752284,
+            "days": 465
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.002927794929724609,
+            "days": 465
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.002750887223652354,
+            "days": 465
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.0027023440930224953,
+            "days": 465
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0021408300015272356,
+            "days": 465
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0013265529451008428,
+            "days": 465
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": 6.438986833766,
+          "ls_net_spread_t_nw": 0.43278309280904187
+        },
+        "ic_mean": -0.04955941343822138,
+        "ic_t_nw": -6.384661549069442,
+        "ic_days": 465,
+        "ic_lag": 24
+      },
+      {
+        "segment": "IS",
+        "N": 20,
+        "h": 2,
+        "cost_model": "M2_tick1",
+        "cost_desc": "一跳下界（模型自由；符号为真实成本下界）",
+        "cost_bp": null,
+        "gross_d1": 0.0058738444775458505,
+        "gross_d10": 0.0028299457941692477,
+        "gross_spread": 0.003043898683376603,
+        "gross_spread_t_nw": 2.0458931201426482,
+        "gross_spread_t_naive": 2.331019962249995,
+        "d1_net_mean": 0.004402163365173537,
+        "d10_net_mean": 0.0016821182817275276,
+        "spread_net_d1_d10": 0.0027200450834460096,
+        "spread_net_t_nw": 1.8254335363323377,
+        "d1_net_t_nw": 1.7791111480323514,
+        "universe_net_mean": 0.003019153851130488,
+        "universe_days": 465,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.004402163365173537,
+            "days": 465
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.0034573021447503317,
+            "days": 465
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.0032368990840406396,
+            "days": 465
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.00325891463966739,
+            "days": 465
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.003125043828288593,
+            "days": 465
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.0029753777729765287,
+            "days": 465
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.0028372341055913,
+            "days": 465
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.0028447410442914416,
+            "days": 465
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0023695743460905036,
+            "days": 465
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0016821182817275276,
+            "days": 465
+          }
+        ],
+        "ls_reading_b": null,
+        "ic_mean": -0.0482462512303564,
+        "ic_t_nw": -6.0117529478780565,
+        "ic_days": 465,
+        "ic_lag": 24
+      },
+      {
+        "segment": "IS",
+        "N": 20,
+        "h": 2,
+        "cost_model": "M3_tick2",
+        "cost_desc": "2× 一跳（**显式假设**：价差 ≤2 跳；不是定理）",
+        "cost_bp": null,
+        "gross_d1": 0.0058738444775458505,
+        "gross_d10": 0.0028299457941692477,
+        "gross_spread": 0.003043898683376603,
+        "gross_spread_t_nw": 2.0458931201426482,
+        "gross_spread_t_naive": 2.331019962249995,
+        "d1_net_mean": 0.0029354849363732952,
+        "d10_net_mean": 0.0005369031956766152,
+        "spread_net_d1_d10": 0.00239858174069668,
+        "spread_net_t_nw": 1.594908111882558,
+        "d1_net_t_nw": 1.1779468210208726,
+        "universe_net_mean": 0.0016295974919500228,
+        "universe_days": 465,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.0029354849363732952,
+            "days": 465
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.0020535991867735052,
+            "days": 465
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.001794230577796374,
+            "days": 465
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.0017950085929402991,
+            "days": 465
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.0016553770570278178,
+            "days": 465
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.0015206952984474693,
+            "days": 465
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.0014214240523799607,
+            "days": 465
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.0014848570779426083,
+            "days": 465
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0010966164948503017,
+            "days": 465
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0005369031956766152,
+            "days": 465
+          }
+        ],
+        "ls_reading_b": null,
+        "ic_mean": -0.0468396256097316,
+        "ic_t_nw": -5.559721252815392,
+        "ic_days": 465,
+        "ic_lag": 24
+      },
+      {
+        "segment": "IS",
+        "N": 20,
+        "h": 2,
+        "cost_model": "M4_frozen_x2_24bp",
+        "cost_desc": "2× 冻结（H2 低端，等权惩罚 2×）",
+        "cost_bp": 24.0,
+        "gross_d1": 0.0058738444775458505,
+        "gross_d10": 0.0028299457941692477,
+        "gross_spread": 0.003043898683376603,
+        "gross_spread_t_nw": 2.0458931201426482,
+        "gross_spread_t_naive": 2.331019962249995,
+        "d1_net_mean": 0.0028596402213163573,
+        "d10_net_mean": -0.00017513710711365655,
+        "spread_net_d1_d10": 0.003034777328430014,
+        "spread_net_t_nw": 2.0458931201426496,
+        "d1_net_t_nw": 1.1650852766336202,
+        "universe_net_mean": 0.0014023717019701796,
+        "universe_days": 465,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.0028596402213163573,
+            "days": 465
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.001853350152693806,
+            "days": 465
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.001672472538701779,
+            "days": 465
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.0017156275861940089,
+            "days": 465
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.0015879328690446362,
+            "days": 465
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.0014237034939130967,
+            "days": 465
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.0012470610964373109,
+            "days": 465
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.001198590765970548,
+            "days": 465
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0006379187775064145,
+            "days": 465
+          },
+          {
+            "decile": 10,
+            "net_mean": -0.00017513710711365655,
+            "days": 465
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": -17.561013166233998,
+          "ls_net_spread_t_nw": -1.1803269345245644
+        },
+        "ic_mean": -0.04956499225114866,
+        "ic_t_nw": -6.384500724485331,
+        "ic_days": 465,
+        "ic_lag": 24
+      },
+      {
+        "segment": "IS",
+        "N": 20,
+        "h": 2,
+        "cost_model": "M5_frozen_x3_36bp",
+        "cost_desc": "3× 冻结（H2 高端，等权惩罚 3×）",
+        "cost_bp": 36.0,
+        "gross_d1": 0.0058738444775458505,
+        "gross_d10": 0.0028299457941692477,
+        "gross_spread": 0.003043898683376603,
+        "gross_spread_t_nw": 2.0458931201426482,
+        "gross_spread_t_naive": 2.331019962249995,
+        "d1_net_mean": 0.001355098023660997,
+        "d10_net_mean": -0.0016751263739619704,
+        "spread_net_d1_d10": 0.0030302243976229673,
+        "spread_net_t_nw": 2.0458931201426496,
+        "d1_net_t_nw": 0.5529286194251499,
+        "universe_net_mean": -9.99842256502416e-05,
+        "universe_days": 465,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.001355098023660997,
+            "days": 465
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.0003503176437432224,
+            "days": 465
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.00016971139175635353,
+            "days": 465
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.0002128016958015545,
+            "days": 465
+          },
+          {
+            "decile": 5,
+            "net_mean": 8.52985529091027e-05,
+            "days": 465
+          },
+          {
+            "decile": 6,
+            "net_mean": -7.868443677120286e-05,
+            "days": 465
+          },
+          {
+            "decile": 7,
+            "net_mean": -0.00025506182613395097,
+            "days": 465
+          },
+          {
+            "decile": 8,
+            "net_mean": -0.00030345943888968405,
+            "days": 465
+          },
+          {
+            "decile": 9,
+            "net_mean": -0.0008632902780724464,
+            "days": 465
+          },
+          {
+            "decile": 10,
+            "net_mean": -0.0016751263739619704,
+            "days": 465
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": -41.561013166234,
+          "ls_net_spread_t_nw": -2.793436961858171
+        },
+        "ic_mean": -0.049561820544417684,
+        "ic_t_nw": -6.384405683943279,
+        "ic_days": 465,
+        "ic_lag": 24
+      },
+      {
+        "segment": "IS",
+        "N": 20,
+        "h": 2,
+        "cost_model": "M6_frozen_c19p6bp",
+        "cost_desc": "冻结 −20%（敏感性）",
+        "cost_bp": 9.6,
+        "gross_d1": 0.0058738444775458505,
+        "gross_d10": 0.0028299457941692477,
+        "gross_spread": 0.003043898683376603,
+        "gross_spread_t_nw": 2.0458931201426482,
+        "gross_spread_t_naive": 2.331019962249995,
+        "d1_net_mean": 0.004667342887064712,
+        "d10_net_mean": 0.0016270952267492245,
+        "spread_net_d1_d10": 0.0030402476603154874,
+        "spread_net_t_nw": 2.0458931201426496,
+        "d1_net_t_nw": 1.8981647008489821,
+        "universe_net_mean": 0.003207447571224306,
+        "universe_days": 465,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.004667342887064712,
+            "days": 465
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.003659238932264465,
+            "days": 465
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.0034780352776862217,
+            "days": 465
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.003521268114224163,
+            "days": 465
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.0033933432212143494,
+            "days": 465
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.003228817814746705,
+            "days": 465
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.003051857010865878,
+            "days": 465
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.003003299310300569,
+            "days": 465
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.002441616683649887,
+            "days": 465
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0016270952267492245,
+            "days": 465
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": 11.238986833766,
+          "ls_net_spread_t_nw": 0.7554050982757631
+        },
+        "ic_mean": -0.049560435844868654,
+        "ic_t_nw": -6.384344439662359,
+        "ic_days": 465,
+        "ic_lag": 24
+      },
+      {
+        "segment": "IS",
+        "N": 20,
+        "h": 2,
+        "cost_model": "M7_frozen_c214p4bp",
+        "cost_desc": "冻结 +20%（敏感性）",
+        "cost_bp": 14.4,
+        "gross_d1": 0.0058738444775458505,
+        "gross_d10": 0.0028299457941692477,
+        "gross_spread": 0.003043898683376603,
+        "gross_spread_t_nw": 2.0458931201426482,
+        "gross_spread_t_naive": 2.331019962249995,
+        "d1_net_mean": 0.0040645021650345245,
+        "d10_net_mean": 0.0010260787753173346,
+        "spread_net_d1_d10": 0.00303842338971719,
+        "spread_net_t_nw": 2.0458931201426496,
+        "d1_net_t_nw": 1.653987476125169,
+        "universe_net_mean": 0.002605482844967768,
+        "universe_days": 465,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.0040645021650345245,
+            "days": 465
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.003057003113061367,
+            "days": 465
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.002875908187947389,
+            "days": 465
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.002919115083048517,
+            "days": 465
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.0027912669501080076,
+            "days": 465
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.002626840265486484,
+            "days": 465
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.0024499856451892484,
+            "days": 465
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.0024014570811928507,
+            "days": 465
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0018401114866579212,
+            "days": 465
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0010260787753173346,
+            "days": 465
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": 1.6389868337659965,
+          "ls_net_spread_t_nw": 0.11016108734232033
+        },
+        "ic_mean": -0.049562395399703814,
+        "ic_t_nw": -6.384949664292421,
+        "ic_days": 465,
+        "ic_lag": 24
+      },
+      {
+        "segment": "IS",
+        "N": 20,
+        "h": 3,
+        "cost_model": "M0_zero",
+        "cost_desc": "零成本（工具校验：净必须等于毛）",
+        "cost_bp": 0.0,
+        "gross_d1": 0.00779230948071737,
+        "gross_d10": 0.0024135740830517807,
+        "gross_spread": 0.00537873539766559,
+        "gross_spread_t_nw": 2.6303318223088707,
+        "gross_spread_t_naive": 3.5257477709767966,
+        "d1_net_mean": 0.00779230948071737,
+        "d10_net_mean": 0.0024135740830517807,
+        "spread_net_d1_d10": 0.00537873539766559,
+        "spread_net_t_nw": 2.6303318223088707,
+        "d1_net_t_nw": 2.288962840510633,
+        "universe_net_mean": 0.005720397618128821,
+        "universe_days": 465,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.00779230948071737,
+            "days": 465
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.00654612931395417,
+            "days": 465
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.006414812332528528,
+            "days": 465
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.006457996520227604,
+            "days": 465
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.006132290243401063,
+            "days": 465
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.005896957117110916,
+            "days": 465
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.005599377079312831,
+            "days": 465
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.005382946934641052,
+            "days": 465
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.004560597688756986,
+            "days": 465
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0024135740830517807,
+            "days": 465
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": 53.78735397665589,
+          "ls_net_spread_t_nw": 2.6303318223088707
+        },
+        "ic_mean": -0.060469060072652216,
+        "ic_t_nw": -7.292783576666102,
+        "ic_days": 465,
+        "ic_lag": 25
+      },
+      {
+        "segment": "IS",
+        "N": 20,
+        "h": 3,
+        "cost_model": "M1_frozen_12bp",
+        "cost_desc": "冻结口径 12bp（工具校验：必须逐位复现 R001）",
+        "cost_bp": 12.0,
+        "gross_d1": 0.00779230948071737,
+        "gross_d10": 0.0024135740830517807,
+        "gross_spread": 0.00537873539766559,
+        "gross_spread_t_nw": 2.6303318223088707,
+        "gross_spread_t_naive": 3.5257477709767966,
+        "d1_net_mean": 0.006281477302466469,
+        "d10_net_mean": 0.0009108054377735349,
+        "spread_net_d1_d10": 0.005370671864692934,
+        "spread_net_t_nw": 2.63033182230887,
+        "d1_net_t_nw": 1.8479316578314018,
+        "universe_net_mean": 0.004212671547240555,
+        "universe_days": 465,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.006281477302466469,
+            "days": 465
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.005037165347117595,
+            "days": 465
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.004906045229588632,
+            "days": 465
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.004949164677698254,
+            "days": 465
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.004623946683545686,
+            "days": 465
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.00438896635699063,
+            "days": 465
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.004091832436405867,
+            "days": 465
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.0038757267530579523,
+            "days": 465
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0030546103323212384,
+            "days": 465
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0009108054377735349,
+            "days": 465
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": 29.787353976655897,
+          "ls_net_spread_t_nw": 1.456673721134924
+        },
+        "ic_mean": -0.060467509102863096,
+        "ic_t_nw": -7.292525692529,
+        "ic_days": 465,
+        "ic_lag": 25
+      },
+      {
+        "segment": "IS",
+        "N": 20,
+        "h": 3,
+        "cost_model": "M2_tick1",
+        "cost_desc": "一跳下界（模型自由；符号为真实成本下界）",
+        "cost_bp": null,
+        "gross_d1": 0.00779230948071737,
+        "gross_d10": 0.0024135740830517807,
+        "gross_spread": 0.00537873539766559,
+        "gross_spread_t_nw": 2.6303318223088707,
+        "gross_spread_t_naive": 3.5257477709767966,
+        "d1_net_mean": 0.00632340834202329,
+        "d10_net_mean": 0.001266769711165949,
+        "spread_net_d1_d10": 0.005056638630857341,
+        "spread_net_t_nw": 2.466827829292399,
+        "d1_net_t_nw": 1.8511618798747334,
+        "universe_net_mean": 0.004326827060913032,
+        "universe_days": 465,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.00632340834202329,
+            "days": 465
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.00513822895583765,
+            "days": 465
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.0049665998909255845,
+            "days": 465
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.004990211302990052,
+            "days": 465
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.00465787178689195,
+            "days": 465
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.004437070044392677,
+            "days": 465
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.004179023781948975,
+            "days": 465
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.0040201754170333115,
+            "days": 465
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0032823568427926947,
+            "days": 465
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.001266769711165949,
+            "days": 465
+          }
+        ],
+        "ls_reading_b": null,
+        "ic_mean": -0.0593085983185596,
+        "ic_t_nw": -6.988274006323675,
+        "ic_days": 465,
+        "ic_lag": 25
+      },
+      {
+        "segment": "IS",
+        "N": 20,
+        "h": 3,
+        "cost_model": "M3_tick2",
+        "cost_desc": "2× 一跳（**显式假设**：价差 ≤2 跳；不是定理）",
+        "cost_bp": null,
+        "gross_d1": 0.00779230948071737,
+        "gross_d10": 0.0024135740830517807,
+        "gross_spread": 0.00537873539766559,
+        "gross_spread_t_nw": 2.6303318223088707,
+        "gross_spread_t_naive": 3.5257477709767966,
+        "d1_net_mean": 0.004859407948796056,
+        "d10_net_mean": 0.00012257450464625238,
+        "spread_net_d1_d10": 0.004736833444149804,
+        "spread_net_t_nw": 2.295900111891307,
+        "d1_net_t_nw": 1.4162419119988543,
+        "universe_net_mean": 0.0029367339712841065,
+        "universe_days": 465,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.004859407948796056,
+            "days": 465
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.0037338545968434384,
+            "days": 465
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.0035219329195027103,
+            "days": 465
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.003525997040104057,
+            "days": 465
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.0031870613335400985,
+            "days": 465
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.0029807184171383293,
+            "days": 465
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.002762048571569479,
+            "days": 465
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.0026605774226799426,
+            "days": 465
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0020070402631970834,
+            "days": 465
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.00012257450464625238,
+            "days": 465
+          }
+        ],
+        "ls_reading_b": null,
+        "ic_mean": -0.058063486272507916,
+        "ic_t_nw": -6.609245289574581,
+        "ic_days": 465,
+        "ic_lag": 25
+      },
+      {
+        "segment": "IS",
+        "N": 20,
+        "h": 3,
+        "cost_model": "M4_frozen_x2_24bp",
+        "cost_desc": "2× 冻结（H2 低端，等权惩罚 2×）",
+        "cost_bp": 24.0,
+        "gross_d1": 0.00779230948071737,
+        "gross_d10": 0.0024135740830517807,
+        "gross_spread": 0.00537873539766559,
+        "gross_spread_t_nw": 2.6303318223088707,
+        "gross_spread_t_naive": 3.5257477709767966,
+        "d1_net_mean": 0.0047723563471214715,
+        "d10_net_mean": -0.0005902611176464855,
+        "spread_net_d1_d10": 0.005362617464767957,
+        "spread_net_t_nw": 2.630331822308871,
+        "d1_net_t_nw": 1.406075936907457,
+        "universe_net_mean": 0.002706653181169211,
+        "universe_days": 465,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.0047723563471214715,
+            "days": 465
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.0035299104871834358,
+            "days": 465
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.0033989870105760145,
+            "days": 465
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.0034420417924225883,
+            "days": 465
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.0031173115278974586,
+            "days": 465
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.002882683601483808,
+            "days": 465
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.0025859952928239506,
+            "days": 465
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.0023702137033033257,
+            "days": 465
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0015503287113718385,
+            "days": 465
+          },
+          {
+            "decile": 10,
+            "net_mean": -0.0005902611176464855,
+            "days": 465
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": 5.787353976655901,
+          "ls_net_spread_t_nw": 0.2830156199609773
+        },
+        "ic_mean": -0.060468310759940615,
+        "ic_t_nw": -7.2921538880132415,
+        "ic_days": 465,
+        "ic_lag": 25
+      },
+      {
+        "segment": "IS",
+        "N": 20,
+        "h": 3,
+        "cost_model": "M5_frozen_x3_36bp",
+        "cost_desc": "3× 冻结（H2 高端，等权惩罚 3×）",
+        "cost_bp": 36.0,
+        "gross_d1": 0.00779230948071737,
+        "gross_d10": 0.0024135740830517807,
+        "gross_spread": 0.00537873539766559,
+        "gross_spread_t_nw": 2.6303318223088707,
+        "gross_spread_t_naive": 3.5257477709767966,
+        "d1_net_mean": 0.0032649445932410926,
+        "d10_net_mean": -0.0020896275938608417,
+        "spread_net_d1_d10": 0.005354572187101935,
+        "spread_net_t_nw": 2.6303318223088707,
+        "d1_net_t_nw": 0.9633936233327307,
+        "universe_net_mean": 0.0012023405026293519,
+        "universe_days": 465,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.0032649445932410926,
+            "days": 465
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.0020243627152100084,
+            "days": 465
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.0018936356568123932,
+            "days": 465
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.0019366258456356698,
+            "days": 465
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.0016123827583447623,
+            "days": 465
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.0013781068329508771,
+            "days": 465
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.0010818636315244033,
+            "days": 465
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.000866405768768613,
+            "days": 465
+          },
+          {
+            "decile": 9,
+            "net_mean": 4.775081094968547e-05,
+            "days": 465
+          },
+          {
+            "decile": 10,
+            "net_mean": -0.0020896275938608417,
+            "days": 465
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": -18.212646023344103,
+          "ls_net_spread_t_nw": -0.8906424812129697
+        },
+        "ic_mean": -0.06046899452918087,
+        "ic_t_nw": -7.292695020559147,
+        "ic_days": 465,
+        "ic_lag": 25
+      },
+      {
+        "segment": "IS",
+        "N": 20,
+        "h": 3,
+        "cost_model": "M6_frozen_c19p6bp",
+        "cost_desc": "冻结 −20%（敏感性）",
+        "cost_bp": 9.6,
+        "gross_d1": 0.00779230948071737,
+        "gross_d10": 0.0024135740830517807,
+        "gross_spread": 0.00537873539766559,
+        "gross_spread_t_nw": 2.6303318223088707,
+        "gross_spread_t_naive": 3.5257477709767966,
+        "d1_net_mean": 0.006583506775548427,
+        "d10_net_mean": 0.0012112229352502894,
+        "spread_net_d1_d10": 0.005372283840298138,
+        "spread_net_t_nw": 2.6303318223088703,
+        "d1_net_t_nw": 1.9362037918025632,
+        "universe_net_mean": 0.004514080080430206,
+        "universe_days": 465,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.006583506775548427,
+            "days": 465
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.005338821347277023,
+            "days": 465
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.00520766187481516,
+            "days": 465
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.005250794264973809,
+            "days": 465
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.004925478658551084,
+            "days": 465
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.004690427804031613,
+            "days": 465
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.004393204700446379,
+            "days": 465
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.0041770341542473185,
+            "days": 465
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0033556712802413347,
+            "days": 465
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0012112229352502894,
+            "days": 465
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": 34.5873539766559,
+          "ls_net_spread_t_nw": 1.6914053413697134
+        },
+        "ic_mean": -0.06046740574288487,
+        "ic_t_nw": -7.2924275701175985,
+        "ic_days": 465,
+        "ic_lag": 25
+      },
+      {
+        "segment": "IS",
+        "N": 20,
+        "h": 3,
+        "cost_model": "M7_frozen_c214p4bp",
+        "cost_desc": "冻结 +20%（敏感性）",
+        "cost_bp": 14.4,
+        "gross_d1": 0.00779230948071737,
+        "gross_d10": 0.0024135740830517807,
+        "gross_spread": 0.00537873539766559,
+        "gross_spread_t_nw": 2.6303318223088707,
+        "gross_spread_t_naive": 3.5257477709767966,
+        "d1_net_mean": 0.005979516278291407,
+        "d10_net_mean": 0.0006104560238818356,
+        "spread_net_d1_d10": 0.005369060254409572,
+        "spread_net_t_nw": 2.6303318223088707,
+        "d1_net_t_nw": 1.7596265423515576,
+        "universe_net_mean": 0.003911331322234286,
+        "universe_days": 465,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.005979516278291407,
+            "days": 465
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.004735577711224956,
+            "days": 465
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.004604496939709872,
+            "days": 465
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.004647603448703552,
+            "days": 465
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.004322483044699273,
+            "days": 465
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.0040875732301248755,
+            "days": 465
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.0037905284723290544,
+            "days": 465
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.003574487637132425,
+            "days": 465
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0027536176138113133,
+            "days": 465
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0006104560238818356,
+            "days": 465
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": 24.987353976655893,
+          "ls_net_spread_t_nw": 1.2219421009001346
+        },
+        "ic_mean": -0.060467514524088495,
+        "ic_t_nw": -7.292788903043893,
+        "ic_days": 465,
+        "ic_lag": 25
+      }
+    ],
+    "OOS": [
+      {
+        "segment": "OOS",
+        "N": 20,
+        "h": 2,
+        "cost_model": "M0_zero",
+        "cost_desc": "零成本（工具校验：净必须等于毛）",
+        "cost_bp": 0.0,
+        "gross_d1": 0.00029665566115608913,
+        "gross_d10": 0.0027254762329207913,
+        "gross_spread": -0.0024288205717647024,
+        "gross_spread_t_nw": -0.44387966641138676,
+        "gross_spread_t_naive": -0.847661075668768,
+        "d1_net_mean": 0.00029665566115608913,
+        "d10_net_mean": 0.0027254762329207913,
+        "spread_net_d1_d10": -0.0024288205717647024,
+        "spread_net_t_nw": -0.44387966641138676,
+        "d1_net_t_nw": 0.06427361277150892,
+        "universe_net_mean": 0.0008507151201655731,
+        "universe_days": 157,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.00029665566115608913,
+            "days": 157
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.0003089287768136307,
+            "days": 157
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.0004318765243329107,
+            "days": 157
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.0004932612803151665,
+            "days": 157
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.0005683629419777276,
+            "days": 157
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.0005482886726283243,
+            "days": 157
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.0008032347606182065,
+            "days": 157
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.0007615210478411359,
+            "days": 157
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0015750497300666404,
+            "days": 157
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0027254762329207913,
+            "days": 157
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": -24.288205717647,
+          "ls_net_spread_t_nw": -0.44387966641138676
+        },
+        "ic_mean": -0.01677022169302134,
+        "ic_t_nw": -0.6101726319606634,
+        "ic_days": 157,
+        "ic_lag": 24
+      },
+      {
+        "segment": "OOS",
+        "N": 20,
+        "h": 2,
+        "cost_model": "M1_frozen_12bp",
+        "cost_desc": "冻结口径 12bp（工具校验：必须逐位复现 R001）",
+        "cost_bp": 12.0,
+        "gross_d1": 0.00029665566115608913,
+        "gross_d10": 0.0027254762329207913,
+        "gross_spread": -0.0024288205717647024,
+        "gross_spread_t_nw": -0.44387966641138676,
+        "gross_spread_t_naive": -0.847661075668768,
+        "d1_net_mean": -0.0012029394051610532,
+        "d10_net_mean": 0.0012222399994301185,
+        "spread_net_d1_d10": -0.0024251794045911717,
+        "spread_net_t_nw": -0.44387966641138704,
+        "d1_net_t_nw": -0.2610209609327731,
+        "universe_net_mean": -0.0006497105645750887,
+        "universe_days": 157,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -0.0012029394051610532,
+            "days": 157
+          },
+          {
+            "decile": 2,
+            "net_mean": -0.0011906846887489594,
+            "days": 157
+          },
+          {
+            "decile": 3,
+            "net_mean": -0.0010679212583865464,
+            "days": 157
+          },
+          {
+            "decile": 4,
+            "net_mean": -0.0010066285273817766,
+            "days": 157
+          },
+          {
+            "decile": 5,
+            "net_mean": -0.000931639454400448,
+            "days": 157
+          },
+          {
+            "decile": 6,
+            "net_mean": -0.0009516836294022338,
+            "days": 157
+          },
+          {
+            "decile": 7,
+            "net_mean": -0.0006971197439255402,
+            "days": 157
+          },
+          {
+            "decile": 8,
+            "net_mean": -0.0007387709215761302,
+            "days": 157
+          },
+          {
+            "decile": 9,
+            "net_mean": 7.353815885297689e-05,
+            "days": 157
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0012222399994301185,
+            "days": 157
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": -48.28820571764699,
+          "ls_net_spread_t_nw": -0.8824922225514676
+        },
+        "ic_mean": -0.016771094890004997,
+        "ic_t_nw": -0.6102120670491252,
+        "ic_days": 157,
+        "ic_lag": 24
+      },
+      {
+        "segment": "OOS",
+        "N": 20,
+        "h": 2,
+        "cost_model": "M2_tick1",
+        "cost_desc": "一跳下界（模型自由；符号为真实成本下界）",
+        "cost_bp": null,
+        "gross_d1": 0.00029665566115608913,
+        "gross_d10": 0.0027254762329207913,
+        "gross_spread": -0.0024288205717647024,
+        "gross_spread_t_nw": -0.44387966641138676,
+        "gross_spread_t_naive": -0.847661075668768,
+        "d1_net_mean": -0.0006697407262656815,
+        "d10_net_mean": 0.002062620485338291,
+        "spread_net_d1_d10": -0.0027323612116039726,
+        "spread_net_t_nw": -0.489083485859992,
+        "d1_net_t_nw": -0.1443811543044463,
+        "universe_net_mean": -0.00016678719522657614,
+        "universe_days": 157,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -0.0006697407262656815,
+            "days": 157
+          },
+          {
+            "decile": 2,
+            "net_mean": -0.0007261076524635419,
+            "days": 157
+          },
+          {
+            "decile": 3,
+            "net_mean": -0.0006687566643529813,
+            "days": 157
+          },
+          {
+            "decile": 4,
+            "net_mean": -0.0006379853870395088,
+            "days": 157
+          },
+          {
+            "decile": 5,
+            "net_mean": -0.000567812071724343,
+            "days": 157
+          },
+          {
+            "decile": 6,
+            "net_mean": -0.000574055296568244,
+            "days": 157
+          },
+          {
+            "decile": 7,
+            "net_mean": -0.00028966313043394805,
+            "days": 157
+          },
+          {
+            "decile": 8,
+            "net_mean": -0.00027480539277553685,
+            "days": 157
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0006842247787360879,
+            "days": 157
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.002062620485338291,
+            "days": 157
+          }
+        ],
+        "ls_reading_b": null,
+        "ic_mean": -0.01569483506699284,
+        "ic_t_nw": -0.558315002622973,
+        "ic_days": 157,
+        "ic_lag": 24
+      },
+      {
+        "segment": "OOS",
+        "N": 20,
+        "h": 2,
+        "cost_model": "M3_tick2",
+        "cost_desc": "2× 一跳（**显式假设**：价差 ≤2 跳；不是定理）",
+        "cost_bp": null,
+        "gross_d1": 0.00029665566115608913,
+        "gross_d10": 0.0027254762329207913,
+        "gross_spread": -0.0024288205717647024,
+        "gross_spread_t_nw": -0.44387966641138676,
+        "gross_spread_t_naive": -0.847661075668768,
+        "d1_net_mean": -0.0016338902165086901,
+        "d10_net_mean": 0.001400776184179963,
+        "spread_net_d1_d10": -0.0030346664006886534,
+        "spread_net_t_nw": -0.532160954696293,
+        "d1_net_t_nw": -0.3504012046959915,
+        "universe_net_mean": -0.0011822394374536127,
+        "universe_days": 157,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -0.0016338902165086901,
+            "days": 157
+          },
+          {
+            "decile": 2,
+            "net_mean": -0.0017590482557036488,
+            "days": 157
+          },
+          {
+            "decile": 3,
+            "net_mean": -0.0017671218971243338,
+            "days": 157
+          },
+          {
+            "decile": 4,
+            "net_mean": -0.0017668956918535836,
+            "days": 157
+          },
+          {
+            "decile": 5,
+            "net_mean": -0.0017016372198165217,
+            "days": 157
+          },
+          {
+            "decile": 6,
+            "net_mean": -0.0016941113609029422,
+            "days": 157
+          },
+          {
+            "decile": 7,
+            "net_mean": -0.0013803252191851468,
+            "days": 157
+          },
+          {
+            "decile": 8,
+            "net_mean": -0.0013090537436690672,
+            "days": 157
+          },
+          {
+            "decile": 9,
+            "net_mean": -0.00020501081327581742,
+            "days": 157
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.001400776184179963,
+            "days": 157
+          }
+        ],
+        "ls_reading_b": null,
+        "ic_mean": -0.014571687141082172,
+        "ic_t_nw": -0.5069034881182666,
+        "ic_days": 157,
+        "ic_lag": 24
+      },
+      {
+        "segment": "OOS",
+        "N": 20,
+        "h": 2,
+        "cost_model": "M4_frozen_x2_24bp",
+        "cost_desc": "2× 冻结（H2 低端，等权惩罚 2×）",
+        "cost_bp": 24.0,
+        "gross_d1": 0.00029665566115608913,
+        "gross_d10": 0.0027254762329207913,
+        "gross_spread": -0.0024288205717647024,
+        "gross_spread_t_nw": -0.44387966641138676,
+        "gross_spread_t_naive": -0.847661075668768,
+        "d1_net_mean": -0.002700835976129725,
+        "d10_net_mean": -0.00027929361459508946,
+        "spread_net_d1_d10": -0.0024215423615346356,
+        "spread_net_t_nw": -0.4438796664113869,
+        "d1_net_t_nw": -0.5869236953008587,
+        "universe_net_mean": -0.002148436813178961,
+        "universe_days": 157,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -0.002700835976129725,
+            "days": 157
+          },
+          {
+            "decile": 2,
+            "net_mean": -0.002688599638123435,
+            "days": 157
+          },
+          {
+            "decile": 3,
+            "net_mean": -0.0025660203161536415,
+            "days": 157
+          },
+          {
+            "decile": 4,
+            "net_mean": -0.0025048195058955582,
+            "days": 157
+          },
+          {
+            "decile": 5,
+            "net_mean": -0.0024299428940734694,
+            "days": 157
+          },
+          {
+            "decile": 6,
+            "net_mean": -0.0024499570088135796,
+            "days": 157
+          },
+          {
+            "decile": 7,
+            "net_mean": -0.0021957748929537476,
+            "days": 157
+          },
+          {
+            "decile": 8,
+            "net_mean": -0.002237363606307395,
+            "days": 157
+          },
+          {
+            "decile": 9,
+            "net_mean": -0.0014262727463097886,
+            "days": 157
+          },
+          {
+            "decile": 10,
+            "net_mean": -0.00027929361459508946,
+            "days": 157
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": -72.28820571764699,
+          "ls_net_spread_t_nw": -1.3211047786915489
+        },
+        "ic_mean": -0.01676863494161424,
+        "ic_t_nw": -0.610115784327887,
+        "ic_days": 157,
+        "ic_lag": 24
+      },
+      {
+        "segment": "OOS",
+        "N": 20,
+        "h": 2,
+        "cost_model": "M5_frozen_x3_36bp",
+        "cost_desc": "3× 冻结（H2 高端，等权惩罚 3×）",
+        "cost_bp": 36.0,
+        "gross_d1": 0.00029665566115608913,
+        "gross_d10": 0.0027254762329207913,
+        "gross_spread": -0.0024288205717647024,
+        "gross_spread_t_nw": -0.44387966641138676,
+        "gross_spread_t_naive": -0.847661075668768,
+        "d1_net_mean": -0.004197036058156358,
+        "d10_net_mean": -0.0017791266204330103,
+        "spread_net_d1_d10": -0.0024179094377233474,
+        "spread_net_t_nw": -0.44387966641138665,
+        "d1_net_t_nw": -0.9134361056159604,
+        "universe_net_mean": -0.003645465633163801,
+        "universe_days": 157,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -0.004197036058156358,
+            "days": 157
+          },
+          {
+            "decile": 2,
+            "net_mean": -0.004184818077740835,
+            "days": 157
+          },
+          {
+            "decile": 3,
+            "net_mean": -0.004062422655646027,
+            "days": 157
+          },
+          {
+            "decile": 4,
+            "net_mean": -0.004001313662026955,
+            "days": 157
+          },
+          {
+            "decile": 5,
+            "net_mean": -0.003926549383992752,
+            "days": 157
+          },
+          {
+            "decile": 6,
+            "net_mean": -0.003946533472516856,
+            "days": 157
+          },
+          {
+            "decile": 7,
+            "net_mean": -0.0036927326938889418,
+            "days": 157
+          },
+          {
+            "decile": 8,
+            "net_mean": -0.0037342590136915147,
+            "days": 157
+          },
+          {
+            "decile": 9,
+            "net_mean": -0.002924384994392303,
+            "days": 157
+          },
+          {
+            "decile": 10,
+            "net_mean": -0.0017791266204330103,
+            "days": 157
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": -96.28820571764699,
+          "ls_net_spread_t_nw": -1.75971733483163
+        },
+        "ic_mean": -0.016767777784145604,
+        "ic_t_nw": -0.6100704265184992,
+        "ic_days": 157,
+        "ic_lag": 24
+      },
+      {
+        "segment": "OOS",
+        "N": 20,
+        "h": 2,
+        "cost_model": "M6_frozen_c19p6bp",
+        "cost_desc": "冻结 −20%（敏感性）",
+        "cost_bp": 9.6,
+        "gross_d1": 0.00029665566115608913,
+        "gross_d10": 0.0027254762329207913,
+        "gross_spread": -0.0024288205717647024,
+        "gross_spread_t_nw": -0.44387966641138676,
+        "gross_spread_t_naive": -0.847661075668768,
+        "d1_net_mean": -0.000903156335779758,
+        "d10_net_mean": 0.0015227509721607384,
+        "spread_net_d1_d10": -0.0024259073079404966,
+        "spread_net_t_nw": -0.44387966641138665,
+        "d1_net_t_nw": -0.1959134417417758,
+        "universe_net_mean": -0.00034976144680774854,
+        "universe_days": 157,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -0.000903156335779758,
+            "days": 157
+          },
+          {
+            "decile": 2,
+            "net_mean": -0.0008908979411865374,
+            "days": 157
+          },
+          {
+            "decile": 3,
+            "net_mean": -0.000768097664101788,
+            "days": 157
+          },
+          {
+            "decile": 4,
+            "net_mean": -0.0007067865364439277,
+            "days": 157
+          },
+          {
+            "decile": 5,
+            "net_mean": -0.000631774955932936,
+            "days": 157
+          },
+          {
+            "decile": 6,
+            "net_mean": -0.0006518251470760818,
+            "days": 157
+          },
+          {
+            "decile": 7,
+            "net_mean": -0.0003971848557448311,
+            "days": 157
+          },
+          {
+            "decile": 8,
+            "net_mean": -0.0004388485347516754,
+            "days": 157
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0003737043554752615,
+            "days": 157
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0015227509721607384,
+            "days": 157
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": -43.488205717647,
+          "ls_net_spread_t_nw": -0.7947697113234515
+        },
+        "ic_mean": -0.016769201516773125,
+        "ic_t_nw": -0.6101296803865857,
+        "ic_days": 157,
+        "ic_lag": 24
+      },
+      {
+        "segment": "OOS",
+        "N": 20,
+        "h": 2,
+        "cost_model": "M7_frozen_c214p4bp",
+        "cost_desc": "冻结 +20%（敏感性）",
+        "cost_bp": 14.4,
+        "gross_d1": 0.00029665566115608913,
+        "gross_d10": 0.0027254762329207913,
+        "gross_spread": -0.0024288205717647024,
+        "gross_spread_t_nw": -0.44387966641138676,
+        "gross_spread_t_naive": -0.847661075668768,
+        "d1_net_mean": -0.0015026545347376632,
+        "d10_net_mean": 0.00092179713146883,
+        "spread_net_d1_d10": -0.002424451666206493,
+        "spread_net_t_nw": -0.44387966641138704,
+        "d1_net_t_nw": -0.32615280653475476,
+        "universe_net_mean": -0.0009495917049062197,
+        "universe_days": 157,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -0.0015026545347376632,
+            "days": 157
+          },
+          {
+            "decile": 2,
+            "net_mean": -0.0014904034956731125,
+            "days": 157
+          },
+          {
+            "decile": 3,
+            "net_mean": -0.0013676769036824671,
+            "days": 157
+          },
+          {
+            "decile": 4,
+            "net_mean": -0.0013064025651615566,
+            "days": 157
+          },
+          {
+            "decile": 5,
+            "net_mean": -0.0012314359946090116,
+            "days": 157
+          },
+          {
+            "decile": 6,
+            "net_mean": -0.0012514741548328779,
+            "days": 157
+          },
+          {
+            "decile": 7,
+            "net_mean": -0.0009969866578948868,
+            "days": 157
+          },
+          {
+            "decile": 8,
+            "net_mean": -0.0010386253370224055,
+            "days": 157
+          },
+          {
+            "decile": 9,
+            "net_mean": -0.0002265600111365398,
+            "days": 157
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.00092179713146883,
+            "days": 157
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": -53.08820571764701,
+          "ls_net_spread_t_nw": -0.9702147337794842
+        },
+        "ic_mean": -0.01677049902214163,
+        "ic_t_nw": -0.6101883600529417,
+        "ic_days": 157,
+        "ic_lag": 24
+      },
+      {
+        "segment": "OOS",
+        "N": 20,
+        "h": 3,
+        "cost_model": "M0_zero",
+        "cost_desc": "零成本（工具校验：净必须等于毛）",
+        "cost_bp": 0.0,
+        "gross_d1": -6.13859722137723e-05,
+        "gross_d10": 0.0018327453058093561,
+        "gross_spread": -0.0018941312780231285,
+        "gross_spread_t_nw": -0.24872458923003965,
+        "gross_spread_t_naive": -0.5482882569445895,
+        "d1_net_mean": -6.13859722137723e-05,
+        "d10_net_mean": 0.0018327453058093561,
+        "spread_net_d1_d10": -0.0018941312780231285,
+        "spread_net_t_nw": -0.24872458923003965,
+        "d1_net_t_nw": -0.010244990231316035,
+        "universe_net_mean": 0.0005766036289237457,
+        "universe_days": 156,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -6.13859722137723e-05,
+            "days": 156
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.0001554991086664348,
+            "days": 156
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.00027604529386946293,
+            "days": 156
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.0004302644241691329,
+            "days": 156
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.00046618855795394057,
+            "days": 156
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.000638906112468865,
+            "days": 156
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.0006025603679528237,
+            "days": 156
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.00029950977242123276,
+            "days": 156
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.001126477681860681,
+            "days": 156
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0018327453058093561,
+            "days": 156
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": -18.9413127802313,
+          "ls_net_spread_t_nw": -0.24872458923003965
+        },
+        "ic_mean": -0.02146981097579837,
+        "ic_t_nw": -0.6990425466566959,
+        "ic_days": 156,
+        "ic_lag": 25
+      },
+      {
+        "segment": "OOS",
+        "N": 20,
+        "h": 3,
+        "cost_model": "M1_frozen_12bp",
+        "cost_desc": "冻结口径 12bp（工具校验：必须逐位复现 R001）",
+        "cost_bp": 12.0,
+        "gross_d1": -6.13859722137723e-05,
+        "gross_d10": 0.0018327453058093561,
+        "gross_spread": -0.0018941312780231285,
+        "gross_spread_t_nw": -0.24872458923003965,
+        "gross_spread_t_naive": -0.5482882569445895,
+        "d1_net_mean": -0.0015604442802963443,
+        "d10_net_mean": 0.0003308474101870254,
+        "spread_net_d1_d10": -0.0018912916904833697,
+        "spread_net_t_nw": -0.24872458923003968,
+        "d1_net_t_nw": -0.26082080865308566,
+        "universe_net_mean": -0.0009234111214830256,
+        "universe_days": 156,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -0.0015604442802963443,
+            "days": 156
+          },
+          {
+            "decile": 2,
+            "net_mean": -0.0013438843427577734,
+            "days": 156
+          },
+          {
+            "decile": 3,
+            "net_mean": -0.0012235188744086586,
+            "days": 156
+          },
+          {
+            "decile": 4,
+            "net_mean": -0.0010695309417698233,
+            "days": 156
+          },
+          {
+            "decile": 5,
+            "net_mean": -0.0010336606636622105,
+            "days": 156
+          },
+          {
+            "decile": 6,
+            "net_mean": -0.0008612020387269764,
+            "days": 156
+          },
+          {
+            "decile": 7,
+            "net_mean": -0.000897493295507957,
+            "days": 156
+          },
+          {
+            "decile": 8,
+            "net_mean": -0.0012000895726377676,
+            "days": 156
+          },
+          {
+            "decile": 9,
+            "net_mean": -0.00037436141241669257,
+            "days": 156
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0003308474101870254,
+            "days": 156
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": -42.9413127802313,
+          "ls_net_spread_t_nw": -0.5638764591548685
+        },
+        "ic_mean": -0.021470237910262695,
+        "ic_t_nw": -0.6990675168482586,
+        "ic_days": 156,
+        "ic_lag": 25
+      },
+      {
+        "segment": "OOS",
+        "N": 20,
+        "h": 3,
+        "cost_model": "M2_tick1",
+        "cost_desc": "一跳下界（模型自由；符号为真实成本下界）",
+        "cost_bp": null,
+        "gross_d1": -6.13859722137723e-05,
+        "gross_d10": 0.0018327453058093561,
+        "gross_spread": -0.0018941312780231285,
+        "gross_spread_t_nw": -0.24872458923003965,
+        "gross_spread_t_naive": -0.5482882569445895,
+        "d1_net_mean": -0.0010270140875668844,
+        "d10_net_mean": 0.0011710456327554413,
+        "spread_net_d1_d10": -0.0021980597203223257,
+        "spread_net_t_nw": -0.2843138906802186,
+        "d1_net_t_nw": -0.17061522742206045,
+        "universe_net_mean": -0.00044060989540655794,
+        "universe_days": 156,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -0.0010270140875668844,
+            "days": 156
+          },
+          {
+            "decile": 2,
+            "net_mean": -0.0008802704701379349,
+            "days": 156
+          },
+          {
+            "decile": 3,
+            "net_mean": -0.0008236666876263024,
+            "days": 156
+          },
+          {
+            "decile": 4,
+            "net_mean": -0.0007021223274759773,
+            "days": 156
+          },
+          {
+            "decile": 5,
+            "net_mean": -0.000668407385914458,
+            "days": 156
+          },
+          {
+            "decile": 6,
+            "net_mean": -0.0004836610253937629,
+            "days": 156
+          },
+          {
+            "decile": 7,
+            "net_mean": -0.0004901337675484251,
+            "days": 156
+          },
+          {
+            "decile": 8,
+            "net_mean": -0.0007365141528453944,
+            "days": 156
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.00023568831259725538,
+            "days": 156
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0011710456327554413,
+            "days": 156
+          }
+        ],
+        "ls_reading_b": null,
+        "ic_mean": -0.020516684536133364,
+        "ic_t_nw": -0.6558170504922494,
+        "ic_days": 156,
+        "ic_lag": 25
+      },
+      {
+        "segment": "OOS",
+        "N": 20,
+        "h": 3,
+        "cost_model": "M3_tick2",
+        "cost_desc": "2× 一跳（**显式假设**：价差 ≤2 跳；不是定理）",
+        "cost_bp": null,
+        "gross_d1": -6.13859722137723e-05,
+        "gross_d10": 0.0018327453058093561,
+        "gross_spread": -0.0018941312780231285,
+        "gross_spread_t_nw": -0.24872458923003965,
+        "gross_spread_t_naive": -0.5482882569445895,
+        "d1_net_mean": -0.00199041524096733,
+        "d10_net_mean": 0.0005103540911851073,
+        "spread_net_d1_d10": -0.0025007693321524374,
+        "spread_net_t_nw": -0.31867537968944215,
+        "d1_net_t_nw": -0.3291111822573246,
+        "universe_net_mean": -0.0014557764140643622,
+        "universe_days": 156,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -0.00199041524096733,
+            "days": 156
+          },
+          {
+            "decile": 2,
+            "net_mean": -0.0019139409954606914,
+            "days": 156
+          },
+          {
+            "decile": 3,
+            "net_mean": -0.001921117130688404,
+            "days": 156
+          },
+          {
+            "decile": 4,
+            "net_mean": -0.0018321705922771248,
+            "days": 156
+          },
+          {
+            "decile": 5,
+            "net_mean": -0.0018006618243573012,
+            "days": 156
+          },
+          {
+            "decile": 6,
+            "net_mean": -0.0016039398889465557,
+            "days": 156
+          },
+          {
+            "decile": 7,
+            "net_mean": -0.00158059236764593,
+            "days": 156
+          },
+          {
+            "decile": 8,
+            "net_mean": -0.0017704585236498714,
+            "days": 156
+          },
+          {
+            "decile": 9,
+            "net_mean": -0.0006535111466473623,
+            "days": 156
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0005103540911851073,
+            "days": 156
+          }
+        ],
+        "ls_reading_b": null,
+        "ic_mean": -0.019543980637791763,
+        "ic_t_nw": -0.6135891041899387,
+        "ic_days": 156,
+        "ic_lag": 25
+      },
+      {
+        "segment": "OOS",
+        "N": 20,
+        "h": 3,
+        "cost_model": "M4_frozen_x2_24bp",
+        "cost_desc": "2× 冻结（H2 低端，等权惩罚 2×）",
+        "cost_bp": 24.0,
+        "gross_d1": -6.13859722137723e-05,
+        "gross_d10": 0.0018327453058093561,
+        "gross_spread": -0.0018941312780231285,
+        "gross_spread_t_nw": -0.24872458923003965,
+        "gross_spread_t_naive": -0.5482882569445895,
+        "d1_net_mean": -0.003057804700982145,
+        "d10_net_mean": -0.0011693493818194834,
+        "spread_net_d1_d10": -0.0018884553191626616,
+        "spread_net_t_nw": -0.24872458923003987,
+        "d1_net_t_nw": -0.5118650958670928,
+        "universe_net_mean": -0.0024217269011920224,
+        "universe_days": 156,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -0.003057804700982145,
+            "days": 156
+          },
+          {
+            "decile": 2,
+            "net_mean": -0.002841569538516156,
+            "days": 156
+          },
+          {
+            "decile": 3,
+            "net_mean": -0.0027213845823345437,
+            "days": 156
+          },
+          {
+            "decile": 4,
+            "net_mean": -0.002567627585493753,
+            "days": 156
+          },
+          {
+            "decile": 5,
+            "net_mean": -0.0025318111020644542,
+            "days": 156
+          },
+          {
+            "decile": 6,
+            "net_mean": -0.0023596111134359526,
+            "days": 156
+          },
+          {
+            "decile": 7,
+            "net_mean": -0.002395847944196636,
+            "days": 156
+          },
+          {
+            "decile": 8,
+            "net_mean": -0.0026979904175020446,
+            "days": 156
+          },
+          {
+            "decile": 9,
+            "net_mean": -0.0018735006023147562,
+            "days": 156
+          },
+          {
+            "decile": 10,
+            "net_mean": -0.0011693493818194834,
+            "days": 156
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": -66.9413127802313,
+          "ls_net_spread_t_nw": -0.8790283290796972
+        },
+        "ic_mean": -0.021469907564565485,
+        "ic_t_nw": -0.6990394962301422,
+        "ic_days": 156,
+        "ic_lag": 25
+      },
+      {
+        "segment": "OOS",
+        "N": 20,
+        "h": 3,
+        "cost_model": "M5_frozen_x3_36bp",
+        "cost_desc": "3× 冻结（H2 高端，等权惩罚 3×）",
+        "cost_bp": 36.0,
+        "gross_d1": -6.13859722137723e-05,
+        "gross_d10": 0.0018327453058093561,
+        "gross_spread": -0.0018941312780231285,
+        "gross_spread_t_nw": -0.24872458923003965,
+        "gross_spread_t_naive": -0.5482882569445895,
+        "d1_net_mean": -0.004553469239959438,
+        "d10_net_mean": -0.002667847079697698,
+        "spread_net_d1_d10": -0.0018856221602617396,
+        "spread_net_t_nw": -0.24872458923003965,
+        "d1_net_t_nw": -0.763379019102556,
+        "universe_net_mean": -0.003918345717171196,
+        "universe_days": 156,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -0.004553469239959438,
+            "days": 156
+          },
+          {
+            "decile": 2,
+            "net_mean": -0.0043375584847320054,
+            "days": 156
+          },
+          {
+            "decile": 3,
+            "net_mean": -0.0042175538362732865,
+            "days": 156
+          },
+          {
+            "decile": 4,
+            "net_mean": -0.004064027513677069,
+            "days": 156
+          },
+          {
+            "decile": 5,
+            "net_mean": -0.004028264763999261,
+            "days": 156
+          },
+          {
+            "decile": 6,
+            "net_mean": -0.003856323118750964,
+            "days": 156
+          },
+          {
+            "decile": 7,
+            "net_mean": -0.003892505585133226,
+            "days": 156
+          },
+          {
+            "decile": 8,
+            "net_mean": -0.0041941947685837505,
+            "days": 156
+          },
+          {
+            "decile": 9,
+            "net_mean": -0.003370941895904396,
+            "days": 156
+          },
+          {
+            "decile": 10,
+            "net_mean": -0.002667847079697698,
+            "days": 156
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": -90.9413127802313,
+          "ls_net_spread_t_nw": -1.1941801990045262
+        },
+        "ic_mean": -0.021470967742669444,
+        "ic_t_nw": -0.699084111367955,
+        "ic_days": 156,
+        "ic_lag": 25
+      },
+      {
+        "segment": "OOS",
+        "N": 20,
+        "h": 3,
+        "cost_model": "M6_frozen_c19p6bp",
+        "cost_desc": "冻结 −20%（敏感性）",
+        "cost_bp": 9.6,
+        "gross_d1": -6.13859722137723e-05,
+        "gross_d10": 0.0018327453058093561,
+        "gross_spread": -0.0018941312780231285,
+        "gross_spread_t_nw": -0.24872458923003965,
+        "gross_spread_t_naive": -0.5482882569445895,
+        "d1_net_mean": -0.0012607685139028317,
+        "d10_net_mean": 0.0006310908366693006,
+        "spread_net_d1_d10": -0.0018918593505721324,
+        "spread_net_t_nw": -0.24872458923003962,
+        "d1_net_t_nw": -0.2106682047503654,
+        "universe_net_mean": -0.0006235441533297345,
+        "universe_days": 156,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -0.0012607685139028317,
+            "days": 156
+          },
+          {
+            "decile": 2,
+            "net_mean": -0.0010441435771713886,
+            "days": 156
+          },
+          {
+            "decile": 3,
+            "net_mean": -0.000923741981834148,
+            "days": 156
+          },
+          {
+            "decile": 4,
+            "net_mean": -0.0007697078306220723,
+            "days": 156
+          },
+          {
+            "decile": 5,
+            "net_mean": -0.0007338267862612418,
+            "days": 156
+          },
+          {
+            "decile": 6,
+            "net_mean": -0.000561316398883001,
+            "days": 156
+          },
+          {
+            "decile": 7,
+            "net_mean": -0.0005976185482714738,
+            "days": 156
+          },
+          {
+            "decile": 8,
+            "net_mean": -0.0009003056478959884,
+            "days": 156
+          },
+          {
+            "decile": 9,
+            "net_mean": -7.432965021912556e-05,
+            "days": 156
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0006310908366693006,
+            "days": 156
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": -38.141312780231296,
+          "ls_net_spread_t_nw": -0.5008460851699027
+        },
+        "ic_mean": -0.021469505275530255,
+        "ic_t_nw": -0.6990489917747574,
+        "ic_days": 156,
+        "ic_lag": 25
+      },
+      {
+        "segment": "OOS",
+        "N": 20,
+        "h": 3,
+        "cost_model": "M7_frozen_c214p4bp",
+        "cost_desc": "冻结 +20%（敏感性）",
+        "cost_bp": 14.4,
+        "gross_d1": -6.13859722137723e-05,
+        "gross_d10": 0.0018327453058093561,
+        "gross_spread": -0.0018941312780231285,
+        "gross_spread_t_nw": -0.24872458923003965,
+        "gross_spread_t_naive": -0.5482882569445895,
+        "d1_net_mean": -0.0018600521312032432,
+        "d10_net_mean": 3.067202784011593e-05,
+        "spread_net_d1_d10": -0.001890724159043359,
+        "spread_net_t_nw": -0.24872458923003937,
+        "d1_net_t_nw": -0.3109921512955041,
+        "universe_net_mean": -0.0012232101308176672,
+        "universe_days": 156,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -0.0018600521312032432,
+            "days": 156
+          },
+          {
+            "decile": 2,
+            "net_mean": -0.0016435571781267771,
+            "days": 156
+          },
+          {
+            "decile": 3,
+            "net_mean": -0.0015232278285783362,
+            "days": 156
+          },
+          {
+            "decile": 4,
+            "net_mean": -0.0013692861040382257,
+            "days": 156
+          },
+          {
+            "decile": 5,
+            "net_mean": -0.0013334265897438796,
+            "days": 156
+          },
+          {
+            "decile": 6,
+            "net_mean": -0.0011610197155207376,
+            "days": 156
+          },
+          {
+            "decile": 7,
+            "net_mean": -0.0011973000821628107,
+            "days": 156
+          },
+          {
+            "decile": 8,
+            "net_mean": -0.0014998055573810186,
+            "days": 156
+          },
+          {
+            "decile": 9,
+            "net_mean": -0.0006743251784483525,
+            "days": 156
+          },
+          {
+            "decile": 10,
+            "net_mean": 3.067202784011593e-05,
+            "days": 156
+          }
+        ],
+        "ls_reading_b": {
+          "ls_net_spread_bp": -47.7413127802313,
+          "ls_net_spread_t_nw": -0.6269068331398342
+        },
+        "ic_mean": -0.021469135486174778,
+        "ic_t_nw": -0.6990325135437327,
+        "ic_days": 156,
+        "ic_lag": 25
+      }
+    ]
+  },
+  "breakeven": {
+    "IS": {
+      "spread": {
+        "root_bp": 14999.999999999578,
+        "f_lo_bp": 53.78735397665589,
+        "f_hi_bp": -10.245210281270012,
+        "note": null
+      },
+      "d1_only": {
+        "root_bp": 62.03784533328303,
+        "f_lo_bp": 77.9230948071737,
+        "f_hi_bp": -11919.604399010894,
+        "note": null
+      }
+    },
+    "OOS": {
+      "spread": {
+        "root_bp": null,
+        "f_lo_bp": -18.941312780231286,
+        "f_hi_bp": 3.607869101005523,
+        "note": "端点不构成递减方向上的严格异号 ⟹ c_rt≥0 内不存在归零点（毛价差符号与成本方向一致）"
+      },
+      "d1_only": {
+        "root_bp": null,
+        "f_lo_bp": -0.6138597221377231,
+        "f_hi_bp": -11904.64497910054,
+        "note": "端点不构成递减方向上的严格异号 ⟹ c_rt≥0 内不存在归零点（毛价差符号与成本方向一致）"
+      }
+    },
+    "reading_b": {
+      "definition": "LS_net = 毛价差 − 2c（美元中性：+1 多头腿 −1 空头腿，两条腿各自承担一次双边成本）⟹ r* = 毛价差/2",
+      "IS_h3": {
+        "gross_spread_bp": 53.78735397665589,
+        "r_star_ls_bp": 26.893676988327947,
+        "ls_net_spread_bp_at_12bp": 29.787353976655893,
+        "r_star_ls_in_ticks_pool": 3.7893190876554077,
+        "gross_spread_t_nw": 2.6303318223088707,
+        "ls_net_spread_t_nw_at_12bp": 1.456673721134924
+      },
+      "OOS_h3": {
+        "gross_spread_bp": -18.941312780231286,
+        "r_star_ls_bp": -9.470656390115643,
+        "ls_net_spread_bp_at_12bp": -42.941312780231286,
+        "r_star_ls_in_ticks_pool": -1.334415485367294,
+        "gross_spread_t_nw": -0.24872458923003965,
+        "ls_net_spread_t_nw_at_12bp": -0.5638764591548685
+      },
+      "note": "该量由预注册的毛价差纯算术派生，不构成新的评估变体；读数 (a) 的 r* 由二分法给出（prereg §1 公式的原样实现）"
+    },
+    "analytic_note": {
+      "reading_a_kappa_zero_bp": 15000.000000000002,
+      "formula": "读数(a) 的净收益 = 毛收益 × κ(c)，κ(c) = (1 − SLIPPAGE·c/12)·(1 − (COMMISSION+SELL_TAX)·c/12) / ((1 + SLIPPAGE·c/12)·(1 + COMMISSION·c/12))（两级乘性，与实现同构；D-R010-05 裁定 C）；κ 归零处 c = 12/(COMMISSION+SELL_TAX)（两因子中先归零者；加法式下曾为 12/(SELL_TAX+SLIPPAGE)）",
+      "interpretation": "该根是参数化的算术恒等式（两条腿同时归零），不含任何经济信息 ⟹ 读数(a) 结构上无法检验论文的成本主张",
+      "selfcheck_closed_form_vs_bisection": {
+        "measured_is_spread_root_bp": 14999.999999999578,
+        "closed_form_bp": 15000.000000000002,
+        "rel_tol": 1e-06,
+        "pass": true
+      }
+    }
+  },
+  "grid_parity_M1": {
+    "IS_N20_h3": {
+      "ic_mean": -0.060467509102863096,
+      "ic_days": 465,
+      "spread_net_d1_d10": 0.005370671864692934,
+      "d1_net_mean": 0.006281477302466469,
+      "d10_net_mean": 0.0009108054377735349,
+      "universe_net_mean": 0.004212671547240555,
+      "deciles": [
+        0.006281477302466469,
+        0.005037165347117595,
+        0.004906045229588632,
+        0.004949164677698254,
+        0.004623946683545686,
+        0.00438896635699063,
+        0.004091832436405867,
+        0.0038757267530579523,
+        0.0030546103323212384,
+        0.0009108054377735349
+      ],
+      "funnel": {
+        "signal_days": 485,
+        "signal_count": 1554588,
+        "buyable_count": 1548469,
+        "filled_count": 1538993,
+        "NOT_BUYABLE": 6119,
+        "SUSPENDED": 0,
+        "NOT_SELLABLE": 9476,
+        "DELISTED": 0
+      }
+    },
+    "OOS_N20_h3": {
+      "ic_mean": -0.021470237910262695,
+      "ic_days": 156,
+      "spread_net_d1_d10": -0.0018912916904833697,
+      "d1_net_mean": -0.0015604442802963443,
+      "d10_net_mean": 0.0003308474101870254,
+      "universe_net_mean": -0.0009234111214830256,
+      "deciles": [
+        -0.0015604442802963443,
+        -0.0013438843427577734,
+        -0.0012235188744086586,
+        -0.0010695309417698233,
+        -0.0010336606636622105,
+        -0.0008612020387269764,
+        -0.000897493295507957,
+        -0.0012000895726377676,
+        -0.00037436141241669257,
+        0.0003308474101870254
+      ],
+      "funnel": {
+        "signal_days": 156,
+        "signal_count": 747877,
+        "buyable_count": 746640,
+        "filled_count": 743706,
+        "NOT_BUYABLE": 1237,
+        "SUSPENDED": 0,
+        "NOT_SELLABLE": 2934,
+        "DELISTED": 0
+      }
+    }
+  },
+  "K2_mono_extra": {
+    "cost_model": "M8_mono_6bp",
+    "bp": 6.0,
+    "segment": "IS",
+    "h": 3,
+    "d1_net_mean": 0.007036679362278604,
+    "d1_net_t_nw": 2.0685501883102906
+  },
+  "K2_tool_check": {
+    "passed": true,
+    "checks": {
+      "M0_net_equals_gross": true,
+      "M1_parity_vs_R001": true,
+      "monotonic_decreasing": true
+    },
+    "detail": {
+      "parity_cells": [
+        {
+          "cell": "IS_N20_h3",
+          "ok": true,
+          "mismatch": [],
+          "n_compared": 24
+        },
+        {
+          "cell": "OOS_N20_h3",
+          "ok": true,
+          "mismatch": [],
+          "n_compared": 24
+        }
+      ],
+      "monotonic_trace": [
+        {
+          "bp": 0.0,
+          "d1_net_mean": 0.00779230948071737,
+          "cost_model": "M0_zero"
+        },
+        {
+          "bp": 6.0,
+          "d1_net_mean": 0.007036679362278604,
+          "cost_model": "M8_mono_6bp"
+        },
+        {
+          "bp": 9.6,
+          "d1_net_mean": 0.006583506775548427,
+          "cost_model": "M6_frozen_c19p6bp"
+        },
+        {
+          "bp": 12.0,
+          "d1_net_mean": 0.006281477302466469,
+          "cost_model": "M1_frozen_12bp"
+        },
+        {
+          "bp": 14.4,
+          "d1_net_mean": 0.005979516278291407,
+          "cost_model": "M7_frozen_c214p4bp"
+        },
+        {
+          "bp": 24.0,
+          "d1_net_mean": 0.0047723563471214715,
+          "cost_model": "M4_frozen_x2_24bp"
+        },
+        {
+          "bp": 36.0,
+          "d1_net_mean": 0.0032649445932410926,
+          "cost_model": "M5_frozen_x3_36bp"
+        }
+      ]
+    }
+  },
+  "K3_canary": {
+    "foresight_ic": 1.0,
+    "foresight_ic_days": 465,
+    "threshold": 0.99,
+    "passed": true
+  },
+  "cross_section_tick": {
+    "name_days_D1": 154100,
+    "tick_bp_p10": 2.958579881656805,
+    "tick_bp_p50": 9.27643784786642,
+    "tick_bp_p90": 32.154340836012864,
+    "entry_price_p10_cny": 3.11,
+    "entry_price_p50_cny": 10.78,
+    "entry_price_p90_cny": 33.8,
+    "by_reading": {
+      "reading_a": {
+        "r_star_bp": 14999.999999999578,
+        "P_star_cny": 0.0067,
+        "share_below_P_star": 0.0,
+        "share_tick_above_r_star": 0.0,
+        "P_star_threshold": 0.2,
+        "fired": false,
+        "r_star_in_ticks_p50": 1616.9999999999543
+      },
+      "reading_b_ls": {
+        "r_star_bp": 26.893676988327947,
+        "P_star_cny": 3.7183,
+        "share_below_P_star": 0.13624269954574952,
+        "share_tick_above_r_star": 0.13624269954574952,
+        "P_star_threshold": 0.2,
+        "fired": false,
+        "r_star_in_ticks_p50": 2.8991383793417524
+      }
+    }
+  },
+  "paper_drag_reference": {
+    "monthly_turnover_one_sided_D1": 7.4685483870967735,
+    "formula": "paper_drag_monthly(c) = 2 x turnover x c（论文第 3 条主张的多空成本拖累）",
+    "drag_bp_monthly_at_12bp": 179.24516129032256,
+    "drag_bp_monthly_at_tick_p50": 106.01204240023809,
+    "drag_bp_monthly_at_r_star": 401.7134557885566,
+    "note": "仅作论文结构的对照量，不参与判定"
+  },
+  "variant_disclosure": {
+    "grid_cells": 32,
+    "k2_monotonicity_point": 1,
+    "canaries": 2,
+    "breakeven_solves": 4,
+    "cross_section_runs": 1,
+    "parity_cells_reused_from_grid": 2,
+    "total_distinct_evaluations": 40,
+    "max_variants": 40,
+    "internal_solver_steps": 320,
+    "prereg_table_total": 35,
+    "note": "为主张未超预注册上限：(a) 预注册表中「成本模型 M0–M6」7 个 + 单调性所需的 6bp 检查点（prereg §4 K2 明列）⟹ 网格 8 模型；(b) K2 的逐位复现不新增评估，直接复用 (N=20,h∈{2,3},IS/OOS) 的 M1 网格单元；(c) 为守住 40 的上限，N∈{1,5} 的网格单元本轮不评估（R003 结论不使用）。二分法内部迭代为单一预注册量的数值求解，不构成变体。阈值在运行前由 R003_prereg.md 固定，未因结果收紧或放宽"
+  },
+  "verdict": {
+    "status": "INCONCLUSIVE",
+    "fired": [
+      "D1b"
+    ],
+    "reasons": [
+      "读数(a) r*=15000.00bp ⟹ 远超 2×一跳；读数(b) r*=26.89bp （= 毛价差/2）亦 > 2×一跳 14.19bp ⟹ 论文成立**要求**「真实价差 > 2.90 跳（D1 口径）」；本地无价差数据 ⟹ 条件性二分，不能宣布任何一方",
+      "D2 未触发：两个读数下「价 < P*」占比均 < 20%（读数a=0.0，读数b=0.13624269954574952）"
+    ],
+    "turnover_gate": {
+      "monthly_turnover_one_sided_D1": 7.4685483870967735,
+      "threshold": 0.5,
+      "passed": true
+    },
+    "thresholds": {
+      "tick_p50_bp": 7.097232079488999,
+      "two_tick_bp": 14.194464158977999,
+      "tick_p50_D1_bp": 9.27643784786642,
+      "r_star_reading_a_bp": 14999.999999999578,
+      "r_star_reading_b_bp": 26.893676988327947,
+      "r_star_reading_b_in_ticks_D1": 2.8991383793417524,
+      "branch_note": "分支阈值按 prereg §4 用**全池**一跳 p50；用 D1 自身一跳 p50 重算不改变任何分支（26.89bp > 2×9.28bp）",
+      "branch_reading_a": "b",
+      "branch_reading_b": "b"
+    },
+    "conditional_split": {
+      "reading_a": {
+        "r_star_bp": 14999.999999999578,
+        "r_star_in_ticks_pool": 2113.4999999999404,
+        "structural_note": "读数(a) 把两条腿都当多头腿：成本在差分中**精确抵消**（实测 c: 0→12→36bp 时 D1−D10 由 53.79→53.72→53.59bp）⟹ 该口径**结构上无法检验**论文的成本主张，r* 退化为资金归零点。此为**预注册 §1 口径的缺陷**，不是论文被证伪。"
+      },
+      "reading_b": {
+        "r_star_bp": 26.893676988327947,
+        "r_star_in_ticks_pool": 3.7893190876554077,
+        "r_star_in_ticks_D1": 2.8991383793417524,
+        "definition": "美元中性多空：LS_net = 毛价差 − 2c ⟹ r* = 毛价差/2"
+      },
+      "branch_A": "若真实中位价差 ≤2 跳（≤ 14.19bp）⟹ 论文被证伪：成本不足以消除多空净价差",
+      "branch_B": "若真实价差 > 2.90 跳（D1 口径）⟹ 论文成立：成本足以消除多空净价差",
+      "undecidable_locally_because": "本地无有效价差数据（B003 两条估计路线均被证否）"
+    },
+    "NMV_own_test_significance": {
+      "M0_zero": {
+        "cost_bp": 0.0,
+        "gross_spread_bp": 53.78735397665589,
+        "gross_spread_t_nw": 2.6303318223088707,
+        "spread_two_long_legs_bp": 53.78735397665589,
+        "spread_two_long_legs_t_nw": 2.6303318223088707,
+        "ls_net_spread_bp": 53.78735397665589,
+        "ls_net_spread_t_nw": 2.6303318223088707,
+        "d1_net_bp": 77.9230948071737,
+        "d1_net_t_nw": 2.288962840510633
+      },
+      "M1_frozen_12bp": {
+        "cost_bp": 12.0,
+        "gross_spread_bp": 53.78735397665589,
+        "gross_spread_t_nw": 2.6303318223088707,
+        "spread_two_long_legs_bp": 53.70671864692934,
+        "spread_two_long_legs_t_nw": 2.63033182230887,
+        "ls_net_spread_bp": 29.787353976655897,
+        "ls_net_spread_t_nw": 1.456673721134924,
+        "d1_net_bp": 62.81477302466469,
+        "d1_net_t_nw": 1.8479316578314018
+      },
+      "note": "论文的检验形式是「净价差是否统计显著」，故本轮补报价差的 NW t 值；该 t 值由预注册已采集的分位日度序列派生，不新增评估变体"
+    },
+    "D2_cheapest_subset": {
+      "threshold": 0.2,
+      "by_reading": {
+        "reading_a": {
+          "r_star_bp": 14999.999999999578,
+          "P_star_cny": 0.0067,
+          "share_below_P_star": 0.0,
+          "share_tick_above_r_star": 0.0,
+          "P_star_threshold": 0.2,
+          "fired": false,
+          "r_star_in_ticks_p50": 1616.9999999999543
+        },
+        "reading_b_ls": {
+          "r_star_bp": 26.893676988327947,
+          "P_star_cny": 3.7183,
+          "share_below_P_star": 0.13624269954574952,
+          "share_tick_above_r_star": 0.13624269954574952,
+          "P_star_threshold": 0.2,
+          "fired": false,
+          "r_star_in_ticks_p50": 2.8991383793417524
+        }
+      },
+      "tick_bp_p50_D1": 9.27643784786642,
+      "fired_reading_a": false,
+      "fired_reading_b_ls": false
+    },
+    "D3_H2": {
+      "cost_bp": 36.0,
+      "d1_net_mean": 0.0032649445932410926,
+      "d1_net_t_nw": 0.9633936233327307,
+      "h2_killed": false,
+      "reason": "3× 冻结成本下 D1 净收益 ≤0 或 |t_NW|≤2 ⟹ H2 成立"
+    },
+    "D4_OOS": {
+      "oos_gross_spread_bp": -18.941312780231286,
+      "oos_breakeven_root_bp": null,
+      "note": "OOS 冻结净价差为负 ⟹ 不存在 c_rt≥0 使 OOS 价差转正 ⟹ 成本不可能解释 OOS 符号翻转（R002 已定位为 2026-02 股票池断层）"
+    },
+    "ledger_status_mapping": {
+      "PAPER_SUPPORTED": "ADOPT_CANDIDATE（须用户确认，agent 不得自行提升）",
+      "NOT_APPLICABLE": "REJECTED",
+      "INCONCLUSIVE": "INCONCLUSIVE",
+      "INVALID": "INCONCLUSIVE"
+    }
+  }
+}

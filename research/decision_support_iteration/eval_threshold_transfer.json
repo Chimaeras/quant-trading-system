@@ -1,0 +1,146 @@
+{
+ "C1_tail_spread": {
+  "days": 155,
+  "top_decile_mean": 0.0027618701658295728,
+  "bottom_decile_mean": -0.000398822606523573,
+  "spread_mean": 0.0031606927723531455,
+  "spread_ci_norm": [
+   0.0008990734000011769,
+   0.0054223121447051145
+  ],
+  "spread_ci_block": [
+   0.001023247635687125,
+   0.005341813289416759
+  ],
+  "share_days_positive": 0.6038961038961039,
+  "finite_ic_days": 154,
+  "finite_ic_mean": 0.004107054928926599,
+  "finite_ic_ci": [
+   -0.020220849149797517,
+   0.028434959007650713
+  ],
+  "note": "并列值使部分交易日的高/低档为空，已逐日剔除后统计；IC 单指标对本规则无分辨力"
+ },
+ "C2_threshold_transfer_holdout": {
+  "window": [
+   "2026-06-01",
+   "2026-08-31"
+  ],
+  "table": [
+   {
+    "threshold": 25.0,
+    "days_with_picks": 62,
+    "picks": 726,
+    "avg_picks_per_day": 11.17,
+    "mean_net_ret": 0.006226837133822984,
+    "ci95_block": [
+     -0.003866056474141479,
+     0.015056386941910228
+    ],
+    "win_rate": 0.5967741935483871
+   },
+   {
+    "threshold": 30.0,
+    "days_with_picks": 58,
+    "picks": 278,
+    "avg_picks_per_day": 4.28,
+    "mean_net_ret": 0.017422418509106974,
+    "ci95_block": [
+     0.006045098562225957,
+     0.030956222105016907
+    ],
+    "win_rate": 0.603448275862069
+   },
+   {
+    "threshold": 32.0,
+    "days_with_picks": 50,
+    "picks": 178,
+    "avg_picks_per_day": 2.74,
+    "mean_net_ret": 0.02216920791651593,
+    "ci95_block": [
+     0.010053068039288404,
+     0.03643272931459686
+    ],
+    "win_rate": 0.72
+   },
+   {
+    "threshold": 35.0,
+    "days_with_picks": 46,
+    "picks": 90,
+    "avg_picks_per_day": 1.38,
+    "mean_net_ret": 0.019657238683239698,
+    "ci95_block": [
+     0.006323710709573085,
+     0.030384457723509187
+    ],
+    "win_rate": 0.717391304347826
+   },
+   {
+    "threshold": 38.0,
+    "days_with_picks": 31,
+    "picks": 48,
+    "avg_picks_per_day": 0.74,
+    "mean_net_ret": 0.030281888481297727,
+    "ci95_block": [
+     0.011216454239413937,
+     0.0572227169288814
+    ],
+    "win_rate": 0.7419354838709677
+   },
+   {
+    "threshold": 40.0,
+    "days_with_picks": 23,
+    "picks": 29,
+    "avg_picks_per_day": 0.45,
+    "mean_net_ret": 0.04021075485204264,
+    "ci95_block": [
+     0.019009564116942084,
+     0.07279253703439116
+    ],
+    "win_rate": 0.8260869565217391
+   },
+   {
+    "threshold": 42.0,
+    "days_with_picks": 14,
+    "picks": 17,
+    "avg_picks_per_day": 0.26,
+    "mean_net_ret": 0.03327271865669394,
+    "ci95_block": [
+     0.013739237126847022,
+     0.05985263592950245
+    ],
+    "win_rate": 0.7857142857142857
+   },
+   {
+    "threshold": 45.0,
+    "days_with_picks": 3,
+    "picks": 4,
+    "avg_picks_per_day": 0.06,
+    "mean_net_ret": 0.07464891894305659,
+    "ci95_block": [
+     NaN,
+     NaN
+    ],
+    "win_rate": 1.0
+   }
+  ],
+  "b1_mean": -0.0005015404649587694,
+  "b2a_mean": 0.007558461110529253,
+  "monotone_ascending_fraction": 0.7142857142857143
+ },
+ "C3_B0_vs_B2a_holdout": {
+  "paired_days": 46,
+  "mean_diff": 0.009448811816914407,
+  "ci95_norm": [
+   -0.0032747406066997997,
+   0.022172364240528614
+  ],
+  "ci95_block": [
+   -0.0028231276639125013,
+   0.021600830751000492
+  ],
+  "b0_win_share": 0.5652173913043478,
+  "b0_days": 46,
+  "b2a_days": 64
+ }
+}

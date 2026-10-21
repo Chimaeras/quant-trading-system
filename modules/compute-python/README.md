@@ -32,3 +32,7 @@ python main.py research run --config ... --feature-manifest ... --output-dir ...
 ## 依赖
 
 见 `requirements.txt`。正式环境请使用 lock 文件锁定版本。
+
+## 本地观察列表
+
+如需人工观察列表，请复制 `paper/watchlist.example.json` 为 `paper/watchlist.local.json`，编辑后通过 `PAPER_WATCHLIST_FILE` 指定该文件。个人列表不纳入版本控制。

@@ -1,0 +1,824 @@
+{
+  "round": "R006",
+  "started_at": "2026-09-14T20:47:08.322145",
+  "prereg": "rounds/R006_prereg.md",
+  "review": "rounds/R006_review.md",
+  "criteria_source": "AlphaEval arXiv:2508.13174v2 (KDD 2026)",
+  "readonly_attestation": {
+    "statements_executed": "SELECT only",
+    "writes_attempted": 0,
+    "note": "本脚本不含 INSERT/UPDATE/DELETE/DDL；仅 SELECT。"
+  },
+  "gate_G3": {
+    "engine_code_source": "file:/E:/Project/quant-trading-system/modules/backend-java/target/classes/",
+    "expected": "E:\\Project\\quant-trading-system\\modules\\backend-java\\target\\classes",
+    "is_repo_classes": true,
+    "class": "com.quant.service.backtest.FactorResearchEngine",
+    "classloader": "jdk.internal.loader.ClassLoaders$AppClassLoader@6bc7c054",
+    "sentinel_spearman_reverse": -1.0,
+    "sentinel_spearman_perm": 0.8,
+    "sentinel_pearson_reverse": -1.0
+  },
+  "variant_budget": {
+    "by_axis": {
+      "A1": 3,
+      "A2": 2,
+      "A3": 3,
+      "A4": 2,
+      "A5": 3,
+      "A6": 4,
+      "A7": 2,
+      "A8": 1
+    },
+    "frozen_axis_counts": {
+      "A1": 3,
+      "A2": 2,
+      "A3": 3,
+      "A4": 2,
+      "A5": 3,
+      "A6": 4,
+      "A7": 2,
+      "A8": 1
+    },
+    "total_variants": 20,
+    "frozen_total": 20,
+    "declared_checkers": 20,
+    "axis_keys_match": true,
+    "variant_map_complete": true,
+    "variant_ids_unique": true,
+    "ok": true,
+    "config_frozen_match": true,
+    "config_frozen_detail": {
+      "variants": true,
+      "by_axis": true,
+      "frozen_axis_counts": true,
+      "frozen_total": true,
+      "kill_conditions": true,
+      "count_expectations": true,
+      "tolerances": true
+    }
+  },
+  "canaries": {
+    "rows": [
+      {
+        "axis": "A1a",
+        "variant": "V01",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "op": "probe_clone",
+        "intent": "让 rank_ic_ir 改跟 Pearson 序列走 ⟹ 检查器必须报 VIOLATED",
+        "clean_evidence_digest": "{'rank_ic_ir': -2.153084275534054, 'ir_rank_div_T': -2.153084275534054, 'ir_pearson_div_T': -16.54381942506551, 'match_rank_series': True, 'match_pearson_series': False, 'series_discriminative': True, 'mean_abs_rank_vs_pearson_gap': 0.47023503866095506, 'bound_key': 'FactorResearchService:540 block.",
+        "inj_evidence_digest": "{'rank_ic_ir': -16.54381942506551, 'ir_rank_div_T': -2.153084275534054, 'ir_pearson_div_T': -16.54381942506551, 'match_rank_series': False, 'match_pearson_series': True, 'series_discriminative': True, 'mean_abs_rank_vs_pearson_gap': 0.47023503866095506, 'bound_key': 'FactorResearchService:540 block."
+      },
+      {
+        "axis": "A1b",
+        "variant": "V02",
+        "clean_expected": "VIOLATED",
+        "clean_actual": "VIOLATED",
+        "inj_expected": "NOT_VIOLATED",
+        "inj_actual": "NOT_VIOLATED",
+        "passed": true,
+        "op": "text_set",
+        "intent": "把裸 ICIR 标签改成带 Rank 限定 ⟹ 检查器必须不再报缺陷",
+        "clean_evidence_digest": "{'labels_checked': 6, 'labels_lacking_rank_qualifier': [{'label': 'IC 标准差', 'key': 'rank_ic_std', 'line': 'modules/web/src/views/factor/FactorResearch.vue:133:                <span>IC 标准差：{{ fmt4(blk.rank_ic_std) }}</span>'}, {'label': 'ICIR', 'key': 'rank_ic_ir', 'line': 'modules/web/src/views/fact",
+        "inj_evidence_digest": "{'labels_checked': 1, 'labels_lacking_rank_qualifier': [], 'all_labels': [{'label': 'Rank ICIR', 'key': 'rank_ic_ir', 'line': 'modules/web/src/views/factor/FactorResearch.vue:1:<span>Rank ICIR：{{ fmt4(blk.rank_ic_ir) }}</span>'}], 'frozen_criterion': 'Table 1 将 IC/ICIR 与 RankIC/RankICIR 并列区分为不同指标'}"
+      },
+      {
+        "axis": "A1c",
+        "variant": "V03",
+        "clean_expected": "VIOLATED",
+        "clean_actual": "VIOLATED",
+        "inj_expected": "NOT_VIOLATED",
+        "inj_actual": "NOT_VIOLATED",
+        "passed": true,
+        "op": "text_set",
+        "intent": "同时提供 Pearson IC 与显式 RankICIR 标签 ⟹ 混合配对风险消失",
+        "clean_evidence_digest": "{'pearson_displayed': True, 'rank_based_ir_displayed_as_bare_icir': [{'label': 'ICIR', 'key': 'rank_ic_ir', 'line': 'modules/web/src/views/factor/FactorResearch.vue:134:                <span>ICIR：{{ fmt4(blk.rank_ic_ir) }}</span>'}, {'label': 'ICIR', 'key': 'rank_ic_ir', 'line': 'modules/web/src/vie",
+        "inj_evidence_digest": "{'pearson_displayed': True, 'rank_based_ir_displayed_as_bare_icir': [], 'explicit_rankicir_labels': [{'label': 'RankICIR', 'key': 'rank_ic_ir', 'line': 'modules/web/src/views/factor/FactorResearch.vue:2:<span>RankICIR：{{ fmt4(blk.rank_ic_ir) }}</span>'}], 'risk': '同一张卡片同时展示 Pearson IC 与（实为 rank 序列的）"
+      },
+      {
+        "axis": "A2a",
+        "variant": "V04",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "op": "probe_set",
+        "intent": "把「实现 vs 式(8)」的最大偏差改成 0.1234 ⟹ 检查器必须报 VIOLATED",
+        "clean_evidence_digest": "{'cases': 203.0, 'max_abs_engine_vs_def': 0.0, 'max_abs_engine_vs_eq8': 1.1102230246251565e-16, 'sweep_anchor_reverse_spearman': -1.0, 'engine_output_checksum': 2896678.0, 'criterion': '文献式 (8) 1 − 6Σd²/(N(N²−1))；无并列时应与生产实现一致'}",
+        "inj_evidence_digest": "{'cases': 203.0, 'max_abs_engine_vs_def': 0.0, 'max_abs_engine_vs_eq8': 0.1234, 'sweep_anchor_reverse_spearman': -1.0, 'engine_output_checksum': 2896678.0, 'criterion': '文献式 (8) 1 − 6Σd²/(N(N²−1))；无并列时应与生产实现一致'}"
+      },
+      {
+        "axis": "A2b",
+        "variant": "V05",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "op": "probe_set",
+        "intent": "把「实现 vs 定义值」的偏差改成 0.01（有并列时实现不再等于定义）",
+        "clean_evidence_digest": "{'cases': 5.0, 'max_abs_engine_vs_def': 0.0, 'max_abs_eq8_vs_def': 0.24705882352941178, 'criterion_tier': 'A（算术推导，非论文主张：论文全文未讨论并列）', 'criterion': '有并列时式 (8) 不再等于 Spearman；定义值 = 平均秩的 Pearson'}",
+        "inj_evidence_digest": "{'cases': 5.0, 'max_abs_engine_vs_def': 0.01, 'max_abs_eq8_vs_def': 0.24705882352941178, 'criterion_tier': 'A（算术推导，非论文主张：论文全文未讨论并列）', 'criterion': '有并列时式 (8) 不再等于 Spearman；定义值 = 平均秩的 Pearson'}"
+      },
+      {
+        "axis": "A3a",
+        "variant": "V06",
+        "clean_expected": "CONVENTION_DIVERGENCE",
+        "clean_actual": "CONVENTION_DIVERGENCE",
+        "inj_expected": "NOT_VIOLATED",
+        "inj_actual": "NOT_VIOLATED",
+        "passed": true,
+        "op": "probe_clone",
+        "intent": "把 rank_ic_ir 改成等于 ÷(T−1) 单元（假装项目用样本标准差）⟹ 检查器必须识别为「与论文一致」",
+        "clean_evidence_digest": "{'grid': '分母 {T, T−1} × 年化 {×1, ×sqrt(252)} × 序列 {rank IC, Pearson IC} = 8 单元', 'per_panel': [{'panel_index': 0, 'T': 17.0, 'rank_ic_ir': -0.6791743298200007, 'matched_cells': ['grid_rank_1_div_T']}, {'panel_index': 1, 'T': 10.0, 'rank_ic_ir': 0.49637094713277896, 'matched_cells': ['grid_rank_1_div_",
+        "inj_evidence_digest": "{'grid': '分母 {T, T−1} × 年化 {×1, ×sqrt(252)} × 序列 {rank IC, Pearson IC} = 8 单元', 'per_panel': [{'panel_index': 0, 'T': 17.0, 'rank_ic_ir': -0.6588958823661057, 'matched_cells': ['grid_rank_1_div_Tm1']}, {'panel_index': 1, 'T': 10.0, 'rank_ic_ir': 0.470898827182382, 'matched_cells': ['grid_rank_1_div_"
+      },
+      {
+        "axis": "A3b",
+        "variant": "V07",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "op": "probe_set",
+        "intent": "把两口径之比改成 1.0（不再等于 sqrt(T/(T−1))）",
+        "clean_evidence_digest": "{'per_panel': [{'panel_index': 0, 'observed': 1.0307764064044151, 'expected': 1.0307764064044151, 'abs_diff': 0.0}, {'panel_index': 1, 'observed': 1.0540925533894596, 'expected': 1.0540925533894598, 'abs_diff': 2.220446049250313e-16}], 'tol': 1e-09, 'criterion': '两口径之比必须恰为 sqrt(T/(T−1))'}",
+        "inj_evidence_digest": "{'per_panel': [{'panel_index': 0, 'observed': 1.0, 'expected': 1.0307764064044151, 'abs_diff': 0.030776406404415146}, {'panel_index': 1, 'observed': 1.0540925533894596, 'expected': 1.0540925533894598, 'abs_diff': 2.220446049250313e-16}], 'tol': 1e-09, 'criterion': '两口径之比必须恰为 sqrt(T/(T−1))'}"
+      },
+      {
+        "axis": "A3c",
+        "variant": "V08",
+        "clean_expected": "CONVENTION_DIVERGENCE",
+        "clean_actual": "CONVENTION_DIVERGENCE",
+        "inj_expected": "NOT_VIOLATED",
+        "inj_actual": "NOT_VIOLATED",
+        "passed": true,
+        "op": "probe_clone",
+        "intent": "把 rank_ic_std 改成等于样本标准差 ⟹ 检查器必须识别为「与论文一致」",
+        "clean_evidence_digest": "{'per_panel': [{'panel_index': 0, 'rank_ic_std': 0.22622885054114833, 'std_pop_div_T': 0.22622885054114833, 'std_sample_div_Tm1': 0.23319136158580642, 'match_pop': True, 'match_sample': False}, {'panel_index': 1, 'rank_ic_std': 0.20752124875962577, 'std_pop_div_T': 0.20752124875962574, 'std_sample_d",
+        "inj_evidence_digest": "{'per_panel': [{'panel_index': 0, 'rank_ic_std': 0.23319136158580642, 'std_pop_div_T': 0.22622885054114833, 'std_sample_div_Tm1': 0.23319136158580642, 'match_pop': False, 'match_sample': True}, {'panel_index': 1, 'rank_ic_std': 0.21874660298760315, 'std_pop_div_T': 0.20752124875962574, 'std_sample_d"
+      },
+      {
+        "axis": "A4a",
+        "variant": "V09",
+        "clean_expected": "VIOLATED",
+        "clean_actual": "VIOLATED",
+        "inj_expected": "NOT_VIOLATED",
+        "inj_actual": "NOT_VIOLATED",
+        "passed": true,
+        "op": "text_set",
+        "intent": "注入一行「公开丢弃天数」的字段 ⟹ 丢弃已被披露，检查器必须不再报缺陷",
+        "clean_evidence_digest": "{'input_dates': 7.0, 'input_good_dates': 4.0, 'input_degenerate_dates': 3.0, 'cross_section_days': 4.0, 'daily_size': 4.0, 'dropped_dates': 3.0, 'total_observations': 48.0, 'good_observations': 48.0, 'positive_rate_denominator_is_daily_size': True, 'disclosure_field_hits': [], 'codec': 'FactorResear",
+        "inj_evidence_digest": "{'input_dates': 7.0, 'input_good_dates': 4.0, 'input_degenerate_dates': 3.0, 'cross_section_days': 4.0, 'daily_size': 4.0, 'dropped_dates': 3.0, 'total_observations': 48.0, 'good_observations': 48.0, 'positive_rate_denominator_is_daily_size': True, 'disclosure_field_hits': ['modules/backend-java/src"
+      },
+      {
+        "axis": "A4b",
+        "variant": "V10",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "op": "probe_set",
+        "intent": "注入 2 例「pic 有限而 ic 非有限」⟹ 我的代数被证伪",
+        "clean_evidence_digest": "{'sweep_cases': 300.0, 'n_finite_both': 100.0, 'n_nan_both': 200.0, 'n_finite_ic_only': 0.0, 'n_finite_pic_only': 0.0, 'pearson_kept_days': 4.0, 'daily_size_on_degenerate_panel': 4.0, 'pearson_mean_over_kept': -0.09538828375142752, 'pearson_ic_mean_from_payload': -0.09538828375142752, 'predicted_alg",
+        "inj_evidence_digest": "{'sweep_cases': 300.0, 'n_finite_both': 100.0, 'n_nan_both': 200.0, 'n_finite_ic_only': 0.0, 'n_finite_pic_only': 2.0, 'pearson_kept_days': 4.0, 'daily_size_on_degenerate_panel': 4.0, 'pearson_mean_over_kept': -0.09538828375142752, 'pearson_ic_mean_from_payload': -0.09538828375142752, 'predicted_alg"
+      },
+      {
+        "axis": "A5a",
+        "variant": "V11",
+        "clean_expected": "VIOLATED",
+        "clean_actual": "VIOLATED",
+        "inj_expected": "NOT_VIOLATED",
+        "inj_actual": "NOT_VIOLATED",
+        "passed": true,
+        "op": "probe_set",
+        "intent": "把空组数改成 0 ⟹ 检查器必须不再报缺陷",
+        "clean_evidence_digest": "{'n': 12.0, 'groupCount': 20.0, 'grouped_size': 20.0, 'empty_groups': 8.0, 'long_short_spread': -0.012665740650684378, 'monotonicity': 'NON_MONOTONIC', 'codec': 'FactorResearchEngine.java:102 Math.min(groupCount, n) 单日只产 g 组；:180-183 却按 1..groupCount 全建，空桶 avg=0 且 observations=0'}",
+        "inj_evidence_digest": "{'n': 12.0, 'groupCount': 20.0, 'grouped_size': 20.0, 'empty_groups': 0.0, 'long_short_spread': -0.012665740650684378, 'monotonicity': 'NON_MONOTONIC', 'codec': 'FactorResearchEngine.java:102 Math.min(groupCount, n) 单日只产 g 组；:180-183 却按 1..groupCount 全建，空桶 avg=0 且 observations=0'}"
+      },
+      {
+        "axis": "A5b",
+        "variant": "V12",
+        "clean_expected": "VIOLATED",
+        "clean_actual": "VIOLATED",
+        "inj_expected": "NOT_VIOLATED",
+        "inj_actual": "NOT_VIOLATED",
+        "passed": true,
+        "op": "probe_set",
+        "intent": "让顶端组非空 ⟹ 式 (19) 的 K 只腿条件成立，检查器必须不再报缺陷",
+        "clean_evidence_digest": "{'long_short_spread': -0.012665740650684378, 'g1_avg': 0.012665740650684378, 'glast_avg': 0.0, 'glast_obs': 0.0, 'recomputed_0_minus_g1': -0.012665740650684378, 'spread_equals_0_minus_g1': True, 'codec': 'FactorResearchEngine.java:185-186 spread = grouped.last − grouped.first', 'criterion_tier': 'L（",
+        "inj_evidence_digest": "{'long_short_spread': -0.012665740650684378, 'g1_avg': 0.012665740650684378, 'glast_avg': 0.0, 'glast_obs': 2.0, 'recomputed_0_minus_g1': -0.012665740650684378, 'spread_equals_0_minus_g1': True, 'codec': 'FactorResearchEngine.java:185-186 spread = grouped.last − grouped.first', 'criterion_tier': 'L（"
+      },
+      {
+        "axis": "A5c",
+        "variant": "V13",
+        "clean_expected": "NOT_VIOLATED",
+        "clean_actual": "NOT_VIOLATED",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "op": "text_set",
+        "intent": "去掉前端「观测数」列 ⟹ 空组在下游不可区分",
+        "clean_evidence_digest": "{'dto_exports_group_observations': ['modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java:599:            row.put(\"observations\", g.observations());', 'modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java:784:            row.put(\"observations\", g",
+        "inj_evidence_digest": "{'dto_exports_group_observations': ['modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java:599:            row.put(\"observations\", g.observations());', 'modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java:784:            row.put(\"observations\", g"
+      },
+      {
+        "axis": "A6a",
+        "variant": "V14",
+        "clean_expected": "VIOLATED",
+        "clean_actual": "VIOLATED",
+        "inj_expected": "NOT_VIOLATED",
+        "inj_actual": "NOT_VIOLATED",
+        "passed": true,
+        "op": "probe_set",
+        "intent": "让零观测载荷的 spread 非 0 ⟹ 占位零的形态不再成立",
+        "clean_evidence_digest": "{'fields': {'rank_ic_mean': 0.0, 'rank_ic_std': 0.0, 'rank_ic_ir': 0.0, 'rank_ic_positive_rate': 0.0, 'pearson_ic_mean': 0.0, 'long_short_spread': 0.0}, 'daily_size': 0.0, 'grouped_size': 0.0, 'monotonicity': 'N/A', 'universe_note': 'R006-V14', 'partial_distinguishers': \"monotonicity='N/A' 与 univers",
+        "inj_evidence_digest": "{'fields': {'rank_ic_mean': 0.0, 'rank_ic_std': 0.0, 'rank_ic_ir': 0.0, 'rank_ic_positive_rate': 0.0, 'pearson_ic_mean': 0.0, 'long_short_spread': 0.02}, 'daily_size': 0.0, 'grouped_size': 0.0, 'monotonicity': 'N/A', 'universe_note': 'R006-V14', 'partial_distinguishers': \"monotonicity='N/A' 与 univer"
+      },
+      {
+        "axis": "A6b",
+        "variant": "V15",
+        "clean_expected": "VIOLATED",
+        "clean_actual": "VIOLATED",
+        "inj_expected": "NOT_VIOLATED",
+        "inj_actual": "NOT_VIOLATED",
+        "passed": true,
+        "op": "probe_set",
+        "intent": "让强负 IC 那一例的 ir 变成 −1.0（不再是 0）⟹ 伪造消失",
+        "clean_evidence_digest": "{'cases': [{'case_index': 0, 'T': 1.0, 'rank_ic_mean': 1.0, 'rank_ic_std': 0.0, 'rank_ic_ir': 0.0}, {'case_index': 1, 'T': 1.0, 'rank_ic_mean': -1.0, 'rank_ic_std': 0.0, 'rank_ic_ir': 0.0}], 'firing_cases': [{'case_index': 1, 'T': 1.0, 'rank_ic_mean': -1.0, 'rank_ic_std': 0.0, 'rank_ic_ir': 0.0}], '",
+        "inj_evidence_digest": "{'cases': [{'case_index': 0, 'T': 1.0, 'rank_ic_mean': 1.0, 'rank_ic_std': 0.0, 'rank_ic_ir': 0.0}, {'case_index': 1, 'T': 1.0, 'rank_ic_mean': -1.0, 'rank_ic_std': 0.0, 'rank_ic_ir': -1.0}], 'firing_cases': [], 'codec': 'FactorResearchEngine.java:174 icIr = icStd > 1e-12 ? icMean / icStd : 0', 'asy"
+      },
+      {
+        "axis": "A6c",
+        "variant": "V16",
+        "clean_expected": "NOT_REACHABLE",
+        "clean_actual": "NOT_REACHABLE",
+        "inj_expected": "INCONCLUSIVE",
+        "inj_actual": "INCONCLUSIVE",
+        "passed": true,
+        "op": "probe_set",
+        "intent": "证伪「两处 NaN 集合恒同」⟹ 死分支结论撤回为 INCONCLUSIVE",
+        "clean_evidence_digest": "{'n_finite_ic_only': 0.0, 'n_finite_pic_only': 0.0, 'daily_size_on_empty_input': 0.0, 'codec': ':176 pearsonIcMean = dailyPearson.isEmpty() ? 0 : ...；该行位于 :166-168 的 if (daily.isEmpty()) return emptySummary 之后', 'reasoning': '到达 :176 ⟹ daily 非空；若两处 NaN 集合相同（见 A4b）⟹ dailyPearson 非空 ⟹ 三元表达式的 0 分支恒不执行'",
+        "inj_evidence_digest": "{'n_finite_ic_only': 0.0, 'n_finite_pic_only': 3.0, 'daily_size_on_empty_input': 0.0, 'codec': ':176 pearsonIcMean = dailyPearson.isEmpty() ? 0 : ...；该行位于 :166-168 的 if (daily.isEmpty()) return emptySummary 之后', 'reasoning': '到达 :176 ⟹ daily 非空；若两处 NaN 集合相同（见 A4b）⟹ dailyPearson 非空 ⟹ 三元表达式的 0 分支恒不执行'"
+      },
+      {
+        "axis": "A6d",
+        "variant": "V17",
+        "clean_expected": "DEAD_COLUMN",
+        "clean_actual": "DEAD_COLUMN",
+        "inj_expected": "INCONCLUSIVE",
+        "inj_actual": "INCONCLUSIVE",
+        "passed": true,
+        "op": "db_set",
+        "intent": "假装 ic_value 有 5 行非空 ⟹ 死列结论必须撤回",
+        "clean_evidence_digest": "{'ic_value_lines_production': ['modules/backend-java/src/main/resources/db/migration/V2__research_tables.sql:183:    ic_value                DOUBLE DEFAULT NULL,'], 'ic_value_lines_all_incl_research': ['modules/backend-java/src/main/resources/db/migration/V2__research_tables.sql:183:    ic_value    ",
+        "inj_evidence_digest": "{'ic_value_lines_production': ['modules/backend-java/src/main/resources/db/migration/V2__research_tables.sql:183:    ic_value                DOUBLE DEFAULT NULL,'], 'ic_value_lines_all_incl_research': ['modules/backend-java/src/main/resources/db/migration/V2__research_tables.sql:183:    ic_value    "
+      },
+      {
+        "axis": "A7a",
+        "variant": "V18",
+        "clean_expected": "VIOLATED",
+        "clean_actual": "VIOLATED",
+        "inj_expected": "NOT_VIOLATED",
+        "inj_actual": "NOT_VIOLATED",
+        "passed": true,
+        "op": "probe_set",
+        "intent": "把退化单调性标签改掉 ⟹ 检查器必须不再报缺陷",
+        "clean_evidence_digest": "{'group_avg_max_gap': 0.0, 'monotonicity': 'MONOTONIC_INCREASING', 'daily_size': 1.0, 'return_variance_gt_0': 'true', 'group_avgs': [{'group_no': 1, 'avg': 0.01}, {'group_no': 2, 'avg': 0.01}, {'group_no': 3, 'avg': 0.01}, {'group_no': 4, 'avg': 0.01}, {'group_no': 5, 'avg': 0.01}], 'codec': 'Factor",
+        "inj_evidence_digest": "{'group_avg_max_gap': 0.0, 'monotonicity': 'NON_MONOTONIC', 'daily_size': 1.0, 'return_variance_gt_0': 'true', 'group_avgs': [{'group_no': 1, 'avg': 0.01}, {'group_no': 2, 'avg': 0.01}, {'group_no': 3, 'avg': 0.01}, {'group_no': 4, 'avg': 0.01}, {'group_no': 5, 'avg': 0.01}], 'codec': 'FactorResearc"
+      },
+      {
+        "axis": "A7b",
+        "variant": "V19",
+        "clean_expected": "REGISTERED_ONLY",
+        "clean_actual": "REGISTERED_ONLY",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "op": "k_add",
+        "intent": "把 A7a 非法扩入 REJECTED 杀判据 ⟹ 范围冻结被破坏，必须报 VIOLATED",
+        "clean_evidence_digest": "{'frozen_outcome_for_A7a': 'REGISTERED_ONLY（不进总判定）', 'k_refs': ['A1b', 'A1c', 'A2a', 'A3a', 'A4a', 'A5b', 'A6b', 'A6d', 'A7a'], 'k_table': [{'id': 'K1', 'refs': ['A2a']}, {'id': 'K2', 'refs': ['A3a']}, {'id': 'K3', 'refs': ['A4a']}, {'id': 'K4', 'refs': ['A5b']}, {'id': 'K5', 'refs': ['A6b']}, {'id'",
+        "inj_evidence_digest": "{'frozen_outcome_for_A7a': 'REGISTERED_ONLY（不进总判定）', 'k_refs': ['A1b', 'A1c', 'A2a', 'A3a', 'A4a', 'A5b', 'A6b', 'A6d', 'A7a'], 'k_table': [{'id': 'K1', 'refs': ['A2a']}, {'id': 'K2', 'refs': ['A3a']}, {'id': 'K3', 'refs': ['A4a']}, {'id': 'K4', 'refs': ['A5b']}, {'id': 'K5', 'refs': ['A6b']}, {'id'"
+      },
+      {
+        "axis": "A8",
+        "variant": "V20",
+        "clean_expected": "REGISTERED_ONLY",
+        "clean_actual": "REGISTERED_ONLY",
+        "inj_expected": "VIOLATED",
+        "inj_actual": "VIOLATED",
+        "passed": true,
+        "op": "k_add",
+        "intent": "把 A8（范围声明）非法扩入杀判据 ⟹ 必须报 VIOLATED",
+        "clean_evidence_digest": "{'scope_note': '式 (1) 的 close→close 标签口径与项目冻结口径不同，仅记差异 D-2，不得作为任何 kill 轴（prereg §3 A8 / §9.6）', 'k_refs': ['A1b', 'A1c', 'A2a', 'A3a', 'A4a', 'A5b', 'A6b', 'A6d', 'A7a']}",
+        "inj_evidence_digest": "{'scope_note': '式 (1) 的 close→close 标签口径与项目冻结口径不同，仅记差异 D-2，不得作为任何 kill 轴（prereg §3 A8 / §9.6）', 'k_refs': ['A1b', 'A1c', 'A2a', 'A3a', 'A4a', 'A5b', 'A6b', 'A6d', 'A7a', 'A8']}"
+      }
+    ],
+    "checkers": 20,
+    "canaries": 20,
+    "checkers_without_canary": [],
+    "all_passed": true
+  },
+  "axis_verdicts": {
+    "A1a": "NOT_VIOLATED",
+    "A1b": "VIOLATED",
+    "A1c": "VIOLATED",
+    "A2a": "NOT_VIOLATED",
+    "A2b": "NOT_VIOLATED",
+    "A3a": "CONVENTION_DIVERGENCE",
+    "A3b": "NOT_VIOLATED",
+    "A3c": "CONVENTION_DIVERGENCE",
+    "A4a": "VIOLATED",
+    "A4b": "NOT_VIOLATED",
+    "A5a": "VIOLATED",
+    "A5b": "VIOLATED",
+    "A5c": "NOT_VIOLATED",
+    "A6a": "VIOLATED",
+    "A6b": "VIOLATED",
+    "A6c": "NOT_REACHABLE",
+    "A6d": "DEAD_COLUMN",
+    "A7a": "VIOLATED",
+    "A7b": "REGISTERED_ONLY",
+    "A8": "REGISTERED_ONLY"
+  },
+  "axis_variants": {
+    "A1a": "V01",
+    "A1b": "V02",
+    "A1c": "V03",
+    "A2a": "V04",
+    "A2b": "V05",
+    "A3a": "V06",
+    "A3b": "V07",
+    "A3c": "V08",
+    "A4a": "V09",
+    "A4b": "V10",
+    "A5a": "V11",
+    "A5b": "V12",
+    "A5c": "V13",
+    "A6a": "V14",
+    "A6b": "V15",
+    "A6c": "V16",
+    "A6d": "V17",
+    "A7a": "V18",
+    "A7b": "V19",
+    "A8": "V20"
+  },
+  "axis_evidence": {
+    "A1a": {
+      "rank_ic_ir": -2.153084275534054,
+      "ir_rank_div_T": -2.153084275534054,
+      "ir_pearson_div_T": -16.54381942506551,
+      "match_rank_series": true,
+      "match_pearson_series": false,
+      "series_discriminative": true,
+      "mean_abs_rank_vs_pearson_gap": 0.47023503866095506,
+      "bound_key": "FactorResearchService:540 block.put(\"rank_ic_ir\", round4(summary.rankIcIr()))"
+    },
+    "A1b": {
+      "labels_checked": 6,
+      "labels_lacking_rank_qualifier": [
+        {
+          "label": "IC 标准差",
+          "key": "rank_ic_std",
+          "line": "modules/web/src/views/factor/FactorResearch.vue:133:                <span>IC 标准差：{{ fmt4(blk.rank_ic_std) }}</span>"
+        },
+        {
+          "label": "ICIR",
+          "key": "rank_ic_ir",
+          "line": "modules/web/src/views/factor/FactorResearch.vue:134:                <span>ICIR：{{ fmt4(blk.rank_ic_ir) }}</span>"
+        },
+        {
+          "label": "IC 均值",
+          "key": "rank_ic_mean",
+          "line": "modules/web/src/views/factor/FactorResearch.vue:238:                <span>IC 均值：{{ fmt4(result.rank_ic.rank_ic_mean) }}</span>"
+        },
+        {
+          "label": "IC 标准差",
+          "key": "rank_ic_std",
+          "line": "modules/web/src/views/factor/FactorResearch.vue:239:                <span>IC 标准差：{{ fmt4(result.rank_ic.rank_ic_std) }}</span>"
+        },
+        {
+          "label": "ICIR",
+          "key": "rank_ic_ir",
+          "line": "modules/web/src/views/factor/FactorResearch.vue:240:                <span>ICIR：{{ fmt4(result.rank_ic.rank_ic_ir) }}</span>"
+        }
+      ],
+      "all_labels": [
+        {
+          "label": "Rank IC 均值",
+          "key": "rank_ic_mean",
+          "line": "modules/web/src/views/factor/FactorResearch.vue:132:                <span>Rank IC 均值：{{ fmt4(blk.rank_ic_mean) }}</span>"
+        },
+        {
+          "label": "IC 标准差",
+          "key": "rank_ic_std",
+          "line": "modules/web/src/views/factor/FactorResearch.vue:133:                <span>IC 标准差：{{ fmt4(blk.rank_ic_std) }}</span>"
+        },
+        {
+          "label": "ICIR",
+          "key": "rank_ic_ir",
+          "line": "modules/web/src/views/factor/FactorResearch.vue:134:                <span>ICIR：{{ fmt4(blk.rank_ic_ir) }}</span>"
+        },
+        {
+          "label": "IC 均值",
+          "key": "rank_ic_mean",
+          "line": "modules/web/src/views/factor/FactorResearch.vue:238:                <span>IC 均值：{{ fmt4(result.rank_ic.rank_ic_mean) }}</span>"
+        },
+        {
+          "label": "IC 标准差",
+          "key": "rank_ic_std",
+          "line": "modules/web/src/views/factor/FactorResearch.vue:239:                <span>IC 标准差：{{ fmt4(result.rank_ic.rank_ic_std) }}</span>"
+        },
+        {
+          "label": "ICIR",
+          "key": "rank_ic_ir",
+          "line": "modules/web/src/views/factor/FactorResearch.vue:240:                <span>ICIR：{{ fmt4(result.rank_ic.rank_ic_ir) }}</span>"
+        }
+      ],
+      "frozen_criterion": "Table 1 将 IC/ICIR 与 RankIC/RankICIR 并列区分为不同指标"
+    },
+    "A1c": {
+      "pearson_displayed": true,
+      "rank_based_ir_displayed_as_bare_icir": [
+        {
+          "label": "ICIR",
+          "key": "rank_ic_ir",
+          "line": "modules/web/src/views/factor/FactorResearch.vue:134:                <span>ICIR：{{ fmt4(blk.rank_ic_ir) }}</span>"
+        },
+        {
+          "label": "ICIR",
+          "key": "rank_ic_ir",
+          "line": "modules/web/src/views/factor/FactorResearch.vue:240:                <span>ICIR：{{ fmt4(result.rank_ic.rank_ic_ir) }}</span>"
+        }
+      ],
+      "explicit_rankicir_labels": [],
+      "risk": "同一张卡片同时展示 Pearson IC 与（实为 rank 序列的）ICIR ⟹ 可被读成一对；论文 Table 1 中 ICIR 的分子是 IC(Pearson) 序列，项目未提供 Pearson 版 ICIR"
+    },
+    "A2a": {
+      "cases": 203.0,
+      "max_abs_engine_vs_def": 0.0,
+      "max_abs_engine_vs_eq8": 1.1102230246251565e-16,
+      "sweep_anchor_reverse_spearman": -1.0,
+      "engine_output_checksum": 2896678.0,
+      "criterion": "文献式 (8) 1 − 6Σd²/(N(N²−1))；无并列时应与生产实现一致"
+    },
+    "A2b": {
+      "cases": 5.0,
+      "max_abs_engine_vs_def": 0.0,
+      "max_abs_eq8_vs_def": 0.24705882352941178,
+      "criterion_tier": "A（算术推导，非论文主张：论文全文未讨论并列）",
+      "criterion": "有并列时式 (8) 不再等于 Spearman；定义值 = 平均秩的 Pearson"
+    },
+    "A3a": {
+      "grid": "分母 {T, T−1} × 年化 {×1, ×sqrt(252)} × 序列 {rank IC, Pearson IC} = 8 单元",
+      "per_panel": [
+        {
+          "panel_index": 0,
+          "T": 17.0,
+          "rank_ic_ir": -0.6791743298200007,
+          "matched_cells": [
+            "grid_rank_1_div_T"
+          ]
+        },
+        {
+          "panel_index": 1,
+          "T": 10.0,
+          "rank_ic_ir": 0.49637094713277896,
+          "matched_cells": [
+            "grid_rank_1_div_T"
+          ]
+        }
+      ],
+      "criterion": "论文式 (18) 分母 ÷(T−1)（且式 (22) 的 σ_r 同为 T−1 ⟹ 论文内部一致）",
+      "magnitude_note": "T=17 ⟹ sqrt(17/16)−1 = +3.08%；T=10 ⟹ +5.41%（量级微弱）"
+    },
+    "A3b": {
+      "per_panel": [
+        {
+          "panel_index": 0,
+          "observed": 1.0307764064044151,
+          "expected": 1.0307764064044151,
+          "abs_diff": 0.0
+        },
+        {
+          "panel_index": 1,
+          "observed": 1.0540925533894596,
+          "expected": 1.0540925533894598,
+          "abs_diff": 2.220446049250313e-16
+        }
+      ],
+      "tol": 1e-09,
+      "criterion": "两口径之比必须恰为 sqrt(T/(T−1))"
+    },
+    "A3c": {
+      "per_panel": [
+        {
+          "panel_index": 0,
+          "rank_ic_std": 0.22622885054114833,
+          "std_pop_div_T": 0.22622885054114833,
+          "std_sample_div_Tm1": 0.23319136158580642,
+          "match_pop": true,
+          "match_sample": false
+        },
+        {
+          "panel_index": 1,
+          "rank_ic_std": 0.20752124875962577,
+          "std_pop_div_T": 0.20752124875962574,
+          "std_sample_div_Tm1": 0.21874660298760315,
+          "match_pop": true,
+          "match_sample": false
+        }
+      ],
+      "matches_population_T": true,
+      "matches_sample_Tm1": false
+    },
+    "A4a": {
+      "input_dates": 7.0,
+      "input_good_dates": 4.0,
+      "input_degenerate_dates": 3.0,
+      "cross_section_days": 4.0,
+      "daily_size": 4.0,
+      "dropped_dates": 3.0,
+      "total_observations": 48.0,
+      "good_observations": 48.0,
+      "positive_rate_denominator_is_daily_size": true,
+      "disclosure_field_hits": [],
+      "codec": "FactorResearchEngine.java:150-152 if (!Double.isFinite(ic)) { continue; }",
+      "criterion": "论文式 (5)/(7) 的 1/T Σ_{t=1}^{T} 是对全部 T 期取均值；丢弃发生在观测到结果之后 ⟹ 对结果取选择"
+    },
+    "A4b": {
+      "sweep_cases": 300.0,
+      "n_finite_both": 100.0,
+      "n_nan_both": 200.0,
+      "n_finite_ic_only": 0.0,
+      "n_finite_pic_only": 0.0,
+      "pearson_kept_days": 4.0,
+      "daily_size_on_degenerate_panel": 4.0,
+      "pearson_mean_over_kept": -0.09538828375142752,
+      "pearson_ic_mean_from_payload": -0.09538828375142752,
+      "predicted_algebra": "var(scores)=0 或 var(rets)=0 ⟺ 两处均非有限 ⟹ 两侧分母恒同"
+    },
+    "A5a": {
+      "n": 12.0,
+      "groupCount": 20.0,
+      "grouped_size": 20.0,
+      "empty_groups": 8.0,
+      "long_short_spread": -0.012665740650684378,
+      "monotonicity": "NON_MONOTONIC",
+      "codec": "FactorResearchEngine.java:102 Math.min(groupCount, n) 单日只产 g 组；:180-183 却按 1..groupCount 全建，空桶 avg=0 且 observations=0"
+    },
+    "A5b": {
+      "long_short_spread": -0.012665740650684378,
+      "g1_avg": 0.012665740650684378,
+      "glast_avg": 0.0,
+      "glast_obs": 0.0,
+      "recomputed_0_minus_g1": -0.012665740650684378,
+      "spread_equals_0_minus_g1": true,
+      "codec": "FactorResearchEngine.java:185-186 spread = grouped.last − grouped.first",
+      "criterion_tier": "L（论文式 (19) 要求每腿恰 K 只：w=±1/K；空腿使该定义不成立）"
+    },
+    "A5c": {
+      "dto_exports_group_observations": [
+        "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java:599:            row.put(\"observations\", g.observations());",
+        "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java:784:            row.put(\"observations\", g.observations());",
+        "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java:1043:                                .observations(g.observations())"
+      ],
+      "frontend_renders_observations": [
+        "modules/web/src/views/backtest/ScoringBacktest.vue:378:                <el-table-column prop=\"observations\" label=\"截面日观测\" />",
+        "modules/web/src/views/backtest/ScoringBacktest.vue:507:              <el-table-column prop=\"observations\" label=\"观测数\" width=\"80\" />",
+        "modules/web/src/views/backtest/WalkForward.vue:49:            <el-table-column prop=\"observations\" label=\"观测数\" width=\"90\" />",
+        "modules/web/src/views/factor/FactorResearch.vue:151:                  <el-table-column prop=\"observations\" label=\"观测数\" width=\"80\" />",
+        "modules/web/src/views/factor/FactorResearch.vue:254:                  <el-table-column prop=\"observations\" label=\"观测数\" width=\"80\" />"
+      ],
+      "frontend_has_group_table": [
+        "modules/web/src/views/backtest/ScoringBacktest.vue:369:              <el-table :data=\"response.factorAnalysis.groupedReturns\" stripe size=\"small\" class=\"data-table\" max-height=\"260\">",
+        "modules/web/src/views/backtest/ScoringBacktest.vue:824:  const groups = response.value.factorAnalysis.groupedReturns",
+        "modules/web/src/views/factor/FactorResearch.vue:143:              <div v-if=\"blk.grouped_returns?.length\" class=\"ic-section\">",
+        "modules/web/src/views/factor/FactorResearch.vue:145:                <el-table :data=\"blk.grouped_returns\" size=\"small\" stripe border>",
+        "modules/web/src/views/factor/FactorResearch.vue:165:                v-if=\"!blk.grouped_returns?.length && !blk.daily_rank_ic?.length && blk.status !== 'UNAVAILABLE'\"",
+        "modules/web/src/views/factor/FactorResearch.vue:246:              <div v-if=\"result.rank_ic.grouped_returns.length\" class=\"ic-section\">",
+        "modules/web/src/views/factor/FactorResearch.vue:248:                <el-table :data=\"result.rank_ic.grouped_returns\" size=\"small\" stripe border>",
+        "modules/web/src/views/factor/FactorResearch.vue:268:                v-if=\"!result.rank_ic.grouped_returns.length && !result.rank_ic.daily_rank_ic.length\""
+      ],
+      "caveat": "分组表里「观测数 0」可区分空组；但 long_short_spread 这个标量在别处单独展示，无「存在空组」标注 ⟹ 标量仍可被误读"
+    },
+    "A6a": {
+      "fields": {
+        "rank_ic_mean": 0.0,
+        "rank_ic_std": 0.0,
+        "rank_ic_ir": 0.0,
+        "rank_ic_positive_rate": 0.0,
+        "pearson_ic_mean": 0.0,
+        "long_short_spread": 0.0
+      },
+      "daily_size": 0.0,
+      "grouped_size": 0.0,
+      "monotonicity": "N/A",
+      "universe_note": "R006-V14",
+      "partial_distinguishers": "monotonicity='N/A' 与 universe_note 提供了部分可区分信息 ⟹ 不得叙述为「完全不可区分」",
+      "criterion_tier": "P（工程契约：定义失效时不得输出看似估计值的具体实数）"
+    },
+    "A6b": {
+      "cases": [
+        {
+          "case_index": 0,
+          "T": 1.0,
+          "rank_ic_mean": 1.0,
+          "rank_ic_std": 0.0,
+          "rank_ic_ir": 0.0
+        },
+        {
+          "case_index": 1,
+          "T": 1.0,
+          "rank_ic_mean": -1.0,
+          "rank_ic_std": 0.0,
+          "rank_ic_ir": 0.0
+        }
+      ],
+      "firing_cases": [
+        {
+          "case_index": 1,
+          "T": 1.0,
+          "rank_ic_mean": -1.0,
+          "rank_ic_std": 0.0,
+          "rank_ic_ir": 0.0
+        }
+      ],
+      "codec": "FactorResearchEngine.java:174 icIr = icStd > 1e-12 ? icMean / icStd : 0",
+      "asymmetry": "mean>0 且 std=0 时写成 0 属偏保守；mean<0 且 std=0 时真极限为 −∞，写成 0 属偏乐观",
+      "reachability": "T=1（仅一个参与统计的截面日）即得 std=0，经正常 API 可达"
+    },
+    "A6c": {
+      "n_finite_ic_only": 0.0,
+      "n_finite_pic_only": 0.0,
+      "daily_size_on_empty_input": 0.0,
+      "codec": ":176 pearsonIcMean = dailyPearson.isEmpty() ? 0 : ...；该行位于 :166-168 的 if (daily.isEmpty()) return emptySummary 之后",
+      "reasoning": "到达 :176 ⟹ daily 非空；若两处 NaN 集合相同（见 A4b）⟹ dailyPearson 非空 ⟹ 三元表达式的 0 分支恒不执行"
+    },
+    "A6d": {
+      "ic_value_lines_production": [
+        "modules/backend-java/src/main/resources/db/migration/V2__research_tables.sql:183:    ic_value                DOUBLE DEFAULT NULL,"
+      ],
+      "ic_value_lines_all_incl_research": [
+        "modules/backend-java/src/main/resources/db/migration/V2__research_tables.sql:183:    ic_value                DOUBLE DEFAULT NULL,",
+        "research/paper_loop/experiments/R006_rank_ic_audit/run_rank_ic_audit.py:88:    \"c1_prod_ic_value_lines\": 1,",
+        "research/paper_loop/experiments/R006_rank_ic_audit/run_rank_ic_audit.py:90:    \"db_ic_value_non_null\": 0,",
+        "research/paper_loop/experiments/R006_rank_ic_audit/run_rank_ic_audit.py:226:    # C1：ic_value 全集（冻结命令口径）与生产口径（排除 research/ 自指）",
+        "research/paper_loop/experiments/R006_rank_ic_audit/run_rank_ic_audit.py:227:    c[\"c1_all\"] = walk_lines([REPO], (\".java\", \".sql\", \".vue\", \".js\", \".ts\", \".py\"), r\"ic_value\")",
+        "research/paper_loop/experiments/R006_rank_ic_audit/run_rank_ic_audit.py:228:    c[\"c1_prod\"] = walk_lines([mods], (\".java\", \".sql\", \".vue\", \".js\", \".ts\"), r\"ic_value\")",
+        "research/paper_loop/experiments/R006_rank_ic_audit/run_rank_ic_audit.py:251:                cur.execute(\"SELECT COUNT(*) AS total, COUNT(ic_value) AS non_null FROM selector_result\")",
+        "research/paper_loop/experiments/R006_rank_ic_audit/run_rank_ic_audit.py:256:        log(\"DB: selector_result total=%s ic_value_non_null=%s\" % (out[\"total\"], out[\"non_null\"]))",
+        "research/paper_loop/experiments/R006_rank_ic_audit/run_rank_ic_audit.py:594:    ev = {\"ic_value_lines_production\": prod, \"ic_value_lines_all_incl_research\": allhits,",
+        "research/paper_loop/experiments/R006_rank_ic_audit/run_rank_ic_audit.py:596:          \"ddl\": \"V2__research_tables.sql:183 ic_value DOUBLE DEFAULT NULL\",",
+        "research/paper_loop/experiments/R006_rank_ic_audit/run_rank_ic_audit.py:597:          \"note\": \"全仓唯一的 ic_value 出现处是 DDL 本身，无任何写入路径\"}",
+        "research/paper_loop/experiments/R006_rank_ic_audit/run_rank_ic_audit.py:600:    if len(prod) != EXPECT[\"c1_prod_ic_value_lines\"]:",
+        "research/paper_loop/experiments/R006_rank_ic_audit/run_rank_ic_audit.py:729:            \"intent\": \"假装 ic_value 有 5 行非空 ⟹ 死列结论必须撤回\"},"
+      ],
+      "db_total": 67,
+      "db_non_null": 0,
+      "db_error": null,
+      "ddl": "V2__research_tables.sql:183 ic_value DOUBLE DEFAULT NULL",
+      "note": "全仓唯一的 ic_value 出现处是 DDL 本身，无任何写入路径"
+    },
+    "A7a": {
+      "group_avg_max_gap": 0.0,
+      "monotonicity": "MONOTONIC_INCREASING",
+      "daily_size": 1.0,
+      "return_variance_gt_0": "true",
+      "group_avgs": [
+        {
+          "group_no": 1,
+          "avg": 0.01
+        },
+        {
+          "group_no": 2,
+          "avg": 0.01
+        },
+        {
+          "group_no": 3,
+          "avg": 0.01
+        },
+        {
+          "group_no": 4,
+          "avg": 0.01
+        },
+        {
+          "group_no": 5,
+          "avg": 0.01
+        }
+      ],
+      "codec": "FactorResearchEngine.java:226-249 全相等时 increasing 与 decreasing 同真，先判 increasing ⟹ MONOTONIC_INCREASING",
+      "criterion_tier": "P（项目自建；论文不涉及）"
+    },
+    "A7b": {
+      "frozen_outcome_for_A7a": "REGISTERED_ONLY（不进总判定）",
+      "k_refs": [
+        "A1b",
+        "A1c",
+        "A2a",
+        "A3a",
+        "A4a",
+        "A5b",
+        "A6b",
+        "A6d",
+        "A7a"
+      ],
+      "k_table": [
+        {
+          "id": "K1",
+          "refs": [
+            "A2a"
+          ]
+        },
+        {
+          "id": "K2",
+          "refs": [
+            "A3a"
+          ]
+        },
+        {
+          "id": "K3",
+          "refs": [
+            "A4a"
+          ]
+        },
+        {
+          "id": "K4",
+          "refs": [
+            "A5b"
+          ]
+        },
+        {
+          "id": "K5",
+          "refs": [
+            "A6b"
+          ]
+        },
+        {
+          "id": "K6",
+          "refs": [
+            "A1b",
+            "A1c"
+          ]
+        },
+        {
+          "id": "K7",
+          "refs": [
+            "A6d"
+          ]
+        },
+        {
+          "id": "K8",
+          "refs": [
+            "A7a"
+          ]
+        },
+        {
+          "id": "K9",
+          "refs": []
+        },
+        {
+          "id": "K10",
+          "refs": []
+        }
+      ],
+      "frozen_rule": "prereg §6 K8 明确 A7a 成立不构成 REJECTED"
+    },
+    "A8": {
+      "scope_note": "式 (1) 的 close→close 标签口径与项目冻结口径不同，仅记差异 D-2，不得作为任何 kill 轴（prereg §3 A8 / §9.6）",
+      "k_refs": [
+        "A1b",
+        "A1c",
+        "A2a",
+        "A3a",
+        "A4a",
+        "A5b",
+        "A6b",
+        "A6d",
+        "A7a"
+      ]
+    }
+  },
+  "kill_conditions_fired": {
+    "K1": false,
+    "K2": true,
+    "K3": true,
+    "K4": true,
+    "K5": true,
+    "K6": true,
+    "K7": true,
+    "K8": true,
+    "K9": false,
+    "K10": false
+  },
+  "total_verdict": "REJECTED",
+  "total_verdict_reason": "H0 被杀：K3(A4a=VIOLATED)/K4(A5b=VIOLATED)/K5(A6b=VIOLATED) 触发",
+  "finished_at": "2026-09-14T20:47:18.308758"
+}

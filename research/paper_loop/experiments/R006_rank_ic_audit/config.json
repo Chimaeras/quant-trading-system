@@ -1,0 +1,92 @@
+{
+  "round": "R006",
+  "prereg": "rounds/R006_prereg.md",
+  "review": "rounds/R006_review.md",
+  "criteria_source": {
+    "paper": "AlphaEval",
+    "arxiv": "2508.13174v2",
+    "venue": "KDD 2026",
+    "doi": "10.1145/3770855.3817727",
+    "pdf_sha256": "94a7dde968d3965c07ffaac65f9aa2e265c802ceea5e2ac819b4c98ad72aad49"
+  },
+  "audited_target": "rank_ic 载荷族（FactorResearchEngine → FactorResearchService / ScoringBacktestService → 前端标签）",
+  "hypothesis_H0": "rank_ic_mean / rank_ic_std / rank_ic_ir / rank_ic_positive_rate / daily_rank_ic / pearson_ic_mean / cross_section_days 忠实对应文献中的 RankIC / IC / ICIR 定义，且定义失效时不输出看似估计值的具体实数",
+  "axes": {
+    "A1": "命名族归属：rank_ic_ir 是 RankICIR 还是 ICIR（判据 L：Table 1 并列区分）",
+    "A2": "Spearman 与式 (8) 的等价性（无并列=文献判据；并列=算术推导）",
+    "A3": "ICIR 分母 T−1（文献式 (18)）vs T（项目）",
+    "A4": "静默丢日（式 (5)/(7) 的 1/T 对全部 T 期取均值）与两侧分母是否恒同",
+    "A5": "空组伪造 0 进入 long_short_spread（式 (19) 的每腿恰 K 只）",
+    "A6": "定义失效时伪造具体实数（工程契约 P；含 emptySummary / ir=0 / 死分支 / 死列）",
+    "A7": "单调性退化：全相等判 MONOTONIC_INCREASING（项目自建 P，REGISTERED_ONLY）",
+    "A8": "标签口径差异（式 (1) close→close）—— 只记差异，不作判据"
+  },
+  "variants": {
+    "A1a": "V01", "A1b": "V02", "A1c": "V03",
+    "A2a": "V04", "A2b": "V05",
+    "A3a": "V06", "A3b": "V07", "A3c": "V08",
+    "A4a": "V09", "A4b": "V10",
+    "A5a": "V11", "A5b": "V12", "A5c": "V13",
+    "A6a": "V14", "A6b": "V15", "A6c": "V16", "A6d": "V17",
+    "A7a": "V18", "A7b": "V19",
+    "A8": "V20"
+  },
+  "by_axis": {
+    "A1": ["A1a", "A1b", "A1c"],
+    "A2": ["A2a", "A2b"],
+    "A3": ["A3a", "A3b", "A3c"],
+    "A4": ["A4a", "A4b"],
+    "A5": ["A5a", "A5b", "A5c"],
+    "A6": ["A6a", "A6b", "A6c", "A6d"],
+    "A7": ["A7a", "A7b"],
+    "A8": ["A8"]
+  },
+  "frozen_axis_counts": {"A1": 3, "A2": 2, "A3": 3, "A4": 2, "A5": 3, "A6": 4, "A7": 2, "A8": 1},
+  "frozen_total": 20,
+  "grids": {
+    "A3a": {
+      "note": "约定网格必须包含缩放/年化维度（R005 教训 E-2/22）",
+      "denominator": ["T", "T-1"],
+      "annualization": ["x1", "xsqrt252"],
+      "series": ["rank_ic", "pearson_ic"],
+      "cells": 8
+    }
+  },
+  "verdict_vocabulary": [
+    "NOT_VIOLATED", "VIOLATED", "CONVENTION_DIVERGENCE", "CONTRACT_AMBIGUOUS",
+    "DEAD_COLUMN", "NOT_REACHABLE", "REGISTERED_ONLY", "INCONCLUSIVE"
+  ],
+  "kill_conditions": [
+    {"id": "K1", "condition": "A2a VIOLATED（无并列输入上实现 ≠ 式 (8)）", "outcome": "REJECTED", "refs": ["A2a"]},
+    {"id": "K2", "condition": "A3a VIOLATED ⟹ CONVENTION_DIVERGENCE", "outcome": "CONVENTION_DIVERGENCE", "refs": ["A3a"]},
+    {"id": "K3", "condition": "A4a VIOLATED（静默丢日且无丢弃计数字段）", "outcome": "REJECTED", "refs": ["A4a"]},
+    {"id": "K4", "condition": "A5b VIOLATED（空组伪造 0 进入 spread）", "outcome": "REJECTED", "refs": ["A5b"]},
+    {"id": "K5", "condition": "A6b VIOLATED（std=0 且 mean<0 时 rank_ic_ir == 0.0）", "outcome": "REJECTED", "refs": ["A6b"]},
+    {"id": "K6", "condition": "A1b 或 A1c 成立", "outcome": "CONTRACT_AMBIGUOUS", "refs": ["A1b", "A1c"]},
+    {"id": "K7", "condition": "A6d 成立", "outcome": "DEAD_COLUMN", "refs": ["A6d"]},
+    {"id": "K8", "condition": "A7a 成立", "outcome": "REGISTERED_ONLY", "refs": ["A7a"]},
+    {"id": "K9", "condition": "行和交叉校验失败", "outcome": "INCONCLUSIVE", "refs": []},
+    {"id": "K10", "condition": "阳性对照未通过", "outcome": "INCONCLUSIVE", "refs": []}
+  ],
+  "count_expectations": {
+    "c1_prod_ic_value_lines": 1,
+    "db_total": 67,
+    "db_ic_value_non_null": 0,
+    "min_cross_section_size": 10,
+    "rank_ic_group_count": 5
+  },
+  "tolerances": {
+    "TOL": 1e-12,
+    "EQ8_TIE_TOL": 1e-6,
+    "RATIO_TOL": 1e-9,
+    "BH": 252
+  },
+  "prediction_P9": "总判定 = REJECTED（因 K3/K4/K5 中至少一条触发）",
+  "scope_prohibitions": [
+    "不改生产代码 / 测试 / 前端 / 契约 / ResearchConvention",
+    "不重开 R001、不翻 R002、不重估 R003 的 r*、不回改 R004 六轴、不改 R005_prereg.md",
+    "不得把 R005 的 REJECTED 简化叙述为「发现了未来函数」",
+    "不得用式 (1) 覆盖 ResearchConvention，不得用式 (19)(20) 翻 D-R003-01",
+    "所有发现只登记队列，不修"
+  ]
+}

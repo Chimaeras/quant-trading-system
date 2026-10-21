@@ -1,0 +1,1486 @@
+{
+  "round": "R015",
+  "prereg_sha256_32": "dacf03bf70cb71c7f20bc75ba9337880",
+  "prereg_now": "dacf03bf70cb71c7f20bc75ba9337880",
+  "prereg_ok": true,
+  "frozen_now": {
+    "F01": "efbf0678aabb2780b95c893e715ece9c",
+    "F02": "b7c93af0e03c0d8006c4d228e0047877",
+    "F03": "a0e6cf738bb60d39145f90b43f975349",
+    "F04": "40a7982b60c8d7cfd1391e5405e3b1bd",
+    "F05": "01b85daef92b2cc5309fabb8e926f2d4",
+    "F06": "79bb33f56b857532286d0863345816b3",
+    "F07": "42aa831eea4b45bdcc220ca905ca4faa",
+    "F08": "3f8fe7e80c55cfb219736594811a6337",
+    "F09": "c3e4bfcd47c302c26cfbb541c79ffb4b",
+    "F10": "c59c81fc3933b5ff58607695cb2f8b7a",
+    "F11": "05427ebc02bf392ae935713bced71102",
+    "F12": "33dca6899b16d871da11d5455ed5a424",
+    "F13": "08e4823811aadc759fc531d8404fc5b8"
+  },
+  "frozen_ok": true,
+  "frozen_count": 13,
+  "deterministic": {
+    "panel_R015_main": true,
+    "panel_R015_random": true,
+    "panel_R015_b8": true,
+    "panel_R015_b10": true,
+    "panel_R015_b12": true
+  },
+  "panels": {
+    "panel_R015_main": {
+      "directs": 7,
+      "has_full": true,
+      "has_unified": true,
+      "snapshot": "err java.lang.NullPointerException Cannot invoke \"com.quant.service.DataSnapshotService.requireSnapshot(String)\" because \"this.dataSnapshotService\" is null",
+      "repo_calls": [
+        "findByTradeDateBetweenOrderByCreatedAtDesc",
+        "findByResultIdInOrderByRankNo",
+        "findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc",
+        "findDistinctTradeDatesBetween"
+      ]
+    },
+    "panel_R015_random": {
+      "directs": 300,
+      "has_full": false,
+      "has_unified": false,
+      "snapshot": null,
+      "repo_calls": []
+    },
+    "panel_R015_b8": {
+      "directs": 3,
+      "has_full": true,
+      "has_unified": false,
+      "snapshot": null,
+      "repo_calls": [
+        "findByTradeDateBetweenOrderByCreatedAtDesc",
+        "findByResultIdInOrderByRankNo",
+        "findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc",
+        "findDistinctTradeDatesBetween"
+      ]
+    },
+    "panel_R015_b10": {
+      "directs": 3,
+      "has_full": true,
+      "has_unified": false,
+      "snapshot": null,
+      "repo_calls": [
+        "findByTradeDateBetweenOrderByCreatedAtDesc",
+        "findByResultIdInOrderByRankNo",
+        "findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc",
+        "findDistinctTradeDatesBetween"
+      ]
+    },
+    "panel_R015_b12": {
+      "directs": 3,
+      "has_full": true,
+      "has_unified": false,
+      "snapshot": null,
+      "repo_calls": [
+        "findByTradeDateBetweenOrderByCreatedAtDesc",
+        "findByResultIdInOrderByRankNo",
+        "findByTradeDateBetweenOrderByStockCodeAscExchangeTypeAscTradeDateAsc",
+        "findDistinctTradeDatesBetween"
+      ]
+    }
+  },
+  "scenario_counts": {
+    "total": 316,
+    "M1": 251,
+    "M2": 65,
+    "main": 7,
+    "random": 300
+  },
+  "separability": {
+    "M1_nonseparable": [
+      [
+        "feature_valid_count",
+        "valid_observations"
+      ],
+      [
+        "selector_item_count",
+        "total_observations"
+      ]
+    ],
+    "M1_untestable": [],
+    "M2_nonseparable": [
+      [
+        "universe_count",
+        "selector_item_count"
+      ],
+      [
+        "universe_count",
+        "total_observations"
+      ],
+      [
+        "feature_valid_count",
+        "valid_observations"
+      ],
+      [
+        "selector_item_count",
+        "total_observations"
+      ]
+    ],
+    "M2_untestable": [],
+    "detail": {
+      "universe_count|cross_section_days": {
+        "distinct_a": 161,
+        "distinct_b": 8,
+        "differing": 246
+      },
+      "universe_count|feature_valid_count": {
+        "distinct_a": 161,
+        "distinct_b": 147,
+        "differing": 249
+      },
+      "universe_count|valid_observations": {
+        "distinct_a": 161,
+        "distinct_b": 147,
+        "differing": 249
+      },
+      "universe_count|selector_item_count": {
+        "distinct_a": 161,
+        "distinct_b": 10,
+        "differing": 222
+      },
+      "universe_count|total_observations": {
+        "distinct_a": 161,
+        "distinct_b": 10,
+        "differing": 222
+      },
+      "cross_section_days|feature_valid_count": {
+        "distinct_a": 8,
+        "distinct_b": 147,
+        "differing": 245
+      },
+      "cross_section_days|valid_observations": {
+        "distinct_a": 8,
+        "distinct_b": 147,
+        "differing": 245
+      },
+      "cross_section_days|selector_item_count": {
+        "distinct_a": 8,
+        "distinct_b": 10,
+        "differing": 241
+      },
+      "cross_section_days|total_observations": {
+        "distinct_a": 8,
+        "distinct_b": 10,
+        "differing": 241
+      },
+      "feature_valid_count|valid_observations": {
+        "distinct_a": 147,
+        "distinct_b": 147,
+        "differing": 0
+      },
+      "feature_valid_count|selector_item_count": {
+        "distinct_a": 147,
+        "distinct_b": 10,
+        "differing": 220
+      },
+      "feature_valid_count|total_observations": {
+        "distinct_a": 147,
+        "distinct_b": 10,
+        "differing": 220
+      },
+      "valid_observations|selector_item_count": {
+        "distinct_a": 147,
+        "distinct_b": 10,
+        "differing": 220
+      },
+      "valid_observations|total_observations": {
+        "distinct_a": 147,
+        "distinct_b": 10,
+        "differing": 220
+      },
+      "selector_item_count|total_observations": {
+        "distinct_a": 10,
+        "distinct_b": 10,
+        "differing": 0
+      }
+    }
+  },
+  "alias": {
+    "fv_violations": 0,
+    "si_violations": 0,
+    "distinct_values": {
+      "universe_count": 164,
+      "cross_section_days": 9,
+      "feature_valid_count": 172,
+      "valid_observations": 172,
+      "selector_item_count": 12,
+      "total_observations": 12,
+      "universe_days_with_snapshot": 9
+    },
+    "e2e_alias_equal": true,
+    "reading_a_hits": [],
+    "reading_b_hits": [
+      {
+        "file": "F10",
+        "line": 198,
+        "text": "<span>有效观测（得分>0）：{{ result.valid_observations }}</span>"
+      },
+      {
+        "file": "F10",
+        "line": 131,
+        "text": "<span>观测数：{{ blk.total_observations }}</span>"
+      },
+      {
+        "file": "F10",
+        "line": 197,
+        "text": "<span>总观测：{{ result.total_observations }}</span>"
+      },
+      {
+        "file": "F10",
+        "line": 237,
+        "text": "<span>观测数：{{ result.rank_ic.total_observations }}</span>"
+      }
+    ],
+    "reading_dependent": true,
+    "alias_lines": {
+      "feature_valid_count": [
+        {
+          "file": "F02",
+          "line": 866,
+          "text": "funnel.put(\"feature_valid_count\", validObservations);"
+        },
+        {
+          "file": "F08",
+          "line": 54,
+          "text": "feature_valid_count?: number"
+        },
+        {
+          "file": "F10",
+          "line": 187,
+          "text": "<span>feature_valid：{{ result.funnel.feature_valid_count ?? '—' }}</span>"
+        }
+      ],
+      "valid_observations": [
+        {
+          "file": "F02",
+          "line": 158,
+          "text": "out.put(\"valid_observations\", validCount);"
+        },
+        {
+          "file": "F02",
+          "line": 867,
+          "text": "funnel.put(\"valid_observations\", validObservations);"
+        },
+        {
+          "file": "F08",
+          "line": 70,
+          "text": "valid_observations: number"
+        },
+        {
+          "file": "F10",
+          "line": 198,
+          "text": "<span>有效观测（得分>0）：{{ result.valid_observations }}</span>"
+        },
+        {
+          "file": "F12",
+          "line": 150,
+          "text": "assertThat(out.get(\"valid_observations\")).isEqualTo(3);"
+        }
+      ],
+      "selector_item_count": [
+        {
+          "file": "F02",
+          "line": 868,
+          "text": "funnel.put(\"selector_item_count\", totalObservations);"
+        },
+        {
+          "file": "F08",
+          "line": 55,
+          "text": "selector_item_count?: number"
+        }
+      ],
+      "total_observations": [
+        {
+          "file": "F02",
+          "line": 157,
+          "text": "out.put(\"total_observations\", allItems.size());"
+        },
+        {
+          "file": "F02",
+          "line": 537,
+          "text": "block.put(\"total_observations\", summary.totalObservations());"
+        },
+        {
+          "file": "F02",
+          "line": 563,
+          "text": "block.put(\"total_observations\", 0);"
+        },
+        {
+          "file": "F02",
+          "line": 662,
+          "text": "block.put(\"total_observations\", 0);"
+        },
+        {
+          "file": "F02",
+          "line": 756,
+          "text": "block.put(\"total_observations\", summary.totalObservations());"
+        },
+        {
+          "file": "F02",
+          "line": 805,
+          "text": "net.put(\"total_observations\", 0);"
+        },
+        {
+          "file": "F02",
+          "line": 825,
+          "text": "net.put(\"total_observations\", s.totalObservations());"
+        },
+        {
+          "file": "F02",
+          "line": 869,
+          "text": "funnel.put(\"total_observations\", totalObservations);"
+        },
+        {
+          "file": "F08",
+          "line": 42,
+          "text": "total_observations: number"
+        },
+        {
+          "file": "F08",
+          "line": 69,
+          "text": "total_observations: number"
+        },
+        {
+          "file": "F08",
+          "line": 105,
+          "text": "total_observations: number"
+        },
+        {
+          "file": "F08",
+          "line": 196,
+          "text": "total_observations: number"
+        },
+        {
+          "file": "F08",
+          "line": 210,
+          "text": "total_observations: number"
+        },
+        {
+          "file": "F10",
+          "line": 131,
+          "text": "<span>观测数：{{ blk.total_observations }}</span>"
+        },
+        {
+          "file": "F10",
+          "line": 197,
+          "text": "<span>总观测：{{ result.total_observations }}</span>"
+        },
+        {
+          "file": "F10",
+          "line": 237,
+          "text": "<span>观测数：{{ result.rank_ic.total_observations }}</span>"
+        },
+        {
+          "file": "F12",
+          "line": 149,
+          "text": "assertThat(out.get(\"total_observations\")).isEqualTo(4);"
+        },
+        {
+          "file": "F12",
+          "line": 246,
+          "text": "assertThat(out.get(\"total_observations\")).isEqualTo(0);"
+        },
+        {
+          "file": "F12",
+          "line": 297,
+          "text": "assertThat(rankIc.get(\"total_observations\")).isEqualTo(10);"
+        }
+      ]
+    }
+  },
+  "fallback": {
+    "marker_violations": [],
+    "branch_violations": [],
+    "counterexamples_u_eq_total_while_days_gt0": [
+      "R000",
+      "R003",
+      "R020",
+      "R029",
+      "R040",
+      "R053",
+      "R056",
+      "R060",
+      "R079",
+      "R080",
+      "R100",
+      "R120",
+      "R132",
+      "R136",
+      "R140",
+      "R160",
+      "R163",
+      "R180",
+      "R189",
+      "R196",
+      "R200",
+      "R214",
+      "R220",
+      "R240",
+      "R244",
+      "R260",
+      "R265",
+      "R280",
+      "R281"
+    ],
+    "no_marker_misclass": [
+      "R000",
+      "R003",
+      "R020",
+      "R029",
+      "R040",
+      "R053",
+      "R056",
+      "R060",
+      "R079",
+      "R080",
+      "R100",
+      "R120",
+      "R132",
+      "R136",
+      "R140",
+      "R160",
+      "R163",
+      "R180",
+      "R189",
+      "R196",
+      "R200",
+      "R214",
+      "R220",
+      "R240",
+      "R244",
+      "R260",
+      "R265",
+      "R280",
+      "R281"
+    ],
+    "named_key_hits": [],
+    "text_token_hits": {},
+    "universe_source_values": [
+      "sparse_selector_result"
+    ],
+    "exotic_spec_domain": [
+      "NEG",
+      "NONE",
+      "NULLKEY",
+      "STR",
+      "ZERO"
+    ]
+  },
+  "funnel_view_main": {
+    "cross_section_days": 6,
+    "total_observations": 72,
+    "valid_observations": 60,
+    "coverage": 83.33,
+    "metric_scope": "COST_APPROX",
+    "metric_scopes": [
+      "RAW",
+      "COST_APPROX"
+    ],
+    "universe_note_present": true,
+    "funnel": {
+      "universe_count": 7200,
+      "universe_days_with_snapshot": 6,
+      "cross_section_days": 6,
+      "feature_valid_count": 60,
+      "valid_observations": 60,
+      "selector_item_count": 72,
+      "total_observations": 72,
+      "tradable_count": null,
+      "tradable_status": "UNAVAILABLE",
+      "tradable_note": "EXECUTABLE tradable funnel unavailable without feature snapshot + TradabilityPolicy",
+      "universe_source": "sparse_selector_result",
+      "metric_scope": "COST_APPROX",
+      "note": "tradable_count ��ͳһ TradabilityPolicy����ǰ����¶ selector ��ѡ©��"
+    },
+    "rank_ic_counts": {
+      "cross_section_days": 0,
+      "total_observations": 0,
+      "metric_scope": "RAW"
+    }
+  },
+  "p03_evidence": {
+    "scenarios": 300,
+    "alias_fv_diff_nonzero": 0,
+    "alias_si_diff_nonzero": 0,
+    "distinct": {
+      "total_observations": 10,
+      "valid_observations": 169,
+      "universe_count": 160,
+      "cross_section_days": 9,
+      "universe_days_with_snapshot": 9
+    }
+  },
+  "snapshot_funnel_live": {
+    "exec=true": {
+      "universe_source": "feature_snapshot_row",
+      "partitions_reusable": 3,
+      "partitions_skipped": [
+        "2026-01-09(RUNNING)"
+      ],
+      "cross_section_days": 6,
+      "rows_total": 120,
+      "scored_valid": 80,
+      "coverage": 66.67,
+      "label_version": "label_v2",
+      "exec_status_breakdown": {
+        "FILLED": 40,
+        "REJECTED": 7
+      },
+      "tradable_status": "EXECUTABLE",
+      "tradable_note": "EXECUTABLE ���� = label_v2 execStatus=FILLED��ͳһִ�����߲��������״̬�ֱ����ܾ�©��",
+      "metric_scope": "COST_APPROX",
+      "note": "���� PIT feature snapshot ©����rows_total = feature_snapshot_row ȫ����������scored_valid = final_score>0�����ھ��۲����� daily_funnel��FAILED/RUNNING ����������"
+    },
+    "exec=false": {
+      "universe_source": "feature_snapshot_row",
+      "partitions_reusable": 3,
+      "partitions_skipped": [
+        "2026-01-09(RUNNING)"
+      ],
+      "cross_section_days": 6,
+      "rows_total": 120,
+      "scored_valid": 80,
+      "coverage": 66.67,
+      "label_version": null,
+      "exec_status_breakdown": {
+        "FILLED": 40,
+        "REJECTED": 7
+      },
+      "tradable_status": "UNAVAILABLE",
+      "tradable_note": "δ�ṩ labelVersion���޷���ִ��״̬���ˣ�tradable ������",
+      "metric_scope": "COST_APPROX",
+      "note": "���� PIT feature snapshot ©����rows_total = feature_snapshot_row ȫ����������scored_valid = final_score>0�����ھ��۲����� daily_funnel��FAILED/RUNNING ����������"
+    }
+  },
+  "snapshot_face_status": "err java.lang.NullPointerException Cannot invoke \"com.quant.service.DataSnapshotService.requireSnapshot(String)\" because \"this.dataSnapshotService\" is null",
+  "top_vs_funnel": [
+    {
+      "panel": "panel_R015_main",
+      "cross_section_days": [
+        6,
+        6
+      ],
+      "total_observations": [
+        72,
+        72
+      ],
+      "valid_observations": [
+        60,
+        60
+      ]
+    },
+    {
+      "panel": "panel_R015_b8",
+      "cross_section_days": [
+        6,
+        6
+      ],
+      "total_observations": [
+        48,
+        48
+      ],
+      "valid_observations": [
+        36,
+        36
+      ]
+    },
+    {
+      "panel": "panel_R015_b10",
+      "cross_section_days": [
+        6,
+        6
+      ],
+      "total_observations": [
+        60,
+        60
+      ],
+      "valid_observations": [
+        48,
+        48
+      ]
+    },
+    {
+      "panel": "panel_R015_b12",
+      "cross_section_days": [
+        6,
+        6
+      ],
+      "total_observations": [
+        72,
+        72
+      ],
+      "valid_observations": [
+        60,
+        60
+      ]
+    }
+  ],
+  "daily_funnel_row_keys": [
+    "signal_date",
+    "rows_total",
+    "scored_valid",
+    "raw_observations",
+    "cost_approx_observations",
+    "executable_observations",
+    "labels_matched",
+    "labels_missing"
+  ],
+  "scope_counts_in_daily_rows": [
+    "raw_observations",
+    "cost_approx_observations",
+    "executable_observations"
+  ],
+  "frozen_snippets": {
+    "coverage": {
+      "legacy": "        out.put(\"coverage\", allItems.isEmpty() ? 0.0\n                : Math.round(validCount * 10000.0 / allItems.size()) / 100.0);",
+      "snapshot": "        funnel.put(\"coverage\", rowsTotal == 0 ? 0.0\n                : Math.round(scoredValid * 10000.0 / rowsTotal) / 100.0);"
+    },
+    "cross_section_days": {
+      "legacy_funnel": "        funnel.put(\"cross_section_days\", latestPerKey != null ? latestPerKey.size() : 0);\n        funnel.put(\"feature_valid_count\", validObservations);",
+      "snapshot_funnel": "        funnel.put(\"cross_section_days\", crossSectionDays);\n        funnel.put(\"rows_total\", rowsTotal);"
+    }
+  },
+  "variants": {
+    "V01": {
+      "axis": "A1",
+      "word": "KEY_VALUE_NOT_UNIQUE",
+      "canary_cln": true,
+      "canary_inj": true,
+      "inj_word": "KEY_VALUE_UNIQUE",
+      "reachability": "REACHABLE_PUBLIC_API",
+      "reading_dependent": false,
+      "note": "M1 nonseparable=[('feature_valid_count', 'valid_observations'), ('selector_item_count', 'total_observations')] untestable=[]"
+    },
+    "V02": {
+      "axis": "A1",
+      "word": "KEY_VALUE_NOT_UNIQUE",
+      "canary_cln": true,
+      "canary_inj": true,
+      "inj_word": "KEY_VALUE_UNIQUE",
+      "reachability": "REACHABLE_PUBLIC_API",
+      "reading_dependent": false,
+      "note": "M2 nonseparable=[('universe_count', 'selector_item_count'), ('universe_count', 'total_observations'), ('feature_valid_count', 'valid_observations'), ('selector_item_count', 'total_observations')] untestable=[]"
+    },
+    "V03": {
+      "axis": "A1",
+      "word": "KEY_VALUE_NOT_UNIQUE",
+      "canary_cln": true,
+      "canary_inj": true,
+      "inj_word": "KEY_VALUE_UNIQUE",
+      "reachability": "REACHABLE_PUBLIC_API",
+      "reading_dependent": false,
+      "note": "fv_violations=0 si_violations=0 distinct={'universe_count': 164, 'cross_section_days': 9, 'feature_valid_count': 172, 'valid_observations': 172, 'selector_item_count': 12, 'total_observations': 12, 'universe_days_with_snapshot': 9}"
+    },
+    "V04": {
+      "axis": "A1",
+      "word": "KEY_VALUE_NOT_UNIQUE",
+      "canary_cln": true,
+      "canary_inj": true,
+      "inj_word": "KEY_VALUE_UNIQUE",
+      "reachability": "REACHABLE_PUBLIC_API",
+      "reading_dependent": false,
+      "note": "corpus_scenarios=316 (M1=251 M2=65)"
+    },
+    "V05": {
+      "axis": "A1",
+      "word": "ALIAS_DECLARED",
+      "canary_cln": true,
+      "canary_inj": true,
+      "inj_word": "KEY_VALUE_UNIQUE",
+      "reachability": "REACHABLE_PUBLIC_API",
+      "reading_dependent": true,
+      "note": "e2e_alias_equal=True reading_a_hits=0 reading_b_hits=4"
+    },
+    "V06": {
+      "axis": "A2",
+      "word": "SAME_NAME_SAME_QUANTITY",
+      "canary_cln": true,
+      "canary_inj": true,
+      "inj_word": "SAME_NAME_DIFF_QUANTITY",
+      "reachability": "REACHABLE_PUBLIC_API",
+      "reading_dependent": false,
+      "note": "top_vs_funnel_rows=[{\"panel\": \"panel_R015_main\", \"cross_section_days\": [6, 6], \"total_observations\": [72, 72], \"valid_observations\": [60, 60]}, {\"panel\": \"panel_R015_b8\", \"cross_section_days\": [6, 6], \"total_observations\": [48, 48], \"valid_observations\": [36, 36]}, {\"panel\": \"panel_R015_b10\", \"cross_section_days\": [6, 6], \"total_observations\": [60, 60], \"valid_observations\": [48, 48]}, {\"panel\": \"panel_R015_b12\", \"cross_section_days\": [6, 6], \"total_observations\": [72, 72], \"valid_observations\": [60, 60]}]"
+    },
+    "V07": {
+      "axis": "A2",
+      "word": "NOT_REACHED_STATIC_ONLY",
+      "canary_cln": true,
+      "canary_inj": true,
+      "inj_word": "INSTRUMENT_RED",
+      "reachability": "SYNTHETIC_ONLY",
+      "reading_dependent": false,
+      "note": "legacy_denom=allItems.size() snapshot_denom=rowsTotal"
+    },
+    "V08": {
+      "axis": "A2",
+      "word": "NOT_REACHED_STATIC_ONLY",
+      "canary_cln": true,
+      "canary_inj": true,
+      "inj_word": "INSTRUMENT_RED",
+      "reachability": "SYNTHETIC_ONLY",
+      "reading_dependent": false,
+      "note": "legacy=key_count snapshot=rowsByDate.size()"
+    },
+    "V09": {
+      "axis": "A3",
+      "word": "FALLBACK_MARKER_EXACT",
+      "canary_cln": true,
+      "canary_inj": true,
+      "inj_word": "FALLBACK_UNDISCLOSED",
+      "reachability": "REACHABLE_PUBLIC_API",
+      "reading_dependent": false,
+      "note": "marker_violations=0 branch_violations=0"
+    },
+    "V10": {
+      "axis": "A3",
+      "word": "FALLBACK_MARKER_EXACT",
+      "canary_cln": true,
+      "canary_inj": true,
+      "inj_word": "FALLBACK_UNDISCLOSED",
+      "reachability": "REACHABLE_PUBLIC_API",
+      "reading_dependent": false,
+      "note": "spec_domain=['NEG', 'NONE', 'NULLKEY', 'STR', 'ZERO'] scenarios_with_exotic=207"
+    },
+    "V11": {
+      "axis": "A3",
+      "word": "FALLBACK_UNNAMED",
+      "canary_cln": true,
+      "canary_inj": true,
+      "inj_word": "FALLBACK_UNDISCLOSED",
+      "reachability": "REACHABLE_PUBLIC_API",
+      "reading_dependent": false,
+      "note": "named_keys=[] text_hits={} universe_source_vals=['sparse_selector_result']"
+    },
+    "V12": {
+      "axis": "A3",
+      "word": "FALLBACK_UNNAMED",
+      "canary_cln": true,
+      "canary_inj": true,
+      "inj_word": "FALLBACK_MARKER_EXACT",
+      "reachability": "REACHABLE_PUBLIC_API",
+      "reading_dependent": false,
+      "note": "counterexamples(u==total while days>0)=29 sample=['R000', 'R003', 'R020', 'R029', 'R040']"
+    },
+    "V13": {
+      "axis": "A3",
+      "word": "DEGENERATE_KEYS_CONSISTENT",
+      "canary_cln": true,
+      "canary_inj": true,
+      "inj_word": "DEGENERATE_KEYS_INCONSISTENT",
+      "reachability": "SYNTHETIC_ONLY",
+      "reading_dependent": false,
+      "note": "empty_scenarios=3"
+    },
+    "V14": {
+      "axis": "A3",
+      "word": "DEGENERATE_KEYS_CONSISTENT",
+      "canary_cln": true,
+      "canary_inj": true,
+      "inj_word": "DEGENERATE_KEYS_INCONSISTENT",
+      "reachability": "SYNTHETIC_ONLY",
+      "reading_dependent": false,
+      "note": "total0_with_cross>0 scenarios=19"
+    },
+    "V15": {
+      "axis": "A4",
+      "word": "SCOPE_LABEL_UNFAITHFUL",
+      "canary_cln": true,
+      "canary_inj": true,
+      "inj_word": "SCOPE_LABEL_FAITHFUL",
+      "reachability": "REACHABLE_PUBLIC_API",
+      "reading_dependent": false,
+      "note": "metric_scope=COST_APPROX cost_like_keys=[]"
+    },
+    "V16": {
+      "axis": "A4",
+      "word": "SCOPE_LABEL_UNFAITHFUL",
+      "canary_cln": true,
+      "canary_inj": true,
+      "inj_word": "SCOPE_LABEL_FAITHFUL",
+      "reachability": "REACHABLE_PUBLIC_API",
+      "reading_dependent": false,
+      "note": "top=COST_APPROX rank_ic=RAW"
+    },
+    "V17": {
+      "axis": "A4",
+      "word": "SCOPE_LABEL_FAITHFUL",
+      "canary_cln": true,
+      "canary_inj": true,
+      "inj_word": "SCOPE_LABEL_UNFAITHFUL",
+      "reachability": "REACHABLE_PUBLIC_API",
+      "reading_dependent": false,
+      "note": "tradable_count=None tradable_status='UNAVAILABLE' note='EXECUTABLE tradable funnel unavailable without feature snapshot + TradabilityPolicy'"
+    },
+    "V18": {
+      "axis": "A4",
+      "word": "SCOPE_LABEL_FAITHFUL",
+      "canary_cln": true,
+      "canary_inj": true,
+      "inj_word": "SCOPE_LABEL_UNFAITHFUL",
+      "reachability": "REACHABLE_PUBLIC_API",
+      "reading_dependent": false,
+      "note": "daily_funnel_row_keys=['signal_date', 'rows_total', 'scored_valid', 'raw_observations', 'cost_approx_observations', 'executable_observations', 'labels_matched', 'labels_missing'] scope_counts=['raw_observations', 'cost_approx_observations', 'executable_observations']"
+    },
+    "V19": {
+      "axis": "A5",
+      "word": "INSTRUMENT_GREEN",
+      "canary_cln": true,
+      "canary_inj": true,
+      "inj_word": "INSTRUMENT_RED",
+      "reachability": "REACHABLE_PUBLIC_API",
+      "reading_dependent": false,
+      "note": "canary_pairs_declared=20 axis_variants_declared=20 pairs_checked_before_V19=18 all_ok=True"
+    },
+    "V20": {
+      "axis": "A5",
+      "word": "INSTRUMENT_GREEN",
+      "canary_cln": true,
+      "canary_inj": true,
+      "inj_word": "INSTRUMENT_RED",
+      "reachability": "REACHABLE_PUBLIC_API",
+      "reading_dependent": false,
+      "note": "byte_equal_2nd_run={'panel_R015_main': True, 'panel_R015_random': True, 'panel_R015_b8': True, 'panel_R015_b10': True, 'panel_R015_b12': True} matrix_stable=True keyname_swap_invariant=True"
+    }
+  },
+  "gates": {
+    "K1": [
+      "V01",
+      "V02",
+      "V03",
+      "V04"
+    ],
+    "K2": [],
+    "K3": [],
+    "K4": [],
+    "K5_K6_K7": [
+      false,
+      false,
+      false
+    ],
+    "off_vocab": [],
+    "canary_all_ok": true,
+    "row_sum": 20,
+    "axis_total": 20,
+    "variants_total": 20,
+    "grid_mismatch_count": 0,
+    "canary_pairs": 20,
+    "forbidden_hits": [],
+    "forbidden_hits_n": 0,
+    "forbidden_exempts": 0,
+    "forbidden_scanned": [
+      "rounds/R015_report.md",
+      "_scratch/probe_raw_panel_R015_b10.txt",
+      "_scratch/probe_raw_panel_R015_b12.txt",
+      "_scratch/probe_raw_panel_R015_b8.txt",
+      "_scratch/probe_raw_panel_R015_main.txt",
+      "_scratch/probe_raw_panel_R015_random.txt",
+      "_scratch/result_full.json"
+    ],
+    "forbidden_excluded_source_material": [
+      "dm2019.pdf",
+      "dm2019.txt",
+      "oa1.json",
+      "oa_dm.json"
+    ],
+    "forbidden_patterns_n": 18,
+    "instrument_self_scan": {
+      "files": [
+        "harness/run_R015.py",
+        "harness/make_config.py",
+        "harness/probe/R015Probe.java"
+      ],
+      "hits": [],
+      "hits_n": 0,
+      "exempts": 0
+    }
+  },
+  "total_verdict": "REJECTED",
+  "h0_alive": false,
+  "sensitivity_grid": [
+    {
+      "panel": "panel_R015_b8",
+      "sid": "B8_s80",
+      "mode": "M1",
+      "fallback_executed": true,
+      "marker_value": 0,
+      "counts": {
+        "universe_count": 96,
+        "cross_section_days": 6,
+        "feature_valid_count": 64,
+        "valid_observations": 64,
+        "selector_item_count": 96,
+        "total_observations": 96
+      },
+      "equal_pairs_of_15": 4,
+      "equal_pairs": [
+        "universe_count=selector_item_count",
+        "universe_count=total_observations",
+        "feature_valid_count=valid_observations",
+        "selector_item_count=total_observations"
+      ],
+      "alias_fv_eq_vo": true,
+      "alias_si_eq_t": true,
+      "input_total": 96,
+      "input_valid": 64,
+      "input_sum_cross": 0,
+      "input_any_valid_cross": false,
+      "a1_flip": false,
+      "a3_flip": false,
+      "value_faithful": true,
+      "ok": true
+    },
+    {
+      "panel": "panel_R015_b8",
+      "sid": "B8_s80",
+      "mode": "M2",
+      "fallback_executed": true,
+      "marker_value": 0,
+      "counts": {
+        "universe_count": 96,
+        "cross_section_days": 6,
+        "feature_valid_count": 64,
+        "valid_observations": 64,
+        "selector_item_count": 96,
+        "total_observations": 96
+      },
+      "equal_pairs_of_15": 4,
+      "equal_pairs": [
+        "universe_count=selector_item_count",
+        "universe_count=total_observations",
+        "feature_valid_count=valid_observations",
+        "selector_item_count=total_observations"
+      ],
+      "alias_fv_eq_vo": true,
+      "alias_si_eq_t": true,
+      "input_total": 96,
+      "input_valid": 64,
+      "input_sum_cross": 0,
+      "input_any_valid_cross": false,
+      "a1_flip": false,
+      "a3_flip": false,
+      "value_faithful": true,
+      "ok": true
+    },
+    {
+      "panel": "panel_R015_b8",
+      "sid": "B8_s100",
+      "mode": "M1",
+      "fallback_executed": true,
+      "marker_value": 0,
+      "counts": {
+        "universe_count": 120,
+        "cross_section_days": 6,
+        "feature_valid_count": 80,
+        "valid_observations": 80,
+        "selector_item_count": 120,
+        "total_observations": 120
+      },
+      "equal_pairs_of_15": 4,
+      "equal_pairs": [
+        "universe_count=selector_item_count",
+        "universe_count=total_observations",
+        "feature_valid_count=valid_observations",
+        "selector_item_count=total_observations"
+      ],
+      "alias_fv_eq_vo": true,
+      "alias_si_eq_t": true,
+      "input_total": 120,
+      "input_valid": 80,
+      "input_sum_cross": 0,
+      "input_any_valid_cross": false,
+      "a1_flip": false,
+      "a3_flip": false,
+      "value_faithful": true,
+      "ok": true
+    },
+    {
+      "panel": "panel_R015_b8",
+      "sid": "B8_s100",
+      "mode": "M2",
+      "fallback_executed": true,
+      "marker_value": 0,
+      "counts": {
+        "universe_count": 120,
+        "cross_section_days": 6,
+        "feature_valid_count": 80,
+        "valid_observations": 80,
+        "selector_item_count": 120,
+        "total_observations": 120
+      },
+      "equal_pairs_of_15": 4,
+      "equal_pairs": [
+        "universe_count=selector_item_count",
+        "universe_count=total_observations",
+        "feature_valid_count=valid_observations",
+        "selector_item_count=total_observations"
+      ],
+      "alias_fv_eq_vo": true,
+      "alias_si_eq_t": true,
+      "input_total": 120,
+      "input_valid": 80,
+      "input_sum_cross": 0,
+      "input_any_valid_cross": false,
+      "a1_flip": false,
+      "a3_flip": false,
+      "value_faithful": true,
+      "ok": true
+    },
+    {
+      "panel": "panel_R015_b8",
+      "sid": "B8_s120",
+      "mode": "M1",
+      "fallback_executed": true,
+      "marker_value": 0,
+      "counts": {
+        "universe_count": 144,
+        "cross_section_days": 6,
+        "feature_valid_count": 96,
+        "valid_observations": 96,
+        "selector_item_count": 144,
+        "total_observations": 144
+      },
+      "equal_pairs_of_15": 4,
+      "equal_pairs": [
+        "universe_count=selector_item_count",
+        "universe_count=total_observations",
+        "feature_valid_count=valid_observations",
+        "selector_item_count=total_observations"
+      ],
+      "alias_fv_eq_vo": true,
+      "alias_si_eq_t": true,
+      "input_total": 144,
+      "input_valid": 96,
+      "input_sum_cross": 0,
+      "input_any_valid_cross": false,
+      "a1_flip": false,
+      "a3_flip": false,
+      "value_faithful": true,
+      "ok": true
+    },
+    {
+      "panel": "panel_R015_b8",
+      "sid": "B8_s120",
+      "mode": "M2",
+      "fallback_executed": true,
+      "marker_value": 0,
+      "counts": {
+        "universe_count": 144,
+        "cross_section_days": 6,
+        "feature_valid_count": 96,
+        "valid_observations": 96,
+        "selector_item_count": 144,
+        "total_observations": 144
+      },
+      "equal_pairs_of_15": 4,
+      "equal_pairs": [
+        "universe_count=selector_item_count",
+        "universe_count=total_observations",
+        "feature_valid_count=valid_observations",
+        "selector_item_count=total_observations"
+      ],
+      "alias_fv_eq_vo": true,
+      "alias_si_eq_t": true,
+      "input_total": 144,
+      "input_valid": 96,
+      "input_sum_cross": 0,
+      "input_any_valid_cross": false,
+      "a1_flip": false,
+      "a3_flip": false,
+      "value_faithful": true,
+      "ok": true
+    },
+    {
+      "panel": "panel_R015_b10",
+      "sid": "B10_s80",
+      "mode": "M1",
+      "fallback_executed": true,
+      "marker_value": 0,
+      "counts": {
+        "universe_count": 96,
+        "cross_section_days": 6,
+        "feature_valid_count": 64,
+        "valid_observations": 64,
+        "selector_item_count": 96,
+        "total_observations": 96
+      },
+      "equal_pairs_of_15": 4,
+      "equal_pairs": [
+        "universe_count=selector_item_count",
+        "universe_count=total_observations",
+        "feature_valid_count=valid_observations",
+        "selector_item_count=total_observations"
+      ],
+      "alias_fv_eq_vo": true,
+      "alias_si_eq_t": true,
+      "input_total": 96,
+      "input_valid": 64,
+      "input_sum_cross": 0,
+      "input_any_valid_cross": false,
+      "a1_flip": false,
+      "a3_flip": false,
+      "value_faithful": true,
+      "ok": true
+    },
+    {
+      "panel": "panel_R015_b10",
+      "sid": "B10_s80",
+      "mode": "M2",
+      "fallback_executed": true,
+      "marker_value": 0,
+      "counts": {
+        "universe_count": 96,
+        "cross_section_days": 6,
+        "feature_valid_count": 64,
+        "valid_observations": 64,
+        "selector_item_count": 96,
+        "total_observations": 96
+      },
+      "equal_pairs_of_15": 4,
+      "equal_pairs": [
+        "universe_count=selector_item_count",
+        "universe_count=total_observations",
+        "feature_valid_count=valid_observations",
+        "selector_item_count=total_observations"
+      ],
+      "alias_fv_eq_vo": true,
+      "alias_si_eq_t": true,
+      "input_total": 96,
+      "input_valid": 64,
+      "input_sum_cross": 0,
+      "input_any_valid_cross": false,
+      "a1_flip": false,
+      "a3_flip": false,
+      "value_faithful": true,
+      "ok": true
+    },
+    {
+      "panel": "panel_R015_b10",
+      "sid": "B10_s100",
+      "mode": "M1",
+      "fallback_executed": true,
+      "marker_value": 0,
+      "counts": {
+        "universe_count": 120,
+        "cross_section_days": 6,
+        "feature_valid_count": 80,
+        "valid_observations": 80,
+        "selector_item_count": 120,
+        "total_observations": 120
+      },
+      "equal_pairs_of_15": 4,
+      "equal_pairs": [
+        "universe_count=selector_item_count",
+        "universe_count=total_observations",
+        "feature_valid_count=valid_observations",
+        "selector_item_count=total_observations"
+      ],
+      "alias_fv_eq_vo": true,
+      "alias_si_eq_t": true,
+      "input_total": 120,
+      "input_valid": 80,
+      "input_sum_cross": 0,
+      "input_any_valid_cross": false,
+      "a1_flip": false,
+      "a3_flip": false,
+      "value_faithful": true,
+      "ok": true
+    },
+    {
+      "panel": "panel_R015_b10",
+      "sid": "B10_s100",
+      "mode": "M2",
+      "fallback_executed": true,
+      "marker_value": 0,
+      "counts": {
+        "universe_count": 120,
+        "cross_section_days": 6,
+        "feature_valid_count": 80,
+        "valid_observations": 80,
+        "selector_item_count": 120,
+        "total_observations": 120
+      },
+      "equal_pairs_of_15": 4,
+      "equal_pairs": [
+        "universe_count=selector_item_count",
+        "universe_count=total_observations",
+        "feature_valid_count=valid_observations",
+        "selector_item_count=total_observations"
+      ],
+      "alias_fv_eq_vo": true,
+      "alias_si_eq_t": true,
+      "input_total": 120,
+      "input_valid": 80,
+      "input_sum_cross": 0,
+      "input_any_valid_cross": false,
+      "a1_flip": false,
+      "a3_flip": false,
+      "value_faithful": true,
+      "ok": true
+    },
+    {
+      "panel": "panel_R015_b10",
+      "sid": "B10_s120",
+      "mode": "M1",
+      "fallback_executed": true,
+      "marker_value": 0,
+      "counts": {
+        "universe_count": 144,
+        "cross_section_days": 6,
+        "feature_valid_count": 96,
+        "valid_observations": 96,
+        "selector_item_count": 144,
+        "total_observations": 144
+      },
+      "equal_pairs_of_15": 4,
+      "equal_pairs": [
+        "universe_count=selector_item_count",
+        "universe_count=total_observations",
+        "feature_valid_count=valid_observations",
+        "selector_item_count=total_observations"
+      ],
+      "alias_fv_eq_vo": true,
+      "alias_si_eq_t": true,
+      "input_total": 144,
+      "input_valid": 96,
+      "input_sum_cross": 0,
+      "input_any_valid_cross": false,
+      "a1_flip": false,
+      "a3_flip": false,
+      "value_faithful": true,
+      "ok": true
+    },
+    {
+      "panel": "panel_R015_b10",
+      "sid": "B10_s120",
+      "mode": "M2",
+      "fallback_executed": true,
+      "marker_value": 0,
+      "counts": {
+        "universe_count": 144,
+        "cross_section_days": 6,
+        "feature_valid_count": 96,
+        "valid_observations": 96,
+        "selector_item_count": 144,
+        "total_observations": 144
+      },
+      "equal_pairs_of_15": 4,
+      "equal_pairs": [
+        "universe_count=selector_item_count",
+        "universe_count=total_observations",
+        "feature_valid_count=valid_observations",
+        "selector_item_count=total_observations"
+      ],
+      "alias_fv_eq_vo": true,
+      "alias_si_eq_t": true,
+      "input_total": 144,
+      "input_valid": 96,
+      "input_sum_cross": 0,
+      "input_any_valid_cross": false,
+      "a1_flip": false,
+      "a3_flip": false,
+      "value_faithful": true,
+      "ok": true
+    },
+    {
+      "panel": "panel_R015_b12",
+      "sid": "B12_s80",
+      "mode": "M1",
+      "fallback_executed": true,
+      "marker_value": 0,
+      "counts": {
+        "universe_count": 96,
+        "cross_section_days": 6,
+        "feature_valid_count": 64,
+        "valid_observations": 64,
+        "selector_item_count": 96,
+        "total_observations": 96
+      },
+      "equal_pairs_of_15": 4,
+      "equal_pairs": [
+        "universe_count=selector_item_count",
+        "universe_count=total_observations",
+        "feature_valid_count=valid_observations",
+        "selector_item_count=total_observations"
+      ],
+      "alias_fv_eq_vo": true,
+      "alias_si_eq_t": true,
+      "input_total": 96,
+      "input_valid": 64,
+      "input_sum_cross": 0,
+      "input_any_valid_cross": false,
+      "a1_flip": false,
+      "a3_flip": false,
+      "value_faithful": true,
+      "ok": true
+    },
+    {
+      "panel": "panel_R015_b12",
+      "sid": "B12_s80",
+      "mode": "M2",
+      "fallback_executed": true,
+      "marker_value": 0,
+      "counts": {
+        "universe_count": 96,
+        "cross_section_days": 6,
+        "feature_valid_count": 64,
+        "valid_observations": 64,
+        "selector_item_count": 96,
+        "total_observations": 96
+      },
+      "equal_pairs_of_15": 4,
+      "equal_pairs": [
+        "universe_count=selector_item_count",
+        "universe_count=total_observations",
+        "feature_valid_count=valid_observations",
+        "selector_item_count=total_observations"
+      ],
+      "alias_fv_eq_vo": true,
+      "alias_si_eq_t": true,
+      "input_total": 96,
+      "input_valid": 64,
+      "input_sum_cross": 0,
+      "input_any_valid_cross": false,
+      "a1_flip": false,
+      "a3_flip": false,
+      "value_faithful": true,
+      "ok": true
+    },
+    {
+      "panel": "panel_R015_b12",
+      "sid": "B12_s100",
+      "mode": "M1",
+      "fallback_executed": true,
+      "marker_value": 0,
+      "counts": {
+        "universe_count": 120,
+        "cross_section_days": 6,
+        "feature_valid_count": 80,
+        "valid_observations": 80,
+        "selector_item_count": 120,
+        "total_observations": 120
+      },
+      "equal_pairs_of_15": 4,
+      "equal_pairs": [
+        "universe_count=selector_item_count",
+        "universe_count=total_observations",
+        "feature_valid_count=valid_observations",
+        "selector_item_count=total_observations"
+      ],
+      "alias_fv_eq_vo": true,
+      "alias_si_eq_t": true,
+      "input_total": 120,
+      "input_valid": 80,
+      "input_sum_cross": 0,
+      "input_any_valid_cross": false,
+      "a1_flip": false,
+      "a3_flip": false,
+      "value_faithful": true,
+      "ok": true
+    },
+    {
+      "panel": "panel_R015_b12",
+      "sid": "B12_s100",
+      "mode": "M2",
+      "fallback_executed": true,
+      "marker_value": 0,
+      "counts": {
+        "universe_count": 120,
+        "cross_section_days": 6,
+        "feature_valid_count": 80,
+        "valid_observations": 80,
+        "selector_item_count": 120,
+        "total_observations": 120
+      },
+      "equal_pairs_of_15": 4,
+      "equal_pairs": [
+        "universe_count=selector_item_count",
+        "universe_count=total_observations",
+        "feature_valid_count=valid_observations",
+        "selector_item_count=total_observations"
+      ],
+      "alias_fv_eq_vo": true,
+      "alias_si_eq_t": true,
+      "input_total": 120,
+      "input_valid": 80,
+      "input_sum_cross": 0,
+      "input_any_valid_cross": false,
+      "a1_flip": false,
+      "a3_flip": false,
+      "value_faithful": true,
+      "ok": true
+    },
+    {
+      "panel": "panel_R015_b12",
+      "sid": "B12_s120",
+      "mode": "M1",
+      "fallback_executed": true,
+      "marker_value": 0,
+      "counts": {
+        "universe_count": 144,
+        "cross_section_days": 6,
+        "feature_valid_count": 96,
+        "valid_observations": 96,
+        "selector_item_count": 144,
+        "total_observations": 144
+      },
+      "equal_pairs_of_15": 4,
+      "equal_pairs": [
+        "universe_count=selector_item_count",
+        "universe_count=total_observations",
+        "feature_valid_count=valid_observations",
+        "selector_item_count=total_observations"
+      ],
+      "alias_fv_eq_vo": true,
+      "alias_si_eq_t": true,
+      "input_total": 144,
+      "input_valid": 96,
+      "input_sum_cross": 0,
+      "input_any_valid_cross": false,
+      "a1_flip": false,
+      "a3_flip": false,
+      "value_faithful": true,
+      "ok": true
+    },
+    {
+      "panel": "panel_R015_b12",
+      "sid": "B12_s120",
+      "mode": "M2",
+      "fallback_executed": true,
+      "marker_value": 0,
+      "counts": {
+        "universe_count": 144,
+        "cross_section_days": 6,
+        "feature_valid_count": 96,
+        "valid_observations": 96,
+        "selector_item_count": 144,
+        "total_observations": 144
+      },
+      "equal_pairs_of_15": 4,
+      "equal_pairs": [
+        "universe_count=selector_item_count",
+        "universe_count=total_observations",
+        "feature_valid_count=valid_observations",
+        "selector_item_count=total_observations"
+      ],
+      "alias_fv_eq_vo": true,
+      "alias_si_eq_t": true,
+      "input_total": 144,
+      "input_valid": 96,
+      "input_sum_cross": 0,
+      "input_any_valid_cross": false,
+      "a1_flip": false,
+      "a3_flip": false,
+      "value_faithful": true,
+      "ok": true
+    }
+  ],
+  "sensitivity_grid_cells": 18,
+  "sensitivity_flips": [],
+  "sensitivity_nonseparable_pairs_over_grid": 4,
+  "parameter_dependent": false
+}

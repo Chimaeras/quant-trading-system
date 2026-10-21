@@ -1,0 +1,12 @@
+title = "Quant Trading System secret scanning"
+[extend]
+useDefault = true
+
+# These values are named mutation-test cases, not access credentials.
+# Both the exact report path and complete matching field must match.
+[[allowlists]]
+description = "R014 synthetic mutation-test case identifiers"
+condition = "AND"
+paths = ['''^research/paper_loop/experiments/R014_rank_ic_fidelity_audit/result\.json$''']
+regexTarget = "match"
+regexes = ['''^inj_key": "v[0-9]{2}_[a-z0-9_]+"$''']

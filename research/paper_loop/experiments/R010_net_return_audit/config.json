@@ -1,0 +1,1150 @@
+{
+  "round": "R010",
+  "baseline_commit": "cd0c4d44",
+  "subject": "成本后净收益（COST_APPROX）声明–实现一致性审计",
+  "judgment_source": "Gong, Liu, Sun, arXiv:2306.02764（来源级别 C；仅作判据来源）",
+  "unit_of_judgment": "variant",
+  "verdict_vocab": [
+    "NOT_VIOLATED",
+    "VIOLATED",
+    "CONVENTION_DIVERGENCE",
+    "CONTRACT_AMBIGUOUS",
+    "CONTRACT_MISLABEL",
+    "REGISTERED_ONLY",
+    "NOT_REACHABLE",
+    "INCONCLUSIVE"
+  ],
+  "axes": {
+    "A1": [
+      "V01",
+      "V02"
+    ],
+    "A2": [
+      "V03",
+      "V04",
+      "V05"
+    ],
+    "A3": [
+      "V06",
+      "V07"
+    ],
+    "A4": [
+      "V08",
+      "V09"
+    ],
+    "A5": [
+      "V10",
+      "V11"
+    ],
+    "A6": [
+      "V12",
+      "V13"
+    ],
+    "A7": [
+      "V14",
+      "V15"
+    ],
+    "A8": [
+      "V16"
+    ],
+    "A9": [
+      "V17"
+    ],
+    "A10": [
+      "V18"
+    ],
+    "A11": [
+      "V19"
+    ]
+  },
+  "frozen_axis_counts": {
+    "A1": 2,
+    "A2": 3,
+    "A3": 2,
+    "A4": 2,
+    "A5": 2,
+    "A6": 2,
+    "A7": 2,
+    "A8": 1,
+    "A9": 1,
+    "A10": 1,
+    "A11": 1
+  },
+  "frozen_total": 19,
+  "max_variants": 19,
+  "variant": {
+    "V01": "A1",
+    "V02": "A1",
+    "V03": "A2",
+    "V04": "A2",
+    "V05": "A2",
+    "V06": "A3",
+    "V07": "A3",
+    "V08": "A4",
+    "V09": "A4",
+    "V10": "A5",
+    "V11": "A5",
+    "V12": "A6",
+    "V13": "A6",
+    "V14": "A7",
+    "V15": "A7",
+    "V16": "A8",
+    "V17": "A9",
+    "V18": "A10",
+    "V19": "A11"
+  },
+  "expected": {
+    "V01": "NOT_VIOLATED",
+    "V02": "NOT_VIOLATED",
+    "V03": "VIOLATED",
+    "V04": "VIOLATED",
+    "V05": "CONTRACT_MISLABEL",
+    "V06": "NOT_VIOLATED",
+    "V07": "VIOLATED",
+    "V08": "VIOLATED",
+    "V09": "CONVENTION_DIVERGENCE",
+    "V10": "NOT_VIOLATED",
+    "V11": "CONVENTION_DIVERGENCE",
+    "V12": "NOT_VIOLATED",
+    "V13": "REGISTERED_ONLY",
+    "V14": "NOT_VIOLATED",
+    "V15": "VIOLATED",
+    "V16": "REGISTERED_ONLY",
+    "V17": "NOT_VIOLATED",
+    "V18": "REGISTERED_ONLY",
+    "V19": "NOT_VIOLATED"
+  },
+  "non_killing_axes_frozen": [
+    "A1",
+    "A5a(V10)",
+    "A6a(V12)",
+    "A8(V16)",
+    "A9(V17)",
+    "A10(V18)",
+    "A11(V19)"
+  ],
+  "non_killing_variants": [
+    "V01",
+    "V02",
+    "V10",
+    "V12",
+    "V16",
+    "V17",
+    "V18",
+    "V19"
+  ],
+  "thresholds": {
+    "TOL": 1e-15,
+    "TOL_INT": 0,
+    "TOL_BP": 1e-12,
+    "TH_BP": 1.0,
+    "TOL_RATE": 0.0,
+    "TOL_MARGIN_TABLE": 1e-06
+  },
+  "arith": {
+    "P": "10.000000",
+    "E": "11.000000",
+    "c": "0.0003",
+    "t": "0.0005",
+    "s": "0.0002",
+    "prec": 60,
+    "frozen_literals": {
+      "doc_entry": "10.0050000000",
+      "doc_exit": "10.9923000000",
+      "net_doc": "0.09868065967016491754122938530734632683658170914542728635682",
+      "impl_entry": "10.00500060000000",
+      "impl_exit": "10.98900176000000",
+      "net_impl": "0.09835093463162810804828937241642944029408653908526502237291",
+      "delta_net": "-0.00032972503853680949294001289091688654249517006016226398391",
+      "delta_bp": "-3.29725038536809492940012890916886542495170060162263983910",
+      "rel": "-0.00334133395174797830129122756368221397514856320462215249571519",
+      "M": "0.999699890012958090756541867582432843912769468041090267627428",
+      "f_doc": "0.9993",
+      "f_impl": "0.99900016",
+      "f_diff": "-0.00029984",
+      "g_doc": "1.0005",
+      "g_impl": "1.00050006",
+      "g_diff": "0.00000006",
+      "A_bp": "-3.00050035024517162013409386570599419593715600920644451116000",
+      "B_bp": "-0.000599700113961012656011235021814991195502776881392690770000",
+      "A_plus_B_bp": "-3.00110005035913263279010510072780918713265878608783720193000",
+      "one_plus_A_one_plus_B_bp": "-3.00109987041909243458132417567156087230531958909732372571000",
+      "M_minus_1_bp": "-3.0010998704190924345813241756715608723053195890973237",
+      "symbol_lhs": "0.00000010010000000000000000000000000000000000000000",
+      "symbol_rhs": "0.00030002998200000000000000000000000000000000000000",
+      "symbol_margin": "2997.30251748251748251748"
+    },
+    "frozen_oat": [
+      [
+        "c*0.8",
+        "0.00024",
+        "0.0005",
+        "0.0002",
+        "-2.637738666719915554139634624891",
+        "2397.985657"
+      ],
+      [
+        "c*1.0",
+        "0.0003",
+        "0.0005",
+        "0.0002",
+        "-3.297250385368094929400128909169",
+        "2997.302517"
+      ],
+      [
+        "c*1.2",
+        "0.00036",
+        "0.0005",
+        "0.0002",
+        "-3.956682975291185142795337575076",
+        "3596.547607"
+      ],
+      [
+        "t*0.8",
+        "0.0003",
+        "0.00040",
+        "0.0002",
+        "-3.297470341343926146995581065894",
+        "3746.628147"
+      ],
+      [
+        "t*1.0",
+        "0.0003",
+        "0.00050",
+        "0.0002",
+        "-3.297250385368094929400128909169",
+        "2997.302517"
+      ],
+      [
+        "t*1.2",
+        "0.0003",
+        "0.00060",
+        "0.0002",
+        "-3.297030429392263711804676752444",
+        "2497.752098"
+      ],
+      [
+        "s*0.8",
+        "0.0003",
+        "0.0005",
+        "0.00016",
+        "-3.297602353544357151339391865876",
+        "3747.077509"
+      ],
+      [
+        "s*1.0",
+        "0.0003",
+        "0.0005",
+        "0.00020",
+        "-3.297250385368094929400128909169",
+        "2997.302517"
+      ],
+      [
+        "s*1.2",
+        "0.0003",
+        "0.0005",
+        "0.00024",
+        "-3.296898424261347272784243450756",
+        "2497.452571"
+      ]
+    ],
+    "recomputed": {
+      "doc_entry": "10.0050000000",
+      "doc_exit": "10.9923000000",
+      "net_doc": "0.09868065967016491754122938530734632683658170914542728635682",
+      "impl_entry": "10.00500060000000",
+      "impl_exit": "10.98900176000000",
+      "net_impl": "0.09835093463162810804828937241642944029408653908526502237291",
+      "delta_net": "-0.00032972503853680949294001289091688654249517006016226398391",
+      "delta_bp": "-3.29725038536809492940012890916886542495170060162263983910000",
+      "rel": "-0.00334133395174797830129122756368221397514856320462215249571519",
+      "M": "0.999699890012958090756541867582432843912769468041090267627428",
+      "f_doc": "0.9993",
+      "f_impl": "0.99900016",
+      "f_diff": "-0.00029984",
+      "g_doc": "1.0005",
+      "g_impl": "1.00050006",
+      "g_diff": "6E-8",
+      "A_bp": "-3.00050035024517162013409386570599419593715600920644451116000",
+      "B_bp": "-0.000599700113961012656011235021814991195502776881392690770000",
+      "A_plus_B_bp": "-3.00110005035913263279010510072780918713265878608783720193000",
+      "one_plus_A_one_plus_B_bp": "-3.00109987041909243458132417567156087230531958909732372571000",
+      "M_minus_1_bp": "-3.00109987041909243458132417567156087230531958909732372572000",
+      "symbol_lhs": "1.00100E-7",
+      "symbol_rhs": "0.000300029982",
+      "symbol_margin": "2997.30251748251748251748251748251748251748251748251748251748"
+    },
+    "oat_recomputed": [
+      {
+        "tag": "c*0.8",
+        "delta_bp": "-2.63773866671991555413963462489094151453803992768614625910000",
+        "margin": "2397.98565742146910718567660458796259291823195587882663256334"
+      },
+      {
+        "tag": "c*1.0",
+        "delta_bp": "-3.29725038536809492940012890916886542495170060162263983910000",
+        "margin": "2997.30251748251748251748251748251748251748251748251748251748"
+      },
+      {
+        "tag": "c*1.2",
+        "delta_bp": "-3.95668297529118514279533757507623765340387460572229883470000",
+        "margin": "3596.54760747962282243886846731660540194981620584944861754835"
+      },
+      {
+        "tag": "t*0.8",
+        "delta_bp": "-3.29747034134392614699558106589410803281686971606981211470000",
+        "margin": "3746.62814685314685314685314685314685314685314685314685314685"
+      },
+      {
+        "tag": "t*1.0",
+        "delta_bp": "-3.29725038536809492940012890916886542495170060162263983910000",
+        "margin": "2997.30251748251748251748251748251748251748251748251748251748"
+      },
+      {
+        "tag": "t*1.2",
+        "delta_bp": "-3.29703042939226371180467675244362281708653148717546756340000",
+        "margin": "2497.75209790209790209790209790209790209790209790209790209790"
+      },
+      {
+        "tag": "s*0.8",
+        "delta_bp": "-3.29760235354435715133939186587569220943908318909562118250000",
+        "margin": "3747.07750869200335691164129001318786716221076609519242297087"
+      },
+      {
+        "tag": "s*1.0",
+        "delta_bp": "-3.29725038536809492940012890916886542495170060162263983910000",
+        "margin": "2997.30251748251748251748251748251748251748251748251748251748"
+      },
+      {
+        "tag": "s*1.2",
+        "delta_bp": "-3.29689842426134727278424345075641299356977084832513571180000",
+        "margin": "2497.45257122307907459943261277819954449194869540895832500899"
+      }
+    ],
+    "frozen_distinct_delta_bp": 7,
+    "frozen_negative_count": 9,
+    "frozen_min_margin": "2397.985657"
+  },
+  "price_grid": {
+    "code": "600000",
+    "exchange": "SH",
+    "volume": 1000000,
+    "rows": [
+      [
+        "2026-01-05",
+        "9.5",
+        "10",
+        "9.5"
+      ],
+      [
+        "2026-01-06",
+        "10.5",
+        "11",
+        "10"
+      ],
+      [
+        "2026-01-07",
+        "11.5",
+        "12",
+        "11"
+      ],
+      [
+        "2026-01-08",
+        "12.5",
+        "13",
+        "12"
+      ],
+      [
+        "2026-01-09",
+        "13.5",
+        "14",
+        "13"
+      ],
+      [
+        "2026-01-12",
+        "14.5",
+        "15",
+        "14"
+      ],
+      [
+        "2026-01-13",
+        "15.5",
+        "16",
+        "15"
+      ],
+      [
+        "2026-01-14",
+        "16.5",
+        "17",
+        "16"
+      ]
+    ],
+    "base_idx": 0,
+    "horizons": [
+      2,
+      3
+    ],
+    "qfq_map": "EMPTY",
+    "close_formula": "close[idx] = 10 + idx"
+  },
+  "kill_conditions": {
+    "K1": "V03 VIOLATED or V04 VIOLATED",
+    "K2": "V07 VIOLATED",
+    "K3": "V08 VIOLATED",
+    "K4": "V05 CONTRACT_MISLABEL",
+    "K5": "V15 VIOLATED",
+    "K6": "V12 CONTRACT_AMBIGUOUS",
+    "K7": "any axis in {REGISTERED_ONLY, NOT_REACHABLE}",
+    "K8": "variant row-sum != 19 or config frozen mismatch or grid_mismatch_count > 0",
+    "K9": "any canary pair FAIL or reverse anchor false or G3 fail or dep missing or out-of-vocab",
+    "K10": "determinism gate (V19) failed"
+  },
+  "short_circuit": [
+    "K8|K9|K10 -> INCONCLUSIVE",
+    "K1|K2|K3 -> REJECTED",
+    "K4|K5 -> CONTRACT_MISLABEL",
+    "K6 -> CONTRACT_AMBIGUOUS",
+    "K7 -> REGISTERED_ONLY",
+    "else -> NOT_VIOLATED"
+  ],
+  "h0_alive_condition": "not (K1 or K2 or K3)",
+  "count_expectations": {
+    "C01": {
+      "desc": "生产乘性出场（FactorResearchService 乘性含卖出佣金）",
+      "scope": "modules/backend-java/src/main/java",
+      "exts": [
+        ".java"
+      ],
+      "pattern": "\\* \\(1 - ResearchConvention\\.DEFAULT_COMMISSION_RATE - ResearchConvention\\.DEFAULT_SELL_TAX_RATE\\);",
+      "src": 2,
+      "raw": null,
+      "by_file": {
+        "FactorResearchService.java": 2
+      }
+    },
+    "C02": {
+      "desc": "LabelFactoryService 乘性出场（raw 出口）",
+      "scope": "modules/backend-java/src/main/java",
+      "exts": [
+        ".java"
+      ],
+      "pattern": "double exitProceeds = exitPriceRaw \\* \\(1 - commission - sellTax\\);",
+      "src": 1,
+      "raw": null,
+      "by_file": {
+        "LabelFactoryService.java": 1
+      }
+    },
+    "C03": {
+      "desc": "LabelFactoryService 乘性出场（label 出口）",
+      "scope": "modules/backend-java/src/main/java",
+      "exts": [
+        ".java"
+      ],
+      "pattern": "double exitProceeds = exitPrice \\* \\(1 - commission - sellTax\\);",
+      "src": 1,
+      "raw": null,
+      "by_file": {
+        "LabelFactoryService.java": 1
+      }
+    },
+    "C04": {
+      "desc": "ScoringBacktestService 乘性出场",
+      "scope": "modules/backend-java/src/main/java",
+      "exts": [
+        ".java"
+      ],
+      "pattern": "double exitProceeds = exitPrice \\* \\(1 - commissionRate - sellTaxRate\\);",
+      "src": 1,
+      "raw": null,
+      "by_file": {
+        "ScoringBacktestService.java": 1
+      }
+    },
+    "C05": {
+      "desc": "LabelFactoryService 乘性入场",
+      "scope": "modules/backend-java/src/main/java",
+      "exts": [
+        ".java"
+      ],
+      "pattern": "double entryCost = entryPrice \\* \\(1 \\+ commission\\);",
+      "src": 2,
+      "raw": null,
+      "by_file": {
+        "LabelFactoryService.java": 2
+      }
+    },
+    "C06": {
+      "desc": "FactorResearchService 乘性入场",
+      "scope": "modules/backend-java/src/main/java",
+      "exts": [
+        ".java"
+      ],
+      "pattern": "double entryCost = entryPrice \\* \\(1 \\+ ResearchConvention\\.DEFAULT_COMMISSION_RATE\\);",
+      "src": 2,
+      "raw": null,
+      "by_file": {
+        "FactorResearchService.java": 2
+      }
+    },
+    "C07": {
+      "desc": "labelDefinition() 的发射点（verdict-relevant 计数 ⇒ 已由 V08 逐字冻结为 3）",
+      "scope": ".",
+      "exts": [
+        ".java"
+      ],
+      "pattern": "out\\.put\\(\"convention\", ResearchConvention\\.labelDefinition\\(\\)\\);",
+      "src": 3,
+      "raw": null,
+      "by_file": {
+        "FactorResearchService.java": 1,
+        "LabelFactoryService.java": 1,
+        "ProbabilityCalibrationService.java": 1
+      }
+    },
+    "C08": {
+      "desc": "X01 附加观测：加法式入场写法（× (1+佣金+滑点)）与乘性代码共处",
+      "scope": ".",
+      "exts": [
+        ".java"
+      ],
+      "pattern": "×\\(1\\+佣金\\+滑点\\)",
+      "src": 5,
+      "raw": null,
+      "by_file": {
+        "LabelSnapshot.java": 1,
+        "FactorResearchService.java": 4
+      }
+    },
+    "C09": {
+      "desc": "X01 附加观测：加法式出场写法（× (1-佣金-印花税-滑点)）与乘性代码共处",
+      "scope": ".",
+      "exts": [
+        ".java"
+      ],
+      "pattern": "×\\(1-佣金-印花税-滑点\\)",
+      "src": 4,
+      "raw": null,
+      "by_file": {
+        "FactorResearchService.java": 4
+      }
+    },
+    "C10": {
+      "desc": "docs/研究口径规范.md 的加法式公式",
+      "scope": "docs",
+      "exts": [
+        ".md"
+      ],
+      "pattern": "1 − sell_tax − slippage",
+      "src": 1,
+      "raw": null,
+      "by_file": {
+        "研究口径规范.md": 1
+      }
+    },
+    "C11": {
+      "desc": "docs/API文档.md 的加法式口径子句",
+      "scope": "docs",
+      "exts": [
+        ".md"
+      ],
+      "pattern": "1−印花税−滑点",
+      "src": 1,
+      "raw": null,
+      "by_file": {
+        "API文档.md": 1
+      }
+    },
+    "C12": {
+      "desc": "前端用户可见提示「双边佣金」",
+      "scope": "modules/web/src",
+      "exts": [
+        ".vue"
+      ],
+      "pattern": "双边佣金",
+      "src": 1,
+      "raw": null,
+      "by_file": {
+        "ScoringBacktest.vue": 1
+      }
+    },
+    "C13": {
+      "desc": "R001 研究仪器的加法式出场因子",
+      "scope": "research/paper_loop/experiments/R001_reversal",
+      "exts": [
+        ".py"
+      ],
+      "pattern": "1\\.0 - SELL_TAX - SLIPPAGE",
+      "src": 1,
+      "raw": null,
+      "by_file": {
+        "run_reversal_ic.py": 1
+      }
+    },
+    "C14": {
+      "desc": "R003 研究仪器的冻结算式（加法式缺席）",
+      "scope": "research/paper_loop/experiments/R003_cost_breakeven",
+      "exts": [
+        ".py"
+      ],
+      "pattern": "FROZEN_TOTAL",
+      "src": 5,
+      "raw": null,
+      "by_file": {
+        "run_cost_breakeven.py": 5
+      }
+    },
+    "C15": {
+      "desc": "测试树中调用 labelDefinition() 的次数（唯一触碰点）",
+      "scope": "modules/backend-java/src/test",
+      "exts": [
+        ".java"
+      ],
+      "pattern": "labelDefinition\\(\\)",
+      "src": 1,
+      "raw": null,
+      "by_file": {
+        "ResearchConventionTest.java": 1
+      }
+    },
+    "C16": {
+      "desc": "测试树中的**净收益公式算术字面量**（V13 的零守卫判据；长串优先以免重复计数）",
+      "scope": "modules/backend-java/src/test",
+      "exts": [
+        ".java"
+      ],
+      "pattern": "1\\.00050006|0\\.99900016|0\\.00029984|0\\.9993|1\\.0005|0\\.9991",
+      "src": 0,
+      "raw": null,
+      "by_file": {}
+    },
+    "C22": {
+      "desc": "X03：ScoringBacktestService 内**乘性入场**站点数（内联 + 助手，算术相同）",
+      "scope": "modules/backend-java/src/main/java",
+      "exts": [
+        ".java"
+      ],
+      "pattern": "double entryCost = entryPrice \\* \\(1 \\+ commissionRate\\);",
+      "src": 2,
+      "raw": null,
+      "by_file": {
+        "ScoringBacktestService.java": 2
+      }
+    },
+    "C23": {
+      "desc": "X03：ScoringBacktestService 内同式滑点入场价站点数",
+      "scope": "modules/backend-java/src/main/java",
+      "exts": [
+        ".java"
+      ],
+      "pattern": "double entryPrice = rawEntryPrice\\.doubleValue\\(\\) \\* \\(1 \\+ slippageRate\\);",
+      "src": 2,
+      "raw": null,
+      "by_file": {
+        "ScoringBacktestService.java": 2
+      }
+    },
+    "C24": {
+      "desc": "四文件乘性净收益合成**站点总数**（入场 6 + 出场 5 = 11；单行赋值口径，换行写法不影响。C01+C04+C06 入场 6；C01(2)+C02+C03+C04 出场 5）",
+      "scope": "modules/backend-java/src/main/java",
+      "exts": [
+        ".java"
+      ],
+      "pattern": "double (entryCost|exitProceeds) = ",
+      "src": 11,
+      "raw": null,
+      "by_file": {
+        "FactorResearchService.java": 4,
+        "LabelFactoryService.java": 4,
+        "ScoringBacktestService.java": 3
+      }
+    }
+  },
+  "range_expectations": {
+    "sbs_defaults_rate_literals": {
+      "range": "sbs_defaults",
+      "pattern": "0\\.0003|0\\.0005|0\\.0002",
+      "expect": 3,
+      "desc": "计算路径兜底字面量 3 个"
+    },
+    "sbs_persist_rate_literals": {
+      "range": "sbs_persist_rates",
+      "pattern": "0\\.0003|0\\.0005|0\\.0002",
+      "expect": 3,
+      "desc": "持久化路径兜底字面量 3 个"
+    },
+    "sbs_persist_has_bounded": {
+      "range": "sbs_persist_rates",
+      "pattern": "boundedRate",
+      "expect": 0,
+      "desc": "持久化路径**不含** boundedRate（V15②）"
+    },
+    "sbs_catch_sets_resultid_null": {
+      "range": "sbs_catch",
+      "pattern": "setResultId\\(null\\)",
+      "expect": 1,
+      "desc": "catch 吞异常后清空 resultId（V15④）"
+    },
+    "rc_constants_pinned": {
+      "range": "rctest_constants",
+      "pattern": "isEqualTo\\(0\\.000[352]\\)",
+      "expect": 3,
+      "desc": "三常量被钉住（V13）"
+    },
+    "rctest_labeldef_call": {
+      "range": "rctest_labeldef",
+      "pattern": "labelDefinition\\(\\)",
+      "expect": 1,
+      "desc": "唯一触碰 labelDefinition 的测试体一次调用"
+    },
+    "rctest_labeldef_has_arith": {
+      "range": "rctest_labeldef",
+      "pattern": "isEqualTo\\(\\s*[\\\"']?y_h|0\\.9993|1\\.0005|1\\.00050006|0\\.99900016",
+      "expect": 0,
+      "desc": "该测试体**不含**公式算术断言（V13 零守卫）"
+    },
+    "frs_ascii_additive_comment": {
+      "range": "frs_whole",
+      "pattern": "×\\(1\\+c\\+s\\)|×\\(1-s-tax-s\\)",
+      "expect": 2,
+      "desc": "X02：ASCII 加法记法注释（第三种记法）"
+    },
+    "sbs_inline_entry_multiplicative": {
+      "range": "sbs_inline_entry",
+      "pattern": "\\* \\(1 \\+ commissionRate\\);",
+      "expect": 1,
+      "desc": "X03：内联站点的入场费合成**同样是乘性**（不构成 V01 的反例）"
+    },
+    "frs_site_1_exit_commission_step": {
+      "range": "frs_site_1",
+      "expect": 1,
+      "pattern": "\\* \\(1 - ResearchConvention\\.DEFAULT_COMMISSION_RATE - ResearchConvention\\.DEFAULT_SELL_TAX_RATE\\);",
+      "desc": "站点 1 的卖出因子含佣金（乘性第二步）"
+    },
+    "frs_site_2_exit_commission_step": {
+      "range": "frs_site_2",
+      "expect": 1,
+      "pattern": "\\* \\(1 - ResearchConvention\\.DEFAULT_COMMISSION_RATE - ResearchConvention\\.DEFAULT_SELL_TAX_RATE\\);",
+      "desc": "站点 2 的卖出因子含佣金（乘性第二步）"
+    },
+    "lfs_site_1_exit_commission_step": {
+      "range": "lfs_site_1",
+      "expect": 1,
+      "pattern": "\\* \\(1 - commission - sellTax\\);",
+      "desc": "站点 1 的卖出因子含佣金（乘性第二步，raw 出口）"
+    },
+    "lfs_site_2_exit_commission_step": {
+      "range": "lfs_site_2",
+      "expect": 1,
+      "pattern": "\\* \\(1 - commission - sellTax\\);",
+      "desc": "站点 2 的卖出因子含佣金（乘性第二步，label 出口）"
+    },
+    "rc_declared_exit_factor_excludes_commission": {
+      "range": "rc_javadoc_formula",
+      "expect": 1,
+      "pattern": "\\(1 - sell_tax - slippage\\)",
+      "desc": "V07 声明侧：javadoc 公式的卖出因子**逐字不含佣金**"
+    }
+  },
+  "raw_measured": [],
+  "canaries": {
+    "V01": {
+      "clean": "NOT_VIOLATED",
+      "inj": "VIOLATED",
+      "intent": "把 residual_max 覆写为 0（≤TOL）⟹ 一致；覆写为 1e-3（>TOL）⟹ 不一致"
+    },
+    "V02": {
+      "clean": "NOT_VIOLATED",
+      "inj": "VIOLATED",
+      "intent": "把 f_obs_minus_1 覆写为本质值（≠0）⟹ 排除「成本从收益率里减」；覆写为 0 ⟹ 反事实未被排除"
+    },
+    "V03": {
+      "clean": "VIOLATED",
+      "inj": "NOT_VIOLATED",
+      "intent": "把 f_identity_residual 覆写为 0（恒等式成立）⟹ VIOLATED；覆写为 1e-6 ⟹ 恒等式不成立"
+    },
+    "V04": {
+      "clean": "VIOLATED",
+      "inj": "NOT_VIOLATED",
+      "intent": "把 g_diff 覆写为 +6e-8（与 f_diff 反号）⟹ 结构不同；覆写为 −6e-8（同号）⟹ 可被单一比例解释"
+    },
+    "V05": {
+      "clean": "CONTRACT_MISLABEL",
+      "inj": "NOT_VIOLATED",
+      "intent": "abs_delta_bp 覆写为本真值 3.297…（>TH_BP）⟹ 错标；覆写为 0.5（<TH_BP）⟹ 未越阈"
+    },
+    "V06": {
+      "clean": "NOT_VIOLATED",
+      "inj": "VIOLATED",
+      "intent": "javadoc 归属短语计数 1 ⟹ 声明存在；覆写为 0 ⟹ 声明不存在"
+    },
+    "V07": {
+      "clean": "VIOLATED",
+      "inj": "NOT_VIOLATED",
+      "intent": "attribution_holds 覆写为 0 ⟹ 归属不成立；覆写为 1 ⟹ 成立"
+    },
+    "V08": {
+      "clean": "VIOLATED",
+      "inj": "NOT_VIOLATED",
+      "intent": "发射点计数 3 ⟹ 字符串伴随乘性数值；覆写为 2 ⟹ 计数不符"
+    },
+    "V09": {
+      "clean": "CONVENTION_DIVERGENCE",
+      "inj": "NOT_VIOLATED",
+      "intent": "Vue 提示「双边佣金」计 1（与 API 文档加法式相反）；覆写为 0 ⟹ 无相反声明"
+    },
+    "V10": {
+      "clean": "NOT_VIOLATED",
+      "inj": "CONVENTION_DIVERGENCE",
+      "intent": "fwd_idx_h3 覆写为 4（= entry+h）⟹ 与结构化文本一致；覆写为 5 ⟹ 差一"
+    },
+    "V11": {
+      "clean": "CONVENTION_DIVERGENCE",
+      "inj": "NOT_VIOLATED",
+      "intent": "free_text_origin_declared 覆写为 0 ⟹ 自由文本未定原点；覆写为 1 ⟹ 已定"
+    },
+    "V12": {
+      "clean": "NOT_VIOLATED",
+      "inj": "CONTRACT_AMBIGUOUS",
+      "intent": "constants_all_equal 覆写为 1 ⟹ 四来源一致；覆写为 0 ⟹ 不一致/不可判定"
+    },
+    "V13": {
+      "clean": "REGISTERED_ONLY",
+      "inj": "NOT_VIOLATED",
+      "intent": "公式算术断言计数 0 ⟹ 测试层零守卫；覆写为 1 ⟹ 有守卫"
+    },
+    "V14": {
+      "clean": "NOT_VIOLATED",
+      "inj": "CONVENTION_DIVERGENCE",
+      "intent": "grid_ok 覆写为 1 ⟹ 7 格全符合钳位规则；覆写为 0 ⟹ 有格不符"
+    },
+    "V15": {
+      "clean": "VIOLATED",
+      "inj": "NOT_VIOLATED",
+      "intent": "bounded_006_is_005 覆写为 1 ⟹ 钳位发生；覆写为 0 ⟹ 未发生"
+    },
+    "V16": {
+      "clean": "REGISTERED_ONLY",
+      "inj": "NOT_VIOLATED",
+      "intent": "empty_net_has_monotonicity 覆写为 0 ⟹ 键集分歧存在；覆写为 1 ⟹ 无分歧"
+    },
+    "V17": {
+      "clean": "NOT_VIOLATED",
+      "inj": "CONVENTION_DIVERGENCE",
+      "intent": "negative_count 覆写为 9 ⟹ 9/9 全负；覆写为 8 ⟹ 有不成立格"
+    },
+    "V18": {
+      "clean": "REGISTERED_ONLY",
+      "inj": "NOT_VIOLATED",
+      "intent": "breakeven_additive 覆写为 0 ⟹ R003 用冻结算式；覆写为 1 ⟹ 用加法式"
+    },
+    "V19": {
+      "clean": "NOT_VIOLATED",
+      "inj": "INCONCLUSIVE",
+      "intent": "grid_selfcheck_ok 覆写为 1 ⟹ 网格自检通过；覆写为 0 ⟹ 不通过"
+    }
+  },
+  "checkers": [
+    "V01",
+    "V02",
+    "V03",
+    "V04",
+    "V05",
+    "V06",
+    "V07",
+    "V08",
+    "V09",
+    "V10",
+    "V11",
+    "V12",
+    "V13",
+    "V14",
+    "V15",
+    "V16",
+    "V17",
+    "V18",
+    "V19"
+  ],
+  "src_locations": {
+    "rc": "modules/backend-java/src/main/java/com/quant/research/ResearchConvention.java",
+    "frs": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+    "lfs": "modules/backend-java/src/main/java/com/quant/research/LabelFactoryService.java",
+    "pcs": "modules/backend-java/src/main/java/com/quant/research/ProbabilityCalibrationService.java",
+    "sbs": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+    "sbq": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestRequest.java",
+    "rctest": "modules/backend-java/src/test/java/com/quant/research/ResearchConventionTest.java",
+    "collector": "modules/backend-java/src/main/java/com/quant/research/StrategyBoundSampleCollector.java",
+    "doc_conv": "docs/研究口径规范.md",
+    "doc_api": "docs/API文档.md",
+    "vue": "modules/web/src/views/backtest/ScoringBacktest.vue",
+    "r001": "research/paper_loop/experiments/R001_reversal/run_reversal_ic.py",
+    "r003": "research/paper_loop/experiments/R003_cost_breakeven/run_cost_breakeven.py",
+    "labelsnap": "modules/backend-java/src/main/java/com/quant/entity/LabelSnapshot.java"
+  },
+  "src_ranges": {
+    "rc_exit_freetext": [
+      "rc",
+      18,
+      18
+    ],
+    "rc_javadoc_formula": [
+      "rc",
+      83,
+      84
+    ],
+    "rc_labeldef": [
+      "rc",
+      95,
+      98
+    ],
+    "frs_note": [
+      "frs",
+      78,
+      82
+    ],
+    "frs_emission": [
+      "frs",
+      218,
+      222
+    ],
+    "frs_site_1": [
+      "frs",
+      360,
+      366
+    ],
+    "frs_site_2": [
+      "frs",
+      727,
+      733
+    ],
+    "frs_whole": [
+      "frs",
+      1,
+      1000000000
+    ],
+    "lfs_site_1": [
+      "lfs",
+      337,
+      341
+    ],
+    "lfs_site_2": [
+      "lfs",
+      439,
+      443
+    ],
+    "lfs_emission": [
+      "lfs",
+      705,
+      709
+    ],
+    "pcs_emission": [
+      "pcs",
+      268,
+      272
+    ],
+    "sbs_defaults": [
+      "sbs",
+      80,
+      82
+    ],
+    "sbs_bounded": [
+      "sbs",
+      671,
+      674
+    ],
+    "sbs_persist_rates": [
+      "sbs",
+      507,
+      509
+    ],
+    "sbs_catch": [
+      "sbs",
+      520,
+      524
+    ],
+    "sbs_holding_semantics": [
+      "sbs",
+      687,
+      689
+    ],
+    "sbs_inline_entry": [
+      "sbs",
+      275,
+      276
+    ],
+    "sbs_impl_entry": [
+      "sbs",
+      969,
+      971
+    ],
+    "sbs_impl_exit": [
+      "sbs",
+      1013,
+      1015
+    ],
+    "rctest_constants": [
+      "rctest",
+      20,
+      25
+    ],
+    "rctest_labeldef": [
+      "rctest",
+      54,
+      57
+    ],
+    "doc_conv_formula": [
+      "doc_conv",
+      38,
+      39
+    ],
+    "doc_conv_freetext": [
+      "doc_conv",
+      43,
+      44
+    ],
+    "doc_api_clause": [
+      "doc_api",
+      377,
+      377
+    ],
+    "vue_hint": [
+      "vue",
+      60,
+      72
+    ],
+    "sbq_fields": [
+      "sbq",
+      28,
+      35
+    ],
+    "collector_whole": [
+      "collector",
+      1,
+      1000000000
+    ]
+  },
+  "line_anchors": {
+    "rc_exit_freetext": [
+      "rc",
+      "入场后第 h 个持有交易日收盘价"
+    ],
+    "rc_javadoc_formula": [
+      "rc",
+      "y_h = 1\\[\\(exit_price_h × \\(1 - sell_tax - slippage\\)"
+    ],
+    "rc_labeldef": [
+      "rc",
+      "public static String labelDefinition\\(\\)"
+    ],
+    "frs_note": [
+      "frs",
+      "RANK_IC_NET_BASIS_NOTE"
+    ],
+    "frs_emission": [
+      "frs",
+      "out\\.put\\(\"convention\", ResearchConvention\\.labelDefinition\\(\\)\\);"
+    ],
+    "frs_site_1": [
+      "frs",
+      "COST_APPROX：rawOpen\\[t\\+1\\]×\\(1\\+c\\+s\\)"
+    ],
+    "frs_site_2": [
+      "frs",
+      "成本后近似净收益：open\\[t\\+1\\]×\\(1\\+佣金\\+滑点\\)"
+    ],
+    "lfs_site_1": [
+      "lfs",
+      "double exitProceeds = exitPriceRaw \\* \\(1 - commission - sellTax\\);"
+    ],
+    "lfs_site_2": [
+      "lfs",
+      "double exitProceeds = exitPrice \\* \\(1 - commission - sellTax\\);"
+    ],
+    "lfs_emission": [
+      "lfs",
+      "out\\.put\\(\"convention\", ResearchConvention\\.labelDefinition\\(\\)\\);"
+    ],
+    "pcs_emission": [
+      "pcs",
+      "out\\.put\\(\"convention\", ResearchConvention\\.labelDefinition\\(\\)\\);"
+    ],
+    "sbs_defaults": [
+      "sbs",
+      "double commissionRate = boundedRate\\(req\\.getCommissionRate\\(\\), 0\\.0003\\);"
+    ],
+    "sbs_bounded": [
+      "sbs",
+      "private double boundedRate\\(Double value, double defaultValue\\)"
+    ],
+    "sbs_persist_rates": [
+      "sbs",
+      "run\\.setCommissionRate\\(BigDecimal\\.valueOf\\(req\\.getCommissionRate\\(\\)"
+    ],
+    "sbs_catch": [
+      "sbs",
+      "response\\.setResultId\\(null\\);"
+    ],
+    "sbs_holding_semantics": [
+      "sbs",
+      "holding_period_semantics"
+    ],
+    "sbs_inline_entry": [
+      "sbs",
+      "double entryCost = entryPrice \\* \\(1 \\+ commissionRate\\);",
+      260
+    ],
+    "sbs_impl_entry": [
+      "sbs",
+      "double entryCost = entryPrice \\* \\(1 \\+ commissionRate\\);",
+      950
+    ],
+    "sbs_impl_exit": [
+      "sbs",
+      "double exitProceeds = exitPrice \\* \\(1 - commissionRate - sellTaxRate\\);"
+    ],
+    "rctest_constants": [
+      "rctest",
+      "DEFAULT_COMMISSION_RATE\\)\\.isEqualTo\\(0\\.0003\\)"
+    ],
+    "rctest_labeldef": [
+      "rctest",
+      "void labelDefinitionMentionsHorizonsAndNetReturn\\(\\)"
+    ],
+    "doc_conv_formula": [
+      "doc_conv",
+      "1 − sell_tax − slippage"
+    ],
+    "doc_conv_freetext": [
+      "doc_conv",
+      "`exit_price_h` = 入场后第 h 个持有交易日收盘价"
+    ],
+    "doc_api_clause": [
+      "doc_api",
+      "1−印花税−滑点"
+    ],
+    "vue_hint": [
+      "vue",
+      "双边佣金"
+    ],
+    "sbq_fields": [
+      "sbq",
+      "private Double commissionRate = 0\\.0003;"
+    ]
+  },
+  "g3_expected_suffix": "target/classes",
+  "probe_main": "com.quant.service.backtest.R010Probe",
+  "prereg_selfcheck": {
+    "frozen_match": true,
+    "checks": {
+      "axis_total_is_19": true,
+      "variant_map_complete": true,
+      "frozen_axis_counts_match": true,
+      "canaries_cover_variants": true,
+      "canary_words_distinct": true,
+      "expected_words_in_vocab": true,
+      "non_killing_axes_literal": true,
+      "non_killing_variants_8": true
+    },
+    "mismatches": []
+  }
+}

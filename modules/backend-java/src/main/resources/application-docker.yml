@@ -2,7 +2,7 @@ spring:
   datasource:
     url: jdbc:mysql://${DB_HOST:mysql}:3306/quant_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:123456}
+    password: ${DB_PASSWORD:}
 
 # 生产/容器部署：默认开启 JWT 鉴权（可 AUTH_ENABLED=false 关闭），关闭 SQL/DEBUG 日志
 # 鉴权开启时，启动会校验 JWT_SECRET / DEFAULT_ADMIN_PASSWORD 不可为开发默认值——

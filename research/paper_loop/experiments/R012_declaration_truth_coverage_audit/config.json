@@ -1,0 +1,2381 @@
+{
+  "axis_counts": {
+    "A1": 4,
+    "A2": 6,
+    "A3": 5,
+    "A4": 4,
+    "A5": 3
+  },
+  "b13_funnel": {
+    "end": 378,
+    "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+    "start": 370
+  },
+  "baseline_commit": "942714fb",
+  "blocks": [
+    {
+      "children": [
+        "B07",
+        "B10"
+      ],
+      "desc": "research() 顶层 out（legacy 研究）",
+      "end": 171,
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "B01",
+      "kind": "map",
+      "load_bearing": true,
+      "parents": [],
+      "sig": "out.put(\"rank_ic\"",
+      "start": 150
+    },
+    {
+      "children": [
+        "B07",
+        "B10"
+      ],
+      "desc": "unifiedReport() 顶层 out（统一报告）",
+      "end": 231,
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "B02",
+      "kind": "map",
+      "load_bearing": true,
+      "parents": [],
+      "sig": "out.put(\"by_horizon\"",
+      "start": 213
+    },
+    {
+      "children": [
+        "B04",
+        "B05",
+        "B06"
+      ],
+      "desc": "snapshotResearch() 顶层 out（V2-MP-022 权威路径；本层无 universe_note）",
+      "end": 461,
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "B03",
+      "kind": "map",
+      "load_bearing": true,
+      "parents": [],
+      "sig": "out.put(\"universe_source\"",
+      "start": 432
+    },
+    {
+      "children": [],
+      "desc": "buildSnapshotScopeBlock（三口径块）",
+      "end": 553,
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "B04",
+      "kind": "map",
+      "load_bearing": true,
+      "parents": [
+        "B03"
+      ],
+      "sig": "private Map<String, Object> buildSnapshotScopeBlock",
+      "start": 525
+    },
+    {
+      "children": [],
+      "desc": "unavailableScopeBlock（口径不可用退化块）",
+      "end": 578,
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "B05",
+      "kind": "map",
+      "load_bearing": false,
+      "parents": [
+        "B03"
+      ],
+      "sig": "private Map<String, Object> unavailableScopeBlock",
+      "start": 556
+    },
+    {
+      "children": [],
+      "desc": "buildSnapshotFunnel（snapshot 漏斗）",
+      "end": 627,
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "B06",
+      "kind": "map",
+      "load_bearing": true,
+      "parents": [
+        "B03"
+      ],
+      "sig": "private Map<String, Object> buildSnapshotFunnel",
+      "start": 605
+    },
+    {
+      "children": [
+        "B08",
+        "B09"
+      ],
+      "desc": "buildRankIc（legacy rank_ic 块）",
+      "end": 797,
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "B07",
+      "kind": "map",
+      "load_bearing": true,
+      "parents": [
+        "B01",
+        "B02"
+      ],
+      "sig": "private Map<String, Object> buildRankIc",
+      "start": 641
+    },
+    {
+      "children": [],
+      "desc": "emptyNetIcBlock（cost_net_ic 空路径生产者）",
+      "end": 818,
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "B08",
+      "kind": "map",
+      "load_bearing": true,
+      "parents": [
+        "B07"
+      ],
+      "sig": "private Map<String, Object> emptyNetIcBlock",
+      "start": 800
+    },
+    {
+      "children": [],
+      "desc": "buildNetIcBlock（cost_net_ic 非空生产者）",
+      "end": 839,
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "B09",
+      "kind": "map",
+      "load_bearing": true,
+      "parents": [
+        "B07"
+      ],
+      "sig": "private Map<String, Object> buildNetIcBlock",
+      "start": 820
+    },
+    {
+      "children": [],
+      "desc": "buildResearchFunnel（legacy 漏斗）",
+      "end": 877,
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "B10",
+      "kind": "map",
+      "load_bearing": true,
+      "parents": [
+        "B01",
+        "B02"
+      ],
+      "sig": "private Map<String, Object> buildResearchFunnel",
+      "start": 845
+    },
+    {
+      "children": [],
+      "desc": "SBS FactorAnalysis（有 universeNote）",
+      "end": 91,
+      "file": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java",
+      "id": "B11",
+      "kind": "dto",
+      "load_bearing": true,
+      "parents": [],
+      "sig": "public static class FactorAnalysis",
+      "start": 79
+    },
+    {
+      "children": [],
+      "desc": "SBS FactorIcSummary（无 universe 类字段）",
+      "end": 72,
+      "file": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java",
+      "id": "B12",
+      "kind": "dto",
+      "load_bearing": true,
+      "parents": [],
+      "sig": "public static class FactorIcSummary",
+      "start": 64
+    },
+    {
+      "children": [],
+      "desc": "SBS assumptions（口径声明）",
+      "end": 467,
+      "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+      "id": "B13",
+      "kind": "map",
+      "load_bearing": true,
+      "parents": [],
+      "sig": "assumptions.put(\"metric_scope\", \"FILLED_SAMPLE\")",
+      "start": 465
+    },
+    {
+      "children": [],
+      "desc": "SBS Codex 子因子摘要（复用 B12 DTO，note 在 :448 构造后被丢弃）",
+      "end": 453,
+      "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+      "id": "B14",
+      "kind": "code",
+      "load_bearing": true,
+      "parents": [],
+      "sig": "codexFactorObsByHolding.getOrDefault",
+      "start": 441
+    }
+  ],
+  "expectations": {
+    "P1": {
+      "expect": 14,
+      "what": "块清单实测 = 14，锚点 mismatch = 0"
+    },
+    "P10": {
+      "expect": "SCOPE_VOCAB_UNRECONCILED",
+      "what": "V17 -> SCOPE_VOCAB_UNRECONCILED（注册项，不杀）"
+    },
+    "P11": {
+      "expect": "CONSISTENT_DISTINCT_SOURCES",
+      "what": "V18 -> CONSISTENT_DISTINCT_SOURCES（不杀）"
+    },
+    "P12": {
+      "expect": {
+        "min_blocks": 5,
+        "nonempty": true
+      },
+      "what": "V13（仅自身字段）缺失清单非空（≥5 块）"
+    },
+    "P13": {
+      "expect": "REJECTED",
+      "what": "total_verdict = REJECTED，h0_alive = false"
+    },
+    "P14": {
+      "expect": 0,
+      "what": "K1 不触发（FALSE_CLAIM 计 0）"
+    },
+    "P15": {
+      "expect": true,
+      "what": "表外词 = []；两次运行逐位相等"
+    },
+    "P16": {
+      "expect": true,
+      "what": "T24 词表不含 FILLED_SAMPLE ⟹ 与 T21/T22 不可调和"
+    },
+    "P2": {
+      "expect": true,
+      "what": "B07 两分支键集差集非空"
+    },
+    "P3": {
+      "expect": [
+        "monotonicity"
+      ],
+      "what": "B08/B09 键集差集 = {monotonicity}（仅描述）"
+    },
+    "P4": {
+      "expect": true,
+      "what": "B12 无 universe 字段 / B11 有 universeNote"
+    },
+    "P5": {
+      "expect": true,
+      "what": "T03 四件事全真 + 记法 UNFALSIFIABLE"
+    },
+    "P6": {
+      "expect": true,
+      "what": "T04 两条主张全真"
+    },
+    "P7": {
+      "expect": true,
+      "what": "T16/T17 窗口差一日为真"
+    },
+    "P8": {
+      "expect": "COVERAGE_MISSING_UNIVERSE",
+      "what": "V15 -> COVERAGE_MISSING_UNIVERSE（K2 触发）"
+    },
+    "P9": {
+      "expect": "INCONSISTENT",
+      "what": "V16 -> INCONSISTENT（K3 触发）"
+    }
+  },
+  "files": {
+    "ENG": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+    "FRS": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+    "RESP": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java",
+    "SBS": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+    "TSB": "modules/web/src/api/backtest.ts",
+    "TSF": "modules/web/src/api/factor.ts",
+    "VUE": "modules/web/src/views/factor/FactorResearch.vue"
+  },
+  "judgment_source": {
+    "carrier_pages": 130,
+    "carrier_pdf": "papers/hxz2020_rfs_replicating_anomalies.pdf",
+    "carrier_pdf_bytes": 821858,
+    "carrier_pdf_sha256": "8d00169a4cf6b4895587b054b41fe934b600ea501f210f02433cfe4db316f163",
+    "carrier_txt": "papers/hxz2020_rfs_replicating_anomalies.txt",
+    "carrier_txt_bytes": 418945,
+    "carrier_txt_chars": 401306,
+    "carrier_txt_sha256": "8ab941bf1f37b287d5bfa35526e1ece551bb9432fefa71c7dd538fd08164e2d8",
+    "citation": "Hou, Kewei; Xue, Chen; Zhang, Lu — Replicating Anomalies (NBER WP 23394 / RFS 2020)",
+    "criteria": {
+      "J1": {
+        "grade": "L",
+        "text": "样本域是第一位口径选择；不同样本域下定性结论翻转"
+      },
+      "J2": {
+        "grade": "L",
+        "text": "口径选择必须逐项显式声明（consistent set of replication procedures）"
+      },
+      "J3": {
+        "grade": "L",
+        "text": "未声明的关键选择 ⟹ 结果不可重建"
+      },
+      "J4": {
+        "grade": "X",
+        "text": "论文样本（1967-2014 美国、447 异象）不可移植"
+      }
+    },
+    "doi": "10.3386/w23394",
+    "forbidden_numbers": [
+      "t >= 1.96",
+      "t >= 3",
+      "0.64",
+      "0.85",
+      "0.0328",
+      "1.32",
+      "1.03",
+      "20th percentile",
+      "447",
+      "452",
+      "57",
+      "68",
+      "38",
+      "79",
+      "103",
+      "102"
+    ],
+    "grade": "A",
+    "local_carrier": "NBER Working Paper 23394, May 2017",
+    "published": "The Review of Financial Studies 33(5):2019-2133 (2020)"
+  },
+  "k_scope": [
+    "metric_scope",
+    "metric_scopes",
+    "executable_metric_scope",
+    "basis_note",
+    "note",
+    "tradable_note"
+  ],
+  "k_universe": [
+    "universe_note",
+    "universeNote",
+    "universe_source"
+  ],
+  "panel": {
+    "A": 0.04,
+    "B": 0.006,
+    "C": 0.0015,
+    "design": "score_i = i（整数、无并列）；fwd_i = A*x^2 + B*x + C*sin(3i)，x=(i-(n+1)/2)/n；PA 非退化、PB 空、PC 全等收益",
+    "scenarios": [
+      {
+        "days": [
+          {
+            "day": "D1",
+            "n": 12,
+            "rows": [
+              [
+                1.0,
+                0.005864457789867579
+              ],
+              [
+                2.0,
+                0.0029558767527016108
+              ],
+              [
+                3.0,
+                0.0022709555056404126
+              ],
+              [
+                4.0,
+                -0.00031874826588954117
+              ],
+              [
+                5.0,
+                0.0008504317602356752
+              ],
+              [
+                6.0,
+                -0.0013070364257130697
+              ],
+              [
+                7.0,
+                0.0015744279022485287
+              ],
+              [
+                8.0,
+                1.663245699006421e-05
+              ],
+              [
+                9.0,
+                0.004420675003717866
+              ],
+              [
+                10.0,
+                0.003670730341638486
+              ],
+              [
+                11.0,
+                0.0093748677901609
+              ],
+              [
+                12.0,
+                0.009665109497613105
+              ]
+            ]
+          },
+          {
+            "day": "D2",
+            "n": 10,
+            "rows": [
+              [
+                1.0,
+                0.005611680012089802
+              ],
+              [
+                2.0,
+                0.0023808767527016103
+              ],
+              [
+                3.0,
+                0.001618177727862635
+              ],
+              [
+                4.0,
+                -0.0008048593770006524
+              ],
+              [
+                5.0,
+                0.0007754317602356752
+              ],
+              [
+                6.0,
+                -0.0007264808701575142
+              ],
+              [
+                7.0,
+                0.0030549834578040844
+              ],
+              [
+                8.0,
+                0.0026416324569900644
+              ],
+              [
+                9.0,
+                0.008434563892606753
+              ],
+              [
+                10.0,
+                0.009317952563860707
+              ]
+            ]
+          },
+          {
+            "day": "D3",
+            "n": 9,
+            "rows": [
+              [
+                1.0,
+                0.00544624791332437
+              ],
+              [
+                2.0,
+                0.0020253211971460548
+              ],
+              [
+                3.0,
+                0.0012601530365046103
+              ],
+              [
+                4.0,
+                -0.0009776988831734917
+              ],
+              [
+                5.0,
+                0.0009754317602356752
+              ],
+              [
+                6.0,
+                3.4012957002979615e-05
+              ],
+              [
+                7.0,
+                0.004563625433112726
+              ],
+              [
+                8.0,
+                0.005086076901434508
+              ],
+              [
+                9.0,
+                0.012002465127174655
+              ]
+            ]
+          }
+        ],
+        "group": 5,
+        "holding": 2,
+        "id": "PA",
+        "kind": "nondegenerate",
+        "min_size": 5,
+        "universe_note": "R012-PROBE-PA-UNIVERSE-NOTE"
+      },
+      {
+        "days": [],
+        "group": 5,
+        "holding": 2,
+        "id": "PB",
+        "kind": "empty",
+        "min_size": 5,
+        "universe_note": "R012-PROBE-PB-UNIVERSE-NOTE"
+      },
+      {
+        "days": [
+          {
+            "day": "D1",
+            "n": 8,
+            "rows": [
+              [
+                1.0,
+                0.01
+              ],
+              [
+                2.0,
+                0.01
+              ],
+              [
+                3.0,
+                0.01
+              ],
+              [
+                4.0,
+                0.01
+              ],
+              [
+                5.0,
+                0.01
+              ],
+              [
+                6.0,
+                0.01
+              ],
+              [
+                7.0,
+                0.01
+              ],
+              [
+                8.0,
+                0.01
+              ]
+            ]
+          },
+          {
+            "day": "D2",
+            "n": 8,
+            "rows": [
+              [
+                1.0,
+                0.01
+              ],
+              [
+                2.0,
+                0.01
+              ],
+              [
+                3.0,
+                0.01
+              ],
+              [
+                4.0,
+                0.01
+              ],
+              [
+                5.0,
+                0.01
+              ],
+              [
+                6.0,
+                0.01
+              ],
+              [
+                7.0,
+                0.01
+              ],
+              [
+                8.0,
+                0.01
+              ]
+            ]
+          }
+        ],
+        "group": 5,
+        "holding": 2,
+        "id": "PC",
+        "kind": "flat",
+        "min_size": 5,
+        "note": "R006 已登记「平坦序列判定为 MONOTONIC_INCREASING」，此处仅作仪器读数锚点",
+        "universe_note": "R012-PROBE-PC-UNIVERSE-NOTE"
+      }
+    ]
+  },
+  "prereg": "rounds/R012_prereg.md",
+  "prereg_sha256": "3336f070741bea65092eb3dafa0e7a7552d9d8c498b93970ecf57a0c8ec301fb",
+  "reading_naive": {
+    "loadPriceCache|marketDataRepository|qfqClose|qfqOpen|QfqPrice": "qfq|Qfq|QFQ|marketDataRepository",
+    "selectorResult": "selector_result|selectorResult",
+    "topN|LIMIT": "topN|LIMIT|top_n"
+  },
+  "round": "R012",
+  "self_extra": {
+    "B03": [
+      "universe_source"
+    ],
+    "B13": [
+      "metric_scope"
+    ],
+    "B14": [
+      "note"
+    ]
+  },
+  "subject": "研究载荷声明性文本字段族的『真值 / 覆盖 / 跨块跨面同义』审计",
+  "subject_kind": "只读审计（论文只作判据来源，不采纳任何结论/数值）",
+  "text_backing": {
+    "T01": {
+      "aux": "claim_rollup",
+      "claims": [
+        "V07-a"
+      ]
+    },
+    "T02": {
+      "aux": "claim_rollup",
+      "claims": [
+        "V05-a",
+        "V05-b"
+      ]
+    },
+    "T03": {
+      "aux": "claim_rollup",
+      "claims": [
+        "V06-a",
+        "V06-b",
+        "V06-c",
+        "V06-d",
+        "V06-e"
+      ]
+    },
+    "T04": {
+      "aux": "claim_rollup",
+      "claims": [
+        "V08-a",
+        "V08-b",
+        "V08-c"
+      ]
+    },
+    "T05": {
+      "aux": "claim_rollup",
+      "claims": [
+        "V07-b",
+        "V07-c"
+      ]
+    },
+    "T06": {
+      "aux": "anchor",
+      "extra": [
+        {
+          "end": 658,
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "kind": "regex_present",
+          "note": "B07 发射",
+          "pattern": "FEATURE_SNAPSHOT_NOTE",
+          "start": 658
+        }
+      ]
+    },
+    "T07": {
+      "aux": "claim_rollup",
+      "claims": [
+        "V10-a",
+        "V10-b"
+      ]
+    },
+    "T08": {
+      "aux": "claim_rollup",
+      "claims": [
+        "V10-c",
+        "V10-d"
+      ]
+    },
+    "T09": {
+      "aux": "claim_rollup",
+      "claims": [
+        "V10-e",
+        "V10-f",
+        "V10-g"
+      ]
+    },
+    "T10": {
+      "aux": "anchor",
+      "extra": [
+        {
+          "end": 171,
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "kind": "regex_present",
+          "note": "B01 发射点",
+          "pattern": "universe_note",
+          "start": 169
+        }
+      ]
+    },
+    "T11": {
+      "aux": "anchor",
+      "extra": [
+        {
+          "end": 229,
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "kind": "regex_present",
+          "note": "B02 发射点",
+          "pattern": "universe_note",
+          "start": 227
+        }
+      ]
+    },
+    "T12": {
+      "aux": "anchor",
+      "extra": [
+        {
+          "end": 459,
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "kind": "regex_present",
+          "note": "B03 发射点",
+          "pattern": "不读 selector_result",
+          "start": 458
+        }
+      ]
+    },
+    "T13": {
+      "aux": "cond_guard",
+      "extra": [
+        {
+          "end": 553,
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "kind": "regex_present",
+          "note": "note 仅在 0 观测时发射",
+          "pattern": "summary\\.totalObservations\\(\\) == 0",
+          "start": 525
+        },
+        {
+          "end": 553,
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "kind": "regex_present",
+          "note": "",
+          "pattern": "该口径无可用观测",
+          "start": 525
+        }
+      ]
+    },
+    "T14": {
+      "aux": "equals_basis_note",
+      "extra": [
+        {
+          "end": 578,
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "kind": "regex_present",
+          "note": "B05 note = basisNote",
+          "pattern": "block\\.put\\(\\\"note\\\", basisNote\\)",
+          "start": 556
+        }
+      ]
+    },
+    "T15": {
+      "aux": "anchor",
+      "extra": [
+        {
+          "end": 627,
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "kind": "regex_present",
+          "note": "B06 自证",
+          "pattern": "buildSnapshotFunnel",
+          "start": 605
+        }
+      ]
+    },
+    "T16": {
+      "aux": "claim_rollup",
+      "claims": [
+        "V09-a",
+        "V09-b"
+      ]
+    },
+    "T17": {
+      "aux": "claim_rollup",
+      "claims": [
+        "V09-a",
+        "V09-b"
+      ]
+    },
+    "T18": {
+      "aux": "anchor",
+      "extra": [
+        {
+          "end": 872,
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "kind": "regex_present",
+          "note": "B10 发射",
+          "pattern": "tradable_note",
+          "start": 872
+        }
+      ]
+    },
+    "T19": {
+      "aux": "anchor",
+      "extra": [
+        {
+          "end": 875,
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "kind": "regex_present",
+          "note": "B10 发射",
+          "pattern": "selector 候选漏斗",
+          "start": 875
+        }
+      ]
+    },
+    "T20": {
+      "aux": "cond_guard",
+      "extra": [
+        {
+          "end": 627,
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "kind": "regex_present",
+          "note": "B06 条件式发射",
+          "pattern": "tradable_note",
+          "start": 605
+        },
+        {
+          "end": 627,
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "kind": "regex_present",
+          "note": "条件变量",
+          "pattern": "executableAvailable",
+          "start": 605
+        }
+      ]
+    },
+    "T21": {
+      "aux": "anchor",
+      "extra": [
+        {
+          "end": 61,
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "kind": "regex_present",
+          "note": "T21 逐字",
+          "pattern": "未复现历史时点股票池",
+          "start": 60
+        }
+      ]
+    },
+    "T22": {
+      "aux": "anchor",
+      "extra": [
+        {
+          "end": 466,
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "kind": "regex_present",
+          "note": "B13 口径值",
+          "pattern": "FILLED_SAMPLE",
+          "start": 466
+        }
+      ]
+    },
+    "T23": {
+      "aux": "anchor",
+      "extra": [
+        {
+          "end": 448,
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "kind": "regex_present",
+          "note": "B14 条件拼接",
+          "pattern": "\\\"Codex 子因子 \\\" \\+ factorKey",
+          "start": 448
+        }
+      ]
+    },
+    "T24": {
+      "aux": "vocab",
+      "extra": [
+        {
+          "end": 49,
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "kind": "regex_present",
+          "note": "词表逐字",
+          "pattern": "metric_scope 分 RAW / COST_APPROX / EXECUTABLE 三类",
+          "start": 49
+        }
+      ]
+    }
+  },
+  "text_fields": [
+    {
+      "anchors": [
+        "sparse selector_result",
+        "LEGACY_SELECTION_BIASED",
+        "幸存者偏差"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "T01",
+      "key": "RANK_IC_UNIVERSE_NOTE",
+      "kind": "const",
+      "line": 72,
+      "owner": "B01/B02/B07"
+    },
+    {
+      "anchors": [
+        "close[t+h]/close[t]-1",
+        "未计费用/滑点/涨跌停可成交性"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "T02",
+      "key": "RANK_IC_BASIS_NOTE",
+      "kind": "const",
+      "line": 75,
+      "owner": "B07"
+    },
+    {
+      "anchors": [
+        "rawOpen[t+1]",
+        "rawClose[t+1+h]",
+        "market_price_raw",
+        "跳过"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "T03",
+      "key": "RANK_IC_NET_BASIS_NOTE",
+      "kind": "const",
+      "line": 78,
+      "owner": "B08/B09"
+    },
+    {
+      "anchors": [
+        "自动跳过",
+        "不外推",
+        "HAC",
+        "block bootstrap"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "T04",
+      "key": "RANK_IC_EMBARGO_NOTE",
+      "kind": "const",
+      "line": 83,
+      "owner": "B07"
+    },
+    {
+      "anchors": [
+        "完整 PIT feature snapshot 全截面",
+        "topN=0",
+        "market_price_raw"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "T05",
+      "key": "SNAPSHOT_UNIVERSE_NOTE",
+      "kind": "const",
+      "line": 91,
+      "owner": "B04"
+    },
+    {
+      "anchors": [
+        "snapshot-research",
+        "LEGACY_SELECTION_BIASED"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "T06",
+      "key": "FEATURE_SNAPSHOT_NOTE",
+      "kind": "const",
+      "line": 94,
+      "owner": "B01/B02/B07"
+    },
+    {
+      "anchors": [
+        "rawClose[t+h]/rawClose[t]-1",
+        "不复权",
+        "不读 selector/qfq"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "T07",
+      "key": "rawNote",
+      "kind": "local",
+      "line": 410,
+      "owner": "B04(RAW)"
+    },
+    {
+      "anchors": [
+        "next-open 入场",
+        "不含涨跌停/停牌拒单过滤"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "T08",
+      "key": "costNote",
+      "kind": "local",
+      "line": 413,
+      "owner": "B04(COST_APPROX)"
+    },
+    {
+      "anchors": [
+        "label_v2",
+        "FILLED",
+        "NOT_BUYABLE",
+        "未提供 labelVersion"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "T09",
+      "key": "execNote",
+      "kind": "local_cond",
+      "line": 415,
+      "owner": "B04/B05(EXECUTABLE)"
+    },
+    {
+      "anchors": [
+        "毛收益=RAW",
+        "净收益=COST_APPROX",
+        "禁止据此直接调整因子权重"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "T10",
+      "key": "B01.note",
+      "kind": "literal",
+      "line": 170,
+      "owner": "B01"
+    },
+    {
+      "anchors": [
+        "RAW",
+        "COST_APPROX",
+        "sparse selector_result 存在选择偏差"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "T11",
+      "key": "B02.note",
+      "kind": "literal",
+      "line": 228,
+      "owner": "B02"
+    },
+    {
+      "anchors": [
+        "V2-MP-022",
+        "不读 selector_result / 不读 qfq",
+        "禁止把 COST_APPROX 命名 executable"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "T12",
+      "key": "B03.note",
+      "kind": "literal",
+      "line": 458,
+      "owner": "B03"
+    },
+    {
+      "anchors": [
+        "该口径无可用观测",
+        "不给出 IC"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "T13",
+      "key": "B04.note(0 观测)",
+      "kind": "literal_cond",
+      "line": 551,
+      "owner": "B04"
+    },
+    {
+      "anchors": [
+        "block.put(\"note\", basisNote)"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "T14",
+      "key": "B05.note",
+      "kind": "literal",
+      "line": 576,
+      "owner": "B05"
+    },
+    {
+      "anchors": [
+        "tradable",
+        "COST_APPROX"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "T15",
+      "key": "B06.note",
+      "kind": "literal",
+      "line": 625,
+      "owner": "B06"
+    },
+    {
+      "anchors": [
+        "EXECUTABLE 暂不可用",
+        "与毛收益 IC 窗口差一日"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "T16",
+      "key": "B08.note",
+      "kind": "literal",
+      "line": 815,
+      "owner": "B08"
+    },
+    {
+      "anchors": [
+        "EXECUTABLE 暂不可用",
+        "与毛收益 IC 窗口差一日"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "T17",
+      "key": "B09.note",
+      "kind": "literal",
+      "line": 836,
+      "owner": "B09"
+    },
+    {
+      "anchors": [
+        "EXECUTABLE tradable funnel unavailable"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "T18",
+      "key": "B10.tradable_note",
+      "kind": "literal",
+      "line": 872,
+      "owner": "B10"
+    },
+    {
+      "anchors": [
+        "TradabilityPolicy",
+        "selector 候选漏斗"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "T19",
+      "key": "B10.note",
+      "kind": "literal",
+      "line": 875,
+      "owner": "B10"
+    },
+    {
+      "anchors": [
+        "tradable"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "T20",
+      "key": "B06.tradable_note",
+      "kind": "literal_cond",
+      "line": 621,
+      "owner": "B06"
+    },
+    {
+      "anchors": [
+        "persisted 全截面候选",
+        "非 TopN 子集",
+        "幸存者偏差"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+      "id": "T21",
+      "key": "FACTOR_UNIVERSE_NOTE",
+      "kind": "const",
+      "line": 60,
+      "owner": "B13/B12/B14"
+    },
+    {
+      "anchors": [
+        "FILLED_SAMPLE"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+      "id": "T22",
+      "key": "B13.metric_scope",
+      "kind": "literal",
+      "line": 466,
+      "owner": "B13"
+    },
+    {
+      "anchors": [
+        "Codex 子因子",
+        "FACTOR_UNIVERSE_NOTE"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+      "id": "T23",
+      "key": "B14.universeNote",
+      "kind": "literal_cond",
+      "line": 448,
+      "owner": "B14"
+    },
+    {
+      "anchors": [
+        "metric_scope 分 RAW / COST_APPROX / EXECUTABLE 三类"
+      ],
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "id": "T24",
+      "key": "类 Javadoc scope 词表",
+      "kind": "javadoc",
+      "line": 49,
+      "owner": "全"
+    }
+  ],
+  "tolerances": {
+    "BLOCK_COUNT": 14,
+    "CANARY_PAIRS": 22,
+    "DET_BITS": 64,
+    "G3_SUFFIX": "modules/backend-java/target/classes",
+    "MAX_VARIANTS": 22,
+    "PROBE_CLEANUP": true,
+    "TEXT_FIELD_COUNT": 24,
+    "TOL": 1e-15,
+    "TOL_INT": 0
+  },
+  "variants": [
+    {
+      "axis": "A1",
+      "desc": "块清单 = 14，冻结锚点全部命中（0 mismatch）",
+      "expect": "TRUE_CLAIM",
+      "id": "V01",
+      "rule": "block_structure"
+    },
+    {
+      "axis": "A1",
+      "branch_note": "空分支 = :660-671；非空分支 = :649-658（公共头）+ :755-796（数值段）",
+      "desc": "B07 空/非空两分支键集差集非空",
+      "expect": "TRUE_CLAIM",
+      "id": "V02",
+      "ranges": {
+        "empty": [
+          660,
+          671
+        ],
+        "full": [
+          649,
+          658,
+          755,
+          796
+        ]
+      },
+      "rule": "keyset_diff_branch"
+    },
+    {
+      "axis": "A1",
+      "blocks": [
+        "B08",
+        "B09"
+      ],
+      "cross_ref": "B-R009-A5b（不作 kill）",
+      "desc": "B08 与 B09 键集差集（预期 {monotonicity}）",
+      "expect": "TRUE_CLAIM",
+      "id": "V03",
+      "rule": "keyset_diff_pair"
+    },
+    {
+      "axis": "A1",
+      "corroboration": [
+        {
+          "end": 65,
+          "file": "modules/web/src/api/backtest.ts",
+          "kind": "regex_present",
+          "note": "TS FactorAnalysis 有 universeNote",
+          "pattern": "universeNote",
+          "start": 52
+        },
+        {
+          "end": 77,
+          "file": "modules/web/src/api/backtest.ts",
+          "kind": "regex_absent",
+          "note": "TS FactorIcSummary 无 universeNote",
+          "pattern": "universeNote",
+          "start": 67
+        }
+      ],
+      "desc": "B11 有 universeNote / B12 无 universe 类字段（判定只用冻结扫描根内事实）",
+      "expect": "TRUE_CLAIM",
+      "facts": [
+        {
+          "end": 91,
+          "file": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java",
+          "kind": "regex_present",
+          "note": "B11 Java DTO 字段",
+          "pattern": "universeNote",
+          "start": 79
+        },
+        {
+          "end": 1048,
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "kind": "regex_present",
+          "note": "B11 接线",
+          "pattern": "\\.universeNote\\(summary\\.universeNote\\(\\)\\)",
+          "start": 1018
+        },
+        {
+          "end": 72,
+          "file": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java",
+          "kind": "regex_absent",
+          "note": "B12 Java DTO 无 universe 类字段",
+          "pattern": "universe",
+          "start": 64
+        },
+        {
+          "end": 1065,
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "kind": "regex_absent",
+          "note": "B12 映射器未写 universe 字段",
+          "pattern": "universe",
+          "start": 1051
+        }
+      ],
+      "id": "V04",
+      "rule": "dto_field_asymmetry"
+    },
+    {
+      "axis": "A2",
+      "claims": [
+        {
+          "facts": [
+            {
+              "end": 716,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "grossExitIdx = baseIdx \\+ holdingDays",
+              "start": 674
+            },
+            {
+              "end": 716,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "// 毛收益：close\\[t\\+h\\] / close\\[t\\] - 1",
+              "start": 674
+            },
+            {
+              "end": 716,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "double forwardReturn = closeExit\\.doubleValue\\(\\) / closeSignal\\.doubleValue\\(\\) - 1\\.0",
+              "start": 674
+            },
+            {
+              "end": 716,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "BigDecimal closeSignal = prices\\.close\\(\\)",
+              "start": 674
+            }
+          ],
+          "id": "V05-a",
+          "klass": "F1",
+          "text": "毛收益 forward return = close[t+h]/close[t]-1（t=信号日，h=持仓交易日数）"
+        },
+        {
+          "facts": [
+            {
+              "end": 716,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_absent",
+              "note": "",
+              "pattern": "ResearchConvention\\.",
+              "start": 706
+            },
+            {
+              "end": 716,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_absent",
+              "note": "",
+              "pattern": "SLIPPAGE|COMMISSION|SELL_TAX",
+              "start": 706
+            },
+            {
+              "end": 716,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_absent",
+              "note": "",
+              "pattern": "tradab|Tradab|LIMIT_UP|limitUp|SUSPEND|execStatus",
+              "start": 706
+            }
+          ],
+          "id": "V05-b",
+          "klass": "F3",
+          "text": "未计费用/滑点/涨跌停可成交性（毛收益路径）"
+        }
+      ],
+      "desc": "T02（RAW 公式 / 未计费用）逐条",
+      "expect": "TRUE_CLAIM",
+      "id": "V05",
+      "rule": "truth"
+    },
+    {
+      "axis": "A2",
+      "claims": [
+        {
+          "facts": [
+            {
+              "end": 740,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "netEntryIdx = baseIdx \\+ 1",
+              "start": 683
+            },
+            {
+              "end": 740,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "BigDecimal openEntry = prices\\.rawOpen\\(\\)\\.get",
+              "start": 683
+            },
+            {
+              "end": 740,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "ResearchConvention\\.DEFAULT_SLIPPAGE_RATE",
+              "start": 683
+            },
+            {
+              "end": 740,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "ResearchConvention\\.DEFAULT_COMMISSION_RATE",
+              "start": 683
+            }
+          ],
+          "id": "V06-a",
+          "klass": "F1",
+          "text": "entry = rawOpen[t+1]×(1+佣金+滑点)"
+        },
+        {
+          "facts": [
+            {
+              "end": 740,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "netExitIdx = netEntryIdx \\+ holdingDays",
+              "start": 683
+            },
+            {
+              "end": 740,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "BigDecimal closeExit = prices\\.rawClose\\(\\)\\.get",
+              "start": 683
+            },
+            {
+              "end": 740,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "ResearchConvention\\.DEFAULT_SELL_TAX_RATE",
+              "start": 683
+            }
+          ],
+          "id": "V06-b",
+          "klass": "F1",
+          "text": "exit = rawClose[t+1+h]×(1-佣金-印花税-滑点)"
+        },
+        {
+          "facts": [
+            {
+              "end": 737,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "V2-MP-014：成交价只读 market_price_raw",
+              "start": 718
+            },
+            {
+              "end": 737,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "prices\\.rawOpen\\(\\)",
+              "start": 718
+            },
+            {
+              "end": 737,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "prices\\.rawClose\\(\\)",
+              "start": 718
+            },
+            {
+              "end": 737,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "ordered",
+              "note": "",
+              "patterns": [
+                "if \\(openEntry != null && closeExit != null",
+                "netObs\\.add"
+              ],
+              "start": 718
+            },
+            {
+              "end": 737,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_absent",
+              "note": "",
+              "pattern": "prices\\.close\\(\\)|prices\\.open\\(\\)|marketDataRepository",
+              "start": 718
+            }
+          ],
+          "id": "V06-c",
+          "klass": "F2",
+          "text": "成交价只读 market_price_raw（V2-MP-014）；缺 raw 即跳过该观测"
+        },
+        {
+          "facts": [
+            {
+              "end": 737,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_absent",
+              "note": "",
+              "pattern": "LIMIT_UP|tradab|Tradab|SUSPEND|NOT_BUYABLE|NOT_SELLABLE|execStatus|execBreakdown",
+              "start": 718
+            }
+          ],
+          "id": "V06-d",
+          "klass": "F3",
+          "text": "不含涨跌停/停牌拒单过滤（净收益路径）"
+        },
+        {
+          "id": "V06-e",
+          "klass": "NOT_FALSIFIABLE",
+          "reason": "§6.2 记法差异类：同一算术的书写形式不同，不构成事实主张；交叉引用 D-R010-01（R010 已登记）",
+          "text": "记法「×(1+佣金+滑点)」写作单级乘性，实现为两级乘性 entryPrice×(1+佣金)"
+        }
+      ],
+      "desc": "T03（COST_APPROX 四件事 + 记法）逐条",
+      "expect": "TRUE_CLAIM",
+      "id": "V06",
+      "rule": "truth"
+    },
+    {
+      "axis": "A2",
+      "claims": [
+        {
+          "facts": [
+            {
+              "end": 232,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "selectorResultRepository",
+              "start": 111
+            },
+            {
+              "end": 232,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "selectorResultItemRepository",
+              "start": 111
+            },
+            {
+              "end": 172,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "SOURCE_LEGACY_SELECTION_BIASED",
+              "start": 150
+            },
+            {
+              "end": 232,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_absent",
+              "note": "",
+              "pattern": "featureSnapshotRowRepository",
+              "start": 111
+            },
+            {
+              "end": 232,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_absent",
+              "note": "",
+              "pattern": "loadRawPriceCache",
+              "start": 111
+            }
+          ],
+          "id": "V07-a",
+          "klass": "F2",
+          "text": "T01：LEGACY_SELECTION_BIASED，sparse selector_result 取样（非完整 PIT 截面）"
+        },
+        {
+          "facts": [
+            {
+              "end": 292,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "featureSnapshotManifestRepository",
+              "start": 257
+            },
+            {
+              "end": 292,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "featureSnapshotRowRepository\\.listPartition",
+              "start": 257
+            },
+            {
+              "end": 292,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_absent",
+              "note": "",
+              "pattern": "topN|LIMIT",
+              "start": 257
+            }
+          ],
+          "id": "V07-b",
+          "klass": "F2",
+          "text": "T05：完整 PIT feature snapshot 全截面（V2-MP-016，topN=0 无上限）"
+        },
+        {
+          "facts": [
+            {
+              "end": 460,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "loadRawPriceCache",
+              "start": 257
+            },
+            {
+              "end": 460,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "labelSnapshotRepository",
+              "start": 257
+            },
+            {
+              "end": 460,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_absent",
+              "note": "",
+              "pattern": "selectorResult",
+              "start": 257
+            },
+            {
+              "end": 460,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_absent",
+              "note": "",
+              "pattern": "loadPriceCache|marketDataRepository|qfqClose|qfqOpen|QfqPrice",
+              "start": 257
+            }
+          ],
+          "id": "V07-c",
+          "klass": "F2",
+          "text": "T05：forward return 只读 market_price_raw / label_v2，不读 selector/qfq"
+        }
+      ],
+      "desc": "T01 + T05（两条样本域主张）",
+      "expect": "TRUE_CLAIM",
+      "id": "V07",
+      "rule": "truth"
+    },
+    {
+      "axis": "A2",
+      "claims": [
+        {
+          "facts": [
+            {
+              "end": 716,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "grossExitIdx < tradingDays\\.size\\(\\)",
+              "start": 674
+            },
+            {
+              "end": 351,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "baseIdx \\+ holding < prices\\.days\\(\\)\\.size\\(\\)",
+              "start": 341
+            },
+            {
+              "end": 677,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "endDate\\.plusDays\\(holdingDays \\* 2L\\)",
+              "start": 674
+            }
+          ],
+          "id": "V08-a",
+          "klass": "F3",
+          "text": "信号日接近数据末端（forward 区间未形成）自动跳过，不外推"
+        },
+        {
+          "facts": [
+            {
+              "end": 410,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_absent",
+              "note": "",
+              "pattern": "interpolat|extrapolat|forwardFill|ffill",
+              "start": 333
+            }
+          ],
+          "id": "V08-b",
+          "klass": "F3",
+          "text": "不外推（不合成/插值 forward 收益）"
+        },
+        {
+          "facts": [
+            {
+              "end": 192,
+              "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "neweyWestHacStd\\(icSeries\\)",
+              "start": 185
+            },
+            {
+              "end": 192,
+              "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "blockBootstrapCi\\(icSeries",
+              "start": 185
+            },
+            {
+              "end": 765,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "hac_std",
+              "start": 763
+            },
+            {
+              "end": 765,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "ci_lower",
+              "start": 763
+            },
+            {
+              "end": 765,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "ci_upper",
+              "start": 763
+            }
+          ],
+          "id": "V08-c",
+          "klass": "F4",
+          "text": "重叠持有期 IC 序列的显著性以 HAC 标准误与 block bootstrap CI 为准"
+        }
+      ],
+      "desc": "T04（自动跳过 / 不外推 / 显著性口径）逐条",
+      "expect": "TRUE_CLAIM",
+      "id": "V08",
+      "rule": "truth"
+    },
+    {
+      "axis": "A2",
+      "claims": [
+        {
+          "facts": [
+            {
+              "end": 694,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "int grossExitIdx = baseIdx \\+ holdingDays",
+              "start": 692
+            },
+            {
+              "end": 694,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "int netEntryIdx = baseIdx \\+ 1",
+              "start": 692
+            },
+            {
+              "end": 694,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "int netExitIdx = netEntryIdx \\+ holdingDays",
+              "start": 692
+            }
+          ],
+          "id": "V09-a",
+          "klass": "F1",
+          "text": "净收益 IC 与毛收益 IC 窗口差一日（t→t+h vs t+1→t+1+h）"
+        },
+        {
+          "facts": [
+            {
+              "end": 172,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "executable_metric_scope\\\"?,?\\s*\\\"?UNAVAILABLE",
+              "start": 150
+            },
+            {
+              "end": 647,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_absent",
+              "note": "",
+              "pattern": "labelVersion",
+              "start": 641
+            }
+          ],
+          "id": "V09-b",
+          "klass": "F3",
+          "text": "EXECUTABLE 暂不可用（legacy 路径无 labelVersion 入口）"
+        }
+      ],
+      "desc": "T16/T17（窗口差一日 + EXECUTABLE 暂不可用）",
+      "expect": "TRUE_CLAIM",
+      "id": "V09",
+      "rule": "truth"
+    },
+    {
+      "axis": "A2",
+      "claims": [
+        {
+          "facts": [
+            {
+              "end": 350,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "// RAW：rawClose\\[t\\+h\\]/rawClose\\[t\\]-1",
+              "start": 340
+            },
+            {
+              "end": 350,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "baseIdx \\+ holding",
+              "start": 340
+            },
+            {
+              "end": 523,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "marketPriceRawRepository",
+              "start": 492
+            },
+            {
+              "end": 523,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "new SnapshotPriceCache\\(dayIndex, days, close, open\\)",
+              "start": 492
+            },
+            {
+              "end": 523,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_absent",
+              "note": "",
+              "pattern": "marketDataRepository|qfq|adj",
+              "start": 492
+            }
+          ],
+          "id": "V10-a",
+          "klass": "F2",
+          "text": "T07：RAW = rawClose[t+h]/rawClose[t]-1，只读 market_price_raw 不复权（含分红/除权缺口）"
+        },
+        {
+          "facts": [
+            {
+              "end": 351,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_absent",
+              "note": "",
+              "pattern": "ResearchConvention\\.|tradab|LIMIT_UP|SUSPEND",
+              "start": 340
+            }
+          ],
+          "id": "V10-b",
+          "klass": "F3",
+          "text": "T07：不计费用/滑点/涨跌停可成交性（snapshot RAW 路径）"
+        },
+        {
+          "facts": [
+            {
+              "end": 369,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "baseIdx \\+ 1",
+              "start": 352
+            },
+            {
+              "end": 369,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "baseIdx \\+ 1 \\+ holding",
+              "start": 352
+            },
+            {
+              "end": 369,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "prices\\.open\\(\\)",
+              "start": 352
+            },
+            {
+              "end": 369,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "prices\\.close\\(\\)",
+              "start": 352
+            },
+            {
+              "end": 369,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "ResearchConvention\\.DEFAULT_COMMISSION_RATE",
+              "start": 352
+            },
+            {
+              "end": 369,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "ResearchConvention\\.DEFAULT_SLIPPAGE_RATE",
+              "start": 352
+            }
+          ],
+          "id": "V10-c",
+          "klass": "F1",
+          "text": "T08：next-open 入场 + 持有期收盘退出 + 扣费（ResearchConvention），成交价只读 market_price_raw"
+        },
+        {
+          "facts": [
+            {
+              "end": 370,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_absent",
+              "note": "",
+              "pattern": "LIMIT_UP|tradab|SUSPEND",
+              "start": 352
+            }
+          ],
+          "id": "V10-d",
+          "klass": "F3",
+          "text": "T08：不含涨跌停/停牌拒单过滤（snapshot COST_APPROX 路径）"
+        },
+        {
+          "facts": [
+            {
+              "end": 309,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "labelSnapshotRepository",
+              "start": 294
+            },
+            {
+              "end": 309,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "labelByKey",
+              "start": 294
+            },
+            {
+              "end": 386,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "ResearchConvention\\.EXEC_STATUS_FILLED\\.equals",
+              "start": 371
+            },
+            {
+              "end": 386,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "label\\.getNetReturn\\(\\)",
+              "start": 371
+            },
+            {
+              "end": 386,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "execObs\\.add",
+              "start": 371
+            }
+          ],
+          "id": "V10-e",
+          "klass": "F3",
+          "text": "T09 分支A：join label_v2 execStatus=FILLED，forward return = label.netReturn"
+        },
+        {
+          "facts": [
+            {
+              "end": 309,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "NOT_BUYABLE",
+              "start": 294
+            },
+            {
+              "end": 309,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "EXEC_STATUS_SUSPENDED",
+              "start": 294
+            },
+            {
+              "end": 309,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "EXEC_STATUS_NOT_SELLABLE",
+              "start": 294
+            },
+            {
+              "end": 309,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "EXEC_STATUS_DELISTED",
+              "start": 294
+            },
+            {
+              "end": 386,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "incrementCount\\(execBreakdown",
+              "start": 371
+            },
+            {
+              "end": 386,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "ordered",
+              "note": "",
+              "patterns": [
+                "ResearchConvention\\.EXEC_STATUS_FILLED\\.equals",
+                "execObs\\.add"
+              ],
+              "start": 371
+            }
+          ],
+          "id": "V10-f",
+          "klass": "F3",
+          "text": "T09 分支A：四类拒单不计入可执行 IC，分别计入拒绝漏斗"
+        },
+        {
+          "facts": [
+            {
+              "end": 303,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "labelVersion != null && !labelVersion\\.isBlank\\(\\)",
+              "start": 302
+            },
+            {
+              "end": 429,
+              "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+              "kind": "regex_present",
+              "note": "",
+              "pattern": "unavailableScopeBlock\\(METRIC_SCOPE_EXECUTABLE, execNote\\)",
+              "start": 426
+            }
+          ],
+          "id": "V10-g",
+          "klass": "F3",
+          "text": "T09 分支B：未提供 labelVersion 时口径不可用"
+        }
+      ],
+      "desc": "T07/T08/T09（snapshot 三口径 note）",
+      "expect": "TRUE_CLAIM",
+      "id": "V10",
+      "rule": "truth"
+    },
+    {
+      "axis": "A3",
+      "desc": "14 块 × 样本域声明覆盖矩阵（自身 ∪ 祖先 ∪ 直接子）",
+      "expect": "COVERAGE_MISSING_UNIVERSE",
+      "id": "V11",
+      "key_class": "universe",
+      "rule": "coverage_matrix"
+    },
+    {
+      "axis": "A3",
+      "desc": "14 块 × 口径声明覆盖矩阵",
+      "expect": null,
+      "expect_note": "§7 冻结行未写预期判定（只写「14 块 × 口径声明的覆盖矩阵」）⟹ 仅记录实测",
+      "id": "V12",
+      "key_class": "scope",
+      "rule": "coverage_matrix"
+    },
+    {
+      "axis": "A3",
+      "desc": "仅自身字段口径下的样本域缺失清单（描述性，不作 kill）",
+      "expect": "COVERAGE_MISSING_UNIVERSE",
+      "id": "V13",
+      "rule": "self_only"
+    },
+    {
+      "axis": "A3",
+      "desc": "承载数值结果的块判定（按 §4.1 冻结列）",
+      "expect": "TRUE_CLAIM",
+      "id": "V14",
+      "rule": "load_bearing"
+    },
+    {
+      "axis": "A3",
+      "desc": "B12/B14 = COVERAGE_MISSING_UNIVERSE？（候选 K2）",
+      "expect": "COVERAGE_MISSING_UNIVERSE",
+      "id": "V15",
+      "rule": "coverage_b12"
+    },
+    {
+      "axis": "A4",
+      "desc": "B11 vs B12 样本域声明不对称（候选 K3）",
+      "expect": "INCONSISTENT",
+      "facts": [
+        {
+          "end": 437,
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "kind": "regex_present",
+          "note": "B12 的 note 在调用处构造",
+          "pattern": "FACTOR_UNIVERSE_NOTE",
+          "start": 431
+        },
+        {
+          "end": 449,
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "kind": "regex_present",
+          "note": "B14 的 note 在调用处构造",
+          "pattern": "FACTOR_UNIVERSE_NOTE",
+          "start": 443
+        },
+        {
+          "end": 91,
+          "file": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java",
+          "kind": "regex_present",
+          "note": "B11 有字段",
+          "pattern": "universeNote",
+          "start": 79
+        },
+        {
+          "end": 72,
+          "file": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java",
+          "kind": "regex_absent",
+          "note": "B12 无字段",
+          "pattern": "universe",
+          "start": 64
+        },
+        {
+          "end": 1065,
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "kind": "regex_absent",
+          "note": "B12 映射器丢弃 note",
+          "pattern": "universe",
+          "start": 1051
+        }
+      ],
+      "id": "V16",
+      "rule": "consistency_b11_b12"
+    },
+    {
+      "axis": "A4",
+      "desc": "metric_scope 取值域跨面 × T24 词表的可调和性（注册项，不杀）",
+      "expect": "SCOPE_VOCAB_UNRECONCILED",
+      "id": "V17",
+      "rule": "scope_vocab"
+    },
+    {
+      "axis": "A4",
+      "desc": "T01 与 T21 两条样本域声明的同义性（各自是否描述不同数据路径）",
+      "expect": "CONSISTENT_DISTINCT_SOURCES",
+      "facts": [
+        {
+          "end": 74,
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "kind": "regex_present",
+          "note": "T01 描述 FRS legacy 路径",
+          "pattern": "sparse selector_result 取样",
+          "start": 72
+        },
+        {
+          "end": 61,
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "kind": "regex_present",
+          "note": "T21 描述 SBS 候选路径",
+          "pattern": "persisted 全截面候选",
+          "start": 60
+        },
+        {
+          "end": 172,
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "kind": "regex_present",
+          "note": "FRS 来源常量",
+          "pattern": "SOURCE_LEGACY_SELECTION_BIASED",
+          "start": 150
+        },
+        {
+          "end": 467,
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "kind": "regex_present",
+          "note": "SBS 口径常量",
+          "pattern": "FILLED_SAMPLE",
+          "start": 466
+        }
+      ],
+      "id": "V18",
+      "rule": "synonymy"
+    },
+    {
+      "axis": "A4",
+      "desc": "T10/T11/T12 三个顶层 note 与各自块内 metric_scope 的表述一致性",
+      "expect": "CONSISTENT",
+      "id": "V19",
+      "rule": "toplevel_notes"
+    },
+    {
+      "axis": "A5",
+      "desc": "正面对照：T01 常量确实到达载荷（发射点 + 引擎透传）",
+      "expect": "TRUE_CLAIM",
+      "facts": [
+        {
+          "end": 753,
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "kind": "regex_present",
+          "note": "legacy 传给 summarize",
+          "pattern": "RANK_IC_UNIVERSE_NOTE",
+          "start": 747
+        },
+        {
+          "end": 654,
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "kind": "regex_present",
+          "note": "B07 发射",
+          "pattern": "universe_note\\\", RANK_IC_UNIVERSE_NOTE",
+          "start": 654
+        },
+        {
+          "end": 169,
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "kind": "regex_present",
+          "note": "B01 发射",
+          "pattern": "universe_note\\\", RANK_IC_UNIVERSE_NOTE",
+          "start": 169
+        },
+        {
+          "end": 227,
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "kind": "regex_present",
+          "note": "B02 发射",
+          "pattern": "universe_note\\\", RANK_IC_UNIVERSE_NOTE",
+          "start": 227
+        },
+        {
+          "end": 436,
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "kind": "regex_present",
+          "note": "SBS 传给 summarize",
+          "pattern": "FACTOR_UNIVERSE_NOTE",
+          "start": 436
+        },
+        {
+          "end": 1047,
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "kind": "regex_present",
+          "note": "引擎→DTO",
+          "pattern": "\\.universeNote\\(summary\\.universeNote\\(\\)\\)",
+          "start": 1047
+        }
+      ],
+      "id": "V20",
+      "rule": "positive_control"
+    },
+    {
+      "axis": "A5",
+      "desc": "反向锚点：hac_std/ci_* 来自同一 IC 序列（静态 + 运行时）",
+      "expect": "TRUE_CLAIM",
+      "facts": [
+        {
+          "end": 192,
+          "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+          "kind": "regex_present",
+          "note": "",
+          "pattern": "List<Double> icSeries",
+          "start": 170
+        },
+        {
+          "end": 192,
+          "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+          "kind": "regex_present",
+          "note": "",
+          "pattern": "neweyWestHacStd\\(icSeries\\)",
+          "start": 185
+        },
+        {
+          "end": 192,
+          "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+          "kind": "regex_present",
+          "note": "",
+          "pattern": "blockBootstrapCi\\(icSeries",
+          "start": 185
+        }
+      ],
+      "id": "V21",
+      "rule": "reverse_anchor"
+    },
+    {
+      "axis": "A5",
+      "desc": "金丝雀（CLN/INJ）+ 行和/轴计数/网格 + 逐位确定性",
+      "expect": "TRUE_CLAIM",
+      "id": "V22",
+      "rule": "canary"
+    }
+  ],
+  "verdict_vocab": [
+    "TRUE_CLAIM",
+    "FALSE_CLAIM",
+    "UNFALSIFIABLE",
+    "CLAIM_ABSENT",
+    "CLAIM_UNDECIDABLE_STATIC",
+    "COVERAGE_OK",
+    "COVERAGE_MISSING_UNIVERSE",
+    "COVERAGE_MISSING_SCOPE",
+    "SCOPE_VOCAB_UNRECONCILED",
+    "CONSISTENT",
+    "INCONSISTENT",
+    "CONSISTENT_DISTINCT_SOURCES",
+    "NOT_REACHED_STATIC_ONLY"
+  ],
+  "wiring": {
+    "B11": {
+      "end": 1048,
+      "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+      "setter": "universeNote",
+      "start": 1018
+    },
+    "B12": {
+      "end": 1065,
+      "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+      "setter": "universeNote",
+      "start": 1051
+    },
+    "B14": {
+      "end": 1065,
+      "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+      "setter": "universeNote",
+      "start": 1051
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "experiment_id": "R001_reversal",
+  "paper_id": "LSY2019",
+  "prereg": "research/paper_loop/rounds/R001_prereg.md",
+  "run_time": "2026-09-15T14:45:18",
+  "cost": {
+    "commission": 0.0003,
+    "sell_tax": 0.0005,
+    "slippage": 0.0002
+  },
+  "entry_assumption": "NEXT_TRADING_DAY_OPEN",
+  "exit_assumption": "HOLDING_PERIOD_CLOSE (h in {2,3})",
+  "primary": {
+    "N": 20,
+    "h": 3
+  },
+  "grid_N": [
+    1,
+    5,
+    20
+  ],
+  "sensitivity_N": [
+    16,
+    24
+  ],
+  "segments": {
+    "IS_A": [
+      "2024-01-02",
+      "2024-12-31"
+    ],
+    "IS_B": [
+      "2025-01-01",
+      "2025-12-31"
+    ],
+    "OOS": [
+      "2026-01-01",
+      "2026-09-07"
+    ]
+  },
+  "min_names_per_date": 30,
+  "random_seed": 20260914,
+  "data_source": "quant_db.market_data (qfq)",
+  "run_oos": true
+}

@@ -1,0 +1,297 @@
+{
+  "_provenance": "由 make_config.py 在冻结时从 run_uncertainty_audit.py 的模块常数导出；运行期 verify_config_frozen() 逐项比对；常数本身的权威文本是 rounds/R007_prereg.md（先于本文件与本脚本冻结）",
+  "round": "R007",
+  "prereg": "rounds/R007_prereg.md",
+  "variants": {
+    "A1a": "V01",
+    "A1b": "V02",
+    "A2a": "V03",
+    "A2b": "V04",
+    "A2c": "V05",
+    "A2d": "V06",
+    "A3a": "V07",
+    "A3b": "V08",
+    "A3c": "V09",
+    "A3d": "V10",
+    "A4a": "V11",
+    "A4b": "V12",
+    "A5a": "V13",
+    "A5b": "V14",
+    "A5c": "V15",
+    "A6a": "V16",
+    "A6b": "V17",
+    "A7a": "V18",
+    "A7b": "V19",
+    "A8a": "V20",
+    "A8b": "V21"
+  },
+  "by_axis": {
+    "A1": [
+      "A1a",
+      "A1b"
+    ],
+    "A2": [
+      "A2a",
+      "A2b",
+      "A2c",
+      "A2d"
+    ],
+    "A3": [
+      "A3a",
+      "A3b",
+      "A3c",
+      "A3d"
+    ],
+    "A4": [
+      "A4a",
+      "A4b"
+    ],
+    "A5": [
+      "A5a",
+      "A5b",
+      "A5c"
+    ],
+    "A6": [
+      "A6a",
+      "A6b"
+    ],
+    "A7": [
+      "A7a",
+      "A7b"
+    ],
+    "A8": [
+      "A8a",
+      "A8b"
+    ]
+  },
+  "frozen_axis_counts": {
+    "A1": 2,
+    "A2": 4,
+    "A3": 4,
+    "A4": 2,
+    "A5": 3,
+    "A6": 2,
+    "A7": 2,
+    "A8": 2
+  },
+  "frozen_total": 21,
+  "kill_conditions": [
+    {
+      "id": "K1",
+      "condition": "A2a VIOLATED（T=1 时零宽区间 [0,0] 与真实点估计并存且同块内无标记字段）",
+      "outcome": "REJECTED",
+      "refs": [
+        "A2a"
+      ]
+    },
+    {
+      "id": "K2",
+      "condition": "A2c VIOLATED（存在 n>=10 单元钳位发生率 >= 5%）",
+      "outcome": "REJECTED",
+      "refs": [
+        "A2c"
+      ]
+    },
+    {
+      "id": "K3",
+      "condition": "A5c VIOLATED（存在单元覆盖率 < 0.85 且 CP 单侧 99% 下界 < 0.85）",
+      "outcome": "REJECTED",
+      "refs": [
+        "A5c"
+      ]
+    },
+    {
+      "id": "K4",
+      "condition": "A1b VIOLATED（ci_* 被标成 HAC 95%CI 而值来自 blockBootstrapCi）",
+      "outcome": "CONTRACT_MISLABEL",
+      "refs": [
+        "A1b"
+      ]
+    },
+    {
+      "id": "K5",
+      "condition": "A3c 达材料性 且 A3d 成立",
+      "outcome": "CONTRACT_MISLABEL",
+      "refs": [
+        "A3c",
+        "A3d"
+      ]
+    },
+    {
+      "id": "K6",
+      "condition": "A4b 或 A2d 或 A8a 成立",
+      "outcome": "CONTRACT_AMBIGUOUS",
+      "refs": [
+        "A4b",
+        "A2d",
+        "A8a"
+      ]
+    },
+    {
+      "id": "K7",
+      "condition": "A2b / A5b / A6a / A6b / A8b 成立，或 A3c 未达材料性但方向一致",
+      "outcome": "REGISTERED_ONLY",
+      "refs": [
+        "A2b",
+        "A5b",
+        "A6a",
+        "A6b",
+        "A8b",
+        "A3c"
+      ]
+    },
+    {
+      "id": "K8",
+      "condition": "行和交叉校验失败（§4）",
+      "outcome": "INCONCLUSIVE",
+      "refs": []
+    },
+    {
+      "id": "K9",
+      "condition": "阳性对照未通过（§7：G3 门 / 金丝雀对 / 与既有测试一致性）",
+      "outcome": "INCONCLUSIVE",
+      "refs": []
+    },
+    {
+      "id": "K10",
+      "condition": "A7a VIOLATED（同一输入两次运行 ci_* 不同）",
+      "outcome": "INCONCLUSIVE",
+      "refs": [
+        "A7a"
+      ]
+    }
+  ],
+  "count_expectations": {
+    "C1": {
+      "prod_src": 9,
+      "research": 1,
+      "note": "生产 9 = FRS 5 + factor.ts 2 + FactorResearch.vue 2；research 1 = R006 探针"
+    },
+    "C2": {
+      "prod_src": 18,
+      "research": 2,
+      "note": "FRS 10 + factor.ts 4 + vue 4；research 2 = R006 探针"
+    },
+    "C3": {
+      "web": 2,
+      "note": "FactorResearch.vue:139 与 :322"
+    },
+    "C4": {
+      "prod_call": 2,
+      "prod_decl": 2,
+      "test": 6,
+      "note": "调用点 190/191；定义 324/358；测试 6 行"
+    },
+    "C5": {
+      "frs_status": 1,
+      "note": "FRS:560"
+    },
+    "C6": {
+      "def": 1,
+      "refs": 2,
+      "fe": 1,
+      "note": "定义 1 + 引用 534/653 + 前端绑定 329"
+    },
+    "C7": {
+      "vue_net_ic_header": 1,
+      "note": "vue:506 表头"
+    },
+    "C8": {
+      "prod": 1,
+      "test": 3,
+      "note": "生产 1（Engine:191）；测试 3"
+    },
+    "C9": {
+      "sql": 0,
+      "note": "hac_std/ci_* 不落库"
+    }
+  },
+  "verdict_vocab": [
+    "NOT_VIOLATED",
+    "VIOLATED",
+    "CONVENTION_DIVERGENCE",
+    "CONTRACT_AMBIGUOUS",
+    "CONTRACT_MISLABEL",
+    "REGISTERED_ONLY",
+    "NOT_REACHABLE",
+    "INCONCLUSIVE"
+  ],
+  "thresholds": {
+    "TOL": 1e-12,
+    "TOL_CI": 1e-09,
+    "TOL_REL_A5A": 0.05,
+    "TH_A2C": 0.05,
+    "TH_A3C": 0.9,
+    "TH_A5C_COV": 0.85,
+    "TH_A5C_CP_ALPHA": 0.01,
+    "EXISTING_TEST_TOL": 0.01,
+    "Z95": 1.96
+  },
+  "simulation": {
+    "REPS_COVER": 1000,
+    "REPS_CLAMP": 1000,
+    "REPS_MEDIAN": 200,
+    "BOOT_ITERS": 1000,
+    "BOOT_SEED": 42
+  },
+  "probe_grids_documentation": {
+    "_note": "以下网格与 DGP 冻结在 probe/R007Probe.java 内（BASE_SEED/NS/HS/HS_EXTRAP/DGPS）",
+    "ns": [
+      5,
+      10,
+      17,
+      27
+    ],
+    "hs_main": [
+      1,
+      2,
+      3,
+      5
+    ],
+    "hs_extrapolation": [
+      1,
+      2,
+      3,
+      5,
+      10,
+      20
+    ],
+    "dgps": [
+      "IID_NORMAL",
+      "AR1_0.2",
+      "AR1_0.5",
+      "AR1_0.7",
+      "MA_equal_hm1"
+    ],
+    "dgps_posthoc_negative_ar": [
+      "AR1_-0.3",
+      "AR1_-0.5",
+      "AR1_-0.7"
+    ],
+    "base_seed": 20260914,
+    "cells_v08_v09": 120,
+    "cells_v15_coverage": 80,
+    "coverage_grid_note": "80 单元 = n∈{5,10,17,27} × h∈{1,2,3,5} × 5 DGP；每单元 2 臂（block bootstrap / HAC）"
+  },
+  "posthoc_probes_not_in_verdict": {
+    "V05p": "负自相关 DGP 下的钳位发生率（A2c 网格外补充）",
+    "V09p": "配对比值中位数（A3c 统计量口径对照）",
+    "_rule": "prereg §4：posthoc_* 一律不参与 total verdict 合成，只写入报告与附录"
+  },
+  "canary_mode": {
+    "harness": "normalized-pair",
+    "cln_and_inj_both_on_normalized_ctx": true,
+    "rule": "每个检查器恰好一对 CLN/INJ；两条期望值在运行前确定；要求 clean != inj",
+    "entries": 21
+  },
+  "readonly": {
+    "db_statements": 0,
+    "production_files_modified": 0,
+    "test_files_modified": 0,
+    "files_written": [
+      "run.log",
+      "result.json",
+      "probe/out/*（运行后删除）"
+    ]
+  }
+}

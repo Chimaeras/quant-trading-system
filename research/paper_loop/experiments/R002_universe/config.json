@@ -1,0 +1,33 @@
+{
+  "N": 20,
+  "H": 3,
+  "IS": [
+    "2024-01-02",
+    "2025-12-31"
+  ],
+  "OOS": [
+    "2026-01-01",
+    "2026-09-07"
+  ],
+  "BATCH_MONTH": "2026-02",
+  "MIN_HIST_IS_DAYS": 120,
+  "SENS_MIN_HIST": [
+    96,
+    144
+  ],
+  "DELTA_PRIMARY": -0.3,
+  "SENS_DELTA": [
+    -0.24,
+    -0.36
+  ],
+  "PLACEBO_DRAWS": 200,
+  "RANDOM_SEED": 20260914,
+  "MAX_VARIANTS": 12,
+  "LAG": 25,
+  "costs": {
+    "COMMISSION": 0.0003,
+    "SELL_TAX": 0.0005,
+    "SLIPPAGE": 0.0002
+  },
+  "prereg": "research/paper_loop/rounds/R002_prereg.md"
+}

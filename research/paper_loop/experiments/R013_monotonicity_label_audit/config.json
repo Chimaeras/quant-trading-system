@@ -1,0 +1,2158 @@
+{
+ "anchors": [
+  {
+   "end": 249,
+   "file": "F01",
+   "id": "A-01",
+   "pattern": "assessMonotonicity",
+   "start": 226
+  },
+  {
+   "end": 227,
+   "file": "F01",
+   "id": "A-01b",
+   "pattern": "grouped == null || grouped.size() < 2",
+   "start": 227
+  },
+  {
+   "end": 230,
+   "file": "F01",
+   "id": "A-01c",
+   "pattern": "boolean increasing = true",
+   "start": 229
+  },
+  {
+   "end": 240,
+   "file": "F01",
+   "id": "A-01d",
+   "pattern": "if (cur < prev)",
+   "start": 235
+  },
+  {
+   "end": 248,
+   "file": "F01",
+   "id": "A-01e",
+   "pattern": "if (increasing)",
+   "start": 246
+  },
+  {
+   "end": 114,
+   "file": "F01",
+   "id": "A-02",
+   "pattern": "rets.isEmpty() ? 0",
+   "start": 114
+  },
+  {
+   "end": 182,
+   "file": "F01",
+   "id": "A-03",
+   "pattern": "rets.isEmpty() ? 0",
+   "start": 182
+  },
+  {
+   "end": 103,
+   "file": "F01",
+   "id": "A-04",
+   "pattern": "Math.min(groupCount, n)",
+   "start": 102
+  },
+  {
+   "end": 180,
+   "file": "F01",
+   "id": "A-05",
+   "pattern": "for (int g = 1; g <= groupCount; g++)",
+   "start": 180
+  },
+  {
+   "end": 187,
+   "file": "F01",
+   "id": "A-06",
+   "pattern": "assessMonotonicity(grouped)",
+   "start": 187
+  },
+  {
+   "end": 221,
+   "file": "F01",
+   "id": "A-07",
+   "pattern": "emptySummary",
+   "start": 214
+  },
+  {
+   "end": 78,
+   "file": "F03",
+   "id": "A-08",
+   "pattern": "req.getFactorGroupCount() != null ? req.getFactorGroupCount() : 5",
+   "start": 78
+  },
+  {
+   "end": 437,
+   "file": "F03",
+   "id": "A-09",
+   "pattern": "FACTOR_MIN_CROSS_SECTION_SIZE",
+   "start": 431
+  },
+  {
+   "end": 38,
+   "file": "F05",
+   "id": "A-10",
+   "pattern": "private Integer factorGroupCount = 5",
+   "start": 37
+  },
+  {
+   "end": 543,
+   "file": "F02",
+   "id": "B-01",
+   "pattern": "block.put(\"monotonicity\", summary.monotonicity())",
+   "start": 543
+  },
+  {
+   "end": 569,
+   "file": "F02",
+   "id": "B-02",
+   "pattern": "block.put(\"monotonicity\", \"N/A\")",
+   "start": 569
+  },
+  {
+   "end": 762,
+   "file": "F02",
+   "id": "B-03",
+   "pattern": "block.put(\"monotonicity\", summary.monotonicity())",
+   "start": 762
+  },
+  {
+   "end": 831,
+   "file": "F02",
+   "id": "B-04",
+   "pattern": "net.put(\"monotonicity\", s.monotonicity())",
+   "start": 831
+  },
+  {
+   "end": 600,
+   "file": "F02",
+   "id": "B-05",
+   "pattern": "\"observations\", g.observations()",
+   "start": 592
+  },
+  {
+   "end": 1032,
+   "file": "F02",
+   "id": "B-06",
+   "pattern": "Math.round(v * 10000.0) / 10000.0",
+   "start": 1030
+  },
+  {
+   "end": 1048,
+   "file": "F03",
+   "id": "B-07",
+   "pattern": "toFactorAnalysisDto",
+   "start": 1024
+  },
+  {
+   "end": 1065,
+   "file": "F03",
+   "id": "B-08",
+   "pattern": "toFactorIcSummaryDto",
+   "start": 1051
+  },
+  {
+   "end": 92,
+   "file": "F04",
+   "id": "B-09",
+   "pattern": "class FactorAnalysis",
+   "start": 80
+  },
+  {
+   "end": 117,
+   "file": "F04",
+   "id": "B-10",
+   "pattern": "class GroupReturnStat",
+   "start": 105
+  },
+  {
+   "end": 71,
+   "file": "F02",
+   "id": "B-11",
+   "pattern": "RANK_IC_GROUP_COUNT",
+   "start": 70
+  },
+  {
+   "end": 650,
+   "file": "F02",
+   "id": "B-12",
+   "pattern": "block.put(\"group_count\", RANK_IC_GROUP_COUNT)",
+   "start": 650
+  },
+  {
+   "end": 111,
+   "file": "F08",
+   "id": "C-01",
+   "pattern": "monotonicity",
+   "start": 111
+  },
+  {
+   "end": 202,
+   "file": "F08",
+   "id": "C-02",
+   "pattern": "monotonicity",
+   "start": 202
+  },
+  {
+   "end": 224,
+   "file": "F01",
+   "id": "C-03",
+   "pattern": "分组单调性判断",
+   "start": 224
+  },
+  {
+   "end": 137,
+   "file": "F10",
+   "id": "C-04",
+   "pattern": "单调性",
+   "start": 137
+  },
+  {
+   "end": 314,
+   "file": "F10",
+   "id": "C-05",
+   "pattern": "单调性",
+   "start": 313
+  },
+  {
+   "end": 509,
+   "file": "F10",
+   "id": "C-06",
+   "pattern": "monotonicity",
+   "start": 506
+  },
+  {
+   "end": 360,
+   "file": "F11",
+   "id": "C-07",
+   "pattern": "验证单调性",
+   "start": 360
+  },
+  {
+   "end": 34,
+   "file": "F06",
+   "id": "C-08",
+   "pattern": "单调性",
+   "start": 34
+  },
+  {
+   "end": 141,
+   "file": "F07",
+   "id": "C-09",
+   "pattern": "monotonicityDetects",
+   "start": 110
+  }
+ ],
+ "canary_pairs": 21,
+ "decl_sites": [
+  {
+   "file": "F08",
+   "line": 111,
+   "site": "C-01"
+  },
+  {
+   "file": "F08",
+   "line": 202,
+   "site": "C-02"
+  }
+ ],
+ "emitter_faces": [
+  {
+   "block_method": "buildSnapshotScopeBlock",
+   "container": "block",
+   "expr": "summary.monotonicity()",
+   "face": "B-01",
+   "file": "F02",
+   "kind": "passthrough",
+   "line": 543
+  },
+  {
+   "block_method": "unavailableScopeBlock",
+   "container": "block",
+   "expr": "\"N/A\"",
+   "face": "B-02",
+   "file": "F02",
+   "kind": "literal",
+   "line": 569
+  },
+  {
+   "block_method": "buildUnifiedReportBlock",
+   "container": "block",
+   "expr": "summary.monotonicity()",
+   "face": "B-03",
+   "file": "F02",
+   "kind": "passthrough",
+   "line": 762
+  },
+  {
+   "block_method": "buildNetIcBlock",
+   "container": "net",
+   "expr": "s.monotonicity()",
+   "face": "B-04",
+   "file": "F02",
+   "kind": "passthrough",
+   "line": 831
+  }
+ ],
+ "engine_vocab": [
+  "MONOTONIC_INCREASING",
+  "MONOTONIC_DECREASING",
+  "NON_MONOTONIC",
+  "N/A"
+ ],
+ "forbidden_patterns": [
+  "beta-sorted",
+  "2208.10974",
+  "cattaneo",
+  "crump",
+  "uniform inference",
+  "论文应当",
+  "应当实现",
+  "最优化",
+  "显著",
+  "统计显著",
+  "推断"
+ ],
+ "generated_by": "make_config.py",
+ "grid": {
+  "cells": 18,
+  "extras": [
+   "G03_short_section"
+  ],
+  "group_counts": [
+   4,
+   5,
+   6
+  ],
+  "min_sizes": [
+   8,
+   10,
+   12
+  ],
+  "panels": [
+   "G01_grid_up",
+   "G02_grid_flat_pairs"
+  ]
+ },
+ "grid_panels": [
+  {
+   "aux": true,
+   "dates": [
+    [
+     "2026-01-05",
+     [
+      [
+       1.0,
+       0.0078125
+      ],
+      [
+       2.0,
+       0.015625
+      ],
+      [
+       3.0,
+       0.0234375
+      ],
+      [
+       4.0,
+       0.03125
+      ],
+      [
+       5.0,
+       0.0390625
+      ],
+      [
+       6.0,
+       0.046875
+      ],
+      [
+       7.0,
+       0.0546875
+      ],
+      [
+       8.0,
+       0.0625
+      ],
+      [
+       9.0,
+       0.0703125
+      ],
+      [
+       10.0,
+       0.078125
+      ],
+      [
+       11.0,
+       0.0859375
+      ],
+      [
+       12.0,
+       0.09375
+      ],
+      [
+       13.0,
+       0.1015625
+      ],
+      [
+       14.0,
+       0.109375
+      ],
+      [
+       15.0,
+       0.1171875
+      ],
+      [
+       16.0,
+       0.125
+      ],
+      [
+       17.0,
+       0.1328125
+      ],
+      [
+       18.0,
+       0.140625
+      ],
+      [
+       19.0,
+       0.1484375
+      ],
+      [
+       20.0,
+       0.15625
+      ],
+      [
+       21.0,
+       0.1640625
+      ],
+      [
+       22.0,
+       0.171875
+      ],
+      [
+       23.0,
+       0.1796875
+      ],
+      [
+       24.0,
+       0.1875
+      ]
+     ]
+    ],
+    [
+     "2026-01-06",
+     [
+      [
+       1.0,
+       0.0078125
+      ],
+      [
+       2.0,
+       0.015625
+      ],
+      [
+       3.0,
+       0.0234375
+      ],
+      [
+       4.0,
+       0.03125
+      ],
+      [
+       5.0,
+       0.0390625
+      ],
+      [
+       6.0,
+       0.046875
+      ],
+      [
+       7.0,
+       0.0546875
+      ],
+      [
+       8.0,
+       0.0625
+      ],
+      [
+       9.0,
+       0.0703125
+      ],
+      [
+       10.0,
+       0.078125
+      ],
+      [
+       11.0,
+       0.0859375
+      ],
+      [
+       12.0,
+       0.09375
+      ],
+      [
+       13.0,
+       0.1015625
+      ],
+      [
+       14.0,
+       0.109375
+      ],
+      [
+       15.0,
+       0.1171875
+      ],
+      [
+       16.0,
+       0.125
+      ],
+      [
+       17.0,
+       0.1328125
+      ],
+      [
+       18.0,
+       0.140625
+      ],
+      [
+       19.0,
+       0.1484375
+      ],
+      [
+       20.0,
+       0.15625
+      ],
+      [
+       21.0,
+       0.1640625
+      ],
+      [
+       22.0,
+       0.171875
+      ],
+      [
+       23.0,
+       0.1796875
+      ],
+      [
+       24.0,
+       0.1875
+      ]
+     ]
+    ]
+   ],
+   "group_count": null,
+   "id": "G01_grid_up",
+   "min_size": null,
+   "note": "非退化面板（24 样本/日 × 2 日，严格递增）",
+   "recon": false,
+   "variants": []
+  },
+  {
+   "aux": true,
+   "dates": [
+    [
+     "2026-01-05",
+     [
+      [
+       1.0,
+       0.0078125
+      ],
+      [
+       2.0,
+       0.0546875
+      ],
+      [
+       3.0,
+       0.0078125
+      ],
+      [
+       4.0,
+       0.0546875
+      ],
+      [
+       5.0,
+       0.0078125
+      ],
+      [
+       6.0,
+       0.0546875
+      ],
+      [
+       7.0,
+       0.0078125
+      ],
+      [
+       8.0,
+       0.0546875
+      ],
+      [
+       9.0,
+       0.0078125
+      ],
+      [
+       10.0,
+       0.0546875
+      ],
+      [
+       11.0,
+       0.0078125
+      ],
+      [
+       12.0,
+       0.0546875
+      ],
+      [
+       13.0,
+       0.0078125
+      ],
+      [
+       14.0,
+       0.0546875
+      ],
+      [
+       15.0,
+       0.0078125
+      ],
+      [
+       16.0,
+       0.0546875
+      ],
+      [
+       17.0,
+       0.0078125
+      ],
+      [
+       18.0,
+       0.0546875
+      ],
+      [
+       19.0,
+       0.0078125
+      ],
+      [
+       20.0,
+       0.0546875
+      ],
+      [
+       21.0,
+       0.0078125
+      ],
+      [
+       22.0,
+       0.0546875
+      ],
+      [
+       23.0,
+       0.0078125
+      ],
+      [
+       24.0,
+       0.0546875
+      ]
+     ]
+    ],
+    [
+     "2026-01-06",
+     [
+      [
+       1.0,
+       0.0078125
+      ],
+      [
+       2.0,
+       0.0546875
+      ],
+      [
+       3.0,
+       0.0078125
+      ],
+      [
+       4.0,
+       0.0546875
+      ],
+      [
+       5.0,
+       0.0078125
+      ],
+      [
+       6.0,
+       0.0546875
+      ],
+      [
+       7.0,
+       0.0078125
+      ],
+      [
+       8.0,
+       0.0546875
+      ],
+      [
+       9.0,
+       0.0078125
+      ],
+      [
+       10.0,
+       0.0546875
+      ],
+      [
+       11.0,
+       0.0078125
+      ],
+      [
+       12.0,
+       0.0546875
+      ],
+      [
+       13.0,
+       0.0078125
+      ],
+      [
+       14.0,
+       0.0546875
+      ],
+      [
+       15.0,
+       0.0078125
+      ],
+      [
+       16.0,
+       0.0546875
+      ],
+      [
+       17.0,
+       0.0078125
+      ],
+      [
+       18.0,
+       0.0546875
+      ],
+      [
+       19.0,
+       0.0078125
+      ],
+      [
+       20.0,
+       0.0546875
+      ],
+      [
+       21.0,
+       0.0078125
+      ],
+      [
+       22.0,
+       0.0546875
+      ],
+      [
+       23.0,
+       0.0078125
+      ],
+      [
+       24.0,
+       0.0546875
+      ]
+     ]
+    ]
+   ],
+   "group_count": null,
+   "id": "G02_grid_flat_pairs",
+   "min_size": null,
+   "note": "退化面板：周期 2 取值 ⟹ 偶数长度分组下组均值逐位相等（= 0.03125）；奇数长度分组下不等",
+   "recon": false,
+   "variants": []
+  },
+  {
+   "aux": true,
+   "dates": [
+    [
+     "2026-01-05",
+     [
+      [
+       1.0,
+       0.0078125
+      ],
+      [
+       2.0,
+       0.015625
+      ],
+      [
+       3.0,
+       0.0234375
+      ],
+      [
+       4.0,
+       0.03125
+      ],
+      [
+       5.0,
+       0.0390625
+      ],
+      [
+       6.0,
+       0.046875
+      ],
+      [
+       7.0,
+       0.0546875
+      ],
+      [
+       8.0,
+       0.0625
+      ],
+      [
+       9.0,
+       0.0703125
+      ]
+     ]
+    ],
+    [
+     "2026-01-06",
+     [
+      [
+       1.0,
+       0.0078125
+      ],
+      [
+       2.0,
+       0.015625
+      ],
+      [
+       3.0,
+       0.0234375
+      ],
+      [
+       4.0,
+       0.03125
+      ],
+      [
+       5.0,
+       0.0390625
+      ],
+      [
+       6.0,
+       0.046875
+      ],
+      [
+       7.0,
+       0.0546875
+      ],
+      [
+       8.0,
+       0.0625
+      ],
+      [
+       9.0,
+       0.0703125
+      ]
+     ]
+    ]
+   ],
+   "group_count": 5,
+   "id": "G03_short_section",
+   "min_size": null,
+   "note": "补充描述性（不入 18 单元）：每日 9 样本 ⟹ 展示 minSize 的真实作用",
+   "recon": false,
+   "variants": []
+  }
+ ],
+ "inference_words": [
+  "显著",
+  "统计显著",
+  "置信",
+  "推断",
+  "检验",
+  "假设检验",
+  "p值",
+  "p 值",
+  "significant",
+  "confidence",
+  "inference",
+  "statistical"
+ ],
+ "label_blocks": [
+  {
+   "face": "B-01",
+   "file": "F02",
+   "method_hint": "buildSnapshotScopeBlock"
+  },
+  {
+   "face": "B-03",
+   "file": "F02",
+   "method_hint": "buildUnifiedReportBlock"
+  },
+  {
+   "face": "B-04",
+   "file": "F02",
+   "method_hint": "buildNetIcBlock"
+  }
+ ],
+ "max_variants": 21,
+ "p_table": [
+  {
+   "expect": {
+    "label": "MONOTONIC_INCREASING"
+   },
+   "id": "P-01",
+   "panel": "Q01_strict_up"
+  },
+  {
+   "expect": {
+    "label": "MONOTONIC_DECREASING"
+   },
+   "id": "P-02",
+   "panel": "Q02_strict_down"
+  },
+  {
+   "expect": {
+    "label": "NON_MONOTONIC"
+   },
+   "id": "P-03",
+   "panel": "Q03_wave"
+  },
+  {
+   "expect": {
+    "label_in": [
+     "MONOTONIC_INCREASING",
+     "MONOTONIC_DECREASING"
+    ],
+    "zero_slope_asserted_direction": true
+   },
+   "id": "P-04",
+   "panel": "Q04_flat_groups"
+  },
+  {
+   "expect": {
+    "flags_both_true": true,
+    "value_determined_by_branch_order": "increasing_branch_first"
+   },
+   "id": "P-05",
+   "panel": "Q04_flat_groups"
+  },
+  {
+   "expect": {
+    "grouped_size": 20,
+    "groups_with_zero_avg": 10,
+    "groups_with_zero_observations": 10,
+    "real_groups": 10
+   },
+   "id": "P-06",
+   "panel": "Q06_overgroup"
+  },
+  {
+   "expect": {
+    "label_ne": "N/A"
+   },
+   "id": "P-07",
+   "panel": "Q06_overgroup"
+  },
+  {
+   "expect": {
+    "label": "N/A"
+   },
+   "id": "P-08",
+   "panel": "Q09_one_group"
+  },
+  {
+   "expect": {
+    "grouped_size": 0,
+    "label": "N/A",
+    "total_observations_gt": 0
+   },
+   "id": "P-09",
+   "panel": "Q08_zero_group"
+  },
+  {
+   "expect": {
+    "throws": "IllegalArgumentException"
+   },
+   "id": "P-10",
+   "panel": "Q10_negative_group"
+  },
+  {
+   "expect": {
+    "dto": "FactorAnalysis",
+    "has_grouped_returns_builder": true,
+    "has_monotonicity_builder": false
+   },
+   "id": "P-11",
+   "panel": null
+  },
+  {
+   "expect": {
+    "dto": "FactorIcSummary",
+    "has_grouped_returns": false,
+    "has_monotonicity": false
+   },
+   "id": "P-12",
+   "panel": null
+  },
+  {
+   "expect": {
+    "value_domain_declared": false
+   },
+   "id": "P-13",
+   "panel": null
+  },
+  {
+   "expect": {
+    "emitter_faces": 4,
+    "same_vocabulary": true
+   },
+   "id": "P-14",
+   "panel": null
+  },
+  {
+   "expect": {
+    "inference_claimed": false
+   },
+   "id": "P-15",
+   "panel": null
+  },
+  {
+   "expect": {
+    "payload_rebuilt_label_differs_from_engine_label": true
+   },
+   "id": "P-16",
+   "panel": "Q07_round_collision"
+  },
+  {
+   "expect": {
+    "all_cells_same_label": true,
+    "cells": 18,
+    "grid": "G01_grid_up",
+    "label": "MONOTONIC_INCREASING"
+   },
+   "id": "P-17",
+   "panel": null
+  },
+  {
+   "expect": {
+    "uncovered_degenerate_classes": [
+     "constant",
+     "non_finite",
+     "empty_bucket_placeholder",
+     "groupCount_gt_n",
+     "groupCount_le_0"
+    ]
+   },
+   "id": "P-18",
+   "panel": null
+  }
+ ],
+ "panels": [
+  {
+   "aux": false,
+   "dates": [
+    [
+     "2026-01-05",
+     [
+      [
+       1.0,
+       0.0078125
+      ],
+      [
+       2.0,
+       0.015625
+      ],
+      [
+       3.0,
+       0.0234375
+      ],
+      [
+       4.0,
+       0.03125
+      ],
+      [
+       5.0,
+       0.0390625
+      ],
+      [
+       6.0,
+       0.046875
+      ],
+      [
+       7.0,
+       0.0546875
+      ],
+      [
+       8.0,
+       0.0625
+      ],
+      [
+       9.0,
+       0.0703125
+      ],
+      [
+       10.0,
+       0.078125
+      ]
+     ]
+    ]
+   ],
+   "group_count": 5,
+   "id": "Q01_strict_up",
+   "min_size": 10,
+   "note": "严格递增（组均值 1.5/3.5/5.5/7.5/9.5 ×2^-7）",
+   "recon": false,
+   "variants": [
+    "V01"
+   ]
+  },
+  {
+   "aux": false,
+   "dates": [
+    [
+     "2026-01-05",
+     [
+      [
+       1.0,
+       0.078125
+      ],
+      [
+       2.0,
+       0.0703125
+      ],
+      [
+       3.0,
+       0.0625
+      ],
+      [
+       4.0,
+       0.0546875
+      ],
+      [
+       5.0,
+       0.046875
+      ],
+      [
+       6.0,
+       0.0390625
+      ],
+      [
+       7.0,
+       0.03125
+      ],
+      [
+       8.0,
+       0.0234375
+      ],
+      [
+       9.0,
+       0.015625
+      ],
+      [
+       10.0,
+       0.0078125
+      ]
+     ]
+    ]
+   ],
+   "group_count": 5,
+   "id": "Q02_strict_down",
+   "min_size": 10,
+   "note": "严格递减（组均值 9.5/7.5/5.5/3.5/1.5 ×2^-7）",
+   "recon": false,
+   "variants": [
+    "V02"
+   ]
+  },
+  {
+   "aux": false,
+   "dates": [
+    [
+     "2026-01-05",
+     [
+      [
+       1.0,
+       0.0703125
+      ],
+      [
+       2.0,
+       0.0625
+      ],
+      [
+       3.0,
+       0.0078125
+      ],
+      [
+       4.0,
+       0.015625
+      ],
+      [
+       5.0,
+       0.0234375
+      ],
+      [
+       6.0,
+       0.03125
+      ],
+      [
+       7.0,
+       0.0390625
+      ],
+      [
+       8.0,
+       0.046875
+      ],
+      [
+       9.0,
+       0.0546875
+      ],
+      [
+       10.0,
+       0.078125
+      ]
+     ]
+    ]
+   ],
+   "group_count": 5,
+   "id": "Q03_wave",
+   "min_size": 10,
+   "note": "波动（组均值 8.5/1.5/3.5/5.5/8.5 ×2^-7）",
+   "recon": false,
+   "variants": [
+    "V03"
+   ]
+  },
+  {
+   "aux": false,
+   "dates": [
+    [
+     "2026-01-05",
+     [
+      [
+       1.0,
+       0.0078125
+      ],
+      [
+       2.0,
+       0.0234375
+      ],
+      [
+       3.0,
+       0.0390625
+      ],
+      [
+       4.0,
+       0.0546875
+      ],
+      [
+       5.0,
+       0.0234375
+      ],
+      [
+       6.0,
+       0.0078125
+      ],
+      [
+       7.0,
+       0.0546875
+      ],
+      [
+       8.0,
+       0.0390625
+      ],
+      [
+       9.0,
+       0.0390625
+      ],
+      [
+       10.0,
+       0.0546875
+      ],
+      [
+       11.0,
+       0.0078125
+      ],
+      [
+       12.0,
+       0.0234375
+      ],
+      [
+       13.0,
+       0.0546875
+      ],
+      [
+       14.0,
+       0.0390625
+      ],
+      [
+       15.0,
+       0.0234375
+      ],
+      [
+       16.0,
+       0.0078125
+      ],
+      [
+       17.0,
+       0.0078125
+      ],
+      [
+       18.0,
+       0.0390625
+      ],
+      [
+       19.0,
+       0.0234375
+      ],
+      [
+       20.0,
+       0.0546875
+      ]
+     ]
+    ]
+   ],
+   "group_count": 5,
+   "id": "Q04_flat_groups",
+   "min_size": 10,
+   "note": "零斜率：5 组各为 {1,3,5,7}×2^-7 的置换 ⟹ 组均值**逐位相等** = 4×2^-7 = 0.03125",
+   "recon": false,
+   "variants": [
+    "V04",
+    "V05"
+   ]
+  },
+  {
+   "aux": false,
+   "dates": [
+    [
+     "2026-01-05",
+     [
+      [
+       1.0,
+       0.03125
+      ],
+      [
+       2.0,
+       0.03125
+      ],
+      [
+       3.0,
+       0.03125
+      ],
+      [
+       4.0,
+       0.03125
+      ],
+      [
+       5.0,
+       0.03125
+      ],
+      [
+       6.0,
+       0.03125
+      ],
+      [
+       7.0,
+       0.03125
+      ],
+      [
+       8.0,
+       0.03125
+      ],
+      [
+       9.0,
+       0.03125
+      ],
+      [
+       10.0,
+       0.03125
+      ]
+     ]
+    ]
+   ],
+   "group_count": 5,
+   "id": "Q05_constant_returns",
+   "min_size": 10,
+   "note": "全常量收益（IC 侧退化；对照 Q04）",
+   "recon": false,
+   "variants": []
+  },
+  {
+   "aux": false,
+   "dates": [
+    [
+     "2026-01-05",
+     [
+      [
+       1.0,
+       -0.0078125
+      ],
+      [
+       2.0,
+       -0.015625
+      ],
+      [
+       3.0,
+       -0.0234375
+      ],
+      [
+       4.0,
+       -0.03125
+      ],
+      [
+       5.0,
+       -0.0390625
+      ],
+      [
+       6.0,
+       -0.046875
+      ],
+      [
+       7.0,
+       -0.0546875
+      ],
+      [
+       8.0,
+       -0.0625
+      ],
+      [
+       9.0,
+       -0.0703125
+      ],
+      [
+       10.0,
+       -0.078125
+      ]
+     ]
+    ],
+    [
+     "2026-01-06",
+     [
+      [
+       1.0,
+       -0.0078125
+      ],
+      [
+       2.0,
+       -0.015625
+      ],
+      [
+       3.0,
+       -0.0234375
+      ],
+      [
+       4.0,
+       -0.03125
+      ],
+      [
+       5.0,
+       -0.0390625
+      ],
+      [
+       6.0,
+       -0.046875
+      ],
+      [
+       7.0,
+       -0.0546875
+      ],
+      [
+       8.0,
+       -0.0625
+      ],
+      [
+       9.0,
+       -0.0703125
+      ],
+      [
+       10.0,
+       -0.078125
+      ]
+     ]
+    ]
+   ],
+   "group_count": 20,
+   "id": "Q06_overgroup",
+   "min_size": 10,
+   "note": "空桶占位：groupCount=20 > 每日 10 样本 ⟹ 真实 10 组（每组 1 只、严格递减且为负）+ 10 个占位组（obs=0, avg=0.0）",
+   "recon": false,
+   "variants": [
+    "V06"
+   ]
+  },
+  {
+   "aux": false,
+   "dates": [
+    [
+     "2026-01-05",
+     [
+      [
+       1.0,
+       0.00014
+      ],
+      [
+       2.0,
+       0.00012
+      ],
+      [
+       3.0,
+       0.0001
+      ],
+      [
+       4.0,
+       8e-05
+      ],
+      [
+       5.0,
+       6e-05
+      ]
+     ]
+    ]
+   ],
+   "group_count": 5,
+   "id": "Q07_round_collision",
+   "min_size": 5,
+   "note": "严格递减但 5 个组均值经 round4 后**全部**相等（1e-4）⟹ 由载荷重建的标签与引擎标签可能不同",
+   "recon": true,
+   "variants": [
+    "V11"
+   ]
+  },
+  {
+   "aux": false,
+   "dates": [
+    [
+     "2026-01-05",
+     [
+      [
+       1.0,
+       0.0078125
+      ],
+      [
+       2.0,
+       0.015625
+      ],
+      [
+       3.0,
+       0.0234375
+      ],
+      [
+       4.0,
+       0.03125
+      ],
+      [
+       5.0,
+       0.0390625
+      ],
+      [
+       6.0,
+       0.046875
+      ],
+      [
+       7.0,
+       0.0546875
+      ],
+      [
+       8.0,
+       0.0625
+      ],
+      [
+       9.0,
+       0.0703125
+      ],
+      [
+       10.0,
+       0.078125
+      ]
+     ]
+    ]
+   ],
+   "group_count": 0,
+   "id": "Q08_zero_group",
+   "min_size": 10,
+   "note": "groupCount=0",
+   "recon": false,
+   "variants": [
+    "V09"
+   ]
+  },
+  {
+   "aux": false,
+   "dates": [
+    [
+     "2026-01-05",
+     [
+      [
+       1.0,
+       0.0078125
+      ],
+      [
+       2.0,
+       0.015625
+      ],
+      [
+       3.0,
+       0.0234375
+      ],
+      [
+       4.0,
+       0.03125
+      ],
+      [
+       5.0,
+       0.0390625
+      ],
+      [
+       6.0,
+       0.046875
+      ],
+      [
+       7.0,
+       0.0546875
+      ],
+      [
+       8.0,
+       0.0625
+      ],
+      [
+       9.0,
+       0.0703125
+      ],
+      [
+       10.0,
+       0.078125
+      ]
+     ]
+    ]
+   ],
+   "group_count": 1,
+   "id": "Q09_one_group",
+   "min_size": 10,
+   "note": "groupCount=1",
+   "recon": false,
+   "variants": [
+    "V08"
+   ]
+  },
+  {
+   "aux": false,
+   "dates": [
+    [
+     "2026-01-05",
+     [
+      [
+       1.0,
+       0.0078125
+      ],
+      [
+       2.0,
+       0.015625
+      ],
+      [
+       3.0,
+       0.0234375
+      ],
+      [
+       4.0,
+       0.03125
+      ],
+      [
+       5.0,
+       0.0390625
+      ],
+      [
+       6.0,
+       0.046875
+      ],
+      [
+       7.0,
+       0.0546875
+      ],
+      [
+       8.0,
+       0.0625
+      ],
+      [
+       9.0,
+       0.0703125
+      ],
+      [
+       10.0,
+       0.078125
+      ]
+     ]
+    ]
+   ],
+   "group_count": -1,
+   "id": "Q10_negative_group",
+   "min_size": 10,
+   "note": "groupCount=-1",
+   "recon": false,
+   "variants": [
+    "V10"
+   ]
+  },
+  {
+   "aux": true,
+   "dates": [
+    [
+     "2026-01-05",
+     [
+      [
+       1.0,
+       0.0078125
+      ],
+      [
+       2.0,
+       0.015625
+      ],
+      [
+       3.0,
+       0.0234375
+      ],
+      [
+       4.0,
+       NaN
+      ],
+      [
+       5.0,
+       0.0390625
+      ],
+      [
+       6.0,
+       0.046875
+      ],
+      [
+       7.0,
+       0.0546875
+      ],
+      [
+       8.0,
+       0.0625
+      ],
+      [
+       9.0,
+       0.0703125
+      ],
+      [
+       10.0,
+       0.078125
+      ]
+     ]
+    ]
+   ],
+   "group_count": 5,
+   "id": "Q11_nan_return",
+   "min_size": 10,
+   "note": "含非有限收益（aux 描述性：检验 IC 侧过滤）",
+   "recon": false,
+   "variants": []
+  }
+ ],
+ "prereg": {
+  "frozen_at_commit": "dffd7691",
+  "frozen_head": "006baaca4d7768ec15a933b0d76803d1a273ba28",
+  "path": "research/paper_loop/rounds/R013_prereg.md",
+  "sha256": "52b3b71ece419f09119e15446efd01b91c62c3834b5f2472b1819f027cdfdc6b"
+ },
+ "reachability_ladder": [
+  "REACHABLE_PUBLIC_API",
+  "REACHABLE_CLIENT_INPUT",
+  "SYNTHETIC_ONLY",
+  "UNREACHABLE"
+ ],
+ "root": "E:\\Project\\quant-trading-system",
+ "round": "R013",
+ "scan_root": {
+  "all_match": true,
+  "file_count": 11,
+  "files": [
+   {
+    "actual_bytes": 14429,
+    "actual_sha256": "efbf0678aabb2780b95c893e715ece9ca24fb6cf77077070d4cff227d4d9b686",
+    "actual_sha256_32": "efbf0678aabb2780b95c893e715ece9c",
+    "bytes_match": true,
+    "frozen_bytes": 14429,
+    "frozen_sha256_32": "efbf0678aabb2780b95c893e715ece9c",
+    "id": "F01",
+    "path": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+    "prereg_table_bytes": 14429,
+    "prereg_table_sha32": "efbf0678aabb2780b95c893e715ece9c",
+    "sha_match": true
+   },
+   {
+    "actual_bytes": 56806,
+    "actual_sha256": "b7c93af0e03c0d8006c4d228e00478777871891174f3ebdcd38efac110895a82",
+    "actual_sha256_32": "b7c93af0e03c0d8006c4d228e0047877",
+    "bytes_match": true,
+    "frozen_bytes": 56806,
+    "frozen_sha256_32": "b7c93af0e03c0d8006c4d228e0047877",
+    "id": "F02",
+    "path": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+    "prereg_table_bytes": 56806,
+    "prereg_table_sha32": "b7c93af0e03c0d8006c4d228e0047877",
+    "sha_match": true
+   },
+   {
+    "actual_bytes": 52264,
+    "actual_sha256": "a0e6cf738bb60d39145f90b43f975349a5cf57ea44199b63c81a53f5e4e916b5",
+    "actual_sha256_32": "a0e6cf738bb60d39145f90b43f975349",
+    "bytes_match": true,
+    "frozen_bytes": 52264,
+    "frozen_sha256_32": "a0e6cf738bb60d39145f90b43f975349",
+    "id": "F03",
+    "path": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+    "prereg_table_bytes": 52264,
+    "prereg_table_sha32": "a0e6cf738bb60d39145f90b43f975349",
+    "sha_match": true
+   },
+   {
+    "actual_bytes": 6348,
+    "actual_sha256": "40a7982b60c8d7cfd1391e5405e3b1bdd9160550130fc4829bd9d7ffd070a4ed",
+    "actual_sha256_32": "40a7982b60c8d7cfd1391e5405e3b1bd",
+    "bytes_match": true,
+    "frozen_bytes": 6348,
+    "frozen_sha256_32": "40a7982b60c8d7cfd1391e5405e3b1bd",
+    "id": "F04",
+    "path": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java",
+    "prereg_table_bytes": 6348,
+    "prereg_table_sha32": "40a7982b60c8d7cfd1391e5405e3b1bd",
+    "sha_match": true
+   },
+   {
+    "actual_bytes": 1401,
+    "actual_sha256": "01b85daef92b2cc5309fabb8e926f2d4255fd856af7a782e818f0d5213aae75e",
+    "actual_sha256_32": "01b85daef92b2cc5309fabb8e926f2d4",
+    "bytes_match": true,
+    "frozen_bytes": 1401,
+    "frozen_sha256_32": "01b85daef92b2cc5309fabb8e926f2d4",
+    "id": "F05",
+    "path": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestRequest.java",
+    "prereg_table_bytes": 1401,
+    "prereg_table_sha32": "01b85daef92b2cc5309fabb8e926f2d4",
+    "sha_match": true
+   },
+   {
+    "actual_bytes": 2822,
+    "actual_sha256": "79bb33f56b857532286d0863345816b3c8cdcf587dda6dda56591fac73456966",
+    "actual_sha256_32": "79bb33f56b857532286d0863345816b3",
+    "bytes_match": true,
+    "frozen_bytes": 2822,
+    "frozen_sha256_32": "79bb33f56b857532286d0863345816b3",
+    "id": "F06",
+    "path": "modules/backend-java/src/main/java/com/quant/controller/FactorResearchController.java",
+    "prereg_table_bytes": 2822,
+    "prereg_table_sha32": "79bb33f56b857532286d0863345816b3",
+    "sha_match": true
+   },
+   {
+    "actual_bytes": 10960,
+    "actual_sha256": "42aa831eea4b45bdcc220ca905ca4faa41de20369d0987f6b46e657eaae4b758",
+    "actual_sha256_32": "42aa831eea4b45bdcc220ca905ca4faa",
+    "bytes_match": true,
+    "frozen_bytes": 10960,
+    "frozen_sha256_32": "42aa831eea4b45bdcc220ca905ca4faa",
+    "id": "F07",
+    "path": "modules/backend-java/src/test/java/com/quant/service/backtest/FactorResearchEngineTest.java",
+    "prereg_table_bytes": 10960,
+    "prereg_table_sha32": "42aa831eea4b45bdcc220ca905ca4faa",
+    "sha_match": true
+   },
+   {
+    "actual_bytes": 6591,
+    "actual_sha256": "3f8fe7e80c55cfb219736594811a6337ed42e8324b8d93ffbbd54547de7bad8f",
+    "actual_sha256_32": "3f8fe7e80c55cfb219736594811a6337",
+    "bytes_match": true,
+    "frozen_bytes": 6591,
+    "frozen_sha256_32": "3f8fe7e80c55cfb219736594811a6337",
+    "id": "F08",
+    "path": "modules/web/src/api/factor.ts",
+    "prereg_table_bytes": 6591,
+    "prereg_table_sha32": "3f8fe7e80c55cfb219736594811a6337",
+    "sha_match": true
+   },
+   {
+    "actual_bytes": 13140,
+    "actual_sha256": "c3e4bfcd47c302c26cfbb541c79ffb4bb093acd064df7557211460a1809576e8",
+    "actual_sha256_32": "c3e4bfcd47c302c26cfbb541c79ffb4b",
+    "bytes_match": true,
+    "frozen_bytes": 13140,
+    "frozen_sha256_32": "c3e4bfcd47c302c26cfbb541c79ffb4b",
+    "id": "F09",
+    "path": "modules/web/src/api/backtest.ts",
+    "prereg_table_bytes": 13140,
+    "prereg_table_sha32": "c3e4bfcd47c302c26cfbb541c79ffb4b",
+    "sha_match": true
+   },
+   {
+    "actual_bytes": 27171,
+    "actual_sha256": "c59c81fc3933b5ff58607695cb2f8b7ae872082ecbb82fa59bd875328bb0b45a",
+    "actual_sha256_32": "c59c81fc3933b5ff58607695cb2f8b7a",
+    "bytes_match": true,
+    "frozen_bytes": 27171,
+    "frozen_sha256_32": "c59c81fc3933b5ff58607695cb2f8b7a",
+    "id": "F10",
+    "path": "modules/web/src/views/factor/FactorResearch.vue",
+    "prereg_table_bytes": 27171,
+    "prereg_table_sha32": "c59c81fc3933b5ff58607695cb2f8b7a",
+    "sha_match": true
+   },
+   {
+    "actual_bytes": 60185,
+    "actual_sha256": "05427ebc02bf392ae935713bced7110200382d13977ff3c34853ba6a919893ab",
+    "actual_sha256_32": "05427ebc02bf392ae935713bced71102",
+    "bytes_match": true,
+    "frozen_bytes": 60185,
+    "frozen_sha256_32": "05427ebc02bf392ae935713bced71102",
+    "id": "F11",
+    "path": "modules/web/src/views/backtest/ScoringBacktest.vue",
+    "prereg_table_bytes": 60185,
+    "prereg_table_sha32": "05427ebc02bf392ae935713bced71102",
+    "sha_match": true
+   }
+  ],
+  "total_bytes_actual": 252117,
+  "total_bytes_frozen": 252117
+ },
+ "units": [
+  {
+   "id": "U01_const5",
+   "note": "常量 5 组：两方向 flag 同时存活的直接构造",
+   "values": [
+    0.02,
+    0.02,
+    0.02,
+    0.02,
+    0.02
+   ],
+   "variants": [
+    "V05"
+   ]
+  },
+  {
+   "id": "U02_flat_pair",
+   "note": "常量 2 组（最小合法长度）",
+   "values": [
+    0.02,
+    0.02
+   ],
+   "variants": []
+  },
+  {
+   "id": "U03_nan_mid",
+   "note": "中段非有限：NaN 比较恒为假 ⟹ 不构成否证（aux 描述性）",
+   "values": [
+    0.01,
+    0.02,
+    NaN,
+    0.015,
+    0.03
+   ],
+   "variants": []
+  }
+ ],
+ "variants": [
+  {
+   "axis": "A1",
+   "axis_name": "名实",
+   "decisive": "label",
+   "expect": "SEMANTICS_FAITHFUL",
+   "id": "V01",
+   "panel": "Q01_strict_up",
+   "rule": "严格递增面板 ⟹ 标签断言递增方向"
+  },
+  {
+   "axis": "A1",
+   "axis_name": "名实",
+   "decisive": "label",
+   "expect": "SEMANTICS_FAITHFUL",
+   "id": "V02",
+   "panel": "Q02_strict_down",
+   "rule": "严格递减面板 ⟹ 标签断言递减方向"
+  },
+  {
+   "axis": "A1",
+   "axis_name": "名实",
+   "decisive": "label",
+   "expect": "SEMANTICS_FAITHFUL",
+   "id": "V03",
+   "panel": "Q03_wave",
+   "rule": "波动面板 ⟹ 标签须为 NON_MONOTONIC"
+  },
+  {
+   "axis": "A1",
+   "axis_name": "名实",
+   "decisive": "slope_is_zero",
+   "expect": "SEMANTICS_GAPPED",
+   "id": "V04",
+   "panel": "Q04_flat_groups",
+   "rule": "零斜率（组均值逐位相等）⟹ 不得断出具名方向"
+  },
+  {
+   "axis": "A1",
+   "axis_name": "名实",
+   "decisive": "flags_both_true",
+   "expect": "SEMANTICS_GAPPED",
+   "id": "V05",
+   "panel": "Q04_flat_groups",
+   "rule": "零斜率下两方向 flag 同时存活 ⟹ 取值由分支顺序决定（不是数据）"
+  },
+  {
+   "axis": "A2",
+   "axis_name": "非退化",
+   "decisive": "label_ne_na",
+   "expect": "DEGENERATE_ASSERTS",
+   "id": "V06",
+   "panel": "Q06_overgroup",
+   "rule": "空桶占位（obs=0 且 avg 硬写 0.0）不得参与形状断言"
+  },
+  {
+   "axis": "A2",
+   "axis_name": "非退化",
+   "decisive": "has_server_validation",
+   "expect": "RECORD_REACHABILITY",
+   "id": "V07",
+   "panel": null,
+   "rule": "可达性链：factorGroupCount 由客户端可传且无服务端校验"
+  },
+  {
+   "axis": "A2",
+   "axis_name": "非退化",
+   "decisive": "size_lt_2",
+   "expect": "DEGENERATE_SAFE",
+   "id": "V08",
+   "panel": "Q09_one_group",
+   "rule": "groupCount=1 ⟹ 不得断出方向、不得抛异常"
+  },
+  {
+   "axis": "A2",
+   "axis_name": "非退化",
+   "decisive": "label",
+   "expect": "DEGENERATE_SAFE",
+   "id": "V09",
+   "panel": "Q08_zero_group",
+   "rule": "groupCount=0 ⟹ 记录信息缺口"
+  },
+  {
+   "axis": "A2",
+   "axis_name": "非退化",
+   "decisive": "threw",
+   "expect": "DEGENERATE_SAFE",
+   "id": "V10",
+   "panel": "Q10_negative_group",
+   "rule": "groupCount=-1 ⟹ 不得抛未处理异常"
+  },
+  {
+   "axis": "A3",
+   "axis_name": "可重建",
+   "decisive": "rebuilt_label",
+   "expect": "NOT_RECONSTRUCTABLE",
+   "id": "V11",
+   "panel": "Q07_round_collision",
+   "rule": "avg_return 经 round4 后由载荷重建 ⟹ 是否与引擎标签一致"
+  },
+  {
+   "axis": "A3",
+   "axis_name": "可重建",
+   "decisive": "value_domain_declared",
+   "expect": "CLAIM_ABSENT",
+   "id": "V12",
+   "panel": null,
+   "rule": "monotonicity 是否声明值域"
+  },
+  {
+   "axis": "A3",
+   "axis_name": "可重建",
+   "decisive": "has_monotonicity_builder",
+   "expect": "CLAIM_ABSENT",
+   "id": "V13",
+   "panel": null,
+   "rule": "FactorAnalysis 是否携带标签（载荷面可重建性）"
+  },
+  {
+   "axis": "A3",
+   "axis_name": "可重建",
+   "decisive": "has_monotonicity",
+   "expect": "CLAIM_ABSENT",
+   "id": "V14",
+   "panel": null,
+   "rule": "FactorIcSummary 是否携带标签或分组"
+  },
+  {
+   "axis": "A3",
+   "axis_name": "可重建",
+   "decisive": "vocab_consistent",
+   "expect": "CONSISTENT_VOCAB",
+   "id": "V15",
+   "panel": null,
+   "rule": "4 个发射面是否同词表（含 \"N/A\" 逐字符相同）"
+  },
+  {
+   "axis": "A4",
+   "axis_name": "推断边界",
+   "decisive": "inference_claimed",
+   "expect": "INFERENCE_NOT_CLAIMED",
+   "id": "V16",
+   "panel": null,
+   "rule": "声明性文本是否声称推断"
+  },
+  {
+   "axis": "A4",
+   "axis_name": "推断边界",
+   "decisive": "inference_claimed",
+   "expect": "INFERENCE_NOT_CLAIMED",
+   "id": "V17",
+   "panel": null,
+   "rule": "展示面是否声称推断"
+  },
+  {
+   "axis": "A4",
+   "axis_name": "推断边界",
+   "decisive": "blocks_with_group_count",
+   "expect": "TRUE_CLAIM/FALSE_CLAIM",
+   "id": "V18",
+   "panel": null,
+   "rule": "披露粒度：标签所在块须同时给出组数与每组样本量（J-2）"
+  },
+  {
+   "axis": "A5",
+   "axis_name": "仪器",
+   "decisive": "pair_failures",
+   "expect": "TRUE_CLAIM",
+   "id": "V19",
+   "panel": null,
+   "rule": "金丝雀总门（以声明数填入）"
+  },
+  {
+   "axis": "A5",
+   "axis_name": "仪器",
+   "decisive": "observed_literals_subset_of_engine_vocab",
+   "expect": "TRUE_CLAIM",
+   "id": "V20",
+   "panel": null,
+   "rule": "正面对照：引擎返回值**到达**载荷（逐字符透传 / 字面量相同）"
+  },
+  {
+   "axis": "A5",
+   "axis_name": "仪器",
+   "decisive": "na_sources_are_distinguishable",
+   "expect": "TRUE_CLAIM",
+   "id": "V21",
+   "panel": null,
+   "rule": "反向锚点：\"N/A\" 三来源可区分 + NON_MONOTONIC 仅内部产生"
+  }
+ ],
+ "vocabulary": [
+  "SEMANTICS_FAITHFUL",
+  "SEMANTICS_GAPPED",
+  "DEGENERATE_SAFE",
+  "DEGENERATE_ASSERTS",
+  "RECONSTRUCTABLE",
+  "NOT_RECONSTRUCTABLE",
+  "INFERENCE_NOT_CLAIMED",
+  "INFERENCE_CLAIMED",
+  "CLAIM_ABSENT",
+  "CLAIM_UNDECIDABLE_STATIC",
+  "UNFALSIFIABLE",
+  "TRUE_CLAIM",
+  "FALSE_CLAIM",
+  "CONSISTENT_VOCAB",
+  "INCONSISTENT_VOCAB",
+  "NOT_REACHED_STATIC_ONLY"
+ ]
+}

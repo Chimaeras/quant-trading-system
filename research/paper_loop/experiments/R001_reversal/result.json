@@ -1,0 +1,3679 @@
+{
+  "meta": {
+    "market_data_rows_total": 2455536,
+    "rows_loaded_since_2023_11_01": 2449886,
+    "duplicate_rows_dropped": 4965,
+    "rows_nonpositive_price_dropped": 0,
+    "amount_median": 11464.1,
+    "amount_p90": 89341.12,
+    "distinct_codes": 5555,
+    "distinct_dates": 688,
+    "segment_trading_days": {
+      "IS_A": 242,
+      "IS_B": 243,
+      "IS": 485,
+      "OOS": 160
+    }
+  },
+  "segments": {
+    "IS_A": [
+      {
+        "config": "grid_N1_h2",
+        "N": 1,
+        "h": 2,
+        "stride": 1,
+        "ic_mean": 0.005815073000437144,
+        "ic_t_nw": 0.46091737298492985,
+        "ic_t_naive": 0.48900218656937533,
+        "ic_lag": 5,
+        "ic_days": 241,
+        "ic_positive_rate": 0.5601659751037344,
+        "ic_ir": 0.031433980495306275,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -0.0012692398227927668,
+            "gross_mean": -6.992338907664605e-05,
+            "days": 241
+          },
+          {
+            "decile": 2,
+            "net_mean": -0.0003095724673929465,
+            "gross_mean": 0.0008908963738349146,
+            "days": 241
+          },
+          {
+            "decile": 3,
+            "net_mean": -0.0004202025714053448,
+            "gross_mean": 0.000780133420703316,
+            "days": 241
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.00015384857856252002,
+            "gross_mean": 0.001354873914591885,
+            "days": 241
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.0006566943642791233,
+            "gross_mean": 0.001858323537937686,
+            "days": 241
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.0010697634474632037,
+            "gross_mean": 0.0022718886512426715,
+            "days": 241
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.0015310194142912905,
+            "gross_mean": 0.002733698512957374,
+            "days": 241
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.001676876436045432,
+            "gross_mean": 0.0028797306857433393,
+            "days": 241
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0018944511761838979,
+            "gross_mean": 0.0030975666984607787,
+            "days": 241
+          },
+          {
+            "decile": 10,
+            "net_mean": -0.0014494698415262928,
+            "gross_mean": -0.0002503698353319197,
+            "days": 241
+          }
+        ],
+        "spread_net_d1_d10": 0.000180230018733526,
+        "spread_gross_d1_d10": 0.00018044644625527363,
+        "d1_net_mean": -0.0012692398227927668,
+        "d10_net_mean": -0.0014494698415262928,
+        "universe_net_mean": 0.00035332762862468064,
+        "universe_days": 241,
+        "funnel": {
+          "signal_days": 242,
+          "signal_count": 794482,
+          "buyable_count": 790356,
+          "filled_count": 784417,
+          "NOT_BUYABLE": 4126,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 5939,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2024-01-03",
+        "last_ic_date": "2024-12-31"
+      },
+      {
+        "config": "grid_N1_h3",
+        "N": 1,
+        "h": 3,
+        "stride": 1,
+        "ic_mean": 0.0043349127769528924,
+        "ic_t_nw": 0.3755678521531035,
+        "ic_t_naive": 0.3958607255509313,
+        "ic_lag": 6,
+        "ic_days": 241,
+        "ic_positive_rate": 0.5352697095435685,
+        "ic_ir": 0.02544667215728368,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -0.0019786434209352025,
+            "gross_mean": -0.0007801788678532964,
+            "days": 241
+          },
+          {
+            "decile": 2,
+            "net_mean": -0.00013178761756019115,
+            "gross_mean": 0.0010688947149313462,
+            "days": 241
+          },
+          {
+            "decile": 3,
+            "net_mean": 2.6066068228519294e-05,
+            "gross_mean": 0.0012269379578329815,
+            "days": 241
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.0007843456749391887,
+            "gross_mean": 0.0019861281374727556,
+            "days": 241
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.0012632345060823215,
+            "gross_mean": 0.002465592037761661,
+            "days": 241
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.0019280281074696855,
+            "gross_mean": 0.003131183950288486,
+            "days": 241
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.0023975466515028803,
+            "gross_mean": 0.0036012663112463678,
+            "days": 241
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.002398163951372505,
+            "gross_mean": 0.0036018843523947376,
+            "days": 241
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0024604261415020127,
+            "gross_mean": 0.003664221309489273,
+            "days": 241
+          },
+          {
+            "decile": 10,
+            "net_mean": -0.0021195660604989386,
+            "gross_mean": -0.0009212707330424489,
+            "days": 241
+          }
+        ],
+        "spread_net_d1_d10": 0.0001409226395637361,
+        "spread_gross_d1_d10": 0.0001410918651891525,
+        "d1_net_mean": -0.0019786434209352025,
+        "d10_net_mean": -0.0021195660604989386,
+        "universe_net_mean": 0.0007029851304247058,
+        "universe_days": 241,
+        "funnel": {
+          "signal_days": 242,
+          "signal_count": 794338,
+          "buyable_count": 790214,
+          "filled_count": 784307,
+          "NOT_BUYABLE": 4124,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 5907,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2024-01-03",
+        "last_ic_date": "2024-12-31"
+      },
+      {
+        "config": "grid_N5_h2",
+        "N": 5,
+        "h": 2,
+        "stride": 1,
+        "ic_mean": -0.019415913001356106,
+        "ic_t_nw": -1.0399958996097325,
+        "ic_t_naive": -1.4549711840528516,
+        "ic_lag": 9,
+        "ic_days": 237,
+        "ic_positive_rate": 0.4936708860759494,
+        "ic_ir": -0.09431093437686848,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.00090461118807412,
+            "gross_mean": 0.0021065380703172497,
+            "days": 237
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.00020802801205883813,
+            "gross_mean": 0.0014091184089510002,
+            "days": 237
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.00016250714550810564,
+            "gross_mean": 0.001363542879096097,
+            "days": 237
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.00041685009482506964,
+            "gross_mean": 0.001618191253749978,
+            "days": 237
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.0008674080840109598,
+            "gross_mean": 0.002069290291256714,
+            "days": 237
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.001360623862922473,
+            "gross_mean": 0.0025630983436943887,
+            "days": 237
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.0013961330566830091,
+            "gross_mean": 0.0025986501783360565,
+            "days": 237
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.001999720102832461,
+            "gross_mean": 0.003202962036309159,
+            "days": 237
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0015224831006512675,
+            "gross_mean": 0.0027251519485654557,
+            "days": 237
+          },
+          {
+            "decile": 10,
+            "net_mean": -0.0019655669874096824,
+            "gross_mean": -0.0007670867316156481,
+            "days": 237
+          }
+        ],
+        "spread_net_d1_d10": 0.0028701781754838025,
+        "spread_gross_d1_d10": 0.0028736248019328977,
+        "d1_net_mean": 0.00090461118807412,
+        "d10_net_mean": -0.0019655669874096824,
+        "universe_net_mean": 0.0006877384783179785,
+        "universe_days": 237,
+        "funnel": {
+          "signal_days": 242,
+          "signal_count": 780794,
+          "buyable_count": 776747,
+          "filled_count": 770852,
+          "NOT_BUYABLE": 4047,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 5895,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2024-01-09",
+        "last_ic_date": "2024-12-31"
+      },
+      {
+        "config": "grid_N5_h3",
+        "N": 5,
+        "h": 3,
+        "stride": 1,
+        "ic_mean": -0.02675103955080877,
+        "ic_t_nw": -1.3576285519192106,
+        "ic_t_naive": -2.16111306966269,
+        "ic_lag": 10,
+        "ic_days": 237,
+        "ic_positive_rate": 0.4388185654008439,
+        "ic_ir": -0.1400829068835683,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.0015403953315968118,
+            "gross_mean": 0.002743085689244948,
+            "days": 237
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.0011589996728498134,
+            "gross_mean": 0.0023612320351106813,
+            "days": 237
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.0009039750201071471,
+            "gross_mean": 0.002105901138413959,
+            "days": 237
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.0008854817805264688,
+            "gross_mean": 0.002087385691400578,
+            "days": 237
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.0013570290268335827,
+            "gross_mean": 0.002559499190780416,
+            "days": 237
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.001964385087222017,
+            "gross_mean": 0.003167584588977783,
+            "days": 237
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.001983702388368729,
+            "gross_mean": 0.003186925087123767,
+            "days": 237
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.0026194439855998157,
+            "gross_mean": 0.003823430108668554,
+            "days": 237
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0015550317485915816,
+            "gross_mean": 0.0027577396822433156,
+            "days": 237
+          },
+          {
+            "decile": 10,
+            "net_mean": -0.003628491517647689,
+            "gross_mean": -0.002432008169125034,
+            "days": 237
+          }
+        ],
+        "spread_net_d1_d10": 0.0051688868492445,
+        "spread_gross_d1_d10": 0.005175093858369982,
+        "d1_net_mean": 0.0015403953315968118,
+        "d10_net_mean": -0.003628491517647689,
+        "universe_net_mean": 0.0010347990983364094,
+        "universe_days": 237,
+        "funnel": {
+          "signal_days": 242,
+          "signal_count": 780656,
+          "buyable_count": 776611,
+          "filled_count": 770738,
+          "NOT_BUYABLE": 4045,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 5873,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2024-01-09",
+        "last_ic_date": "2024-12-31"
+      },
+      {
+        "config": "grid_N20_h2",
+        "N": 20,
+        "h": 2,
+        "stride": 1,
+        "ic_mean": -0.04116058963921359,
+        "ic_t_nw": -3.3260533630460127,
+        "ic_t_naive": -2.8286014019212264,
+        "ic_lag": 24,
+        "ic_days": 222,
+        "ic_positive_rate": 0.44594594594594594,
+        "ic_ir": -0.1894152382870381,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.0034566236554283477,
+            "gross_mean": 0.004661615097824405,
+            "days": 222
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.003017569233359803,
+            "gross_mean": 0.00422203344138532,
+            "days": 222
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.002799703655618301,
+            "gross_mean": 0.004003906241815249,
+            "days": 222
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.0029535093270758148,
+            "gross_mean": 0.004157896609365777,
+            "days": 222
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.002758229534391832,
+            "gross_mean": 0.003962382316780645,
+            "days": 222
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.002240485362045481,
+            "gross_mean": 0.003444016416217724,
+            "days": 222
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.002188487794710784,
+            "gross_mean": 0.0033919564080936706,
+            "days": 222
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.002089896720239644,
+            "gross_mean": 0.0032932469414586538,
+            "days": 222
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0012630578143684977,
+            "gross_mean": 0.0024654151338692563,
+            "days": 222
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0007364343007700931,
+            "gross_mean": 0.001938159229380913,
+            "days": 222
+          }
+        ],
+        "spread_net_d1_d10": 0.0027201893546582546,
+        "spread_gross_d1_d10": 0.002723455868443492,
+        "d1_net_mean": 0.0034566236554283477,
+        "d10_net_mean": 0.0007364343007700931,
+        "universe_net_mean": 0.0023507684537659003,
+        "universe_days": 222,
+        "funnel": {
+          "signal_days": 242,
+          "signal_count": 730433,
+          "buyable_count": 726422,
+          "filled_count": 720969,
+          "NOT_BUYABLE": 4011,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 5453,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2024-01-30",
+        "last_ic_date": "2024-12-31"
+      },
+      {
+        "config": "grid_N20_h3",
+        "N": 20,
+        "h": 3,
+        "stride": 1,
+        "ic_mean": -0.05474059706940586,
+        "ic_t_nw": -4.353767264040189,
+        "ic_t_naive": -3.9399676630365055,
+        "ic_lag": 25,
+        "ic_days": 222,
+        "ic_positive_rate": 0.3783783783783784,
+        "ic_ir": -0.26383707270681317,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.0052937670685573755,
+            "gross_mean": 0.006500964627330654,
+            "days": 222
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.0047946166456676615,
+            "gross_mean": 0.006001214804353411,
+            "days": 222
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.004469906590438504,
+            "gross_mean": 0.005676114824110463,
+            "days": 222
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.0049363633020533745,
+            "gross_mean": 0.006143131675877386,
+            "days": 222
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.004266442981405244,
+            "gross_mean": 0.005472406887717219,
+            "days": 222
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.0036041315441436225,
+            "gross_mean": 0.004809300119999561,
+            "days": 222
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.003380649539012612,
+            "gross_mean": 0.004585549748606009,
+            "days": 222
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.003145855431963563,
+            "gross_mean": 0.004350473691263296,
+            "days": 222
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0016697830049562663,
+            "gross_mean": 0.0028726287365742173,
+            "days": 222
+          },
+          {
+            "decile": 10,
+            "net_mean": -6.126131456794531e-05,
+            "gross_mean": 0.0011395057087707767,
+            "days": 222
+          }
+        ],
+        "spread_net_d1_d10": 0.005355028383125321,
+        "spread_gross_d1_d10": 0.005361458918559877,
+        "d1_net_mean": 0.0052937670685573755,
+        "d10_net_mean": -6.126131456794531e-05,
+        "universe_net_mean": 0.003550758109145408,
+        "universe_days": 222,
+        "funnel": {
+          "signal_days": 242,
+          "signal_count": 730305,
+          "buyable_count": 726296,
+          "filled_count": 720896,
+          "NOT_BUYABLE": 4009,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 5400,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2024-01-30",
+        "last_ic_date": "2024-12-31"
+      }
+    ],
+    "IS_B": [
+      {
+        "config": "grid_N1_h2",
+        "N": 1,
+        "h": 2,
+        "stride": 1,
+        "ic_mean": -0.025132625143574523,
+        "ic_t_nw": -3.874499960062232,
+        "ic_t_naive": -3.1661115641968705,
+        "ic_lag": 5,
+        "ic_days": 243,
+        "ic_positive_rate": 0.42386831275720166,
+        "ic_ir": -0.2026878068099119,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.003960829831498915,
+            "gross_mean": 0.005166426745136123,
+            "days": 243
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.0046999929528222795,
+            "gross_mean": 0.005906477483537029,
+            "days": 243
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.004801386201776056,
+            "gross_mean": 0.006007992489619546,
+            "days": 243
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.004589430945950155,
+            "gross_mean": 0.0057957827093195165,
+            "days": 243
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.004427638550093945,
+            "gross_mean": 0.005633796026587468,
+            "days": 243
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.0042213550996329586,
+            "gross_mean": 0.00542726486258645,
+            "days": 243
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.0037933178988614168,
+            "gross_mean": 0.00499871365737087,
+            "days": 243
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.0037029584032712724,
+            "gross_mean": 0.00490824565443088,
+            "days": 243
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.003204308378330396,
+            "gross_mean": 0.0044089968303006365,
+            "days": 243
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.002421973211689885,
+            "gross_mean": 0.003625722203838287,
+            "days": 243
+          }
+        ],
+        "spread_net_d1_d10": 0.00153885661980903,
+        "spread_gross_d1_d10": 0.001540704541297836,
+        "d1_net_mean": 0.003960829831498915,
+        "d10_net_mean": 0.002421973211689885,
+        "universe_net_mean": 0.003982469648173993,
+        "universe_days": 243,
+        "funnel": {
+          "signal_days": 243,
+          "signal_count": 831552,
+          "buyable_count": 829486,
+          "filled_count": 825391,
+          "NOT_BUYABLE": 2066,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 4095,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2025-01-02",
+        "last_ic_date": "2025-12-31"
+      },
+      {
+        "config": "grid_N1_h3",
+        "N": 1,
+        "h": 3,
+        "stride": 1,
+        "ic_mean": -0.025886045668164052,
+        "ic_t_nw": -3.8651030803469357,
+        "ic_t_naive": -3.1902862812181962,
+        "ic_lag": 6,
+        "ic_days": 243,
+        "ic_positive_rate": 0.4074074074074074,
+        "ic_ir": -0.20423542137558678,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.0049567834290776755,
+            "gross_mean": 0.006163576324219036,
+            "days": 243
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.006285203907163389,
+            "gross_mean": 0.007493592023533301,
+            "days": 243
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.006602989439424269,
+            "gross_mean": 0.007811759165559733,
+            "days": 243
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.006191947287143284,
+            "gross_mean": 0.007400223417178748,
+            "days": 243
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.0062008809213401446,
+            "gross_mean": 0.007409167779246155,
+            "days": 243
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.005854629535483225,
+            "gross_mean": 0.007062500600671295,
+            "days": 243
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.005315379781091088,
+            "gross_mean": 0.006522603293286802,
+            "days": 243
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.005287607180654721,
+            "gross_mean": 0.006494797342384582,
+            "days": 243
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.004502602972258717,
+            "gross_mean": 0.00570885046907306,
+            "days": 243
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0027091305441721185,
+            "gross_mean": 0.00391322436650062,
+            "days": 243
+          }
+        ],
+        "spread_net_d1_d10": 0.002247652884905557,
+        "spread_gross_d1_d10": 0.002250351957718416,
+        "d1_net_mean": 0.0049567834290776755,
+        "d10_net_mean": 0.0027091305441721185,
+        "universe_net_mean": 0.005391045193839832,
+        "universe_days": 243,
+        "funnel": {
+          "signal_days": 243,
+          "signal_count": 831245,
+          "buyable_count": 829180,
+          "filled_count": 825084,
+          "NOT_BUYABLE": 2065,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 4096,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2025-01-02",
+        "last_ic_date": "2025-12-31"
+      },
+      {
+        "config": "grid_N5_h2",
+        "N": 5,
+        "h": 2,
+        "stride": 1,
+        "ic_mean": -0.04884493551744706,
+        "ic_t_nw": -5.283815699150285,
+        "ic_t_naive": -6.28904227655024,
+        "ic_lag": 9,
+        "ic_days": 243,
+        "ic_positive_rate": 0.3662551440329218,
+        "ic_ir": -0.40261126625591054,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.0051590320032547975,
+            "gross_mean": 0.006366067766692971,
+            "days": 243
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.0046621035804319845,
+            "gross_mean": 0.005868542612050502,
+            "days": 243
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.004671195522633109,
+            "gross_mean": 0.00587764547222485,
+            "days": 243
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.004483614095328263,
+            "gross_mean": 0.005689838789528471,
+            "days": 243
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.004325084720862713,
+            "gross_mean": 0.005531119046555601,
+            "days": 243
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.0041331565539984155,
+            "gross_mean": 0.005338960404558473,
+            "days": 243
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.0038145554345979946,
+            "gross_mean": 0.005019976696002368,
+            "days": 243
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.003649657902535176,
+            "gross_mean": 0.00485488114829012,
+            "days": 243
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0035739741025877405,
+            "gross_mean": 0.004779106464163815,
+            "days": 243
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.001520206857142488,
+            "gross_mean": 0.0027228729716510802,
+            "days": 243
+          }
+        ],
+        "spread_net_d1_d10": 0.00363882514611231,
+        "spread_gross_d1_d10": 0.0036431947950418906,
+        "d1_net_mean": 0.0051590320032547975,
+        "d10_net_mean": 0.001520206857142488,
+        "universe_net_mean": 0.003999684143992473,
+        "universe_days": 243,
+        "funnel": {
+          "signal_days": 243,
+          "signal_count": 829636,
+          "buyable_count": 827629,
+          "filled_count": 823543,
+          "NOT_BUYABLE": 2007,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 4086,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2025-01-02",
+        "last_ic_date": "2025-12-31"
+      },
+      {
+        "config": "grid_N5_h3",
+        "N": 5,
+        "h": 3,
+        "stride": 1,
+        "ic_mean": -0.05230872061514094,
+        "ic_t_nw": -5.401250041860907,
+        "ic_t_naive": -7.061230086826023,
+        "ic_lag": 10,
+        "ic_days": 243,
+        "ic_positive_rate": 0.34156378600823045,
+        "ic_ir": -0.45204510664234326,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.006789078746526215,
+            "gross_mean": 0.00799807193625472,
+            "days": 243
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.006532067731299411,
+            "gross_mean": 0.007740752291769164,
+            "days": 243
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.006325636600488123,
+            "gross_mean": 0.007534073270077292,
+            "days": 243
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.006114954225162582,
+            "gross_mean": 0.007323137898804191,
+            "days": 243
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.005903631157993612,
+            "gross_mean": 0.007111561066318896,
+            "days": 243
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.005640023212504459,
+            "gross_mean": 0.00684763656970938,
+            "days": 243
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.0053520743765798715,
+            "gross_mean": 0.006559341953135224,
+            "days": 243
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.005252581182677575,
+            "gross_mean": 0.006459729283767422,
+            "days": 243
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.004866853909268759,
+            "gross_mean": 0.006073538813392639,
+            "days": 243
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0013671319330437002,
+            "gross_mean": 0.0025696142289703687,
+            "days": 243
+          }
+        ],
+        "spread_net_d1_d10": 0.005421946813482514,
+        "spread_gross_d1_d10": 0.005428457707284352,
+        "d1_net_mean": 0.006789078746526215,
+        "d10_net_mean": 0.0013671319330437002,
+        "universe_net_mean": 0.005414880864087519,
+        "universe_days": 243,
+        "funnel": {
+          "signal_days": 243,
+          "signal_count": 829329,
+          "buyable_count": 827323,
+          "filled_count": 823232,
+          "NOT_BUYABLE": 2006,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 4091,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2025-01-02",
+        "last_ic_date": "2025-12-31"
+      },
+      {
+        "config": "grid_N20_h2",
+        "N": 20,
+        "h": 2,
+        "stride": 1,
+        "ic_mean": -0.057242889212249924,
+        "ic_t_nw": -6.228000404812638,
+        "ic_t_naive": -6.62222215622297,
+        "ic_lag": 24,
+        "ic_days": 243,
+        "ic_positive_rate": 0.31275720164609055,
+        "ic_ir": -0.42394074177020324,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.005773539604480043,
+            "gross_mean": 0.0069813132935876605,
+            "days": 243
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.004245563129150007,
+            "gross_mean": 0.005451501962087906,
+            "days": 243
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.004097853063990952,
+            "gross_mean": 0.005303614520687295,
+            "days": 243
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.004040068747328917,
+            "gross_mean": 0.005245760814272443,
+            "days": 243
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.003973677946500773,
+            "gross_mean": 0.005179290288675962,
+            "days": 243
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.0041318462097677785,
+            "gross_mean": 0.005337648486813298,
+            "days": 243
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.003840721442445571,
+            "gross_mean": 0.005046174125054201,
+            "days": 243
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.0038378732387692937,
+            "gross_mean": 0.00504332250113934,
+            "days": 243
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0035184320910352056,
+            "gross_mean": 0.004723497755509447,
+            "days": 243
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.002440892672817554,
+            "gross_mean": 0.003644664384222787,
+            "days": 243
+          }
+        ],
+        "spread_net_d1_d10": 0.0033326469316624888,
+        "spread_gross_d1_d10": 0.0033366489093648736,
+        "d1_net_mean": 0.005773539604480043,
+        "d10_net_mean": 0.002440892672817554,
+        "universe_net_mean": 0.003990200077439716,
+        "universe_days": 243,
+        "funnel": {
+          "signal_days": 243,
+          "signal_count": 824575,
+          "buyable_count": 822464,
+          "filled_count": 818388,
+          "NOT_BUYABLE": 2111,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 4076,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2025-01-02",
+        "last_ic_date": "2025-12-31"
+      },
+      {
+        "config": "grid_N20_h3",
+        "N": 20,
+        "h": 3,
+        "stride": 1,
+        "ic_mean": -0.06570528977149684,
+        "ic_t_nw": -6.304013313827281,
+        "ic_t_naive": -7.691225322748755,
+        "ic_lag": 25,
+        "ic_days": 243,
+        "ic_positive_rate": 0.2674897119341564,
+        "ic_ir": -0.4923760773238083,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.0077618952434618865,
+            "gross_mean": 0.008972056630724985,
+            "days": 243
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.005836103627656018,
+            "gross_mean": 0.007043952446182037,
+            "days": 243
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.005881768130349242,
+            "gross_mean": 0.007089671784663553,
+            "days": 243
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.005538159787004399,
+            "gross_mean": 0.006745650822473507,
+            "days": 243
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.005527668205668464,
+            "gross_mean": 0.0067351466424208604,
+            "days": 243
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.005682954154666425,
+            "gross_mean": 0.006890619065089185,
+            "days": 243
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.005318362608331974,
+            "gross_mean": 0.006525589702427707,
+            "days": 243
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.005119206156313068,
+            "gross_mean": 0.0063261940952577716,
+            "days": 243
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.004895972909473363,
+            "gross_mean": 0.006102692780874582,
+            "days": 243
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0023738465832725936,
+            "gross_mean": 0.003577537783012203,
+            "days": 243
+          }
+        ],
+        "spread_net_d1_d10": 0.005388048660189293,
+        "spread_gross_d1_d10": 0.005394518847712783,
+        "d1_net_mean": 0.0077618952434618865,
+        "d10_net_mean": 0.0023738465832725936,
+        "universe_net_mean": 0.005394259531242061,
+        "universe_days": 243,
+        "funnel": {
+          "signal_days": 243,
+          "signal_count": 824283,
+          "buyable_count": 822173,
+          "filled_count": 818097,
+          "NOT_BUYABLE": 2110,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 4076,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2025-01-02",
+        "last_ic_date": "2025-12-31"
+      }
+    ],
+    "IS": [
+      {
+        "config": "grid_N1_h2",
+        "N": 1,
+        "h": 2,
+        "stride": 1,
+        "ic_mean": -0.009722717596659622,
+        "ic_t_nw": -1.3492493082071508,
+        "ic_t_naive": -1.3556203201615902,
+        "ic_lag": 5,
+        "ic_days": 484,
+        "ic_positive_rate": 0.49173553719008267,
+        "ic_ir": -0.0615554164469783,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.0013566009333908667,
+            "gross_mean": 0.0025590705832657153,
+            "days": 484
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.0022055605844919697,
+            "gross_mean": 0.003409049699573787,
+            "days": 484
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.002201380221741516,
+            "gross_mean": 0.0034048643168740674,
+            "days": 484
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.002380804188635238,
+            "gross_mean": 0.0035845037433497656,
+            "days": 484
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.0025499576641820187,
+            "gross_mean": 0.003753860345255657,
+            "days": 484
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.002652070826548434,
+            "gross_mean": 0.00385609612925205,
+            "days": 484
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.002666842826999017,
+            "gross_mean": 0.0038708858685203495,
+            "days": 484
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.00269410353942535,
+            "gross_mean": 0.0038981793167166294,
+            "days": 484
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0025520860937905047,
+            "gross_mean": 0.0037559913307688058,
+            "days": 484
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0004942505343653011,
+            "gross_mean": 0.0016956846388795682,
+            "days": 484
+          }
+        ],
+        "spread_net_d1_d10": 0.0008623503990255655,
+        "spread_gross_d1_d10": 0.0008633859443861471,
+        "d1_net_mean": 0.0013566009333908667,
+        "d10_net_mean": 0.0004942505343653011,
+        "universe_net_mean": 0.0021753968657124536,
+        "universe_days": 484,
+        "funnel": {
+          "signal_days": 485,
+          "signal_count": 1626034,
+          "buyable_count": 1619842,
+          "filled_count": 1609808,
+          "NOT_BUYABLE": 6192,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 10034,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2024-01-03",
+        "last_ic_date": "2025-12-31"
+      },
+      {
+        "config": "grid_N1_h3",
+        "N": 1,
+        "h": 3,
+        "stride": 1,
+        "ic_mean": -0.01083800644239301,
+        "ic_t_nw": -1.5795249523638457,
+        "ic_t_naive": -1.5842762380906514,
+        "ic_lag": 6,
+        "ic_days": 484,
+        "ic_positive_rate": 0.47107438016528924,
+        "ic_ir": -0.07193812467424339,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.0015033993983894448,
+            "gross_mean": 0.002706045329819382,
+            "days": 484
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.0030899663917535072,
+            "gross_mean": 0.004294517537225303,
+            "days": 484
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.0033281164384776248,
+            "gross_mean": 0.004532953564191661,
+            "days": 484
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.003499319211644965,
+            "gross_mean": 0.004704361924597875,
+            "days": 484
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.0037422594625030866,
+            "gross_mean": 0.004947593907969786,
+            "days": 484
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.003899441634344249,
+            "gross_mean": 0.00510496483054267,
+            "days": 484
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.0038624917971432408,
+            "gross_mean": 0.005067970622477414,
+            "days": 484
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.0038488554900410568,
+            "gross_mean": 0.005054317940344188,
+            "days": 484
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0034857339304976294,
+            "gross_mean": 0.0046907603296935324,
+            "days": 484
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0003047588877140105,
+            "gross_mean": 0.0015059654429678117,
+            "days": 484
+          }
+        ],
+        "spread_net_d1_d10": 0.0011986405106754342,
+        "spread_gross_d1_d10": 0.0012000798868515704,
+        "d1_net_mean": 0.0015033993983894448,
+        "d10_net_mean": 0.0003047588877140105,
+        "universe_net_mean": 0.0030567012366434563,
+        "universe_days": 484,
+        "funnel": {
+          "signal_days": 485,
+          "signal_count": 1625583,
+          "buyable_count": 1619394,
+          "filled_count": 1609391,
+          "NOT_BUYABLE": 6189,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 10003,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2024-01-03",
+        "last_ic_date": "2025-12-31"
+      },
+      {
+        "config": "grid_N5_h2",
+        "N": 5,
+        "h": 2,
+        "stride": 1,
+        "ic_mean": -0.03431435565012716,
+        "ic_t_nw": -3.280873753517041,
+        "ic_t_naive": -4.455140120706966,
+        "ic_lag": 9,
+        "ic_days": 480,
+        "ic_positive_rate": 0.42916666666666664,
+        "ic_ir": -0.2031364633962811,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.003058411725759339,
+            "gross_mean": 0.004262924979107459,
+            "days": 480
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.0024629037685477426,
+            "gross_mean": 0.0036667019117701243,
+            "days": 480
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.0024450306364276362,
+            "gross_mean": 0.0036488073168675287,
+            "days": 480
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.002475649370079812,
+            "gross_mean": 0.0036794628187378398,
+            "days": 480
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.0026178568814171584,
+            "gross_mean": 0.003821841098626775,
+            "days": 480
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.0027642185377796673,
+            "gross_mean": 0.003968378512006833,
+            "days": 480
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.002620459385502469,
+            "gross_mean": 0.0038244467279046255,
+            "days": 480
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.0028350011139319595,
+            "gross_mean": 0.00403924608674952,
+            "days": 480
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0025610504203816085,
+            "gross_mean": 0.0037649664220871224,
+            "days": 480
+          },
+          {
+            "decile": 10,
+            "net_mean": -0.00020089397860514747,
+            "gross_mean": 0.0009997053681631341,
+            "days": 480
+          }
+        ],
+        "spread_net_d1_d10": 0.0032593057043644865,
+        "spread_gross_d1_d10": 0.0032632196109443246,
+        "d1_net_mean": 0.003058411725759339,
+        "d10_net_mean": -0.00020089397860514747,
+        "universe_net_mean": 0.0023644109715656933,
+        "universe_days": 480,
+        "funnel": {
+          "signal_days": 485,
+          "signal_count": 1610430,
+          "buyable_count": 1604376,
+          "filled_count": 1594395,
+          "NOT_BUYABLE": 6054,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 9981,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2024-01-09",
+        "last_ic_date": "2025-12-31"
+      },
+      {
+        "config": "grid_N5_h3",
+        "N": 5,
+        "h": 3,
+        "stride": 1,
+        "ic_mean": -0.03968961558962693,
+        "ic_t_nw": -3.621039405329614,
+        "ic_t_naive": -5.516772619160181,
+        "ic_lag": 10,
+        "ic_days": 480,
+        "ic_positive_rate": 0.38958333333333334,
+        "ic_ir": -0.25154263364443985,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.004197541310404823,
+            "gross_mean": 0.005403422476793651,
+            "days": 480
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.003879115377439923,
+            "gross_mean": 0.0050846141650440395,
+            "days": 480
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.003648691195175018,
+            "gross_mean": 0.004853913280068525,
+            "days": 480
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.0035329022056235023,
+            "gross_mean": 0.004737985246398654,
+            "days": 480
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.0036587463557333473,
+            "gross_mean": 0.004863980515271775,
+            "days": 480
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.003825176888146253,
+            "gross_mean": 0.005030610904223153,
+            "days": 480
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.003688940707400621,
+            "gross_mean": 0.0048942111255420645,
+            "days": 480
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.003952469691620431,
+            "gross_mean": 0.0051580565660623535,
+            "days": 480
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0032316417174344044,
+            "gross_mean": 0.004436362992387659,
+            "days": 480
+          },
+          {
+            "decile": 10,
+            "net_mean": -0.0010994571457351736,
+            "gross_mean": 0.0001000631699107633,
+            "days": 480
+          }
+        ],
+        "spread_net_d1_d10": 0.005296998456139997,
+        "spread_gross_d1_d10": 0.005303359306882888,
+        "d1_net_mean": 0.004197541310404823,
+        "d10_net_mean": -0.0010994571457351736,
+        "universe_net_mean": 0.003252215492247908,
+        "universe_days": 480,
+        "funnel": {
+          "signal_days": 485,
+          "signal_count": 1609985,
+          "buyable_count": 1603934,
+          "filled_count": 1593970,
+          "NOT_BUYABLE": 6051,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 9964,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2024-01-09",
+        "last_ic_date": "2025-12-31"
+      },
+      {
+        "config": "grid_N20_h2",
+        "N": 20,
+        "h": 2,
+        "stride": 1,
+        "ic_mean": -0.04956488812576806,
+        "ic_t_nw": -6.384937126925785,
+        "ic_t_naive": -5.975246321890369,
+        "ic_lag": 24,
+        "ic_days": 465,
+        "ic_positive_rate": 0.3763440860215054,
+        "ic_ir": -0.27679730070196906,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.004667399086868269,
+            "gross_mean": 0.0058738444775458505,
+            "days": 465
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.003659295075675975,
+            "gross_mean": 0.004864529894139575,
+            "days": 465
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.0034780914109614302,
+            "gross_mean": 0.004683108632709678,
+            "days": 465
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.0035213242499177577,
+            "gross_mean": 0.004726393387413774,
+            "days": 465
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.00339339934975199,
+            "gross_mean": 0.004598314869835614,
+            "days": 465
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.003228873934081004,
+            "gross_mean": 0.004433591885367666,
+            "days": 465
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.0030519131203012207,
+            "gross_mean": 0.004256418569860143,
+            "days": 465
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.0030033554170196563,
+            "gross_mean": 0.004207802556517595,
+            "days": 465
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0024416727589491646,
+            "gross_mean": 0.0036454454071134868,
+            "days": 465
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0016271512564852186,
+            "gross_mean": 0.0028299457941692477,
+            "days": 465
+          }
+        ],
+        "spread_net_d1_d10": 0.00304024783038305,
+        "spread_gross_d1_d10": 0.003043898683376603,
+        "d1_net_mean": 0.004667399086868269,
+        "d10_net_mean": 0.0016271512564852186,
+        "universe_net_mean": 0.003207503689363185,
+        "universe_days": 465,
+        "funnel": {
+          "signal_days": 485,
+          "signal_count": 1555008,
+          "buyable_count": 1548886,
+          "filled_count": 1539357,
+          "NOT_BUYABLE": 6122,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 9529,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2024-01-30",
+        "last_ic_date": "2025-12-31"
+      },
+      {
+        "config": "grid_N20_h3",
+        "N": 20,
+        "h": 3,
+        "stride": 1,
+        "ic_mean": -0.060470533255659854,
+        "ic_t_nw": -7.293074782264388,
+        "ic_t_naive": -7.559229955627283,
+        "ic_lag": 25,
+        "ic_days": 465,
+        "ic_positive_rate": 0.3204301075268817,
+        "ic_ir": -0.35017375592327715,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": 0.006583563082539732,
+            "gross_mean": 0.00779230948071737,
+            "days": 465
+          },
+          {
+            "decile": 2,
+            "net_mean": 0.0053388775846422145,
+            "gross_mean": 0.00654612931395417,
+            "days": 465
+          },
+          {
+            "decile": 3,
+            "net_mean": 0.005207718104843471,
+            "gross_mean": 0.006414812332528528,
+            "days": 465
+          },
+          {
+            "decile": 4,
+            "net_mean": 0.0052508504974148745,
+            "gross_mean": 0.006457996520227604,
+            "days": 465
+          },
+          {
+            "decile": 5,
+            "net_mean": 0.00492553487279441,
+            "gross_mean": 0.006132290243401063,
+            "days": 465
+          },
+          {
+            "decile": 6,
+            "net_mean": 0.004690484005126504,
+            "gross_mean": 0.005896957117110916,
+            "days": 465
+          },
+          {
+            "decile": 7,
+            "net_mean": 0.004393260884914988,
+            "gross_mean": 0.005599377079312831,
+            "days": 465
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.004177090326623624,
+            "gross_mean": 0.005382946934641052,
+            "days": 465
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.003355727406671651,
+            "gross_mean": 0.004560597688756986,
+            "days": 465
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0012112789417229165,
+            "gross_mean": 0.0024135740830517807,
+            "days": 465
+          }
+        ],
+        "spread_net_d1_d10": 0.005372284140816815,
+        "spread_gross_d1_d10": 0.00537873539766559,
+        "d1_net_mean": 0.006583563082539732,
+        "d10_net_mean": 0.0012112789417229165,
+        "universe_net_mean": 0.004514136271660432,
+        "universe_days": 465,
+        "funnel": {
+          "signal_days": 485,
+          "signal_count": 1554588,
+          "buyable_count": 1548469,
+          "filled_count": 1538993,
+          "NOT_BUYABLE": 6119,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 9476,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2024-01-30",
+        "last_ic_date": "2025-12-31"
+      }
+    ],
+    "OOS": [
+      {
+        "config": "grid_N1_h2",
+        "N": 1,
+        "h": 2,
+        "stride": 1,
+        "ic_mean": 0.0015487889828622549,
+        "ic_t_nw": 0.11654670549475842,
+        "ic_t_naive": 0.11461695860149175,
+        "ic_lag": 5,
+        "ic_days": 157,
+        "ic_positive_rate": 0.5031847133757962,
+        "ic_ir": 0.009118250663042397,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -0.0023257310777582926,
+            "gross_mean": -0.0011276833216224396,
+            "days": 157
+          },
+          {
+            "decile": 2,
+            "net_mean": -0.0012451589847131681,
+            "gross_mean": -4.581363374928088e-05,
+            "days": 157
+          },
+          {
+            "decile": 3,
+            "net_mean": -0.0004950223270189015,
+            "gross_mean": 0.0007052238184904001,
+            "days": 157
+          },
+          {
+            "decile": 4,
+            "net_mean": -0.00011442984156470964,
+            "gross_mean": 0.0010862733348487705,
+            "days": 157
+          },
+          {
+            "decile": 5,
+            "net_mean": -0.00044868998771584385,
+            "gross_mean": 0.0007516117955470487,
+            "days": 157
+          },
+          {
+            "decile": 6,
+            "net_mean": -0.00028421963813243605,
+            "gross_mean": 0.000916279647801827,
+            "days": 157
+          },
+          {
+            "decile": 7,
+            "net_mean": -0.0005386922368730563,
+            "gross_mean": 0.0006615014680360003,
+            "days": 157
+          },
+          {
+            "decile": 8,
+            "net_mean": -0.00022037385237750533,
+            "gross_mean": 0.0009802021021676917,
+            "days": 157
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0004943874241886681,
+            "gross_mean": 0.0016958216930857912,
+            "days": 157
+          },
+          {
+            "decile": 10,
+            "net_mean": 9.485114638510705e-06,
+            "gross_mean": 0.0012103370931609103,
+            "days": 157
+          }
+        ],
+        "spread_net_d1_d10": -0.002335216192396803,
+        "spread_gross_d1_d10": -0.0023380204147833497,
+        "d1_net_mean": -0.0023257310777582926,
+        "d10_net_mean": 9.485114638510705e-06,
+        "universe_net_mean": -0.0005168885267604117,
+        "universe_days": 157,
+        "funnel": {
+          "signal_days": 157,
+          "signal_count": 792634,
+          "buyable_count": 791417,
+          "filled_count": 788477,
+          "NOT_BUYABLE": 1217,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 2940,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2026-01-05",
+        "last_ic_date": "2026-09-02"
+      },
+      {
+        "config": "grid_N1_h3",
+        "N": 1,
+        "h": 3,
+        "stride": 1,
+        "ic_mean": 0.008861401882996564,
+        "ic_t_nw": 0.7305152571018153,
+        "ic_t_naive": 0.6657610657463224,
+        "ic_lag": 6,
+        "ic_days": 156,
+        "ic_positive_rate": 0.532051282051282,
+        "ic_ir": 0.05313242579994672,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -0.0038788525791793728,
+            "gross_mean": -0.002682669874381157,
+            "days": 156
+          },
+          {
+            "decile": 2,
+            "net_mean": -0.0019094364963574712,
+            "gross_mean": -0.0007108888367915361,
+            "days": 156
+          },
+          {
+            "decile": 3,
+            "net_mean": -0.000921760693763048,
+            "gross_mean": 0.00027797300699483737,
+            "days": 156
+          },
+          {
+            "decile": 4,
+            "net_mean": -0.00022920844905619339,
+            "gross_mean": 0.0009713568965467301,
+            "days": 156
+          },
+          {
+            "decile": 5,
+            "net_mean": -0.0004984645702877161,
+            "gross_mean": 0.0007017774416361521,
+            "days": 156
+          },
+          {
+            "decile": 6,
+            "net_mean": -0.00037537506928791016,
+            "gross_mean": 0.0008250147535047686,
+            "days": 156
+          },
+          {
+            "decile": 7,
+            "net_mean": -0.00025592133982288087,
+            "gross_mean": 0.0009446119278565746,
+            "days": 156
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.00028639896609321453,
+            "gross_mean": 0.0014875834740079358,
+            "days": 156
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0006720069325647115,
+            "gross_mean": 0.001873654494176783,
+            "days": 156
+          },
+          {
+            "decile": 10,
+            "net_mean": -0.0008806537903632603,
+            "gross_mean": 0.00031912927323268813,
+            "days": 156
+          }
+        ],
+        "spread_net_d1_d10": -0.0029981987888161124,
+        "spread_gross_d1_d10": -0.003001799147613845,
+        "d1_net_mean": -0.0038788525791793728,
+        "d10_net_mean": -0.0008806537903632603,
+        "universe_net_mean": -0.0007990383964398823,
+        "universe_days": 156,
+        "funnel": {
+          "signal_days": 156,
+          "signal_count": 787016,
+          "buyable_count": 785810,
+          "filled_count": 782862,
+          "NOT_BUYABLE": 1206,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 2948,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2026-01-05",
+        "last_ic_date": "2026-09-01"
+      },
+      {
+        "config": "grid_N5_h2",
+        "N": 5,
+        "h": 2,
+        "stride": 1,
+        "ic_mean": 0.002950991016239813,
+        "ic_t_nw": 0.1807879349899276,
+        "ic_t_naive": 0.24042372437299758,
+        "ic_lag": 9,
+        "ic_days": 157,
+        "ic_positive_rate": 0.5286624203821656,
+        "ic_ir": 0.019126696528367623,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -0.0024694690550616056,
+            "gross_mean": -0.0012715939053229964,
+            "days": 157
+          },
+          {
+            "decile": 2,
+            "net_mean": -0.001637301118418001,
+            "gross_mean": -0.0004384266676446925,
+            "days": 157
+          },
+          {
+            "decile": 3,
+            "net_mean": -0.0006977084993248809,
+            "gross_mean": 0.000502294252402008,
+            "days": 157
+          },
+          {
+            "decile": 4,
+            "net_mean": -0.0008263857629766399,
+            "gross_mean": 0.0003734624678692492,
+            "days": 157
+          },
+          {
+            "decile": 5,
+            "net_mean": -0.0005621605488870809,
+            "gross_mean": 0.0006380049743203685,
+            "days": 157
+          },
+          {
+            "decile": 6,
+            "net_mean": -0.00024118268351938643,
+            "gross_mean": 0.0009593682829367751,
+            "days": 157
+          },
+          {
+            "decile": 7,
+            "net_mean": 2.322170823697855e-05,
+            "gross_mean": 0.001224090182218518,
+            "days": 157
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.0004306308550627769,
+            "gross_mean": 0.0016319885624839151,
+            "days": 157
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0007507301194172022,
+            "gross_mean": 0.0019524722150272963,
+            "days": 157
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0009079740538424195,
+            "gross_mean": 0.0021099049743512556,
+            "days": 157
+          }
+        ],
+        "spread_net_d1_d10": -0.003377443108904025,
+        "spread_gross_d1_d10": -0.003381498879674252,
+        "d1_net_mean": -0.0024694690550616056,
+        "d10_net_mean": 0.0009079740538424195,
+        "universe_net_mean": -0.0004325182625172756,
+        "universe_days": 157,
+        "funnel": {
+          "signal_days": 157,
+          "signal_count": 784032,
+          "buyable_count": 782852,
+          "filled_count": 779925,
+          "NOT_BUYABLE": 1180,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 2927,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2026-01-05",
+        "last_ic_date": "2026-09-02"
+      },
+      {
+        "config": "grid_N5_h3",
+        "N": 5,
+        "h": 3,
+        "stride": 1,
+        "ic_mean": 0.005355857915962146,
+        "ic_t_nw": 0.29974191533371186,
+        "ic_t_naive": 0.4205873685707627,
+        "ic_lag": 10,
+        "ic_days": 156,
+        "ic_positive_rate": 0.4807692307692308,
+        "ic_ir": 0.03356583660825819,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -0.0034522875645236926,
+            "gross_mean": -0.0022555926231422863,
+            "days": 156
+          },
+          {
+            "decile": 2,
+            "net_mean": -0.002337767614815097,
+            "gross_mean": -0.0011397343126414866,
+            "days": 156
+          },
+          {
+            "decile": 3,
+            "net_mean": -0.0011666964871078298,
+            "gross_mean": 3.274308480785044e-05,
+            "days": 156
+          },
+          {
+            "decile": 4,
+            "net_mean": -0.0013400043352409276,
+            "gross_mean": -0.00014077287842357517,
+            "days": 156
+          },
+          {
+            "decile": 5,
+            "net_mean": -0.0008413575834533592,
+            "gross_mean": 0.00035847266862281784,
+            "days": 156
+          },
+          {
+            "decile": 6,
+            "net_mean": -0.0003622714546270376,
+            "gross_mean": 0.0008381341035179785,
+            "days": 156
+          },
+          {
+            "decile": 7,
+            "net_mean": 4.307014578085315e-05,
+            "gross_mean": 0.0012439624545718111,
+            "days": 156
+          },
+          {
+            "decile": 8,
+            "net_mean": 0.0007099543737863848,
+            "gross_mean": 0.0019116475042261034,
+            "days": 156
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.0010542333627734197,
+            "gross_mean": 0.002256339917396854,
+            "days": 156
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0003392565801953821,
+            "gross_mean": 0.0015405045616785212,
+            "days": 156
+          }
+        ],
+        "spread_net_d1_d10": -0.003791544144719075,
+        "spread_gross_d1_d10": -0.0037960971848208075,
+        "d1_net_mean": -0.0034522875645236926,
+        "d10_net_mean": 0.0003392565801953821,
+        "universe_net_mean": -0.0007358110885878217,
+        "universe_days": 156,
+        "funnel": {
+          "signal_days": 156,
+          "signal_count": 778417,
+          "buyable_count": 777248,
+          "filled_count": 774308,
+          "NOT_BUYABLE": 1169,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 2940,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2026-01-05",
+        "last_ic_date": "2026-09-01"
+      },
+      {
+        "config": "grid_N20_h2",
+        "N": 20,
+        "h": 2,
+        "stride": 1,
+        "ic_mean": -0.016770098637711037,
+        "ic_t_nw": -0.6101783437306203,
+        "ic_t_naive": -1.189823792455753,
+        "ic_lag": 24,
+        "ic_days": 157,
+        "ic_positive_rate": 0.5159235668789809,
+        "ic_ir": -0.0946553783736684,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -0.0009031004475827958,
+            "gross_mean": 0.00029665566115608913,
+            "days": 157
+          },
+          {
+            "decile": 2,
+            "net_mean": -0.0008908420523038569,
+            "gross_mean": 0.0003089287768136307,
+            "days": 157
+          },
+          {
+            "decile": 3,
+            "net_mean": -0.0007680417683498158,
+            "gross_mean": 0.0004318765243329107,
+            "days": 157
+          },
+          {
+            "decile": 4,
+            "net_mean": -0.0007067306372622889,
+            "gross_mean": 0.0004932612803151665,
+            "days": 157
+          },
+          {
+            "decile": 5,
+            "net_mean": -0.0006317190525552479,
+            "gross_mean": 0.0005683629419777276,
+            "days": 157
+          },
+          {
+            "decile": 6,
+            "net_mean": -0.0006517692448199741,
+            "gross_mean": 0.0005482886726283243,
+            "days": 157
+          },
+          {
+            "decile": 7,
+            "net_mean": -0.00039712893924447246,
+            "gross_mean": 0.0008032347606182065,
+            "days": 157
+          },
+          {
+            "decile": 8,
+            "net_mean": -0.0004387926205819286,
+            "gross_mean": 0.0007615210478411359,
+            "days": 157
+          },
+          {
+            "decile": 9,
+            "net_mean": 0.00037376031509817563,
+            "gross_mean": 0.0015750497300666404,
+            "days": 157
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.00152280699605985,
+            "gross_mean": 0.0027254762329207913,
+            "days": 157
+          }
+        ],
+        "spread_net_d1_d10": -0.0024259074436426458,
+        "spread_gross_d1_d10": -0.0024288205717647024,
+        "d1_net_mean": -0.0009031004475827958,
+        "d10_net_mean": 0.00152280699605985,
+        "universe_net_mean": -0.0003497055276545844,
+        "universe_days": 157,
+        "funnel": {
+          "signal_days": 157,
+          "signal_count": 753469,
+          "buyable_count": 752222,
+          "filled_count": 749296,
+          "NOT_BUYABLE": 1247,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 2926,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2026-01-05",
+        "last_ic_date": "2026-09-02"
+      },
+      {
+        "config": "grid_N20_h3",
+        "N": 20,
+        "h": 3,
+        "stride": 1,
+        "ic_mean": -0.021469190334743142,
+        "ic_t_nw": -0.699024902012377,
+        "ic_t_naive": -1.5061409669820411,
+        "ic_lag": 25,
+        "ic_days": 156,
+        "ic_positive_rate": 0.5,
+        "ic_ir": -0.12020066550861587,
+        "deciles": [
+          {
+            "decile": 1,
+            "net_mean": -0.001260712645710235,
+            "gross_mean": -6.13859722137723e-05,
+            "days": 156
+          },
+          {
+            "decile": 2,
+            "net_mean": -0.001044087696861068,
+            "gross_mean": 0.0001554991086664348,
+            "days": 156
+          },
+          {
+            "decile": 3,
+            "net_mean": -0.000923686094788719,
+            "gross_mean": 0.00027604529386946293,
+            "days": 156
+          },
+          {
+            "decile": 4,
+            "net_mean": -0.0007696519349601722,
+            "gross_mean": 0.0004302644241691329,
+            "days": 156
+          },
+          {
+            "decile": 5,
+            "net_mean": -0.0007337708885921997,
+            "gross_mean": 0.00046618855795394057,
+            "days": 156
+          },
+          {
+            "decile": 6,
+            "net_mean": -0.0005612604915639505,
+            "gross_mean": 0.000638906112468865,
+            "days": 156
+          },
+          {
+            "decile": 7,
+            "net_mean": -0.00059756264298312,
+            "gross_mean": 0.0006025603679528237,
+            "days": 156
+          },
+          {
+            "decile": 8,
+            "net_mean": -0.0009002497595395606,
+            "gross_mean": 0.00029950977242123276,
+            "days": 156
+          },
+          {
+            "decile": 9,
+            "net_mean": -7.427371565865769e-05,
+            "gross_mean": 0.001126477681860681,
+            "days": 156
+          },
+          {
+            "decile": 10,
+            "net_mean": 0.0006311468106900769,
+            "gross_mean": 0.0018327453058093561,
+            "days": 156
+          }
+        ],
+        "spread_net_d1_d10": -0.001891859456400312,
+        "spread_gross_d1_d10": -0.0018941312780231285,
+        "d1_net_mean": -0.001260712645710235,
+        "d10_net_mean": 0.0006311468106900769,
+        "universe_net_mean": -0.000623488249491626,
+        "universe_days": 156,
+        "funnel": {
+          "signal_days": 156,
+          "signal_count": 747877,
+          "buyable_count": 746640,
+          "filled_count": 743706,
+          "NOT_BUYABLE": 1237,
+          "SUSPENDED": 0,
+          "NOT_SELLABLE": 2934,
+          "DELISTED": 0
+        },
+        "first_ic_date": "2026-01-05",
+        "last_ic_date": "2026-09-01"
+      }
+    ]
+  },
+  "decimated_IS": {
+    "config": "decimated_N20_h3",
+    "N": 20,
+    "h": 3,
+    "stride": 25,
+    "ic_mean": -0.06742420179234986,
+    "ic_t_nw": -3.8000461097950455,
+    "ic_t_naive": -2.160602904590737,
+    "ic_lag": 25,
+    "ic_days": 19,
+    "ic_positive_rate": 0.3684210526315789,
+    "ic_ir": -0.48245588377498777,
+    "deciles": [
+      {
+        "decile": 1,
+        "net_mean": 0.005541242537381558,
+        "gross_mean": 0.006748737274742434,
+        "days": 19
+      },
+      {
+        "decile": 2,
+        "net_mean": 0.004840221067149698,
+        "gross_mean": 0.0060468739894757725,
+        "days": 19
+      },
+      {
+        "decile": 3,
+        "net_mean": 0.004318585228540088,
+        "gross_mean": 0.005524611749378791,
+        "days": 19
+      },
+      {
+        "decile": 4,
+        "net_mean": 0.005482100248479774,
+        "gross_mean": 0.006689523965379649,
+        "days": 19
+      },
+      {
+        "decile": 5,
+        "net_mean": 0.005515049882107165,
+        "gross_mean": 0.006722513166264471,
+        "days": 19
+      },
+      {
+        "decile": 6,
+        "net_mean": 0.00393783545213827,
+        "gross_mean": 0.0051434047531914405,
+        "days": 19
+      },
+      {
+        "decile": 7,
+        "net_mean": 0.0032200027512926184,
+        "gross_mean": 0.004424710049702924,
+        "days": 19
+      },
+      {
+        "decile": 8,
+        "net_mean": 0.002616829312470281,
+        "gross_mean": 0.0038208122957333977,
+        "days": 19
+      },
+      {
+        "decile": 9,
+        "net_mean": 0.0013238524219109722,
+        "gross_mean": 0.0025262827460440277,
+        "days": 19
+      },
+      {
+        "decile": 10,
+        "net_mean": -0.003883906190364794,
+        "gross_mean": -0.002687729554148007,
+        "days": 19
+      }
+    ],
+    "spread_net_d1_d10": 0.009425148727746352,
+    "spread_gross_d1_d10": 0.00943646682889044,
+    "d1_net_mean": 0.005541242537381558,
+    "d10_net_mean": -0.003883906190364794,
+    "universe_net_mean": 0.0032928545758714764,
+    "universe_days": 19,
+    "funnel": {
+      "signal_days": 20,
+      "signal_count": 63624,
+      "buyable_count": 63484,
+      "filled_count": 63362,
+      "NOT_BUYABLE": 140,
+      "SUSPENDED": 0,
+      "NOT_SELLABLE": 122,
+      "DELISTED": 0
+    },
+    "first_ic_date": "2024-02-23",
+    "last_ic_date": "2025-12-29"
+  },
+  "sensitivity_IS": [
+    {
+      "config": "sens_N16_h2",
+      "N": 16,
+      "h": 2,
+      "stride": 1,
+      "ic_mean": -0.03851283741542313,
+      "ic_t_nw": -4.297223520320655,
+      "ic_t_naive": -4.790886446754601,
+      "ic_lag": 20,
+      "ic_days": 469,
+      "ic_positive_rate": 0.4115138592750533,
+      "ic_ir": -0.2209866107296272,
+      "deciles": [
+        {
+          "decile": 1,
+          "net_mean": 0.0032123145601358023,
+          "gross_mean": 0.004417012626254112,
+          "days": 469
+        },
+        {
+          "decile": 2,
+          "net_mean": 0.002745904118736974,
+          "gross_mean": 0.0039500421002663984,
+          "days": 469
+        },
+        {
+          "decile": 3,
+          "net_mean": 0.0028800240520977173,
+          "gross_mean": 0.004084323090286834,
+          "days": 469
+        },
+        {
+          "decile": 4,
+          "net_mean": 0.002940024486058052,
+          "gross_mean": 0.004144395575203595,
+          "days": 469
+        },
+        {
+          "decile": 5,
+          "net_mean": 0.0027783801778680554,
+          "gross_mean": 0.003982557157967436,
+          "days": 469
+        },
+        {
+          "decile": 6,
+          "net_mean": 0.003082011600020313,
+          "gross_mean": 0.004286553193055328,
+          "days": 469
+        },
+        {
+          "decile": 7,
+          "net_mean": 0.0027677888831192134,
+          "gross_mean": 0.003971953144761974,
+          "days": 469
+        },
+        {
+          "decile": 8,
+          "net_mean": 0.00281117044668871,
+          "gross_mean": 0.00401538680267379,
+          "days": 469
+        },
+        {
+          "decile": 9,
+          "net_mean": 0.002708379530061141,
+          "gross_mean": 0.003912472450541417,
+          "days": 469
+        },
+        {
+          "decile": 10,
+          "net_mean": 0.0012298464733616604,
+          "gross_mean": 0.002432163911336142,
+          "days": 469
+        }
+      ],
+      "spread_net_d1_d10": 0.001982468086774142,
+      "spread_gross_d1_d10": 0.0019848487149179694,
+      "d1_net_mean": 0.0032123145601358023,
+      "d10_net_mean": 0.0012298464733616604,
+      "universe_net_mean": 0.002715688920259348,
+      "universe_days": 469,
+      "funnel": {
+        "signal_days": 485,
+        "signal_count": 1569609,
+        "buyable_count": 1563452,
+        "filled_count": 1553665,
+        "NOT_BUYABLE": 6157,
+        "SUSPENDED": 0,
+        "NOT_SELLABLE": 9787,
+        "DELISTED": 0
+      },
+      "first_ic_date": "2024-01-24",
+      "last_ic_date": "2025-12-31"
+    },
+    {
+      "config": "sens_N16_h3",
+      "N": 16,
+      "h": 3,
+      "stride": 1,
+      "ic_mean": -0.04700740766625455,
+      "ic_t_nw": -4.899091399261133,
+      "ic_t_naive": -6.0783560260736555,
+      "ic_lag": 21,
+      "ic_days": 469,
+      "ic_positive_rate": 0.3582089552238806,
+      "ic_ir": -0.28037301905160894,
+      "deciles": [
+        {
+          "decile": 1,
+          "net_mean": 0.004589046073710905,
+          "gross_mean": 0.005795397374910075,
+          "days": 469
+        },
+        {
+          "decile": 2,
+          "net_mean": 0.004016058111977172,
+          "gross_mean": 0.00522172134597521,
+          "days": 469
+        },
+        {
+          "decile": 3,
+          "net_mean": 0.004280184653472587,
+          "gross_mean": 0.005486165061342136,
+          "days": 469
+        },
+        {
+          "decile": 4,
+          "net_mean": 0.004222178101437162,
+          "gross_mean": 0.005428088852684623,
+          "days": 469
+        },
+        {
+          "decile": 5,
+          "net_mean": 0.003989575582200069,
+          "gross_mean": 0.00519520701490147,
+          "days": 469
+        },
+        {
+          "decile": 6,
+          "net_mean": 0.0044227477252525745,
+          "gross_mean": 0.005628899328645125,
+          "days": 469
+        },
+        {
+          "decile": 7,
+          "net_mean": 0.0039288509807708675,
+          "gross_mean": 0.005134409492906154,
+          "days": 469
+        },
+        {
+          "decile": 8,
+          "net_mean": 0.003877198197397244,
+          "gross_mean": 0.0050826946827737425,
+          "days": 469
+        },
+        {
+          "decile": 9,
+          "net_mean": 0.0035467435845369655,
+          "gross_mean": 0.004751843246601721,
+          "days": 469
+        },
+        {
+          "decile": 10,
+          "net_mean": 0.000756222800037754,
+          "gross_mean": 0.001957971491481678,
+          "days": 469
+        }
+      ],
+      "spread_net_d1_d10": 0.003832823273673151,
+      "spread_gross_d1_d10": 0.003837425883428397,
+      "d1_net_mean": 0.004589046073710905,
+      "d10_net_mean": 0.000756222800037754,
+      "universe_net_mean": 0.003763296207330614,
+      "universe_days": 469,
+      "funnel": {
+        "signal_days": 485,
+        "signal_count": 1569185,
+        "buyable_count": 1563032,
+        "filled_count": 1553305,
+        "NOT_BUYABLE": 6153,
+        "SUSPENDED": 0,
+        "NOT_SELLABLE": 9727,
+        "DELISTED": 0
+      },
+      "first_ic_date": "2024-01-24",
+      "last_ic_date": "2025-12-31"
+    },
+    {
+      "config": "sens_N24_h2",
+      "N": 24,
+      "h": 2,
+      "stride": 1,
+      "ic_mean": -0.05293772508559297,
+      "ic_t_nw": -5.722435637872834,
+      "ic_t_naive": -6.485023025535431,
+      "ic_lag": 28,
+      "ic_days": 461,
+      "ic_positive_rate": 0.3774403470715835,
+      "ic_ir": -0.3017098666286367,
+      "deciles": [
+        {
+          "decile": 1,
+          "net_mean": 0.005404972718817795,
+          "gross_mean": 0.006612303817849555,
+          "days": 461
+        },
+        {
+          "decile": 2,
+          "net_mean": 0.004765675650700052,
+          "gross_mean": 0.0059722390558643755,
+          "days": 461
+        },
+        {
+          "decile": 3,
+          "net_mean": 0.004512467765732451,
+          "gross_mean": 0.005718727108591195,
+          "days": 461
+        },
+        {
+          "decile": 4,
+          "net_mean": 0.004395658916154626,
+          "gross_mean": 0.005601777990205718,
+          "days": 461
+        },
+        {
+          "decile": 5,
+          "net_mean": 0.0043731606025330695,
+          "gross_mean": 0.005579252659695982,
+          "days": 461
+        },
+        {
+          "decile": 6,
+          "net_mean": 0.003866191337583913,
+          "gross_mean": 0.0050716746054764094,
+          "days": 461
+        },
+        {
+          "decile": 7,
+          "net_mean": 0.0035336433554889737,
+          "gross_mean": 0.004738727286266968,
+          "days": 461
+        },
+        {
+          "decile": 8,
+          "net_mean": 0.0030832768267476367,
+          "gross_mean": 0.00428781993911826,
+          "days": 461
+        },
+        {
+          "decile": 9,
+          "net_mean": 0.0026907662491385204,
+          "gross_mean": 0.003894838018876165,
+          "days": 461
+        },
+        {
+          "decile": 10,
+          "net_mean": 0.0016905281638184347,
+          "gross_mean": 0.0028933988070651583,
+          "days": 461
+        }
+      ],
+      "spread_net_d1_d10": 0.0037144445549993606,
+      "spread_gross_d1_d10": 0.003718905010784397,
+      "d1_net_mean": 0.005404972718817795,
+      "d10_net_mean": 0.0016905281638184347,
+      "universe_net_mean": 0.003832105130993312,
+      "universe_days": 461,
+      "funnel": {
+        "signal_days": 485,
+        "signal_count": 1540440,
+        "buyable_count": 1534326,
+        "filled_count": 1526383,
+        "NOT_BUYABLE": 6114,
+        "SUSPENDED": 0,
+        "NOT_SELLABLE": 7943,
+        "DELISTED": 0
+      },
+      "first_ic_date": "2024-02-05",
+      "last_ic_date": "2025-12-31"
+    },
+    {
+      "config": "sens_N24_h3",
+      "N": 24,
+      "h": 3,
+      "stride": 1,
+      "ic_mean": -0.06357512381117551,
+      "ic_t_nw": -5.954472910552784,
+      "ic_t_naive": -8.087605217327768,
+      "ic_lag": 29,
+      "ic_days": 461,
+      "ic_positive_rate": 0.3275488069414317,
+      "ic_ir": -0.37626856247955454,
+      "deciles": [
+        {
+          "decile": 1,
+          "net_mean": 0.00726126432151152,
+          "gross_mean": 0.00847082453084373,
+          "days": 461
+        },
+        {
+          "decile": 2,
+          "net_mean": 0.006647408929139775,
+          "gross_mean": 0.007856231996001415,
+          "days": 461
+        },
+        {
+          "decile": 3,
+          "net_mean": 0.006222899837312082,
+          "gross_mean": 0.0074312131364261,
+          "days": 461
+        },
+        {
+          "decile": 4,
+          "net_mean": 0.006079508530285705,
+          "gross_mean": 0.007287649639298226,
+          "days": 461
+        },
+        {
+          "decile": 5,
+          "net_mean": 0.0059236544911938785,
+          "gross_mean": 0.0071316084443503935,
+          "days": 461
+        },
+        {
+          "decile": 6,
+          "net_mean": 0.005358164456712796,
+          "gross_mean": 0.006565439346483565,
+          "days": 461
+        },
+        {
+          "decile": 7,
+          "net_mean": 0.00486105311311712,
+          "gross_mean": 0.006067731051409536,
+          "days": 461
+        },
+        {
+          "decile": 8,
+          "net_mean": 0.004095581563410215,
+          "gross_mean": 0.005301340292396465,
+          "days": 461
+        },
+        {
+          "decile": 9,
+          "net_mean": 0.003522914554879671,
+          "gross_mean": 0.00472798560207843,
+          "days": 461
+        },
+        {
+          "decile": 10,
+          "net_mean": 0.0013279482611915723,
+          "gross_mean": 0.0025303835037746763,
+          "days": 461
+        }
+      ],
+      "spread_net_d1_d10": 0.005933316060319947,
+      "spread_gross_d1_d10": 0.005940441027069054,
+      "d1_net_mean": 0.00726126432151152,
+      "d10_net_mean": 0.0013279482611915723,
+      "universe_net_mean": 0.0051307303443683065,
+      "universe_days": 461,
+      "funnel": {
+        "signal_days": 485,
+        "signal_count": 1540021,
+        "buyable_count": 1533910,
+        "filled_count": 1525973,
+        "NOT_BUYABLE": 6111,
+        "SUSPENDED": 0,
+        "NOT_SELLABLE": 7937,
+        "DELISTED": 0
+      },
+      "first_ic_date": "2024-02-05",
+      "last_ic_date": "2025-12-31"
+    }
+  ],
+  "robustness": [
+    {
+      "config": "board_MAIN",
+      "N": 20,
+      "h": 3,
+      "stride": 1,
+      "ic_mean": -0.06222820717813834,
+      "ic_t_nw": -7.668717653536945,
+      "ic_t_naive": -7.59224249087382,
+      "ic_lag": 25,
+      "ic_days": 465,
+      "ic_positive_rate": 0.32903225806451614,
+      "ic_ir": -0.35170302855126795,
+      "deciles": [
+        {
+          "decile": 1,
+          "net_mean": 0.006134168766464083,
+          "gross_mean": 0.007342375513706784,
+          "days": 465
+        },
+        {
+          "decile": 2,
+          "net_mean": 0.005379585551270636,
+          "gross_mean": 0.006586886164361194,
+          "days": 465
+        },
+        {
+          "decile": 3,
+          "net_mean": 0.005250028275344811,
+          "gross_mean": 0.006457173310799911,
+          "days": 465
+        },
+        {
+          "decile": 4,
+          "net_mean": 0.005224725695648107,
+          "gross_mean": 0.006431840346738511,
+          "days": 465
+        },
+        {
+          "decile": 5,
+          "net_mean": 0.004992924134104333,
+          "gross_mean": 0.006199760428471186,
+          "days": 465
+        },
+        {
+          "decile": 6,
+          "net_mean": 0.0048311597996834234,
+          "gross_mean": 0.006037801840871744,
+          "days": 465
+        },
+        {
+          "decile": 7,
+          "net_mean": 0.004435089884396766,
+          "gross_mean": 0.005641256308754964,
+          "days": 465
+        },
+        {
+          "decile": 8,
+          "net_mean": 0.004167890733562311,
+          "gross_mean": 0.0053737362943349935,
+          "days": 465
+        },
+        {
+          "decile": 9,
+          "net_mean": 0.0030656287399925394,
+          "gross_mean": 0.00427015065982428,
+          "days": 465
+        },
+        {
+          "decile": 10,
+          "net_mean": 0.0002034590704115301,
+          "gross_mean": 0.0014045439807331183,
+          "days": 465
+        }
+      ],
+      "spread_net_d1_d10": 0.0059307096960525526,
+      "spread_gross_d1_d10": 0.005937831532973665,
+      "d1_net_mean": 0.006134168766464083,
+      "d10_net_mean": 0.0002034590704115301,
+      "universe_net_mean": 0.004369511821185447,
+      "universe_days": 465,
+      "funnel": {
+        "signal_days": 485,
+        "signal_count": 1470393,
+        "buyable_count": 1464310,
+        "filled_count": 1454838,
+        "NOT_BUYABLE": 6083,
+        "SUSPENDED": 0,
+        "NOT_SELLABLE": 9472,
+        "DELISTED": 0
+      },
+      "first_ic_date": "2024-01-30",
+      "last_ic_date": "2025-12-31"
+    },
+    {
+      "config": "board_CHINEXT",
+      "N": 20,
+      "h": 3,
+      "stride": 1,
+      "ic_mean": -0.06865730427480345,
+      "ic_t_nw": -3.5359403467614494,
+      "ic_t_naive": -6.428508786275872,
+      "ic_lag": 25,
+      "ic_days": 163,
+      "ic_positive_rate": 0.294478527607362,
+      "ic_ir": -0.5019727533894078,
+      "deciles": [
+        {
+          "decile": 1,
+          "net_mean": 0.008763495197290368,
+          "gross_mean": 0.009974859346431377,
+          "days": 163
+        },
+        {
+          "decile": 2,
+          "net_mean": 0.005759342345698912,
+          "gross_mean": 0.0069670989861619435,
+          "days": 163
+        },
+        {
+          "decile": 3,
+          "net_mean": 0.008855679089384798,
+          "gross_mean": 0.010067153936685036,
+          "days": 163
+        },
+        {
+          "decile": 4,
+          "net_mean": 0.008196897043941897,
+          "gross_mean": 0.009407580799023051,
+          "days": 163
+        },
+        {
+          "decile": 5,
+          "net_mean": 0.008714976880375947,
+          "gross_mean": 0.009926282766752738,
+          "days": 163
+        },
+        {
+          "decile": 6,
+          "net_mean": 0.010082088773481655,
+          "gross_mean": 0.01129503634330858,
+          "days": 163
+        },
+        {
+          "decile": 7,
+          "net_mean": 0.010964647771325756,
+          "gross_mean": 0.012178655153818945,
+          "days": 163
+        },
+        {
+          "decile": 8,
+          "net_mean": 0.0070420643083361715,
+          "gross_mean": 0.008251361293395588,
+          "days": 163
+        },
+        {
+          "decile": 9,
+          "net_mean": 0.007856859369906594,
+          "gross_mean": 0.009067134793947183,
+          "days": 163
+        },
+        {
+          "decile": 10,
+          "net_mean": 0.006420673510135014,
+          "gross_mean": 0.007629224303902682,
+          "days": 163
+        }
+      ],
+      "spread_net_d1_d10": 0.0023428216871553536,
+      "spread_gross_d1_d10": 0.0023456350425286954,
+      "d1_net_mean": 0.008763495197290368,
+      "d10_net_mean": 0.006420673510135014,
+      "universe_net_mean": 0.00827647030118715,
+      "universe_days": 163,
+      "funnel": {
+        "signal_days": 163,
+        "signal_count": 16885,
+        "buyable_count": 16880,
+        "filled_count": 16878,
+        "NOT_BUYABLE": 5,
+        "SUSPENDED": 0,
+        "NOT_SELLABLE": 2,
+        "DELISTED": 0
+      },
+      "first_ic_date": "2025-05-08",
+      "last_ic_date": "2025-12-31"
+    },
+    {
+      "config": "board_STAR",
+      "N": 20,
+      "h": 3,
+      "stride": 1,
+      "ic_mean": NaN,
+      "ic_t_nw": NaN,
+      "ic_t_naive": NaN,
+      "ic_lag": 25,
+      "ic_days": 0,
+      "ic_positive_rate": NaN,
+      "ic_ir": NaN,
+      "deciles": [
+        {
+          "decile": 1,
+          "net_mean": NaN,
+          "gross_mean": NaN,
+          "days": 0
+        },
+        {
+          "decile": 2,
+          "net_mean": NaN,
+          "gross_mean": NaN,
+          "days": 0
+        },
+        {
+          "decile": 3,
+          "net_mean": NaN,
+          "gross_mean": NaN,
+          "days": 0
+        },
+        {
+          "decile": 4,
+          "net_mean": NaN,
+          "gross_mean": NaN,
+          "days": 0
+        },
+        {
+          "decile": 5,
+          "net_mean": NaN,
+          "gross_mean": NaN,
+          "days": 0
+        },
+        {
+          "decile": 6,
+          "net_mean": NaN,
+          "gross_mean": NaN,
+          "days": 0
+        },
+        {
+          "decile": 7,
+          "net_mean": NaN,
+          "gross_mean": NaN,
+          "days": 0
+        },
+        {
+          "decile": 8,
+          "net_mean": NaN,
+          "gross_mean": NaN,
+          "days": 0
+        },
+        {
+          "decile": 9,
+          "net_mean": NaN,
+          "gross_mean": NaN,
+          "days": 0
+        },
+        {
+          "decile": 10,
+          "net_mean": NaN,
+          "gross_mean": NaN,
+          "days": 0
+        }
+      ],
+      "spread_net_d1_d10": NaN,
+      "spread_gross_d1_d10": NaN,
+      "d1_net_mean": NaN,
+      "d10_net_mean": NaN,
+      "universe_net_mean": NaN,
+      "universe_days": 0,
+      "funnel": {
+        "signal_days": 163,
+        "signal_count": 1944,
+        "buyable_count": 1944,
+        "filled_count": 1943,
+        "NOT_BUYABLE": 0,
+        "SUSPENDED": 0,
+        "NOT_SELLABLE": 1,
+        "DELISTED": 0
+      },
+      "first_ic_date": null,
+      "last_ic_date": null
+    },
+    {
+      "config": "board_BSE",
+      "N": 20,
+      "h": 3,
+      "stride": 1,
+      "ic_mean": -0.09874467050311504,
+      "ic_t_nw": -7.183546065678771,
+      "ic_t_naive": -12.627726806121785,
+      "ic_lag": 25,
+      "ic_days": 465,
+      "ic_positive_rate": 0.27741935483870966,
+      "ic_ir": -0.584966795616654,
+      "deciles": [
+        {
+          "decile": 1,
+          "net_mean": 0.011607777406205555,
+          "gross_mean": 0.012822557084867932,
+          "days": 465
+        },
+        {
+          "decile": 2,
+          "net_mean": 0.011437781195482168,
+          "gross_mean": 0.012652356735794843,
+          "days": 465
+        },
+        {
+          "decile": 3,
+          "net_mean": 0.011046441941704836,
+          "gross_mean": 0.012260547545957744,
+          "days": 465
+        },
+        {
+          "decile": 4,
+          "net_mean": 0.012717788402748101,
+          "gross_mean": 0.013933901027668701,
+          "days": 465
+        },
+        {
+          "decile": 5,
+          "net_mean": 0.010787682530962722,
+          "gross_mean": 0.012001477406412567,
+          "days": 465
+        },
+        {
+          "decile": 6,
+          "net_mean": 0.011204393940117196,
+          "gross_mean": 0.012418689219540787,
+          "days": 465
+        },
+        {
+          "decile": 7,
+          "net_mean": 0.009717356264117929,
+          "gross_mean": 0.010929865848343679,
+          "days": 465
+        },
+        {
+          "decile": 8,
+          "net_mean": 0.006018583177005846,
+          "gross_mean": 0.007226651124381288,
+          "days": 465
+        },
+        {
+          "decile": 9,
+          "net_mean": 0.003020030665949529,
+          "gross_mean": 0.004224497829763206,
+          "days": 465
+        },
+        {
+          "decile": 10,
+          "net_mean": -0.0030549727610618034,
+          "gross_mean": -0.0018578007079380178,
+          "days": 465
+        }
+      ],
+      "spread_net_d1_d10": 0.014662750167267358,
+      "spread_gross_d1_d10": 0.014680357792805951,
+      "d1_net_mean": 0.011607777406205555,
+      "d10_net_mean": -0.0030549727610618034,
+      "universe_net_mean": 0.008514622055166303,
+      "universe_days": 465,
+      "funnel": {
+        "signal_days": 465,
+        "signal_count": 65366,
+        "buyable_count": 65335,
+        "filled_count": 65334,
+        "NOT_BUYABLE": 31,
+        "SUSPENDED": 0,
+        "NOT_SELLABLE": 1,
+        "DELISTED": 0
+      },
+      "first_ic_date": "2024-01-30",
+      "last_ic_date": "2025-12-31"
+    },
+    {
+      "config": "year_2024",
+      "N": 20,
+      "h": 3,
+      "stride": 1,
+      "ic_mean": -0.05474059706940586,
+      "ic_t_nw": -4.353767264040189,
+      "ic_t_naive": -3.9399676630365055,
+      "ic_lag": 25,
+      "ic_days": 222,
+      "ic_positive_rate": 0.3783783783783784,
+      "ic_ir": -0.26383707270681317,
+      "deciles": [
+        {
+          "decile": 1,
+          "net_mean": 0.0052937670685573755,
+          "gross_mean": 0.006500964627330654,
+          "days": 222
+        },
+        {
+          "decile": 2,
+          "net_mean": 0.0047946166456676615,
+          "gross_mean": 0.006001214804353411,
+          "days": 222
+        },
+        {
+          "decile": 3,
+          "net_mean": 0.004469906590438504,
+          "gross_mean": 0.005676114824110463,
+          "days": 222
+        },
+        {
+          "decile": 4,
+          "net_mean": 0.0049363633020533745,
+          "gross_mean": 0.006143131675877386,
+          "days": 222
+        },
+        {
+          "decile": 5,
+          "net_mean": 0.004266442981405244,
+          "gross_mean": 0.005472406887717219,
+          "days": 222
+        },
+        {
+          "decile": 6,
+          "net_mean": 0.0036041315441436225,
+          "gross_mean": 0.004809300119999561,
+          "days": 222
+        },
+        {
+          "decile": 7,
+          "net_mean": 0.003380649539012612,
+          "gross_mean": 0.004585549748606009,
+          "days": 222
+        },
+        {
+          "decile": 8,
+          "net_mean": 0.003145855431963563,
+          "gross_mean": 0.004350473691263296,
+          "days": 222
+        },
+        {
+          "decile": 9,
+          "net_mean": 0.0016697830049562663,
+          "gross_mean": 0.0028726287365742173,
+          "days": 222
+        },
+        {
+          "decile": 10,
+          "net_mean": -6.126131456794531e-05,
+          "gross_mean": 0.0011395057087707767,
+          "days": 222
+        }
+      ],
+      "spread_net_d1_d10": 0.005355028383125321,
+      "spread_gross_d1_d10": 0.005361458918559877,
+      "d1_net_mean": 0.0052937670685573755,
+      "d10_net_mean": -6.126131456794531e-05,
+      "universe_net_mean": 0.003550758109145408,
+      "universe_days": 222,
+      "funnel": {
+        "signal_days": 242,
+        "signal_count": 730305,
+        "buyable_count": 726296,
+        "filled_count": 720896,
+        "NOT_BUYABLE": 4009,
+        "SUSPENDED": 0,
+        "NOT_SELLABLE": 5400,
+        "DELISTED": 0
+      },
+      "first_ic_date": "2024-01-30",
+      "last_ic_date": "2024-12-31"
+    },
+    {
+      "config": "year_2025",
+      "N": 20,
+      "h": 3,
+      "stride": 1,
+      "ic_mean": -0.06570528977149684,
+      "ic_t_nw": -6.304013313827281,
+      "ic_t_naive": -7.691225322748755,
+      "ic_lag": 25,
+      "ic_days": 243,
+      "ic_positive_rate": 0.2674897119341564,
+      "ic_ir": -0.4923760773238083,
+      "deciles": [
+        {
+          "decile": 1,
+          "net_mean": 0.0077618952434618865,
+          "gross_mean": 0.008972056630724985,
+          "days": 243
+        },
+        {
+          "decile": 2,
+          "net_mean": 0.005836103627656018,
+          "gross_mean": 0.007043952446182037,
+          "days": 243
+        },
+        {
+          "decile": 3,
+          "net_mean": 0.005881768130349242,
+          "gross_mean": 0.007089671784663553,
+          "days": 243
+        },
+        {
+          "decile": 4,
+          "net_mean": 0.005538159787004399,
+          "gross_mean": 0.006745650822473507,
+          "days": 243
+        },
+        {
+          "decile": 5,
+          "net_mean": 0.005527668205668464,
+          "gross_mean": 0.0067351466424208604,
+          "days": 243
+        },
+        {
+          "decile": 6,
+          "net_mean": 0.005682954154666425,
+          "gross_mean": 0.006890619065089185,
+          "days": 243
+        },
+        {
+          "decile": 7,
+          "net_mean": 0.005318362608331974,
+          "gross_mean": 0.006525589702427707,
+          "days": 243
+        },
+        {
+          "decile": 8,
+          "net_mean": 0.005119206156313068,
+          "gross_mean": 0.0063261940952577716,
+          "days": 243
+        },
+        {
+          "decile": 9,
+          "net_mean": 0.004895972909473363,
+          "gross_mean": 0.006102692780874582,
+          "days": 243
+        },
+        {
+          "decile": 10,
+          "net_mean": 0.0023738465832725936,
+          "gross_mean": 0.003577537783012203,
+          "days": 243
+        }
+      ],
+      "spread_net_d1_d10": 0.005388048660189293,
+      "spread_gross_d1_d10": 0.005394518847712783,
+      "d1_net_mean": 0.0077618952434618865,
+      "d10_net_mean": 0.0023738465832725936,
+      "universe_net_mean": 0.005394259531242061,
+      "universe_days": 243,
+      "funnel": {
+        "signal_days": 243,
+        "signal_count": 824283,
+        "buyable_count": 822173,
+        "filled_count": 818097,
+        "NOT_BUYABLE": 2110,
+        "SUSPENDED": 0,
+        "NOT_SELLABLE": 4076,
+        "DELISTED": 0
+      },
+      "first_ic_date": "2025-01-02",
+      "last_ic_date": "2025-12-31"
+    },
+    {
+      "config": "year_2026",
+      "N": 20,
+      "h": 3,
+      "stride": 1,
+      "ic_mean": -0.021469190334743142,
+      "ic_t_nw": -0.699024902012377,
+      "ic_t_naive": -1.5061409669820411,
+      "ic_lag": 25,
+      "ic_days": 156,
+      "ic_positive_rate": 0.5,
+      "ic_ir": -0.12020066550861587,
+      "deciles": [
+        {
+          "decile": 1,
+          "net_mean": -0.001260712645710235,
+          "gross_mean": -6.13859722137723e-05,
+          "days": 156
+        },
+        {
+          "decile": 2,
+          "net_mean": -0.001044087696861068,
+          "gross_mean": 0.0001554991086664348,
+          "days": 156
+        },
+        {
+          "decile": 3,
+          "net_mean": -0.000923686094788719,
+          "gross_mean": 0.00027604529386946293,
+          "days": 156
+        },
+        {
+          "decile": 4,
+          "net_mean": -0.0007696519349601722,
+          "gross_mean": 0.0004302644241691329,
+          "days": 156
+        },
+        {
+          "decile": 5,
+          "net_mean": -0.0007337708885921997,
+          "gross_mean": 0.00046618855795394057,
+          "days": 156
+        },
+        {
+          "decile": 6,
+          "net_mean": -0.0005612604915639505,
+          "gross_mean": 0.000638906112468865,
+          "days": 156
+        },
+        {
+          "decile": 7,
+          "net_mean": -0.00059756264298312,
+          "gross_mean": 0.0006025603679528237,
+          "days": 156
+        },
+        {
+          "decile": 8,
+          "net_mean": -0.0009002497595395606,
+          "gross_mean": 0.00029950977242123276,
+          "days": 156
+        },
+        {
+          "decile": 9,
+          "net_mean": -7.427371565865769e-05,
+          "gross_mean": 0.001126477681860681,
+          "days": 156
+        },
+        {
+          "decile": 10,
+          "net_mean": 0.0006311468106900769,
+          "gross_mean": 0.0018327453058093561,
+          "days": 156
+        }
+      ],
+      "spread_net_d1_d10": -0.001891859456400312,
+      "spread_gross_d1_d10": -0.0018941312780231285,
+      "d1_net_mean": -0.001260712645710235,
+      "d10_net_mean": 0.0006311468106900769,
+      "universe_net_mean": -0.000623488249491626,
+      "universe_days": 156,
+      "funnel": {
+        "signal_days": 156,
+        "signal_count": 747877,
+        "buyable_count": 746640,
+        "filled_count": 743706,
+        "NOT_BUYABLE": 1237,
+        "SUSPENDED": 0,
+        "NOT_SELLABLE": 2934,
+        "DELISTED": 0
+      },
+      "first_ic_date": "2026-01-05",
+      "last_ic_date": "2026-09-01"
+    },
+    {
+      "config": "liq_above_median",
+      "N": 20,
+      "h": 3,
+      "stride": 1,
+      "ic_mean": -0.0773372541459412,
+      "ic_t_nw": -7.724507524472104,
+      "ic_t_naive": -9.404749046601438,
+      "ic_lag": 25,
+      "ic_days": 465,
+      "ic_positive_rate": 0.31827956989247314,
+      "ic_ir": -0.43566557923174054,
+      "deciles": [
+        {
+          "decile": 1,
+          "net_mean": 0.00653107638465267,
+          "gross_mean": 0.007739759754673129,
+          "days": 465
+        },
+        {
+          "decile": 2,
+          "net_mean": 0.004577973065375905,
+          "gross_mean": 0.005784311069657226,
+          "days": 465
+        },
+        {
+          "decile": 3,
+          "net_mean": 0.004265991796071424,
+          "gross_mean": 0.005471955160581733,
+          "days": 465
+        },
+        {
+          "decile": 4,
+          "net_mean": 0.004246398601416364,
+          "gross_mean": 0.0054523384376232754,
+          "days": 465
+        },
+        {
+          "decile": 5,
+          "net_mean": 0.004266009942949264,
+          "gross_mean": 0.005471973329251083,
+          "days": 465
+        },
+        {
+          "decile": 6,
+          "net_mean": 0.003668362456608315,
+          "gross_mean": 0.004873608163550976,
+          "days": 465
+        },
+        {
+          "decile": 7,
+          "net_mean": 0.0032772877700069816,
+          "gross_mean": 0.004482063858592872,
+          "days": 465
+        },
+        {
+          "decile": 8,
+          "net_mean": 0.0027123298206421635,
+          "gross_mean": 0.003916427484791706,
+          "days": 465
+        },
+        {
+          "decile": 9,
+          "net_mean": 0.0013367451637079305,
+          "gross_mean": 0.002539190969968631,
+          "days": 465
+        },
+        {
+          "decile": 10,
+          "net_mean": -0.0019446831110821376,
+          "gross_mean": -0.0007461777770817666,
+          "days": 465
+        }
+      ],
+      "spread_net_d1_d10": 0.008475759495734808,
+      "spread_gross_d1_d10": 0.008485937531754896,
+      "d1_net_mean": 0.00653107638465267,
+      "d10_net_mean": -0.0019446831110821376,
+      "universe_net_mean": 0.003295589513793478,
+      "universe_days": 465,
+      "funnel": {
+        "signal_days": 485,
+        "signal_count": 776662,
+        "buyable_count": 773082,
+        "filled_count": 767390,
+        "NOT_BUYABLE": 3580,
+        "SUSPENDED": 0,
+        "NOT_SELLABLE": 5692,
+        "DELISTED": 0
+      },
+      "first_ic_date": "2024-01-30",
+      "last_ic_date": "2025-12-31"
+    }
+  ],
+  "controls": {
+    "canary_entry_open_leak": {
+      "config": "canary_entry_open_leak",
+      "N": 20,
+      "h": 3,
+      "stride": 1,
+      "ic_mean": -0.026044371152466696,
+      "ic_t_nw": -5.013103907134777,
+      "ic_t_naive": -6.686224348942519,
+      "ic_lag": 25,
+      "ic_days": 485,
+      "ic_positive_rate": 0.3443298969072165,
+      "ic_ir": -0.3032926508798668,
+      "deciles": [
+        {
+          "decile": 1,
+          "net_mean": 0.0015240075786845584,
+          "gross_mean": 0.0027266782572538503,
+          "days": 485
+        },
+        {
+          "decile": 2,
+          "net_mean": 0.005014597624463528,
+          "gross_mean": 0.006221459945237286,
+          "days": 485
+        },
+        {
+          "decile": 3,
+          "net_mean": 0.004595322936941174,
+          "gross_mean": 0.0058016817756524714,
+          "days": 485
+        },
+        {
+          "decile": 4,
+          "net_mean": 0.0038572634205965226,
+          "gross_mean": 0.005062735967483928,
+          "days": 485
+        },
+        {
+          "decile": 5,
+          "net_mean": 0.0036469024234832555,
+          "gross_mean": 0.004852122360347111,
+          "days": 485
+        },
+        {
+          "decile": 6,
+          "net_mean": 0.003205472528199336,
+          "gross_mean": 0.004410162378127987,
+          "days": 485
+        },
+        {
+          "decile": 7,
+          "net_mean": 0.0029386347173391883,
+          "gross_mean": 0.0041430041375940425,
+          "days": 485
+        },
+        {
+          "decile": 8,
+          "net_mean": 0.0025761949812141563,
+          "gross_mean": 0.0037801291691230195,
+          "days": 485
+        },
+        {
+          "decile": 9,
+          "net_mean": 0.0022467487476580355,
+          "gross_mean": 0.0034502873231579394,
+          "days": 485
+        },
+        {
+          "decile": 10,
+          "net_mean": 3.713000992640989e-05,
+          "gross_mean": 0.0012380151855611334,
+          "days": 485
+        }
+      ],
+      "spread_net_d1_d10": 0.0014868775687581484,
+      "spread_gross_d1_d10": 0.001488663071692717,
+      "d1_net_mean": 0.0015240075786845584,
+      "d10_net_mean": 3.713000992640989e-05,
+      "universe_net_mean": 0.0029645097320300435,
+      "universe_days": 485,
+      "funnel": {
+        "signal_days": 485,
+        "signal_count": 1629852,
+        "buyable_count": 1623565,
+        "filled_count": 1613545,
+        "NOT_BUYABLE": 6287,
+        "SUSPENDED": 0,
+        "NOT_SELLABLE": 10020,
+        "DELISTED": 0
+      },
+      "first_ic_date": "2024-01-02",
+      "last_ic_date": "2025-12-31"
+    },
+    "canary_foresight": {
+      "config": "canary_foresight",
+      "N": 20,
+      "h": 3,
+      "stride": 1,
+      "ic_mean": 0.9999975170824508,
+      "ic_t_nw": 2876767.9166335138,
+      "ic_t_naive": 6670611.49812177,
+      "ic_lag": 25,
+      "ic_days": 485,
+      "ic_positive_rate": 1.0,
+      "ic_ir": 302584.43909005966,
+      "deciles": [
+        {
+          "decile": 1,
+          "net_mean": -0.07259193646673737,
+          "gross_mean": -0.07147826722202634,
+          "days": 485
+        },
+        {
+          "decile": 2,
+          "net_mean": -0.0361555622626773,
+          "gross_mean": -0.03499813874092738,
+          "days": 485
+        },
+        {
+          "decile": 3,
+          "net_mean": -0.02336589253877345,
+          "gross_mean": -0.022193110662506753,
+          "days": 485
+        },
+        {
+          "decile": 4,
+          "net_mean": -0.01417992470030804,
+          "gross_mean": -0.012996111941017043,
+          "days": 485
+        },
+        {
+          "decile": 5,
+          "net_mean": -0.00615997824213462,
+          "gross_mean": -0.004966534805619755,
+          "days": 485
+        },
+        {
+          "decile": 6,
+          "net_mean": 0.0017754143751651191,
+          "gross_mean": 0.0029783869532198216,
+          "days": 485
+        },
+        {
+          "decile": 7,
+          "net_mean": 0.01060074959679343,
+          "gross_mean": 0.01181431999558862,
+          "days": 485
+        },
+        {
+          "decile": 8,
+          "net_mean": 0.021857062605247217,
+          "gross_mean": 0.023084150041578808,
+          "days": 485
+        },
+        {
+          "decile": 9,
+          "net_mean": 0.040316274879726464,
+          "gross_mean": 0.041565528887387376,
+          "days": 485
+        },
+        {
+          "decile": 10,
+          "net_mean": 0.1076460215804136,
+          "gross_mean": 0.10897612788072009,
+          "days": 485
+        }
+      ],
+      "spread_net_d1_d10": -0.18023795804715098,
+      "spread_gross_d1_d10": -0.1804543951027464,
+      "d1_net_mean": -0.07259193646673737,
+      "d10_net_mean": 0.1076460215804136,
+      "universe_net_mean": 0.002950604486742117,
+      "universe_days": 485,
+      "funnel": {
+        "signal_days": 485,
+        "signal_count": 1630821,
+        "buyable_count": 1624283,
+        "filled_count": 1614262,
+        "NOT_BUYABLE": 6538,
+        "SUSPENDED": 0,
+        "NOT_SELLABLE": 10021,
+        "DELISTED": 0
+      },
+      "first_ic_date": "2024-01-02",
+      "last_ic_date": "2025-12-31"
+    }
+  },
+  "variant_disclosure": {
+    "grid_variants": 6,
+    "sensitivity_variants": 4,
+    "total_variants_tried": 10,
+    "controls": 2,
+    "robustness_runs": 8,
+    "note": "阈值在运行前由 R001_prereg.md 固定，未因结果收紧或放宽"
+  },
+  "verdict": {
+    "status": "INCONCLUSIVE",
+    "killed_by": [
+      "K7"
+    ],
+    "reasons": [
+      "OOS IC=-0.0215 符号一致但 tNW=-0.70 不显著",
+      "控制实验未通过：泄漏金丝雀 IC=-0.0260 (primary -0.0605)，完全预见 IC=1.0000"
+    ]
+  }
+}

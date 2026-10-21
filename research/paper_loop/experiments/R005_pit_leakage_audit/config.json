@@ -1,0 +1,37 @@
+{
+  "round": "R005",
+  "prereg": "rounds/R005_prereg.md",
+  "criteria_source": "Kapoor & Narayanan 2022, arXiv:2207.07048v1, Appendix C",
+  "db": {
+    "host": "localhost",
+    "database": "quant_db",
+    "readonly": true
+  },
+  "frozen_constants": {
+    "TOL_PARITY": 1e-12,
+    "MATCH_TOL_REL": 0.001,
+    "MIN_ROWS_FOR_CLASSIFY": 200,
+    "MATCH_RATE_HIGH": 0.9,
+    "LOOKAHEAD_MARGIN": 0.05,
+    "LAG_VIOLATION_SHARE": 0.5,
+    "DUPLICATE_NOISE": 0,
+    "OVERLAP_SHARE_REGISTER": 0.5,
+    "RX2_RATIO_LO": 100.0,
+    "RX2_RATIO_HI": 10000.0,
+    "MAX_VARIANTS": 48,
+    "PREREG_VARIANTS": 37
+  },
+  "probe_version": "unified_classic_v1",
+  "features": [
+    "ret20",
+    "ret60",
+    "avg_amount20"
+  ],
+  "conventions": {
+    "PIT_INC": 0,
+    "PIT_EXC": -1,
+    "LA_1": 1,
+    "LA_5": 5
+  },
+  "hold_span_days_assumed": 5
+}

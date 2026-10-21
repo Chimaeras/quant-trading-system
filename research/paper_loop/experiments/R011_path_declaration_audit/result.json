@@ -1,0 +1,5243 @@
+{
+  "round": "R011",
+  "started_at": "2026-09-15T00:14:22",
+  "finished_at": "2026-09-15T00:14:24",
+  "baseline_commit": "a8681459",
+  "subject": "承重分析分叉的载荷可恢复性与备选可枚举性审计",
+  "subject_kind": "只读审计（论文只作判据来源）",
+  "judgment_source": {
+    "citation": "Menkveld, Dreber, Holzmeister, Huber, Johannesson, Kirchler, Neususs, Razen, Weitzel et al. (2024) Nonstandard Errors, The Journal of Finance 79(3):2339-2390",
+    "doi": "10.1111/jofi.13337",
+    "grade": "A",
+    "carrier_pdf": "papers/menkveld2024_jf_nonstandard_errors.pdf",
+    "carrier_pdf_bytes": 1220922,
+    "carrier_pdf_sha256": "9d9268f97a0876403cd21a814a9017fa366e96a9f6e4045787d8850916d86ebe",
+    "carrier_txt": "papers/menkveld2024_jf_nonstandard_errors.txt",
+    "carrier_txt_bytes": 170400,
+    "carrier_txt_sha256": "b0213178dbe16a7402ef8bbe4bd91f3e132c6f9e5d76b061203e1639c81cfa09",
+    "criteria": {
+      "S1": {
+        "text": "分析路径必须被指名",
+        "grade": "L"
+      },
+      "S2": {
+        "text": "关键分叉 + 该分叉的预定义备选集合必须存在",
+        "grade": "L"
+      },
+      "S3": {
+        "text": "敏感性 = 在备选上重算得到的分布",
+        "grade": "L"
+      },
+      "S4": {
+        "text": "路径先声明、偏离须显式对账",
+        "grade": "L"
+      }
+    },
+    "forbidden_numbers": [
+      "NSE 1.2%",
+      "NSE 6.7%",
+      "IQR as correct metric",
+      "AD test",
+      "multiple-testing factor 13-91",
+      "t >= 2.9 lower bound",
+      "sampling frequency / statistical model ranking"
+    ]
+  },
+  "unit_of_judgment": "variant",
+  "variants_total": 20,
+  "axes": {
+    "A1": [
+      "V01"
+    ],
+    "A2": [
+      "V02",
+      "V03",
+      "V04",
+      "V05"
+    ],
+    "A3": [
+      "V06",
+      "V07",
+      "V08"
+    ],
+    "A4": [
+      "V09",
+      "V10",
+      "V11"
+    ],
+    "A5": [
+      "V12"
+    ],
+    "A6": [
+      "V13",
+      "V14",
+      "V15"
+    ],
+    "A7": [
+      "V16",
+      "V17"
+    ],
+    "A8": [
+      "V18"
+    ],
+    "A9": [
+      "V19",
+      "V20"
+    ]
+  },
+  "axis_counts": {
+    "A1": 1,
+    "A2": 4,
+    "A3": 3,
+    "A4": 3,
+    "A5": 1,
+    "A6": 3,
+    "A7": 2,
+    "A8": 1,
+    "A9": 2
+  },
+  "axis_total": 20,
+  "row_sum": 20,
+  "grid_mismatch_count": 0,
+  "expected": {
+    "V01": "NOT_VIOLATED",
+    "V02": "RECOVERABLE",
+    "V03": "NOT_RECOVERABLE_ABSENT_KEY",
+    "V04": "NOT_RECOVERABLE_ABSENT_KEY",
+    "V05": "RECOVERABLE",
+    "V06": "ENUMERABLE_SINGLE_SITE",
+    "V07": "NOT_ENUMERABLE",
+    "V08": "NOT_ENUMERABLE",
+    "V09": "CONVENTION_DIVERGENCE",
+    "V10": "CONVENTION_DIVERGENCE",
+    "V11": "NOT_RECOVERABLE_ABSENT_KEY",
+    "V12": "REGISTERED_ONLY",
+    "V13": "NOT_VIOLATED",
+    "V14": "NOT_VIOLATED",
+    "V15": "NOT_VIOLATED",
+    "V16": "REGISTERED_ONLY",
+    "V17": "REGISTERED_ONLY",
+    "V18": "NOT_ENUMERABLE",
+    "V19": "NOT_VIOLATED",
+    "V20": "NOT_VIOLATED"
+  },
+  "verdicts": {
+    "V01": "NOT_VIOLATED",
+    "V02": "RECOVERABLE",
+    "V03": "NOT_RECOVERABLE_ABSENT_KEY",
+    "V04": "NOT_RECOVERABLE_ABSENT_KEY",
+    "V05": "RECOVERABLE",
+    "V06": "ENUMERABLE_SINGLE_SITE",
+    "V07": "NOT_ENUMERABLE",
+    "V08": "NOT_ENUMERABLE",
+    "V09": "CONVENTION_DIVERGENCE",
+    "V10": "CONVENTION_DIVERGENCE",
+    "V11": "RECOVERABLE",
+    "V12": "REGISTERED_ONLY",
+    "V13": "NOT_VIOLATED",
+    "V14": "NOT_VIOLATED",
+    "V15": "NOT_VIOLATED",
+    "V16": "REGISTERED_ONLY",
+    "V17": "NOT_VIOLATED",
+    "V18": "NOT_ENUMERABLE",
+    "V19": "NOT_VIOLATED",
+    "V20": "NOT_VIOLATED"
+  },
+  "raw_measured": {
+    "V01": {
+      "summarize_prod_call_sites": 5,
+      "summarize_test_call_sites": 3
+    },
+    "V02": {
+      "holding_days_families_covered": 3
+    },
+    "V03": {
+      "group_count_emission_sites": 1,
+      "snapshot_block_has_group_count": false,
+      "scoring_payload_has_group_count": true
+    },
+    "V04": {
+      "min_size_emission_sites": 0,
+      "min_size_like_key_sites": 0
+    },
+    "V05": {
+      "universe_note_emission_sites": 4
+    },
+    "V06": {
+      "horizons_enumeration_sites": 1,
+      "horizons_emission_sites": 1
+    },
+    "V07": {
+      "group_count_backend_enum_sites": 0,
+      "distinct_test_tuples": 1,
+      "frontend_domain_covers_families": 1
+    },
+    "V08": {
+      "min_size_enum_sites": 0,
+      "min_size_domain_sites": 0,
+      "min_size_test_variants": 0
+    },
+    "V09": {
+      "group_count_distinct_sources": 2,
+      "frs_source_kind": "compile_time_constant",
+      "sbs_source_kind": "request_parameter",
+      "sbs_request_param_wired": true
+    },
+    "V10": {
+      "min_size_declaring_files": 2,
+      "min_size_shared_declaration_sites": 0,
+      "min_size_values_equal": true
+    },
+    "V11": {
+      "response_group_count_fields": 1,
+      "response_ic_summary_group_count_fields": 0
+    },
+    "V12": {
+      "clamp_days_J10": 2,
+      "emitted_value_kind": "constant"
+    },
+    "V13": {
+      "cells": 27,
+      "has_grouped_returns": true,
+      "spread_iqr": 0.000634190863
+    },
+    "V14": {
+      "grid_mismatch_count": 0,
+      "days_match_frozen": true,
+      "bucket10_contributors_matches": true
+    },
+    "V15": {
+      "flip_pairs": 0,
+      "sign_zero_cells": 0,
+      "monotonicity_values": [
+        "NON_MONOTONIC"
+      ]
+    },
+    "V16": {
+      "snapshot_scope_has_group_count": false,
+      "snapshot_scope_has_holding_days": false,
+      "rank_ic_group_count_required": true
+    },
+    "V17": {
+      "sensitivity_term_hits": 2
+    },
+    "V18": {
+      "docs_spec_sites": 0,
+      "contracts_files_scanned": 4
+    },
+    "V19": {
+      "det_probe_bytes_equal": true,
+      "det_static_equal": true,
+      "det_bits_equal": true
+    },
+    "V20": {
+      "canary_pairs": 20,
+      "canary_all_pass": true,
+      "anchors_pass": true,
+      "g3_pass": true
+    }
+  },
+  "deviations": [
+    {
+      "variant": "V11",
+      "expected": "NOT_RECOVERABLE_ABSENT_KEY",
+      "measured": "RECOVERABLE"
+    },
+    {
+      "variant": "V17",
+      "expected": "REGISTERED_ONLY",
+      "measured": "NOT_VIOLATED"
+    }
+  ],
+  "out_of_vocab_verdicts": [],
+  "kill_conditions": {
+    "K1": true,
+    "K2": true,
+    "K3": true,
+    "K4": true,
+    "K5": true,
+    "K6": false,
+    "K7": false,
+    "K8": false,
+    "K9": false,
+    "K10": false
+  },
+  "k6_triggered_by": [],
+  "total_verdict": "REJECTED",
+  "h0_alive": false,
+  "non_killing_axes_frozen": [
+    "A5",
+    "A6",
+    "A7"
+  ],
+  "non_killing_variants": [
+    "V12",
+    "V13",
+    "V14",
+    "V15",
+    "V16",
+    "V17"
+  ],
+  "load_bearing": [
+    "V03",
+    "V04",
+    "V07",
+    "V08",
+    "V09",
+    "V10",
+    "V11",
+    "V18"
+  ],
+  "gates": {
+    "compile_ok": true,
+    "compile_output": "",
+    "probe_rc": [
+      0,
+      0
+    ],
+    "g3_code_source": "file:/E:/Project/quant-trading-system/modules/backend-java/target/classes/",
+    "g3_expected_suffix": "modules/backend-java/target/classes",
+    "g3_pass": true,
+    "deps_ok": true,
+    "deps_note": "探针无外部依赖（手写 JSON + 自读 CSV）",
+    "det_probe_bytes_equal": true,
+    "det_bits_equal": true,
+    "det_static_equal": true
+  },
+  "canaries": {
+    "V01": {
+      "cln_pass": true,
+      "inj_pass": true,
+      "ok": true,
+      "keys_overwritten": [
+        "summarize_prod_call_sites",
+        "summarize_test_call_sites"
+      ],
+      "injected": {
+        "summarize_prod_call_sites": 6
+      },
+      "undeclared_sentinel_key": "__r011_undeclared_sentinel__",
+      "pred_on_measured": true
+    },
+    "V02": {
+      "cln_pass": true,
+      "inj_pass": true,
+      "ok": true,
+      "keys_overwritten": [
+        "holding_days_families_covered"
+      ],
+      "injected": {
+        "holding_days_families_covered": 2
+      },
+      "undeclared_sentinel_key": "__r011_undeclared_sentinel__",
+      "pred_on_measured": true
+    },
+    "V03": {
+      "cln_pass": true,
+      "inj_pass": true,
+      "ok": true,
+      "keys_overwritten": [
+        "group_count_emission_sites",
+        "snapshot_block_has_group_count",
+        "scoring_payload_has_group_count"
+      ],
+      "injected": {
+        "scoring_payload_has_group_count": false
+      },
+      "undeclared_sentinel_key": "__r011_undeclared_sentinel__",
+      "pred_on_measured": false
+    },
+    "V04": {
+      "cln_pass": true,
+      "inj_pass": true,
+      "ok": true,
+      "keys_overwritten": [
+        "min_size_emission_sites",
+        "min_size_like_key_sites"
+      ],
+      "injected": {
+        "min_size_emission_sites": 1
+      },
+      "undeclared_sentinel_key": "__r011_undeclared_sentinel__",
+      "pred_on_measured": true
+    },
+    "V05": {
+      "cln_pass": true,
+      "inj_pass": true,
+      "ok": true,
+      "keys_overwritten": [
+        "universe_note_emission_sites"
+      ],
+      "injected": {
+        "universe_note_emission_sites": 0
+      },
+      "undeclared_sentinel_key": "__r011_undeclared_sentinel__",
+      "pred_on_measured": true
+    },
+    "V06": {
+      "cln_pass": true,
+      "inj_pass": true,
+      "ok": true,
+      "keys_overwritten": [
+        "horizons_enumeration_sites",
+        "horizons_emission_sites"
+      ],
+      "injected": {
+        "horizons_enumeration_sites": 0
+      },
+      "undeclared_sentinel_key": "__r011_undeclared_sentinel__",
+      "pred_on_measured": true
+    },
+    "V07": {
+      "cln_pass": true,
+      "inj_pass": true,
+      "ok": true,
+      "keys_overwritten": [
+        "group_count_backend_enum_sites",
+        "distinct_test_tuples",
+        "frontend_domain_covers_families"
+      ],
+      "injected": {
+        "group_count_backend_enum_sites": 2
+      },
+      "undeclared_sentinel_key": "__r011_undeclared_sentinel__",
+      "pred_on_measured": true
+    },
+    "V08": {
+      "cln_pass": true,
+      "inj_pass": true,
+      "ok": true,
+      "keys_overwritten": [
+        "min_size_enum_sites",
+        "min_size_domain_sites",
+        "min_size_test_variants"
+      ],
+      "injected": {
+        "min_size_enum_sites": 1
+      },
+      "undeclared_sentinel_key": "__r011_undeclared_sentinel__",
+      "pred_on_measured": true
+    },
+    "V09": {
+      "cln_pass": true,
+      "inj_pass": true,
+      "ok": true,
+      "keys_overwritten": [
+        "group_count_distinct_sources",
+        "frs_source_kind",
+        "sbs_source_kind",
+        "sbs_request_param_wired"
+      ],
+      "injected": {
+        "group_count_distinct_sources": 1
+      },
+      "undeclared_sentinel_key": "__r011_undeclared_sentinel__",
+      "pred_on_measured": true
+    },
+    "V10": {
+      "cln_pass": true,
+      "inj_pass": true,
+      "ok": true,
+      "keys_overwritten": [
+        "min_size_declaring_files",
+        "min_size_shared_declaration_sites",
+        "min_size_values_equal"
+      ],
+      "injected": {
+        "min_size_shared_declaration_sites": 1
+      },
+      "undeclared_sentinel_key": "__r011_undeclared_sentinel__",
+      "pred_on_measured": true
+    },
+    "V11": {
+      "cln_pass": true,
+      "inj_pass": true,
+      "ok": true,
+      "keys_overwritten": [
+        "response_group_count_fields",
+        "response_ic_summary_group_count_fields"
+      ],
+      "injected": {
+        "response_group_count_fields": 0
+      },
+      "undeclared_sentinel_key": "__r011_undeclared_sentinel__",
+      "pred_on_measured": false
+    },
+    "V12": {
+      "cln_pass": true,
+      "inj_pass": true,
+      "ok": true,
+      "keys_overwritten": [
+        "clamp_days_J10",
+        "emitted_value_kind"
+      ],
+      "injected": {
+        "clamp_days_J10": 0
+      },
+      "undeclared_sentinel_key": "__r011_undeclared_sentinel__",
+      "pred_on_measured": true
+    },
+    "V13": {
+      "cln_pass": true,
+      "inj_pass": true,
+      "ok": true,
+      "keys_overwritten": [
+        "cells",
+        "has_grouped_returns",
+        "spread_iqr"
+      ],
+      "injected": {
+        "cells": 26
+      },
+      "undeclared_sentinel_key": "__r011_undeclared_sentinel__",
+      "pred_on_measured": true
+    },
+    "V14": {
+      "cln_pass": true,
+      "inj_pass": true,
+      "ok": true,
+      "keys_overwritten": [
+        "grid_mismatch_count",
+        "days_match_frozen",
+        "bucket10_contributors_matches"
+      ],
+      "injected": {
+        "grid_mismatch_count": 1
+      },
+      "undeclared_sentinel_key": "__r011_undeclared_sentinel__",
+      "pred_on_measured": true
+    },
+    "V15": {
+      "cln_pass": true,
+      "inj_pass": true,
+      "ok": true,
+      "keys_overwritten": [
+        "flip_pairs",
+        "sign_zero_cells",
+        "monotonicity_values"
+      ],
+      "injected": {
+        "flip_pairs": -1
+      },
+      "undeclared_sentinel_key": "__r011_undeclared_sentinel__",
+      "pred_on_measured": true
+    },
+    "V16": {
+      "cln_pass": true,
+      "inj_pass": true,
+      "ok": true,
+      "keys_overwritten": [
+        "snapshot_scope_has_group_count",
+        "snapshot_scope_has_holding_days",
+        "rank_ic_group_count_required"
+      ],
+      "injected": {
+        "snapshot_scope_has_group_count": true
+      },
+      "undeclared_sentinel_key": "__r011_undeclared_sentinel__",
+      "pred_on_measured": true
+    },
+    "V17": {
+      "cln_pass": true,
+      "inj_pass": true,
+      "ok": true,
+      "keys_overwritten": [
+        "sensitivity_term_hits"
+      ],
+      "injected": {
+        "sensitivity_term_hits": 0
+      },
+      "undeclared_sentinel_key": "__r011_undeclared_sentinel__",
+      "pred_on_measured": false
+    },
+    "V18": {
+      "cln_pass": true,
+      "inj_pass": true,
+      "ok": true,
+      "keys_overwritten": [
+        "docs_spec_sites",
+        "contracts_files_scanned"
+      ],
+      "injected": {
+        "docs_spec_sites": 1
+      },
+      "undeclared_sentinel_key": "__r011_undeclared_sentinel__",
+      "pred_on_measured": true
+    },
+    "V19": {
+      "cln_pass": true,
+      "inj_pass": true,
+      "ok": true,
+      "keys_overwritten": [
+        "det_probe_bytes_equal",
+        "det_static_equal",
+        "det_bits_equal"
+      ],
+      "injected": {
+        "det_probe_bytes_equal": false
+      },
+      "undeclared_sentinel_key": "__r011_undeclared_sentinel__",
+      "pred_on_measured": true
+    },
+    "V20": {
+      "cln_pass": true,
+      "inj_pass": true,
+      "ok": true,
+      "keys_overwritten": [
+        "canary_pairs",
+        "canary_all_pass",
+        "anchors_pass",
+        "g3_pass"
+      ],
+      "injected": {
+        "g3_pass": false
+      },
+      "undeclared_sentinel_key": "__r011_undeclared_sentinel__",
+      "pred_on_measured": true
+    }
+  },
+  "canary_pairs": 20,
+  "canary_all_pass": true,
+  "line_calibration": [
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "line": 70,
+      "expected": "RANK_IC_GROUP_COUNT = 5",
+      "actual": "private static final int RANK_IC_GROUP_COUNT = 5;",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "line": 71,
+      "expected": "RANK_IC_MIN_CROSS_SECTION_SIZE = 10",
+      "actual": "private static final int RANK_IC_MIN_CROSS_SECTION_SIZE = 10;",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "line": 97,
+      "expected": "UNIFIED_HORIZONS = List.of(1, 2, 3, 5)",
+      "actual": "private static final List<Integer> UNIFIED_HORIZONS = List.of(1, 2, 3, 5);",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "line": 218,
+      "expected": "out.put(\"horizons\", UNIFIED_HORIZONS)",
+      "actual": "out.put(\"horizons\", UNIFIED_HORIZONS);",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "line": 441,
+      "expected": "out.put(\"holding_days\", holding)",
+      "actual": "out.put(\"holding_days\", holding);",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "line": 526,
+      "expected": "private Map<String, Object> buildSnapshotScopeBlock(",
+      "actual": "private Map<String, Object> buildSnapshotScopeBlock(",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "line": 529,
+      "expected": "FactorResearchEngine.summarize(",
+      "actual": "FactorResearchSummary summary = FactorResearchEngine.summarize(",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "line": 549,
+      "expected": "block.put(\"grouped_returns\"",
+      "actual": "block.put(\"grouped_returns\", groupedReturnList(summary));",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "line": 557,
+      "expected": "private Map<String, Object> unavailableScopeBlock(",
+      "actual": "private Map<String, Object> unavailableScopeBlock(String scope, String basisNote) {",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "line": 649,
+      "expected": "block.put(\"holding_days\", holdingDays)",
+      "actual": "block.put(\"holding_days\", holdingDays);",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "line": 650,
+      "expected": "block.put(\"group_count\", RANK_IC_GROUP_COUNT)",
+      "actual": "block.put(\"group_count\", RANK_IC_GROUP_COUNT);",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "line": 669,
+      "expected": "block.put(\"grouped_returns\"",
+      "actual": "block.put(\"grouped_returns\", List.of());",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "line": 747,
+      "expected": "FactorResearchEngine.summarize(",
+      "actual": "FactorResearchSummary summary = FactorResearchEngine.summarize(",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "line": 791,
+      "expected": "FactorResearchEngine.summarize(",
+      "actual": "FactorResearchEngine.summarize(",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+      "line": 58,
+      "expected": "FACTOR_MIN_CROSS_SECTION_SIZE = 10",
+      "actual": "private static final int FACTOR_MIN_CROSS_SECTION_SIZE = 10;",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+      "line": 78,
+      "expected": "req.getFactorGroupCount() != null ? req.getFactorGroupCount() : 5",
+      "actual": "int factorGroupCount = req.getFactorGroupCount() != null ? req.getFactorGroupCount() : 5;",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+      "line": 431,
+      "expected": "FactorResearchEngine.summarize(",
+      "actual": "FactorResearchSummary summary = FactorResearchEngine.summarize(",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+      "line": 443,
+      "expected": "FactorResearchEngine.summarize(",
+      "actual": "FactorResearchSummary subSummary = FactorResearchEngine.summarize(",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+      "line": 555,
+      "expected": "objectMapper.readValue(r.getResponse(), ScoringBacktestResponse.class)",
+      "actual": "ScoringBacktestResponse resp = objectMapper.readValue(r.getResponse(), ScoringBacktestResponse.class);",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+      "line": 92,
+      "expected": "groupedAverageReturns(",
+      "actual": "public static List<GroupReturnStat> groupedAverageReturns(",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+      "line": 102,
+      "expected": "int g = Math.min(groupCount, n);",
+      "actual": "int g = Math.min(groupCount, n);",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+      "line": 108,
+      "expected": "bucket =",
+      "actual": "int bucket = Math.min(g - 1, (int) ((long) i * g / n));",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+      "line": 114,
+      "expected": "rets.isEmpty() ? 0",
+      "actual": "double avg = rets.isEmpty() ? 0 : rets.stream().mapToDouble(Double::doubleValue).average().orElse(0);",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+      "line": 140,
+      "expected": "obs.size() < minCrossSectionSize",
+      "actual": "if (obs == null || obs.size() < minCrossSectionSize) {",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+      "line": 160,
+      "expected": "groupedAverageReturns(obs, groupCount)",
+      "actual": "List<GroupReturnStat> dayGroups = groupedAverageReturns(obs, groupCount);",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+      "line": 174,
+      "expected": "icStd > 1e-12 ? icMean / icStd : 0",
+      "actual": "double icIr = icStd > 1e-12 ? icMean / icStd : 0;",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+      "line": 179,
+      "expected": "List<GroupReturnStat> grouped = new ArrayList<>();",
+      "actual": "List<GroupReturnStat> grouped = new ArrayList<>();",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+      "line": 185,
+      "expected": "double spread = grouped.isEmpty() ? 0",
+      "actual": "double spread = grouped.isEmpty() ? 0",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+      "line": 324,
+      "expected": "public static double neweyWestHacStd(List<Double> values)",
+      "actual": "public static double neweyWestHacStd(List<Double> values) {",
+      "ok": true
+    },
+    {
+      "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+      "line": 358,
+      "expected": "public static double[] blockBootstrapCi(",
+      "actual": "public static double[] blockBootstrapCi(List<Double> values, int blockSize, int iterations, long seed) {",
+      "ok": true
+    }
+  ],
+  "static_extraction": {
+    "summarize_call_sites": {
+      "prod": [
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "line": 529
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "line": 747
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "line": 791
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "line": 431
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "line": 443
+        }
+      ],
+      "test": [
+        {
+          "file": "modules/backend-java/src/test/java/com/quant/service/backtest/FactorResearchEngineTest.java",
+          "line": 73
+        },
+        {
+          "file": "modules/backend-java/src/test/java/com/quant/service/backtest/FactorResearchEngineTest.java",
+          "line": 113
+        },
+        {
+          "file": "modules/backend-java/src/test/java/com/quant/service/backtest/FactorResearchEngineTest.java",
+          "line": 204
+        }
+      ]
+    },
+    "frs_put_keys": {
+      "source": [
+        152,
+        214,
+        433
+      ],
+      "strategy": [
+        153,
+        215,
+        435
+      ],
+      "start_date": [
+        154,
+        216,
+        439
+      ],
+      "end_date": [
+        155,
+        217,
+        440
+      ],
+      "cross_section_days": [
+        156,
+        443,
+        536,
+        562,
+        613,
+        661,
+        755,
+        804,
+        824,
+        865
+      ],
+      "total_observations": [
+        157,
+        537,
+        563,
+        662,
+        756,
+        805,
+        825,
+        869
+      ],
+      "valid_observations": [
+        158,
+        867
+      ],
+      "coverage": [
+        159,
+        448,
+        616
+      ],
+      "distribution": [
+        161
+      ],
+      "group_bands": [
+        162
+      ],
+      "rank_ic": [
+        163,
+        585,
+        772
+      ],
+      "funnel": [
+        164,
+        221,
+        454
+      ],
+      "metric_scopes": [
+        165,
+        223,
+        450,
+        656
+      ],
+      "metric_scope": [
+        166,
+        224,
+        532,
+        559,
+        624,
+        655,
+        803,
+        823,
+        874
+      ],
+      "executable_metric_scope": [
+        167,
+        225,
+        453,
+        657
+      ],
+      "feature_snapshot_note": [
+        168,
+        226,
+        658
+      ],
+      "universe_note": [
+        169,
+        227,
+        535,
+        654
+      ],
+      "note": [
+        170,
+        228,
+        458,
+        551,
+        576,
+        625,
+        815,
+        836,
+        875
+      ],
+      "horizons": [
+        218
+      ],
+      "by_horizon": [
+        219
+      ],
+      "convention": [
+        220
+      ],
+      "signal_date": [
+        398
+      ],
+      "rows_total": [
+        399,
+        446,
+        614
+      ],
+      "scored_valid": [
+        400,
+        447,
+        615
+      ],
+      "raw_observations": [
+        401
+      ],
+      "cost_approx_observations": [
+        402
+      ],
+      "executable_observations": [
+        403
+      ],
+      "labels_matched": [
+        404
+      ],
+      "labels_missing": [
+        405
+      ],
+      "snapshot_id": [
+        434
+      ],
+      "feature_version": [
+        436
+      ],
+      "schema_hash": [
+        437
+      ],
+      "label_version": [
+        438,
+        618
+      ],
+      "holding_days": [
+        441,
+        649
+      ],
+      "universe_source": [
+        442,
+        610,
+        873
+      ],
+      "partitions_reusable": [
+        444,
+        611
+      ],
+      "partitions_skipped": [
+        445,
+        612
+      ],
+      "daily_funnel": [
+        456
+      ],
+      "scopes": [
+        457
+      ],
+      "basis_note": [
+        533,
+        561,
+        651,
+        802,
+        822
+      ],
+      "embargo_note": [
+        534,
+        653
+      ],
+      "rank_ic_mean": [
+        538,
+        564,
+        663,
+        757,
+        806,
+        826
+      ],
+      "rank_ic_std": [
+        539,
+        565,
+        664,
+        758,
+        807,
+        827
+      ],
+      "rank_ic_ir": [
+        540,
+        566,
+        665,
+        759,
+        808,
+        828
+      ],
+      "rank_ic_positive_rate": [
+        541,
+        567,
+        666,
+        760,
+        809,
+        829
+      ],
+      "pearson_ic_mean": [
+        542,
+        568,
+        761,
+        810,
+        830
+      ],
+      "monotonicity": [
+        543,
+        569,
+        762,
+        831
+      ],
+      "hac_std": [
+        544,
+        570,
+        763,
+        811,
+        832
+      ],
+      "ci_lower": [
+        545,
+        571,
+        764,
+        812,
+        833
+      ],
+      "ci_upper": [
+        546,
+        572,
+        765,
+        813,
+        834
+      ],
+      "long_short_spread": [
+        547,
+        573,
+        667,
+        766,
+        814,
+        835
+      ],
+      "daily_rank_ic": [
+        548,
+        574,
+        668,
+        776
+      ],
+      "grouped_returns": [
+        549,
+        575,
+        669,
+        787
+      ],
+      "status": [
+        560
+      ],
+      "trade_date": [
+        584,
+        771
+      ],
+      "sample_size": [
+        586,
+        773
+      ],
+      "group_no": [
+        596,
+        781,
+        984
+      ],
+      "label": [
+        597,
+        782
+      ],
+      "avg_return": [
+        598,
+        783
+      ],
+      "observations": [
+        599,
+        784
+      ],
+      "exec_status_breakdown": [
+        619
+      ],
+      "tradable_status": [
+        620,
+        871
+      ],
+      "tradable_note": [
+        621,
+        872
+      ],
+      "group_count": [
+        650
+      ],
+      "net_basis_note": [
+        652
+      ],
+      "cost_net_ic": [
+        670,
+        790
+      ],
+      "universe_count": [
+        863
+      ],
+      "universe_days_with_snapshot": [
+        864
+      ],
+      "feature_valid_count": [
+        866
+      ],
+      "selector_item_count": [
+        868
+      ],
+      "tradable_count": [
+        870
+      ],
+      "min_score": [
+        985
+      ],
+      "max_score": [
+        986
+      ],
+      "avg_score": [
+        987
+      ],
+      "count": [
+        988
+      ],
+      "min": [
+        998,
+        1006
+      ],
+      "p25": [
+        999,
+        1007
+      ],
+      "median": [
+        1000,
+        1008
+      ],
+      "p75": [
+        1001,
+        1009
+      ],
+      "max": [
+        1002,
+        1010
+      ]
+    },
+    "sbs_put_keys": {
+      "signal_count": [
+        369,
+        859
+      ],
+      "buyable_count": [
+        370,
+        860
+      ],
+      "filled_count": [
+        371,
+        861
+      ],
+      "frozen_count": [
+        372,
+        862
+      ],
+      "reject_reasons": [
+        373,
+        863
+      ],
+      "price_source": [
+        374,
+        465,
+        864
+      ],
+      "metric_scope": [
+        375,
+        466,
+        865
+      ],
+      "raw_price_hits": [
+        376
+      ],
+      "note": [
+        377
+      ],
+      "execution_funnel": [
+        467
+      ],
+      "totalTradingDays": [
+        513
+      ],
+      "holdingPeriodStats": [
+        514
+      ],
+      "result_id": [
+        534
+      ],
+      "strategy_type": [
+        535
+      ],
+      "start_date": [
+        536
+      ],
+      "end_date": [
+        537
+      ],
+      "top_n": [
+        538
+      ],
+      "latest_data_date": [
+        539
+      ],
+      "created_at": [
+        540
+      ],
+      "summary": [
+        542
+      ],
+      "codex_sub_factors_available": [
+        584,
+        587
+      ],
+      "codex_sub_factor_ic": [
+        599
+      ],
+      "codex_t_dominates": [
+        601
+      ],
+      "t3_rank_ic_mean": [
+        637
+      ],
+      "t5_rank_ic_mean": [
+        638
+      ],
+      "t3_effective": [
+        639
+      ],
+      "t5_effective": [
+        640
+      ],
+      "primary_holding_day": [
+        641
+      ],
+      "primary_long_short_spread": [
+        642
+      ],
+      "verdict": [
+        644,
+        647,
+        650
+      ],
+      "confidence": [
+        645,
+        648,
+        651
+      ],
+      "disclaimer": [
+        653
+      ],
+      "neutralization_pipeline": [
+        654
+      ],
+      "codex_g_weighting": [
+        655
+      ],
+      "entry": [
+        683
+      ],
+      "exit": [
+        684
+      ],
+      "t_plus_one_sell": [
+        685
+      ],
+      "commission_rate": [
+        690
+      ],
+      "sell_tax_rate": [
+        691
+      ],
+      "slippage_rate_each_side": [
+        692
+      ],
+      "return_type": [
+        693
+      ],
+      "limit_up_entry_blocked": [
+        694
+      ],
+      "limit_down_exit_blocked": [
+        695
+      ],
+      "limit_pct_source": [
+        696
+      ],
+      "selector_tradability": [
+        697
+      ],
+      "short_horizon_research_focus": [
+        698
+      ],
+      "codex_neutralization": [
+        699
+      ],
+      "skip_reason_codes": [
+        700
+      ],
+      "source": [
+        735,
+        741
+      ]
+    },
+    "min_size_emission_sites": [],
+    "min_size_like_keys": [],
+    "min_size_constants": [
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 71,
+        "name": "RANK_IC_MIN_CROSS_SECTION_SIZE",
+        "value": 10
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+        "line": 58,
+        "name": "FACTOR_MIN_CROSS_SECTION_SIZE",
+        "value": 10
+      }
+    ],
+    "min_size_constant_refs": [
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 530,
+        "name": "RANK_IC_MIN_CROSS_SECTION_SIZE",
+        "cross_file": false
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 751,
+        "name": "RANK_IC_MIN_CROSS_SECTION_SIZE",
+        "cross_file": false
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 795,
+        "name": "RANK_IC_MIN_CROSS_SECTION_SIZE",
+        "cross_file": false
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+        "line": 435,
+        "name": "FACTOR_MIN_CROSS_SECTION_SIZE",
+        "cross_file": false
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+        "line": 447,
+        "name": "FACTOR_MIN_CROSS_SECTION_SIZE",
+        "cross_file": false
+      }
+    ],
+    "min_size_cross_file_refs": [],
+    "config_sites": [],
+    "horizons_enumeration_sites": [
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 97,
+        "text": "private static final List<Integer> UNIFIED_HORIZONS = List.of(1, 2, 3, 5);"
+      }
+    ],
+    "group_count_backend_enum_sites": [],
+    "group_count_occurrences": [
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java",
+        "line": 81,
+        "text": "private int groupCount;"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 70,
+        "text": "private static final int RANK_IC_GROUP_COUNT = 5;"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 530,
+        "text": "obsByDate, holding, RANK_IC_GROUP_COUNT, RANK_IC_MIN_CROSS_SECTION_SIZE, SNAPSHOT_UNIVERSE_NOTE);"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 650,
+        "text": "block.put(\"group_count\", RANK_IC_GROUP_COUNT);"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 750,
+        "text": "RANK_IC_GROUP_COUNT,"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 794,
+        "text": "RANK_IC_GROUP_COUNT,"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 963,
+        "text": "/** 按数量等分为 groupCount 组，返回每组的得分范围与数量，展示得分集中度。 */"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 964,
+        "text": "private List<Map<String, Object>> buildGroupBands(List<Double> sortedScores, int groupCount) {"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 967,
+        "text": "if (n == 0 || groupCount <= 0) {"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 970,
+        "text": "int effectiveGroups = Math.min(groupCount, n);"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+        "line": 1024,
+        "text": ".groupCount(summary.groupCount())"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 29,
+        "text": "int groupCount,"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 94,
+        "text": "int groupCount"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 96,
+        "text": "if (observations == null || observations.isEmpty() || groupCount < 2) {"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 102,
+        "text": "int g = Math.min(groupCount, n);"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 123,
+        "text": "int groupCount,"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 128,
+        "text": "return emptySummary(holdingDays, groupCount, universeNote);"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 134,
+        "text": "for (int g = 1; g <= groupCount; g++) {"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 160,
+        "text": "List<GroupReturnStat> dayGroups = groupedAverageReturns(obs, groupCount);"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 167,
+        "text": "return emptySummary(holdingDays, groupCount, universeNote);"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 180,
+        "text": "for (int g = 1; g <= groupCount; g++) {"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 183,
+        "text": "grouped.add(new GroupReturnStat(g, groupLabel(g, groupCount), avg, rets.size()));"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 195,
+        "text": "groupCount,"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 214,
+        "text": "private static FactorResearchSummary emptySummary(int holdingDays, int groupCount, String note) {"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 216,
+        "text": "holdingDays, groupCount, 0, 0,"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 251,
+        "text": "private static String groupLabel(int groupNo, int groupCount) {"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 252,
+        "text": "if (groupCount == 5) {"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 265,
+        "text": "if (groupNo == groupCount) {"
+      }
+    ],
+    "response_all_fields": [
+      "avgLoss",
+      "avgReturn",
+      "avgWin",
+      "codexFactorIcByHolding",
+      "crossSectionDays",
+      "dailyDetails",
+      "dailyRankIc",
+      "dailyWinRate",
+      "endDate",
+      "entryDate",
+      "entryPrice",
+      "exchangeType",
+      "executionAssumptions",
+      "executionFunnel",
+      "factorAnalysis",
+      "factorIcByHolding",
+      "filledSampleWinRate",
+      "finalScore",
+      "formulaAudit",
+      "forwardReturns",
+      "groupCount",
+      "groupNo",
+      "groupedReturns",
+      "holdingDays",
+      "holdingPeriodStats",
+      "label",
+      "longShortSpread",
+      "maxReturn",
+      "medianReturn",
+      "metricScope",
+      "minReturn",
+      "observations",
+      "periodSkipReasons",
+      "priceSource",
+      "profitLossRatio",
+      "rankIc",
+      "rankIcIr",
+      "rankIcMean",
+      "rankIcPositiveRate",
+      "rankIcStd",
+      "rankNo",
+      "resultId",
+      "sampleSize",
+      "shortHorizonValidation",
+      "signalCount",
+      "skipReason",
+      "skippedCount",
+      "startDate",
+      "stockCode",
+      "stockName",
+      "strategyType",
+      "topN",
+      "topStocks",
+      "totalObservations",
+      "totalTradingDays",
+      "tradeDate",
+      "universeNote",
+      "winRate"
+    ],
+    "response_group_fields": [
+      "groupCount",
+      "groupNo",
+      "groupedReturns"
+    ],
+    "response_group_count_fields": [
+      "groupCount"
+    ],
+    "test_summarize_tuples": [
+      {
+        "file": "modules/backend-java/src/test/java/com/quant/service/backtest/FactorResearchEngineTest.java",
+        "line": 73,
+        "ints": [
+          5,
+          5,
+          10
+        ],
+        "n_args": 5,
+        "first_arg": "byDate"
+      },
+      {
+        "file": "modules/backend-java/src/test/java/com/quant/service/backtest/FactorResearchEngineTest.java",
+        "line": 113,
+        "ints": [
+          5,
+          5,
+          10
+        ],
+        "n_args": 5,
+        "first_arg": "byDate"
+      },
+      {
+        "file": "modules/backend-java/src/test/java/com/quant/service/backtest/FactorResearchEngineTest.java",
+        "line": 204,
+        "ints": [
+          5,
+          5,
+          10
+        ],
+        "n_args": 5,
+        "first_arg": "byDate"
+      }
+    ],
+    "frontend_domain": {
+      "sites": [
+        {
+          "file": "modules/web/src/views/backtest/ScoringBacktest.vue",
+          "line": 36,
+          "text": "<el-input-number v-model=\"form.factorGroupCount\" :min=\"2\" :max=\"10\" :step=\"1\" />"
+        },
+        {
+          "file": "modules/web/src/views/backtest/ScoringBacktest.vue",
+          "line": 585,
+          "text": "factorGroupCount: 5"
+        },
+        {
+          "file": "modules/web/src/views/backtest/ScoringBacktest.vue",
+          "line": 1099,
+          "text": "factorGroupCount: form.factorGroupCount,"
+        }
+      ],
+      "min": 2,
+      "max": 10,
+      "step": 1,
+      "ts_optional": false
+    },
+    "frontend_types": {
+      "FactorRankIc": {
+        "start_line": 32,
+        "has_group_count": true,
+        "has_holding_days": true,
+        "group_count_required": true,
+        "holding_days_required": true
+      },
+      "SnapshotScopeIc": {
+        "start_line": 98,
+        "has_group_count": false,
+        "has_holding_days": false,
+        "group_count_required": false,
+        "holding_days_required": false
+      }
+    },
+    "sensitivity_term_hits": [
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+        "line": 654,
+        "text": "v.put(\"neutralization_pipeline\", \"winsorize→OLS(lnMV+industry)→robustZ(residual,MAD)\");"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+        "line": 699,
+        "text": "assumptions.put(\"codex_neutralization\", \"v2: winsorize → OLS(lnMV+industry dummies) → robust Z on residuals\");"
+      }
+    ],
+    "sensitivity_term_hits_strict": [],
+    "docs_sites": [],
+    "docs_scanned": [
+      "docs/API文档.md",
+      "docs/研究口径规范.md",
+      "contracts/feature_manifest.schema.json",
+      "contracts/model_manifest.schema.json"
+    ],
+    "grouped_returns_emission_sites": 4,
+    "dto_wiring": {
+      "field_sites": [
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java",
+          "line": 65,
+          "text": "private int holdingDays;"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java",
+          "line": 80,
+          "text": "private int holdingDays;"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java",
+          "line": 81,
+          "text": "private int groupCount;"
+        }
+      ],
+      "builder_setter_sites": [
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "line": 641,
+          "text": "v.put(\"primary_holding_day\", primarySummary != null ? primarySummary.holdingDays() : null);"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "line": 1023,
+          "text": ".holdingDays(summary.holdingDays())"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "line": 1024,
+          "text": ".groupCount(summary.groupCount())"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "line": 1056,
+          "text": ".holdingDays(summary.holdingDays())"
+        }
+      ],
+      "attach_sites": [
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "line": 119,
+          "text": ".factorAnalysis(null)"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "line": 478,
+          "text": ".factorAnalysis(toFactorAnalysisDto(factorSummary))"
+        }
+      ]
+    },
+    "holding_days_family_coverage": {
+      "families": {
+        "F-LEGACY/F-UNIFIED": {
+          "key": "holding_days",
+          "sites": [
+            441,
+            649
+          ]
+        },
+        "F-SNAPSHOT": {
+          "key": "holding_days",
+          "sites": [
+            441
+          ]
+        },
+        "F-SCORING": {
+          "key": "holdingDays(DTO)",
+          "sites": [
+            "holdingDays"
+          ]
+        }
+      },
+      "covered_count": 3,
+      "covered": [
+        "F-LEGACY/F-UNIFIED",
+        "F-SNAPSHOT",
+        "F-SCORING"
+      ]
+    }
+  },
+  "evidence_extra": {
+    "X01_sensitivity_hits_verbatim": [
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+        "line": 654,
+        "text": "v.put(\"neutralization_pipeline\", \"winsorize→OLS(lnMV+industry)→robustZ(residual,MAD)\");"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+        "line": 699,
+        "text": "assumptions.put(\"codex_neutralization\", \"v2: winsorize → OLS(lnMV+industry dummies) → robust Z on residuals\");"
+      }
+    ],
+    "X02_sensitivity_hits_word_boundary": [],
+    "X02_note": "补充测量（**不**改变 V17 的判定词）：按词边界收紧后的命中，用于判别冻结词表的子串假阳性",
+    "X03_dto_group_count_wiring": {
+      "field_sites": [
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java",
+          "line": 65,
+          "text": "private int holdingDays;"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java",
+          "line": 80,
+          "text": "private int holdingDays;"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java",
+          "line": 81,
+          "text": "private int groupCount;"
+        }
+      ],
+      "builder_setter_sites": [
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "line": 641,
+          "text": "v.put(\"primary_holding_day\", primarySummary != null ? primarySummary.holdingDays() : null);"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "line": 1023,
+          "text": ".holdingDays(summary.holdingDays())"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "line": 1024,
+          "text": ".groupCount(summary.groupCount())"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "line": 1056,
+          "text": ".holdingDays(summary.holdingDays())"
+        }
+      ],
+      "attach_sites": [
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "line": 119,
+          "text": ".factorAnalysis(null)"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+          "line": 478,
+          "text": ".factorAnalysis(toFactorAnalysisDto(factorSummary))"
+        }
+      ]
+    },
+    "X03_note": "字段存在 与 被真正赋值 分开测；F-SCORING 族不走 put，走 builder 接线",
+    "X04_holding_days_family_coverage": {
+      "families": {
+        "F-LEGACY/F-UNIFIED": {
+          "key": "holding_days",
+          "sites": [
+            441,
+            649
+          ]
+        },
+        "F-SNAPSHOT": {
+          "key": "holding_days",
+          "sites": [
+            441
+          ]
+        },
+        "F-SCORING": {
+          "key": "holdingDays(DTO)",
+          "sites": [
+            "holdingDays"
+          ]
+        }
+      },
+      "covered_count": 3,
+      "covered": [
+        "F-LEGACY/F-UNIFIED",
+        "F-SNAPSHOT",
+        "F-SCORING"
+      ]
+    },
+    "X05_group_count_put_occurrences": [
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java",
+        "line": 81,
+        "text": "private int groupCount;"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 70,
+        "text": "private static final int RANK_IC_GROUP_COUNT = 5;"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 530,
+        "text": "obsByDate, holding, RANK_IC_GROUP_COUNT, RANK_IC_MIN_CROSS_SECTION_SIZE, SNAPSHOT_UNIVERSE_NOTE);"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 650,
+        "text": "block.put(\"group_count\", RANK_IC_GROUP_COUNT);"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 750,
+        "text": "RANK_IC_GROUP_COUNT,"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 794,
+        "text": "RANK_IC_GROUP_COUNT,"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 963,
+        "text": "/** 按数量等分为 groupCount 组，返回每组的得分范围与数量，展示得分集中度。 */"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 964,
+        "text": "private List<Map<String, Object>> buildGroupBands(List<Double> sortedScores, int groupCount) {"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 967,
+        "text": "if (n == 0 || groupCount <= 0) {"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+        "line": 970,
+        "text": "int effectiveGroups = Math.min(groupCount, n);"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+        "line": 1024,
+        "text": ".groupCount(summary.groupCount())"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 29,
+        "text": "int groupCount,"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 94,
+        "text": "int groupCount"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 96,
+        "text": "if (observations == null || observations.isEmpty() || groupCount < 2) {"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 102,
+        "text": "int g = Math.min(groupCount, n);"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 123,
+        "text": "int groupCount,"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 128,
+        "text": "return emptySummary(holdingDays, groupCount, universeNote);"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 134,
+        "text": "for (int g = 1; g <= groupCount; g++) {"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 160,
+        "text": "List<GroupReturnStat> dayGroups = groupedAverageReturns(obs, groupCount);"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 167,
+        "text": "return emptySummary(holdingDays, groupCount, universeNote);"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 180,
+        "text": "for (int g = 1; g <= groupCount; g++) {"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 183,
+        "text": "grouped.add(new GroupReturnStat(g, groupLabel(g, groupCount), avg, rets.size()));"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 195,
+        "text": "groupCount,"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 214,
+        "text": "private static FactorResearchSummary emptySummary(int holdingDays, int groupCount, String note) {"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 216,
+        "text": "holdingDays, groupCount, 0, 0,"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 251,
+        "text": "private static String groupLabel(int groupNo, int groupCount) {"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 252,
+        "text": "if (groupCount == 5) {"
+      },
+      {
+        "file": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+        "line": 265,
+        "text": "if (groupNo == groupCount) {"
+      }
+    ],
+    "X06_response_all_fields": [
+      "avgLoss",
+      "avgReturn",
+      "avgWin",
+      "codexFactorIcByHolding",
+      "crossSectionDays",
+      "dailyDetails",
+      "dailyRankIc",
+      "dailyWinRate",
+      "endDate",
+      "entryDate",
+      "entryPrice",
+      "exchangeType",
+      "executionAssumptions",
+      "executionFunnel",
+      "factorAnalysis",
+      "factorIcByHolding",
+      "filledSampleWinRate",
+      "finalScore",
+      "formulaAudit",
+      "forwardReturns",
+      "groupCount",
+      "groupNo",
+      "groupedReturns",
+      "holdingDays",
+      "holdingPeriodStats",
+      "label",
+      "longShortSpread",
+      "maxReturn",
+      "medianReturn",
+      "metricScope",
+      "minReturn",
+      "observations",
+      "periodSkipReasons",
+      "priceSource",
+      "profitLossRatio",
+      "rankIc",
+      "rankIcIr",
+      "rankIcMean",
+      "rankIcPositiveRate",
+      "rankIcStd",
+      "rankNo",
+      "resultId",
+      "sampleSize",
+      "shortHorizonValidation",
+      "signalCount",
+      "skipReason",
+      "skippedCount",
+      "startDate",
+      "stockCode",
+      "stockName",
+      "strategyType",
+      "topN",
+      "topStocks",
+      "totalObservations",
+      "totalTradingDays",
+      "tradeDate",
+      "universeNote",
+      "winRate"
+    ]
+  },
+  "runtime": {
+    "cells": [
+      {
+        "i": 0,
+        "holding_days": 1,
+        "group_count": 3,
+        "min_cross_section_size": 5,
+        "cross_section_days": 5,
+        "total_observations": 57,
+        "rank_ic_mean": 0.375212331528121,
+        "rank_ic_std": 0.06790220775751991,
+        "rank_ic_ir": 5.525775139271045,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4822616247632066,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.024198717586101672,
+        "ci_lower": 0.3112387612387612,
+        "ci_upper": 0.42392274392274387,
+        "long_short_spread": 0.00432358586699747,
+        "grouped_rows": 3,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 5,
+        "included_days": [
+          "D1",
+          "D2",
+          "D3",
+          "D4",
+          "D5"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.8037a953e0733p-2",
+          "long_short_spread": "0x1.1b59bbe673a26p-8",
+          "rank_ic_std": "0x1.1620a01a50e0bp-4",
+          "hac_std": "0x1.8c78c728cbed7p-6",
+          "ci_lower": "0x1.3eb55fb31276fp-2",
+          "ci_upper": "0x1.b218cdc4b70eep-2",
+          "pearson_ic_mean": "0x1.edd5fdc9e52adp-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.002640016046007327,
+            "observations": 5
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.0003798629259645867,
+            "observations": 5
+          },
+          {
+            "group_no": 3,
+            "label": "G3(高分)",
+            "avg_return": 0.006963601913004797,
+            "observations": 5
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D1",
+            "rank_ic": 0.3776223776223776,
+            "sample_size": 12
+          },
+          {
+            "trade_date": "D2",
+            "rank_ic": 0.44242424242424244,
+            "sample_size": 10
+          },
+          {
+            "trade_date": "D3",
+            "rank_ic": 0.25,
+            "sample_size": 9
+          },
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          },
+          {
+            "trade_date": "D5",
+            "rank_ic": 0.42857142857142855,
+            "sample_size": 6
+          }
+        ]
+      },
+      {
+        "i": 1,
+        "holding_days": 1,
+        "group_count": 3,
+        "min_cross_section_size": 10,
+        "cross_section_days": 3,
+        "total_observations": 42,
+        "rank_ic_mean": 0.39916340968972547,
+        "rank_ic_std": 0.030590115246769512,
+        "rank_ic_ir": 13.048771031742987,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4737572040577203,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.010196763122285799,
+        "ci_lower": 0.3774436090225564,
+        "ci_upper": 0.44242424242424244,
+        "long_short_spread": 0.004427639055809453,
+        "grouped_rows": 3,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 3,
+        "included_days": [
+          "D1",
+          "D2",
+          "D4"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.98be4af982461p-2",
+          "long_short_spread": "0x1.222b74f175282p-8",
+          "rank_ic_std": "0x1.f5303e24352edp-6",
+          "hac_std": "0x1.4e20a61150bc5p-7",
+          "ci_lower": "0x1.828093d358281p-2",
+          "ci_upper": "0x1.c50adc50adc51p-2",
+          "pearson_ic_mean": "0x1.e5209bc6b0715p-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.0025570018588090093,
+            "observations": 3
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.0005680985773085923,
+            "observations": 3
+          },
+          {
+            "group_no": 3,
+            "label": "G3(高分)",
+            "avg_return": 0.006984640914618462,
+            "observations": 3
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D1",
+            "rank_ic": 0.3776223776223776,
+            "sample_size": 12
+          },
+          {
+            "trade_date": "D2",
+            "rank_ic": 0.44242424242424244,
+            "sample_size": 10
+          },
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          }
+        ]
+      },
+      {
+        "i": 2,
+        "holding_days": 1,
+        "group_count": 3,
+        "min_cross_section_size": 20,
+        "cross_section_days": 1,
+        "total_observations": 20,
+        "rank_ic_mean": 0.3774436090225564,
+        "rank_ic_std": 0.0,
+        "rank_ic_ir": 0.0,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4766444920608559,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.0,
+        "ci_lower": 0.0,
+        "ci_upper": 0.0,
+        "long_short_spread": 0.004596626095819959,
+        "grouped_rows": 3,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 1,
+        "included_days": [
+          "D4"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.828093d358281p-2",
+          "long_short_spread": "0x1.2d3e96c0e4844p-8",
+          "rank_ic_std": "0x0.0p0",
+          "hac_std": "0x0.0p0",
+          "ci_lower": "0x0.0p0",
+          "ci_upper": "0x0.0p0",
+          "pearson_ic_mean": "0x1.e8157e64e12f8p-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.002776401351933663,
+            "observations": 1
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.0003860370258580619,
+            "observations": 1
+          },
+          {
+            "group_no": 3,
+            "label": "G3(高分)",
+            "avg_return": 0.007373027447753622,
+            "observations": 1
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          }
+        ]
+      },
+      {
+        "i": 3,
+        "holding_days": 1,
+        "group_count": 5,
+        "min_cross_section_size": 5,
+        "cross_section_days": 5,
+        "total_observations": 57,
+        "rank_ic_mean": 0.375212331528121,
+        "rank_ic_std": 0.06790220775751991,
+        "rank_ic_ir": 5.525775139271045,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4822616247632066,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.024198717586101672,
+        "ci_lower": 0.3112387612387612,
+        "ci_upper": 0.42392274392274387,
+        "long_short_spread": 0.005931718883522021,
+        "grouped_rows": 5,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 5,
+        "included_days": [
+          "D1",
+          "D2",
+          "D3",
+          "D4",
+          "D5"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.8037a953e0733p-2",
+          "long_short_spread": "0x1.84bdba9d2184fp-8",
+          "rank_ic_std": "0x1.1620a01a50e0bp-4",
+          "hac_std": "0x1.8c78c728cbed7p-6",
+          "ci_lower": "0x1.3eb55fb31276fp-2",
+          "ci_upper": "0x1.b218cdc4b70eep-2",
+          "pearson_ic_mean": "0x1.edd5fdc9e52adp-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.003614825800779746,
+            "observations": 5
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.0003342150412256215,
+            "observations": 5
+          },
+          {
+            "group_no": 3,
+            "label": "G3",
+            "avg_return": 0.00014259396811199264,
+            "observations": 5
+          },
+          {
+            "group_no": 4,
+            "label": "G4",
+            "avg_return": 0.003933602914135326,
+            "observations": 5
+          },
+          {
+            "group_no": 5,
+            "label": "G5(高分)",
+            "avg_return": 0.009546544684301767,
+            "observations": 5
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D1",
+            "rank_ic": 0.3776223776223776,
+            "sample_size": 12
+          },
+          {
+            "trade_date": "D2",
+            "rank_ic": 0.44242424242424244,
+            "sample_size": 10
+          },
+          {
+            "trade_date": "D3",
+            "rank_ic": 0.25,
+            "sample_size": 9
+          },
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          },
+          {
+            "trade_date": "D5",
+            "rank_ic": 0.42857142857142855,
+            "sample_size": 6
+          }
+        ]
+      },
+      {
+        "i": 4,
+        "holding_days": 1,
+        "group_count": 5,
+        "min_cross_section_size": 10,
+        "cross_section_days": 3,
+        "total_observations": 42,
+        "rank_ic_mean": 0.39916340968972547,
+        "rank_ic_std": 0.030590115246769512,
+        "rank_ic_ir": 13.048771031742987,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4737572040577203,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.010196763122285799,
+        "ci_lower": 0.3774436090225564,
+        "ci_upper": 0.44242424242424244,
+        "long_short_spread": 0.00523081695866722,
+        "grouped_rows": 5,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 3,
+        "included_days": [
+          "D1",
+          "D2",
+          "D4"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.98be4af982461p-2",
+          "long_short_spread": "0x1.56ce8bc4d28f7p-8",
+          "rank_ic_std": "0x1.f5303e24352edp-6",
+          "hac_std": "0x1.4e20a61150bc5p-7",
+          "ci_lower": "0x1.828093d358281p-2",
+          "ci_upper": "0x1.c50adc50adc51p-2",
+          "pearson_ic_mean": "0x1.e5209bc6b0715p-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.003906614614681863,
+            "observations": 3
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.0003779642079407119,
+            "observations": 3
+          },
+          {
+            "group_no": 3,
+            "label": "G3",
+            "avg_return": 7.844302705450347e-05,
+            "observations": 3
+          },
+          {
+            "group_no": 4,
+            "label": "G4",
+            "avg_return": 0.00328924388105578,
+            "observations": 3
+          },
+          {
+            "group_no": 5,
+            "label": "G5(高分)",
+            "avg_return": 0.009137431573349083,
+            "observations": 3
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D1",
+            "rank_ic": 0.3776223776223776,
+            "sample_size": 12
+          },
+          {
+            "trade_date": "D2",
+            "rank_ic": 0.44242424242424244,
+            "sample_size": 10
+          },
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          }
+        ]
+      },
+      {
+        "i": 5,
+        "holding_days": 1,
+        "group_count": 5,
+        "min_cross_section_size": 20,
+        "cross_section_days": 1,
+        "total_observations": 20,
+        "rank_ic_mean": 0.3774436090225564,
+        "rank_ic_std": 0.0,
+        "rank_ic_ir": 0.0,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4766444920608559,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.0,
+        "ci_lower": 0.0,
+        "ci_upper": 0.0,
+        "long_short_spread": 0.004989579069013164,
+        "grouped_rows": 5,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 1,
+        "included_days": [
+          "D4"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.828093d358281p-2",
+          "long_short_spread": "0x1.46ff3eec1675p-8",
+          "rank_ic_std": "0x0.0p0",
+          "hac_std": "0x0.0p0",
+          "ci_lower": "0x0.0p0",
+          "ci_upper": "0x0.0p0",
+          "pearson_ic_mean": "0x1.e8157e64e12f8p-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.004026468778913349,
+            "observations": 1
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.0004613917012180774,
+            "observations": 1
+          },
+          {
+            "group_no": 3,
+            "label": "G3",
+            "avg_return": 0.00011617899161592223,
+            "observations": 1
+          },
+          {
+            "group_no": 4,
+            "label": "G4",
+            "avg_return": 0.0029737210130920894,
+            "observations": 1
+          },
+          {
+            "group_no": 5,
+            "label": "G5(高分)",
+            "avg_return": 0.009016047847926513,
+            "observations": 1
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          }
+        ]
+      },
+      {
+        "i": 6,
+        "holding_days": 1,
+        "group_count": 10,
+        "min_cross_section_size": 5,
+        "cross_section_days": 5,
+        "total_observations": 57,
+        "rank_ic_mean": 0.375212331528121,
+        "rank_ic_std": 0.06790220775751991,
+        "rank_ic_ir": 5.525775139271045,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4822616247632066,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.024198717586101672,
+        "ci_lower": 0.3112387612387612,
+        "ci_upper": 0.42392274392274387,
+        "long_short_spread": 0.004879759613568596,
+        "grouped_rows": 10,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 3,
+        "included_days": [
+          "D1",
+          "D2",
+          "D3",
+          "D4",
+          "D5"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.8037a953e0733p-2",
+          "long_short_spread": "0x1.3fccc7f3ded2p-8",
+          "rank_ic_std": "0x1.1620a01a50e0bp-4",
+          "hac_std": "0x1.8c78c728cbed7p-6",
+          "ci_lower": "0x1.3eb55fb31276fp-2",
+          "ci_upper": "0x1.b218cdc4b70eep-2",
+          "pearson_ic_mean": "0x1.edd5fdc9e52adp-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.0050890996071257435,
+            "observations": 5
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.001997937876724136,
+            "observations": 5
+          },
+          {
+            "group_no": 3,
+            "label": "G3",
+            "avg_return": 0.0007810026898314394,
+            "observations": 5
+          },
+          {
+            "group_no": 4,
+            "label": "G4",
+            "avg_return": -0.0001971800283528539,
+            "observations": 5
+          },
+          {
+            "group_no": 5,
+            "label": "G5",
+            "avg_return": 0.0010441034166455373,
+            "observations": 5
+          },
+          {
+            "group_no": 6,
+            "label": "G6",
+            "avg_return": 0.0017704251191499611,
+            "observations": 5
+          },
+          {
+            "group_no": 7,
+            "label": "G7",
+            "avg_return": 0.0034749348183527543,
+            "observations": 4
+          },
+          {
+            "group_no": 8,
+            "label": "G8",
+            "avg_return": 0.003871356586867724,
+            "observations": 4
+          },
+          {
+            "group_no": 9,
+            "label": "G9",
+            "avg_return": 0.009230119226296532,
+            "observations": 4
+          },
+          {
+            "group_no": 10,
+            "label": "G10(高分)",
+            "avg_return": 0.00996885922069434,
+            "observations": 3
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D1",
+            "rank_ic": 0.3776223776223776,
+            "sample_size": 12
+          },
+          {
+            "trade_date": "D2",
+            "rank_ic": 0.44242424242424244,
+            "sample_size": 10
+          },
+          {
+            "trade_date": "D3",
+            "rank_ic": 0.25,
+            "sample_size": 9
+          },
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          },
+          {
+            "trade_date": "D5",
+            "rank_ic": 0.42857142857142855,
+            "sample_size": 6
+          }
+        ]
+      },
+      {
+        "i": 7,
+        "holding_days": 1,
+        "group_count": 10,
+        "min_cross_section_size": 10,
+        "cross_section_days": 3,
+        "total_observations": 42,
+        "rank_ic_mean": 0.39916340968972547,
+        "rank_ic_std": 0.030590115246769512,
+        "rank_ic_ir": 13.048771031742987,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4737572040577203,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.010196763122285799,
+        "ci_lower": 0.3774436090225564,
+        "ci_upper": 0.44242424242424244,
+        "long_short_spread": 0.004854483998770972,
+        "grouped_rows": 10,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 3,
+        "included_days": [
+          "D1",
+          "D2",
+          "D4"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.98be4af982461p-2",
+          "long_short_spread": "0x1.3e24ba03804fcp-8",
+          "rank_ic_std": "0x1.f5303e24352edp-6",
+          "hac_std": "0x1.4e20a61150bc5p-7",
+          "ci_lower": "0x1.828093d358281p-2",
+          "ci_upper": "0x1.c50adc50adc51p-2",
+          "pearson_ic_mean": "0x1.e5209bc6b0715p-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.005114375221923368,
+            "observations": 3
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.0024611638112576714,
+            "observations": 3
+          },
+          {
+            "group_no": 3,
+            "label": "G3",
+            "avg_return": 0.0007496349690040582,
+            "observations": 3
+          },
+          {
+            "group_no": 4,
+            "label": "G4",
+            "avg_return": 6.293446877365649e-06,
+            "observations": 3
+          },
+          {
+            "group_no": 5,
+            "label": "G5",
+            "avg_return": -0.00024344881241455455,
+            "observations": 3
+          },
+          {
+            "group_no": 6,
+            "label": "G6",
+            "avg_return": 0.0001667163548199653,
+            "observations": 3
+          },
+          {
+            "group_no": 7,
+            "label": "G7",
+            "avg_return": 0.003112037946766097,
+            "observations": 3
+          },
+          {
+            "group_no": 8,
+            "label": "G8",
+            "avg_return": 0.003466449815345463,
+            "observations": 3
+          },
+          {
+            "group_no": 9,
+            "label": "G9",
+            "avg_return": 0.008306003926003823,
+            "observations": 3
+          },
+          {
+            "group_no": 10,
+            "label": "G10(高分)",
+            "avg_return": 0.00996885922069434,
+            "observations": 3
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D1",
+            "rank_ic": 0.3776223776223776,
+            "sample_size": 12
+          },
+          {
+            "trade_date": "D2",
+            "rank_ic": 0.44242424242424244,
+            "sample_size": 10
+          },
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          }
+        ]
+      },
+      {
+        "i": 8,
+        "holding_days": 1,
+        "group_count": 10,
+        "min_cross_section_size": 20,
+        "cross_section_days": 1,
+        "total_observations": 20,
+        "rank_ic_mean": 0.3774436090225564,
+        "rank_ic_std": 0.0,
+        "rank_ic_ir": 0.0,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4766444920608559,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.0,
+        "ci_lower": 0.0,
+        "ci_upper": 0.0,
+        "long_short_spread": 0.005602237218213501,
+        "grouped_rows": 10,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 1,
+        "included_days": [
+          "D4"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.828093d358281p-2",
+          "long_short_spread": "0x1.6f25f1a2fc372p-8",
+          "rank_ic_std": "0x0.0p0",
+          "hac_std": "0x0.0p0",
+          "ci_lower": "0x0.0p0",
+          "ci_upper": "0x0.0p0",
+          "pearson_ic_mean": "0x1.e8157e64e12f8p-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.005321278382395706,
+            "observations": 1
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.002731659175430991,
+            "observations": 1
+          },
+          {
+            "group_no": 3,
+            "label": "G3",
+            "avg_return": 0.0009494754450390806,
+            "observations": 1
+          },
+          {
+            "group_no": 4,
+            "label": "G4",
+            "avg_return": -2.6692042602925888e-05,
+            "observations": 1
+          },
+          {
+            "group_no": 5,
+            "label": "G5",
+            "avg_return": -0.00019874177176626916,
+            "observations": 1
+          },
+          {
+            "group_no": 6,
+            "label": "G6",
+            "avg_return": 0.0004310997549981136,
+            "observations": 1
+          },
+          {
+            "group_no": 7,
+            "label": "G7",
+            "avg_return": 0.0018604553787763402,
+            "observations": 1
+          },
+          {
+            "group_no": 8,
+            "label": "G8",
+            "avg_return": 0.004086986647407839,
+            "observations": 1
+          },
+          {
+            "group_no": 9,
+            "label": "G9",
+            "avg_return": 0.0071085800952438195,
+            "observations": 1
+          },
+          {
+            "group_no": 10,
+            "label": "G10(高分)",
+            "avg_return": 0.010923515600609206,
+            "observations": 1
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          }
+        ]
+      },
+      {
+        "i": 9,
+        "holding_days": 3,
+        "group_count": 3,
+        "min_cross_section_size": 5,
+        "cross_section_days": 5,
+        "total_observations": 57,
+        "rank_ic_mean": 0.375212331528121,
+        "rank_ic_std": 0.06790220775751991,
+        "rank_ic_ir": 5.525775139271045,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4822616247632066,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.024198717586101672,
+        "ci_lower": 0.31397357028935974,
+        "ci_upper": 0.4136971800129695,
+        "long_short_spread": 0.00432358586699747,
+        "grouped_rows": 3,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 5,
+        "included_days": [
+          "D1",
+          "D2",
+          "D3",
+          "D4",
+          "D5"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.8037a953e0733p-2",
+          "long_short_spread": "0x1.1b59bbe673a26p-8",
+          "rank_ic_std": "0x1.1620a01a50e0bp-4",
+          "hac_std": "0x1.8c78c728cbed7p-6",
+          "ci_lower": "0x1.418249a0cdfc3p-2",
+          "ci_upper": "0x1.a7a03bca699aap-2",
+          "pearson_ic_mean": "0x1.edd5fdc9e52adp-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.002640016046007327,
+            "observations": 5
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.0003798629259645867,
+            "observations": 5
+          },
+          {
+            "group_no": 3,
+            "label": "G3(高分)",
+            "avg_return": 0.006963601913004797,
+            "observations": 5
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D1",
+            "rank_ic": 0.3776223776223776,
+            "sample_size": 12
+          },
+          {
+            "trade_date": "D2",
+            "rank_ic": 0.44242424242424244,
+            "sample_size": 10
+          },
+          {
+            "trade_date": "D3",
+            "rank_ic": 0.25,
+            "sample_size": 9
+          },
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          },
+          {
+            "trade_date": "D5",
+            "rank_ic": 0.42857142857142855,
+            "sample_size": 6
+          }
+        ]
+      },
+      {
+        "i": 10,
+        "holding_days": 3,
+        "group_count": 3,
+        "min_cross_section_size": 10,
+        "cross_section_days": 3,
+        "total_observations": 42,
+        "rank_ic_mean": 0.39916340968972547,
+        "rank_ic_std": 0.030590115246769512,
+        "rank_ic_ir": 13.048771031742987,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4737572040577203,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.010196763122285799,
+        "ci_lower": 0.3774436090225564,
+        "ci_upper": 0.44242424242424244,
+        "long_short_spread": 0.004427639055809453,
+        "grouped_rows": 3,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 3,
+        "included_days": [
+          "D1",
+          "D2",
+          "D4"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.98be4af982461p-2",
+          "long_short_spread": "0x1.222b74f175282p-8",
+          "rank_ic_std": "0x1.f5303e24352edp-6",
+          "hac_std": "0x1.4e20a61150bc5p-7",
+          "ci_lower": "0x1.828093d358281p-2",
+          "ci_upper": "0x1.c50adc50adc51p-2",
+          "pearson_ic_mean": "0x1.e5209bc6b0715p-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.0025570018588090093,
+            "observations": 3
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.0005680985773085923,
+            "observations": 3
+          },
+          {
+            "group_no": 3,
+            "label": "G3(高分)",
+            "avg_return": 0.006984640914618462,
+            "observations": 3
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D1",
+            "rank_ic": 0.3776223776223776,
+            "sample_size": 12
+          },
+          {
+            "trade_date": "D2",
+            "rank_ic": 0.44242424242424244,
+            "sample_size": 10
+          },
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          }
+        ]
+      },
+      {
+        "i": 11,
+        "holding_days": 3,
+        "group_count": 3,
+        "min_cross_section_size": 20,
+        "cross_section_days": 1,
+        "total_observations": 20,
+        "rank_ic_mean": 0.3774436090225564,
+        "rank_ic_std": 0.0,
+        "rank_ic_ir": 0.0,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4766444920608559,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.0,
+        "ci_lower": 0.0,
+        "ci_upper": 0.0,
+        "long_short_spread": 0.004596626095819959,
+        "grouped_rows": 3,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 1,
+        "included_days": [
+          "D4"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.828093d358281p-2",
+          "long_short_spread": "0x1.2d3e96c0e4844p-8",
+          "rank_ic_std": "0x0.0p0",
+          "hac_std": "0x0.0p0",
+          "ci_lower": "0x0.0p0",
+          "ci_upper": "0x0.0p0",
+          "pearson_ic_mean": "0x1.e8157e64e12f8p-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.002776401351933663,
+            "observations": 1
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.0003860370258580619,
+            "observations": 1
+          },
+          {
+            "group_no": 3,
+            "label": "G3(高分)",
+            "avg_return": 0.007373027447753622,
+            "observations": 1
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          }
+        ]
+      },
+      {
+        "i": 12,
+        "holding_days": 3,
+        "group_count": 5,
+        "min_cross_section_size": 5,
+        "cross_section_days": 5,
+        "total_observations": 57,
+        "rank_ic_mean": 0.375212331528121,
+        "rank_ic_std": 0.06790220775751991,
+        "rank_ic_ir": 5.525775139271045,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4822616247632066,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.024198717586101672,
+        "ci_lower": 0.31397357028935974,
+        "ci_upper": 0.4136971800129695,
+        "long_short_spread": 0.005931718883522021,
+        "grouped_rows": 5,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 5,
+        "included_days": [
+          "D1",
+          "D2",
+          "D3",
+          "D4",
+          "D5"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.8037a953e0733p-2",
+          "long_short_spread": "0x1.84bdba9d2184fp-8",
+          "rank_ic_std": "0x1.1620a01a50e0bp-4",
+          "hac_std": "0x1.8c78c728cbed7p-6",
+          "ci_lower": "0x1.418249a0cdfc3p-2",
+          "ci_upper": "0x1.a7a03bca699aap-2",
+          "pearson_ic_mean": "0x1.edd5fdc9e52adp-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.003614825800779746,
+            "observations": 5
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.0003342150412256215,
+            "observations": 5
+          },
+          {
+            "group_no": 3,
+            "label": "G3",
+            "avg_return": 0.00014259396811199264,
+            "observations": 5
+          },
+          {
+            "group_no": 4,
+            "label": "G4",
+            "avg_return": 0.003933602914135326,
+            "observations": 5
+          },
+          {
+            "group_no": 5,
+            "label": "G5(高分)",
+            "avg_return": 0.009546544684301767,
+            "observations": 5
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D1",
+            "rank_ic": 0.3776223776223776,
+            "sample_size": 12
+          },
+          {
+            "trade_date": "D2",
+            "rank_ic": 0.44242424242424244,
+            "sample_size": 10
+          },
+          {
+            "trade_date": "D3",
+            "rank_ic": 0.25,
+            "sample_size": 9
+          },
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          },
+          {
+            "trade_date": "D5",
+            "rank_ic": 0.42857142857142855,
+            "sample_size": 6
+          }
+        ]
+      },
+      {
+        "i": 13,
+        "holding_days": 3,
+        "group_count": 5,
+        "min_cross_section_size": 10,
+        "cross_section_days": 3,
+        "total_observations": 42,
+        "rank_ic_mean": 0.39916340968972547,
+        "rank_ic_std": 0.030590115246769512,
+        "rank_ic_ir": 13.048771031742987,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4737572040577203,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.010196763122285799,
+        "ci_lower": 0.3774436090225564,
+        "ci_upper": 0.44242424242424244,
+        "long_short_spread": 0.00523081695866722,
+        "grouped_rows": 5,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 3,
+        "included_days": [
+          "D1",
+          "D2",
+          "D4"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.98be4af982461p-2",
+          "long_short_spread": "0x1.56ce8bc4d28f7p-8",
+          "rank_ic_std": "0x1.f5303e24352edp-6",
+          "hac_std": "0x1.4e20a61150bc5p-7",
+          "ci_lower": "0x1.828093d358281p-2",
+          "ci_upper": "0x1.c50adc50adc51p-2",
+          "pearson_ic_mean": "0x1.e5209bc6b0715p-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.003906614614681863,
+            "observations": 3
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.0003779642079407119,
+            "observations": 3
+          },
+          {
+            "group_no": 3,
+            "label": "G3",
+            "avg_return": 7.844302705450347e-05,
+            "observations": 3
+          },
+          {
+            "group_no": 4,
+            "label": "G4",
+            "avg_return": 0.00328924388105578,
+            "observations": 3
+          },
+          {
+            "group_no": 5,
+            "label": "G5(高分)",
+            "avg_return": 0.009137431573349083,
+            "observations": 3
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D1",
+            "rank_ic": 0.3776223776223776,
+            "sample_size": 12
+          },
+          {
+            "trade_date": "D2",
+            "rank_ic": 0.44242424242424244,
+            "sample_size": 10
+          },
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          }
+        ]
+      },
+      {
+        "i": 14,
+        "holding_days": 3,
+        "group_count": 5,
+        "min_cross_section_size": 20,
+        "cross_section_days": 1,
+        "total_observations": 20,
+        "rank_ic_mean": 0.3774436090225564,
+        "rank_ic_std": 0.0,
+        "rank_ic_ir": 0.0,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4766444920608559,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.0,
+        "ci_lower": 0.0,
+        "ci_upper": 0.0,
+        "long_short_spread": 0.004989579069013164,
+        "grouped_rows": 5,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 1,
+        "included_days": [
+          "D4"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.828093d358281p-2",
+          "long_short_spread": "0x1.46ff3eec1675p-8",
+          "rank_ic_std": "0x0.0p0",
+          "hac_std": "0x0.0p0",
+          "ci_lower": "0x0.0p0",
+          "ci_upper": "0x0.0p0",
+          "pearson_ic_mean": "0x1.e8157e64e12f8p-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.004026468778913349,
+            "observations": 1
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.0004613917012180774,
+            "observations": 1
+          },
+          {
+            "group_no": 3,
+            "label": "G3",
+            "avg_return": 0.00011617899161592223,
+            "observations": 1
+          },
+          {
+            "group_no": 4,
+            "label": "G4",
+            "avg_return": 0.0029737210130920894,
+            "observations": 1
+          },
+          {
+            "group_no": 5,
+            "label": "G5(高分)",
+            "avg_return": 0.009016047847926513,
+            "observations": 1
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          }
+        ]
+      },
+      {
+        "i": 15,
+        "holding_days": 3,
+        "group_count": 10,
+        "min_cross_section_size": 5,
+        "cross_section_days": 5,
+        "total_observations": 57,
+        "rank_ic_mean": 0.375212331528121,
+        "rank_ic_std": 0.06790220775751991,
+        "rank_ic_ir": 5.525775139271045,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4822616247632066,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.024198717586101672,
+        "ci_lower": 0.31397357028935974,
+        "ci_upper": 0.4136971800129695,
+        "long_short_spread": 0.004879759613568596,
+        "grouped_rows": 10,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 3,
+        "included_days": [
+          "D1",
+          "D2",
+          "D3",
+          "D4",
+          "D5"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.8037a953e0733p-2",
+          "long_short_spread": "0x1.3fccc7f3ded2p-8",
+          "rank_ic_std": "0x1.1620a01a50e0bp-4",
+          "hac_std": "0x1.8c78c728cbed7p-6",
+          "ci_lower": "0x1.418249a0cdfc3p-2",
+          "ci_upper": "0x1.a7a03bca699aap-2",
+          "pearson_ic_mean": "0x1.edd5fdc9e52adp-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.0050890996071257435,
+            "observations": 5
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.001997937876724136,
+            "observations": 5
+          },
+          {
+            "group_no": 3,
+            "label": "G3",
+            "avg_return": 0.0007810026898314394,
+            "observations": 5
+          },
+          {
+            "group_no": 4,
+            "label": "G4",
+            "avg_return": -0.0001971800283528539,
+            "observations": 5
+          },
+          {
+            "group_no": 5,
+            "label": "G5",
+            "avg_return": 0.0010441034166455373,
+            "observations": 5
+          },
+          {
+            "group_no": 6,
+            "label": "G6",
+            "avg_return": 0.0017704251191499611,
+            "observations": 5
+          },
+          {
+            "group_no": 7,
+            "label": "G7",
+            "avg_return": 0.0034749348183527543,
+            "observations": 4
+          },
+          {
+            "group_no": 8,
+            "label": "G8",
+            "avg_return": 0.003871356586867724,
+            "observations": 4
+          },
+          {
+            "group_no": 9,
+            "label": "G9",
+            "avg_return": 0.009230119226296532,
+            "observations": 4
+          },
+          {
+            "group_no": 10,
+            "label": "G10(高分)",
+            "avg_return": 0.00996885922069434,
+            "observations": 3
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D1",
+            "rank_ic": 0.3776223776223776,
+            "sample_size": 12
+          },
+          {
+            "trade_date": "D2",
+            "rank_ic": 0.44242424242424244,
+            "sample_size": 10
+          },
+          {
+            "trade_date": "D3",
+            "rank_ic": 0.25,
+            "sample_size": 9
+          },
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          },
+          {
+            "trade_date": "D5",
+            "rank_ic": 0.42857142857142855,
+            "sample_size": 6
+          }
+        ]
+      },
+      {
+        "i": 16,
+        "holding_days": 3,
+        "group_count": 10,
+        "min_cross_section_size": 10,
+        "cross_section_days": 3,
+        "total_observations": 42,
+        "rank_ic_mean": 0.39916340968972547,
+        "rank_ic_std": 0.030590115246769512,
+        "rank_ic_ir": 13.048771031742987,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4737572040577203,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.010196763122285799,
+        "ci_lower": 0.3774436090225564,
+        "ci_upper": 0.44242424242424244,
+        "long_short_spread": 0.004854483998770972,
+        "grouped_rows": 10,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 3,
+        "included_days": [
+          "D1",
+          "D2",
+          "D4"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.98be4af982461p-2",
+          "long_short_spread": "0x1.3e24ba03804fcp-8",
+          "rank_ic_std": "0x1.f5303e24352edp-6",
+          "hac_std": "0x1.4e20a61150bc5p-7",
+          "ci_lower": "0x1.828093d358281p-2",
+          "ci_upper": "0x1.c50adc50adc51p-2",
+          "pearson_ic_mean": "0x1.e5209bc6b0715p-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.005114375221923368,
+            "observations": 3
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.0024611638112576714,
+            "observations": 3
+          },
+          {
+            "group_no": 3,
+            "label": "G3",
+            "avg_return": 0.0007496349690040582,
+            "observations": 3
+          },
+          {
+            "group_no": 4,
+            "label": "G4",
+            "avg_return": 6.293446877365649e-06,
+            "observations": 3
+          },
+          {
+            "group_no": 5,
+            "label": "G5",
+            "avg_return": -0.00024344881241455455,
+            "observations": 3
+          },
+          {
+            "group_no": 6,
+            "label": "G6",
+            "avg_return": 0.0001667163548199653,
+            "observations": 3
+          },
+          {
+            "group_no": 7,
+            "label": "G7",
+            "avg_return": 0.003112037946766097,
+            "observations": 3
+          },
+          {
+            "group_no": 8,
+            "label": "G8",
+            "avg_return": 0.003466449815345463,
+            "observations": 3
+          },
+          {
+            "group_no": 9,
+            "label": "G9",
+            "avg_return": 0.008306003926003823,
+            "observations": 3
+          },
+          {
+            "group_no": 10,
+            "label": "G10(高分)",
+            "avg_return": 0.00996885922069434,
+            "observations": 3
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D1",
+            "rank_ic": 0.3776223776223776,
+            "sample_size": 12
+          },
+          {
+            "trade_date": "D2",
+            "rank_ic": 0.44242424242424244,
+            "sample_size": 10
+          },
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          }
+        ]
+      },
+      {
+        "i": 17,
+        "holding_days": 3,
+        "group_count": 10,
+        "min_cross_section_size": 20,
+        "cross_section_days": 1,
+        "total_observations": 20,
+        "rank_ic_mean": 0.3774436090225564,
+        "rank_ic_std": 0.0,
+        "rank_ic_ir": 0.0,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4766444920608559,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.0,
+        "ci_lower": 0.0,
+        "ci_upper": 0.0,
+        "long_short_spread": 0.005602237218213501,
+        "grouped_rows": 10,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 1,
+        "included_days": [
+          "D4"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.828093d358281p-2",
+          "long_short_spread": "0x1.6f25f1a2fc372p-8",
+          "rank_ic_std": "0x0.0p0",
+          "hac_std": "0x0.0p0",
+          "ci_lower": "0x0.0p0",
+          "ci_upper": "0x0.0p0",
+          "pearson_ic_mean": "0x1.e8157e64e12f8p-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.005321278382395706,
+            "observations": 1
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.002731659175430991,
+            "observations": 1
+          },
+          {
+            "group_no": 3,
+            "label": "G3",
+            "avg_return": 0.0009494754450390806,
+            "observations": 1
+          },
+          {
+            "group_no": 4,
+            "label": "G4",
+            "avg_return": -2.6692042602925888e-05,
+            "observations": 1
+          },
+          {
+            "group_no": 5,
+            "label": "G5",
+            "avg_return": -0.00019874177176626916,
+            "observations": 1
+          },
+          {
+            "group_no": 6,
+            "label": "G6",
+            "avg_return": 0.0004310997549981136,
+            "observations": 1
+          },
+          {
+            "group_no": 7,
+            "label": "G7",
+            "avg_return": 0.0018604553787763402,
+            "observations": 1
+          },
+          {
+            "group_no": 8,
+            "label": "G8",
+            "avg_return": 0.004086986647407839,
+            "observations": 1
+          },
+          {
+            "group_no": 9,
+            "label": "G9",
+            "avg_return": 0.0071085800952438195,
+            "observations": 1
+          },
+          {
+            "group_no": 10,
+            "label": "G10(高分)",
+            "avg_return": 0.010923515600609206,
+            "observations": 1
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          }
+        ]
+      },
+      {
+        "i": 18,
+        "holding_days": 5,
+        "group_count": 3,
+        "min_cross_section_size": 5,
+        "cross_section_days": 5,
+        "total_observations": 57,
+        "rank_ic_mean": 0.375212331528121,
+        "rank_ic_std": 0.06790220775751991,
+        "rank_ic_ir": 5.525775139271045,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4822616247632066,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.024198717586101672,
+        "ci_lower": 0.31397357028935974,
+        "ci_upper": 0.4136971800129695,
+        "long_short_spread": 0.00432358586699747,
+        "grouped_rows": 3,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 5,
+        "included_days": [
+          "D1",
+          "D2",
+          "D3",
+          "D4",
+          "D5"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.8037a953e0733p-2",
+          "long_short_spread": "0x1.1b59bbe673a26p-8",
+          "rank_ic_std": "0x1.1620a01a50e0bp-4",
+          "hac_std": "0x1.8c78c728cbed7p-6",
+          "ci_lower": "0x1.418249a0cdfc3p-2",
+          "ci_upper": "0x1.a7a03bca699aap-2",
+          "pearson_ic_mean": "0x1.edd5fdc9e52adp-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.002640016046007327,
+            "observations": 5
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.0003798629259645867,
+            "observations": 5
+          },
+          {
+            "group_no": 3,
+            "label": "G3(高分)",
+            "avg_return": 0.006963601913004797,
+            "observations": 5
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D1",
+            "rank_ic": 0.3776223776223776,
+            "sample_size": 12
+          },
+          {
+            "trade_date": "D2",
+            "rank_ic": 0.44242424242424244,
+            "sample_size": 10
+          },
+          {
+            "trade_date": "D3",
+            "rank_ic": 0.25,
+            "sample_size": 9
+          },
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          },
+          {
+            "trade_date": "D5",
+            "rank_ic": 0.42857142857142855,
+            "sample_size": 6
+          }
+        ]
+      },
+      {
+        "i": 19,
+        "holding_days": 5,
+        "group_count": 3,
+        "min_cross_section_size": 10,
+        "cross_section_days": 3,
+        "total_observations": 42,
+        "rank_ic_mean": 0.39916340968972547,
+        "rank_ic_std": 0.030590115246769512,
+        "rank_ic_ir": 13.048771031742987,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4737572040577203,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.010196763122285799,
+        "ci_lower": 0.3774436090225564,
+        "ci_upper": 0.44242424242424244,
+        "long_short_spread": 0.004427639055809453,
+        "grouped_rows": 3,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 3,
+        "included_days": [
+          "D1",
+          "D2",
+          "D4"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.98be4af982461p-2",
+          "long_short_spread": "0x1.222b74f175282p-8",
+          "rank_ic_std": "0x1.f5303e24352edp-6",
+          "hac_std": "0x1.4e20a61150bc5p-7",
+          "ci_lower": "0x1.828093d358281p-2",
+          "ci_upper": "0x1.c50adc50adc51p-2",
+          "pearson_ic_mean": "0x1.e5209bc6b0715p-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.0025570018588090093,
+            "observations": 3
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.0005680985773085923,
+            "observations": 3
+          },
+          {
+            "group_no": 3,
+            "label": "G3(高分)",
+            "avg_return": 0.006984640914618462,
+            "observations": 3
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D1",
+            "rank_ic": 0.3776223776223776,
+            "sample_size": 12
+          },
+          {
+            "trade_date": "D2",
+            "rank_ic": 0.44242424242424244,
+            "sample_size": 10
+          },
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          }
+        ]
+      },
+      {
+        "i": 20,
+        "holding_days": 5,
+        "group_count": 3,
+        "min_cross_section_size": 20,
+        "cross_section_days": 1,
+        "total_observations": 20,
+        "rank_ic_mean": 0.3774436090225564,
+        "rank_ic_std": 0.0,
+        "rank_ic_ir": 0.0,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4766444920608559,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.0,
+        "ci_lower": 0.0,
+        "ci_upper": 0.0,
+        "long_short_spread": 0.004596626095819959,
+        "grouped_rows": 3,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 1,
+        "included_days": [
+          "D4"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.828093d358281p-2",
+          "long_short_spread": "0x1.2d3e96c0e4844p-8",
+          "rank_ic_std": "0x0.0p0",
+          "hac_std": "0x0.0p0",
+          "ci_lower": "0x0.0p0",
+          "ci_upper": "0x0.0p0",
+          "pearson_ic_mean": "0x1.e8157e64e12f8p-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.002776401351933663,
+            "observations": 1
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.0003860370258580619,
+            "observations": 1
+          },
+          {
+            "group_no": 3,
+            "label": "G3(高分)",
+            "avg_return": 0.007373027447753622,
+            "observations": 1
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          }
+        ]
+      },
+      {
+        "i": 21,
+        "holding_days": 5,
+        "group_count": 5,
+        "min_cross_section_size": 5,
+        "cross_section_days": 5,
+        "total_observations": 57,
+        "rank_ic_mean": 0.375212331528121,
+        "rank_ic_std": 0.06790220775751991,
+        "rank_ic_ir": 5.525775139271045,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4822616247632066,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.024198717586101672,
+        "ci_lower": 0.31397357028935974,
+        "ci_upper": 0.4136971800129695,
+        "long_short_spread": 0.005931718883522021,
+        "grouped_rows": 5,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 5,
+        "included_days": [
+          "D1",
+          "D2",
+          "D3",
+          "D4",
+          "D5"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.8037a953e0733p-2",
+          "long_short_spread": "0x1.84bdba9d2184fp-8",
+          "rank_ic_std": "0x1.1620a01a50e0bp-4",
+          "hac_std": "0x1.8c78c728cbed7p-6",
+          "ci_lower": "0x1.418249a0cdfc3p-2",
+          "ci_upper": "0x1.a7a03bca699aap-2",
+          "pearson_ic_mean": "0x1.edd5fdc9e52adp-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.003614825800779746,
+            "observations": 5
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.0003342150412256215,
+            "observations": 5
+          },
+          {
+            "group_no": 3,
+            "label": "G3",
+            "avg_return": 0.00014259396811199264,
+            "observations": 5
+          },
+          {
+            "group_no": 4,
+            "label": "G4",
+            "avg_return": 0.003933602914135326,
+            "observations": 5
+          },
+          {
+            "group_no": 5,
+            "label": "G5(高分)",
+            "avg_return": 0.009546544684301767,
+            "observations": 5
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D1",
+            "rank_ic": 0.3776223776223776,
+            "sample_size": 12
+          },
+          {
+            "trade_date": "D2",
+            "rank_ic": 0.44242424242424244,
+            "sample_size": 10
+          },
+          {
+            "trade_date": "D3",
+            "rank_ic": 0.25,
+            "sample_size": 9
+          },
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          },
+          {
+            "trade_date": "D5",
+            "rank_ic": 0.42857142857142855,
+            "sample_size": 6
+          }
+        ]
+      },
+      {
+        "i": 22,
+        "holding_days": 5,
+        "group_count": 5,
+        "min_cross_section_size": 10,
+        "cross_section_days": 3,
+        "total_observations": 42,
+        "rank_ic_mean": 0.39916340968972547,
+        "rank_ic_std": 0.030590115246769512,
+        "rank_ic_ir": 13.048771031742987,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4737572040577203,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.010196763122285799,
+        "ci_lower": 0.3774436090225564,
+        "ci_upper": 0.44242424242424244,
+        "long_short_spread": 0.00523081695866722,
+        "grouped_rows": 5,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 3,
+        "included_days": [
+          "D1",
+          "D2",
+          "D4"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.98be4af982461p-2",
+          "long_short_spread": "0x1.56ce8bc4d28f7p-8",
+          "rank_ic_std": "0x1.f5303e24352edp-6",
+          "hac_std": "0x1.4e20a61150bc5p-7",
+          "ci_lower": "0x1.828093d358281p-2",
+          "ci_upper": "0x1.c50adc50adc51p-2",
+          "pearson_ic_mean": "0x1.e5209bc6b0715p-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.003906614614681863,
+            "observations": 3
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.0003779642079407119,
+            "observations": 3
+          },
+          {
+            "group_no": 3,
+            "label": "G3",
+            "avg_return": 7.844302705450347e-05,
+            "observations": 3
+          },
+          {
+            "group_no": 4,
+            "label": "G4",
+            "avg_return": 0.00328924388105578,
+            "observations": 3
+          },
+          {
+            "group_no": 5,
+            "label": "G5(高分)",
+            "avg_return": 0.009137431573349083,
+            "observations": 3
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D1",
+            "rank_ic": 0.3776223776223776,
+            "sample_size": 12
+          },
+          {
+            "trade_date": "D2",
+            "rank_ic": 0.44242424242424244,
+            "sample_size": 10
+          },
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          }
+        ]
+      },
+      {
+        "i": 23,
+        "holding_days": 5,
+        "group_count": 5,
+        "min_cross_section_size": 20,
+        "cross_section_days": 1,
+        "total_observations": 20,
+        "rank_ic_mean": 0.3774436090225564,
+        "rank_ic_std": 0.0,
+        "rank_ic_ir": 0.0,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4766444920608559,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.0,
+        "ci_lower": 0.0,
+        "ci_upper": 0.0,
+        "long_short_spread": 0.004989579069013164,
+        "grouped_rows": 5,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 1,
+        "included_days": [
+          "D4"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.828093d358281p-2",
+          "long_short_spread": "0x1.46ff3eec1675p-8",
+          "rank_ic_std": "0x0.0p0",
+          "hac_std": "0x0.0p0",
+          "ci_lower": "0x0.0p0",
+          "ci_upper": "0x0.0p0",
+          "pearson_ic_mean": "0x1.e8157e64e12f8p-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.004026468778913349,
+            "observations": 1
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.0004613917012180774,
+            "observations": 1
+          },
+          {
+            "group_no": 3,
+            "label": "G3",
+            "avg_return": 0.00011617899161592223,
+            "observations": 1
+          },
+          {
+            "group_no": 4,
+            "label": "G4",
+            "avg_return": 0.0029737210130920894,
+            "observations": 1
+          },
+          {
+            "group_no": 5,
+            "label": "G5(高分)",
+            "avg_return": 0.009016047847926513,
+            "observations": 1
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          }
+        ]
+      },
+      {
+        "i": 24,
+        "holding_days": 5,
+        "group_count": 10,
+        "min_cross_section_size": 5,
+        "cross_section_days": 5,
+        "total_observations": 57,
+        "rank_ic_mean": 0.375212331528121,
+        "rank_ic_std": 0.06790220775751991,
+        "rank_ic_ir": 5.525775139271045,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4822616247632066,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.024198717586101672,
+        "ci_lower": 0.31397357028935974,
+        "ci_upper": 0.4136971800129695,
+        "long_short_spread": 0.004879759613568596,
+        "grouped_rows": 10,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 3,
+        "included_days": [
+          "D1",
+          "D2",
+          "D3",
+          "D4",
+          "D5"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.8037a953e0733p-2",
+          "long_short_spread": "0x1.3fccc7f3ded2p-8",
+          "rank_ic_std": "0x1.1620a01a50e0bp-4",
+          "hac_std": "0x1.8c78c728cbed7p-6",
+          "ci_lower": "0x1.418249a0cdfc3p-2",
+          "ci_upper": "0x1.a7a03bca699aap-2",
+          "pearson_ic_mean": "0x1.edd5fdc9e52adp-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.0050890996071257435,
+            "observations": 5
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.001997937876724136,
+            "observations": 5
+          },
+          {
+            "group_no": 3,
+            "label": "G3",
+            "avg_return": 0.0007810026898314394,
+            "observations": 5
+          },
+          {
+            "group_no": 4,
+            "label": "G4",
+            "avg_return": -0.0001971800283528539,
+            "observations": 5
+          },
+          {
+            "group_no": 5,
+            "label": "G5",
+            "avg_return": 0.0010441034166455373,
+            "observations": 5
+          },
+          {
+            "group_no": 6,
+            "label": "G6",
+            "avg_return": 0.0017704251191499611,
+            "observations": 5
+          },
+          {
+            "group_no": 7,
+            "label": "G7",
+            "avg_return": 0.0034749348183527543,
+            "observations": 4
+          },
+          {
+            "group_no": 8,
+            "label": "G8",
+            "avg_return": 0.003871356586867724,
+            "observations": 4
+          },
+          {
+            "group_no": 9,
+            "label": "G9",
+            "avg_return": 0.009230119226296532,
+            "observations": 4
+          },
+          {
+            "group_no": 10,
+            "label": "G10(高分)",
+            "avg_return": 0.00996885922069434,
+            "observations": 3
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D1",
+            "rank_ic": 0.3776223776223776,
+            "sample_size": 12
+          },
+          {
+            "trade_date": "D2",
+            "rank_ic": 0.44242424242424244,
+            "sample_size": 10
+          },
+          {
+            "trade_date": "D3",
+            "rank_ic": 0.25,
+            "sample_size": 9
+          },
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          },
+          {
+            "trade_date": "D5",
+            "rank_ic": 0.42857142857142855,
+            "sample_size": 6
+          }
+        ]
+      },
+      {
+        "i": 25,
+        "holding_days": 5,
+        "group_count": 10,
+        "min_cross_section_size": 10,
+        "cross_section_days": 3,
+        "total_observations": 42,
+        "rank_ic_mean": 0.39916340968972547,
+        "rank_ic_std": 0.030590115246769512,
+        "rank_ic_ir": 13.048771031742987,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4737572040577203,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.010196763122285799,
+        "ci_lower": 0.3774436090225564,
+        "ci_upper": 0.44242424242424244,
+        "long_short_spread": 0.004854483998770972,
+        "grouped_rows": 10,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 3,
+        "included_days": [
+          "D1",
+          "D2",
+          "D4"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.98be4af982461p-2",
+          "long_short_spread": "0x1.3e24ba03804fcp-8",
+          "rank_ic_std": "0x1.f5303e24352edp-6",
+          "hac_std": "0x1.4e20a61150bc5p-7",
+          "ci_lower": "0x1.828093d358281p-2",
+          "ci_upper": "0x1.c50adc50adc51p-2",
+          "pearson_ic_mean": "0x1.e5209bc6b0715p-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.005114375221923368,
+            "observations": 3
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.0024611638112576714,
+            "observations": 3
+          },
+          {
+            "group_no": 3,
+            "label": "G3",
+            "avg_return": 0.0007496349690040582,
+            "observations": 3
+          },
+          {
+            "group_no": 4,
+            "label": "G4",
+            "avg_return": 6.293446877365649e-06,
+            "observations": 3
+          },
+          {
+            "group_no": 5,
+            "label": "G5",
+            "avg_return": -0.00024344881241455455,
+            "observations": 3
+          },
+          {
+            "group_no": 6,
+            "label": "G6",
+            "avg_return": 0.0001667163548199653,
+            "observations": 3
+          },
+          {
+            "group_no": 7,
+            "label": "G7",
+            "avg_return": 0.003112037946766097,
+            "observations": 3
+          },
+          {
+            "group_no": 8,
+            "label": "G8",
+            "avg_return": 0.003466449815345463,
+            "observations": 3
+          },
+          {
+            "group_no": 9,
+            "label": "G9",
+            "avg_return": 0.008306003926003823,
+            "observations": 3
+          },
+          {
+            "group_no": 10,
+            "label": "G10(高分)",
+            "avg_return": 0.00996885922069434,
+            "observations": 3
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D1",
+            "rank_ic": 0.3776223776223776,
+            "sample_size": 12
+          },
+          {
+            "trade_date": "D2",
+            "rank_ic": 0.44242424242424244,
+            "sample_size": 10
+          },
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          }
+        ]
+      },
+      {
+        "i": 26,
+        "holding_days": 5,
+        "group_count": 10,
+        "min_cross_section_size": 20,
+        "cross_section_days": 1,
+        "total_observations": 20,
+        "rank_ic_mean": 0.3774436090225564,
+        "rank_ic_std": 0.0,
+        "rank_ic_ir": 0.0,
+        "rank_ic_positive_rate": 1.0,
+        "pearson_ic_mean": 0.4766444920608559,
+        "monotonicity": "NON_MONOTONIC",
+        "hac_std": 0.0,
+        "ci_lower": 0.0,
+        "ci_upper": 0.0,
+        "long_short_spread": 0.005602237218213501,
+        "grouped_rows": 10,
+        "empty_buckets": 0,
+        "empty_bucket_nos": [],
+        "top_bucket_observations": 1,
+        "included_days": [
+          "D4"
+        ],
+        "hex": {
+          "rank_ic_mean": "0x1.828093d358281p-2",
+          "long_short_spread": "0x1.6f25f1a2fc372p-8",
+          "rank_ic_std": "0x0.0p0",
+          "hac_std": "0x0.0p0",
+          "ci_lower": "0x0.0p0",
+          "ci_upper": "0x0.0p0",
+          "pearson_ic_mean": "0x1.e8157e64e12f8p-2"
+        },
+        "grouped_returns": [
+          {
+            "group_no": 1,
+            "label": "G1(低分)",
+            "avg_return": 0.005321278382395706,
+            "observations": 1
+          },
+          {
+            "group_no": 2,
+            "label": "G2",
+            "avg_return": 0.002731659175430991,
+            "observations": 1
+          },
+          {
+            "group_no": 3,
+            "label": "G3",
+            "avg_return": 0.0009494754450390806,
+            "observations": 1
+          },
+          {
+            "group_no": 4,
+            "label": "G4",
+            "avg_return": -2.6692042602925888e-05,
+            "observations": 1
+          },
+          {
+            "group_no": 5,
+            "label": "G5",
+            "avg_return": -0.00019874177176626916,
+            "observations": 1
+          },
+          {
+            "group_no": 6,
+            "label": "G6",
+            "avg_return": 0.0004310997549981136,
+            "observations": 1
+          },
+          {
+            "group_no": 7,
+            "label": "G7",
+            "avg_return": 0.0018604553787763402,
+            "observations": 1
+          },
+          {
+            "group_no": 8,
+            "label": "G8",
+            "avg_return": 0.004086986647407839,
+            "observations": 1
+          },
+          {
+            "group_no": 9,
+            "label": "G9",
+            "avg_return": 0.0071085800952438195,
+            "observations": 1
+          },
+          {
+            "group_no": 10,
+            "label": "G10(高分)",
+            "avg_return": 0.010923515600609206,
+            "observations": 1
+          }
+        ],
+        "daily_rank_ic": [
+          {
+            "trade_date": "D4",
+            "rank_ic": 0.3774436090225564,
+            "sample_size": 20
+          }
+        ]
+      }
+    ],
+    "anchors": {
+      "positive": {
+        "n": 12,
+        "sign": 1.0,
+        "spearman": 1.0,
+        "spearman_hex": "0x1.0p0",
+        "pearson_ic_mean": 1.0,
+        "monotonicity": "MONOTONIC_INCREASING",
+        "long_short_spread": 9.5
+      },
+      "negative": {
+        "n": 12,
+        "sign": -1.0,
+        "spearman": -1.0,
+        "spearman_hex": "-0x1.0p0",
+        "pearson_ic_mean": -1.0,
+        "monotonicity": "MONOTONIC_DECREASING",
+        "long_short_spread": -9.5
+      },
+      "linear": [
+        {
+          "group_count": 3,
+          "monotonicity": "MONOTONIC_INCREASING",
+          "long_short_spread": 0.07600000000000001,
+          "long_short_spread_hex": "0x1.374bc6a7ef9dcp-4",
+          "spread_positive": true
+        },
+        {
+          "group_count": 5,
+          "monotonicity": "MONOTONIC_INCREASING",
+          "long_short_spread": 0.09099999999999998,
+          "long_short_spread_hex": "0x1.74bc6a7ef9db1p-4",
+          "spread_positive": true
+        },
+        {
+          "group_count": 10,
+          "monotonicity": "MONOTONIC_INCREASING",
+          "long_short_spread": 0.12633333333333333,
+          "long_short_spread_hex": "0x1.02bb0cf87d9c5p-3",
+          "spread_positive": true
+        }
+      ]
+    },
+    "sensitivity": [
+      {
+        "holding_days": 5,
+        "group_count": 4,
+        "min_cross_section_size": 8,
+        "is_base": false,
+        "cross_section_days": 4,
+        "rank_ic_mean": 0.3618725572672941,
+        "long_short_spread": 0.004851404181957302,
+        "long_short_spread_hex": "0x1.3df10e4d1a692p-8",
+        "spread_sign": 1,
+        "monotonicity": "NON_MONOTONIC",
+        "top_bucket_observations": 4,
+        "ic_exists": true,
+        "spread_sign_changed_vs_base": false,
+        "ic_mean_changed_vs_base": true
+      },
+      {
+        "holding_days": 5,
+        "group_count": 4,
+        "min_cross_section_size": 10,
+        "is_base": false,
+        "cross_section_days": 3,
+        "rank_ic_mean": 0.39916340968972547,
+        "long_short_spread": 0.004590639920838769,
+        "long_short_spread_hex": "0x1.2cda2853e519ap-8",
+        "spread_sign": 1,
+        "monotonicity": "NON_MONOTONIC",
+        "top_bucket_observations": 3,
+        "ic_exists": true,
+        "spread_sign_changed_vs_base": false,
+        "ic_mean_changed_vs_base": false
+      },
+      {
+        "holding_days": 5,
+        "group_count": 4,
+        "min_cross_section_size": 12,
+        "is_base": false,
+        "cross_section_days": 2,
+        "rank_ic_mean": 0.37753299332246704,
+        "long_short_spread": 0.004049619849250297,
+        "long_short_spread_hex": "0x1.096558d052bcdp-8",
+        "spread_sign": 1,
+        "monotonicity": "NON_MONOTONIC",
+        "top_bucket_observations": 2,
+        "ic_exists": true,
+        "spread_sign_changed_vs_base": false,
+        "ic_mean_changed_vs_base": true
+      },
+      {
+        "holding_days": 5,
+        "group_count": 5,
+        "min_cross_section_size": 8,
+        "is_base": false,
+        "cross_section_days": 4,
+        "rank_ic_mean": 0.3618725572672941,
+        "long_short_spread": 0.005989782861985274,
+        "long_short_spread_hex": "0x1.888be1809b31p-8",
+        "spread_sign": 1,
+        "monotonicity": "NON_MONOTONIC",
+        "top_bucket_observations": 4,
+        "ic_exists": true,
+        "spread_sign_changed_vs_base": false,
+        "ic_mean_changed_vs_base": true
+      },
+      {
+        "holding_days": 5,
+        "group_count": 5,
+        "min_cross_section_size": 10,
+        "is_base": true,
+        "cross_section_days": 3,
+        "rank_ic_mean": 0.39916340968972547,
+        "long_short_spread": 0.00523081695866722,
+        "long_short_spread_hex": "0x1.56ce8bc4d28f7p-8",
+        "spread_sign": 1,
+        "monotonicity": "NON_MONOTONIC",
+        "top_bucket_observations": 3,
+        "ic_exists": true,
+        "spread_sign_changed_vs_base": false,
+        "ic_mean_changed_vs_base": false
+      },
+      {
+        "holding_days": 5,
+        "group_count": 5,
+        "min_cross_section_size": 12,
+        "is_base": false,
+        "cross_section_days": 2,
+        "rank_ic_mean": 0.37753299332246704,
+        "long_short_spread": 0.005406235515081816,
+        "long_short_spread_hex": "0x1.624d94bb53f9cp-8",
+        "spread_sign": 1,
+        "monotonicity": "NON_MONOTONIC",
+        "top_bucket_observations": 2,
+        "ic_exists": true,
+        "spread_sign_changed_vs_base": false,
+        "ic_mean_changed_vs_base": true
+      },
+      {
+        "holding_days": 5,
+        "group_count": 6,
+        "min_cross_section_size": 8,
+        "is_base": false,
+        "cross_section_days": 4,
+        "rank_ic_mean": 0.3618725572672941,
+        "long_short_spread": 0.0060749141391017916,
+        "long_short_spread_hex": "0x1.8e20258daee96p-8",
+        "spread_sign": 1,
+        "monotonicity": "NON_MONOTONIC",
+        "top_bucket_observations": 4,
+        "ic_exists": true,
+        "spread_sign_changed_vs_base": false,
+        "ic_mean_changed_vs_base": true
+      },
+      {
+        "holding_days": 5,
+        "group_count": 6,
+        "min_cross_section_size": 10,
+        "is_base": false,
+        "cross_section_days": 3,
+        "rank_ic_mean": 0.39916340968972547,
+        "long_short_spread": 0.005344325328155908,
+        "long_short_spread_hex": "0x1.5e3ee680ecda7p-8",
+        "spread_sign": 1,
+        "monotonicity": "NON_MONOTONIC",
+        "top_bucket_observations": 3,
+        "ic_exists": true,
+        "spread_sign_changed_vs_base": false,
+        "ic_mean_changed_vs_base": false
+      },
+      {
+        "holding_days": 5,
+        "group_count": 6,
+        "min_cross_section_size": 12,
+        "is_base": false,
+        "cross_section_days": 2,
+        "rank_ic_mean": 0.37753299332246704,
+        "long_short_spread": 0.005355650901501361,
+        "long_short_spread_hex": "0x1.5efce978827fep-8",
+        "spread_sign": 1,
+        "monotonicity": "NON_MONOTONIC",
+        "top_bucket_observations": 2,
+        "ic_exists": true,
+        "spread_sign_changed_vs_base": false,
+        "ic_mean_changed_vs_base": true
+      }
+    ],
+    "grid_selfcheck": {
+      "fed": {
+        "1/3/5": {
+          "cross_section_days": 5,
+          "included_days": [
+            "D1",
+            "D2",
+            "D3",
+            "D4",
+            "D5"
+          ],
+          "top_bucket_observations": 5,
+          "empty_buckets": 0
+        },
+        "1/3/10": {
+          "cross_section_days": 3,
+          "included_days": [
+            "D1",
+            "D2",
+            "D4"
+          ],
+          "top_bucket_observations": 3,
+          "empty_buckets": 0
+        },
+        "1/3/20": {
+          "cross_section_days": 1,
+          "included_days": [
+            "D4"
+          ],
+          "top_bucket_observations": 1,
+          "empty_buckets": 0
+        },
+        "1/5/5": {
+          "cross_section_days": 5,
+          "included_days": [
+            "D1",
+            "D2",
+            "D3",
+            "D4",
+            "D5"
+          ],
+          "top_bucket_observations": 5,
+          "empty_buckets": 0
+        },
+        "1/5/10": {
+          "cross_section_days": 3,
+          "included_days": [
+            "D1",
+            "D2",
+            "D4"
+          ],
+          "top_bucket_observations": 3,
+          "empty_buckets": 0
+        },
+        "1/5/20": {
+          "cross_section_days": 1,
+          "included_days": [
+            "D4"
+          ],
+          "top_bucket_observations": 1,
+          "empty_buckets": 0
+        },
+        "1/10/5": {
+          "cross_section_days": 5,
+          "included_days": [
+            "D1",
+            "D2",
+            "D3",
+            "D4",
+            "D5"
+          ],
+          "top_bucket_observations": 3,
+          "empty_buckets": 0
+        },
+        "1/10/10": {
+          "cross_section_days": 3,
+          "included_days": [
+            "D1",
+            "D2",
+            "D4"
+          ],
+          "top_bucket_observations": 3,
+          "empty_buckets": 0
+        },
+        "1/10/20": {
+          "cross_section_days": 1,
+          "included_days": [
+            "D4"
+          ],
+          "top_bucket_observations": 1,
+          "empty_buckets": 0
+        },
+        "3/3/5": {
+          "cross_section_days": 5,
+          "included_days": [
+            "D1",
+            "D2",
+            "D3",
+            "D4",
+            "D5"
+          ],
+          "top_bucket_observations": 5,
+          "empty_buckets": 0
+        },
+        "3/3/10": {
+          "cross_section_days": 3,
+          "included_days": [
+            "D1",
+            "D2",
+            "D4"
+          ],
+          "top_bucket_observations": 3,
+          "empty_buckets": 0
+        },
+        "3/3/20": {
+          "cross_section_days": 1,
+          "included_days": [
+            "D4"
+          ],
+          "top_bucket_observations": 1,
+          "empty_buckets": 0
+        },
+        "3/5/5": {
+          "cross_section_days": 5,
+          "included_days": [
+            "D1",
+            "D2",
+            "D3",
+            "D4",
+            "D5"
+          ],
+          "top_bucket_observations": 5,
+          "empty_buckets": 0
+        },
+        "3/5/10": {
+          "cross_section_days": 3,
+          "included_days": [
+            "D1",
+            "D2",
+            "D4"
+          ],
+          "top_bucket_observations": 3,
+          "empty_buckets": 0
+        },
+        "3/5/20": {
+          "cross_section_days": 1,
+          "included_days": [
+            "D4"
+          ],
+          "top_bucket_observations": 1,
+          "empty_buckets": 0
+        },
+        "3/10/5": {
+          "cross_section_days": 5,
+          "included_days": [
+            "D1",
+            "D2",
+            "D3",
+            "D4",
+            "D5"
+          ],
+          "top_bucket_observations": 3,
+          "empty_buckets": 0
+        },
+        "3/10/10": {
+          "cross_section_days": 3,
+          "included_days": [
+            "D1",
+            "D2",
+            "D4"
+          ],
+          "top_bucket_observations": 3,
+          "empty_buckets": 0
+        },
+        "3/10/20": {
+          "cross_section_days": 1,
+          "included_days": [
+            "D4"
+          ],
+          "top_bucket_observations": 1,
+          "empty_buckets": 0
+        },
+        "5/3/5": {
+          "cross_section_days": 5,
+          "included_days": [
+            "D1",
+            "D2",
+            "D3",
+            "D4",
+            "D5"
+          ],
+          "top_bucket_observations": 5,
+          "empty_buckets": 0
+        },
+        "5/3/10": {
+          "cross_section_days": 3,
+          "included_days": [
+            "D1",
+            "D2",
+            "D4"
+          ],
+          "top_bucket_observations": 3,
+          "empty_buckets": 0
+        },
+        "5/3/20": {
+          "cross_section_days": 1,
+          "included_days": [
+            "D4"
+          ],
+          "top_bucket_observations": 1,
+          "empty_buckets": 0
+        },
+        "5/5/5": {
+          "cross_section_days": 5,
+          "included_days": [
+            "D1",
+            "D2",
+            "D3",
+            "D4",
+            "D5"
+          ],
+          "top_bucket_observations": 5,
+          "empty_buckets": 0
+        },
+        "5/5/10": {
+          "cross_section_days": 3,
+          "included_days": [
+            "D1",
+            "D2",
+            "D4"
+          ],
+          "top_bucket_observations": 3,
+          "empty_buckets": 0
+        },
+        "5/5/20": {
+          "cross_section_days": 1,
+          "included_days": [
+            "D4"
+          ],
+          "top_bucket_observations": 1,
+          "empty_buckets": 0
+        },
+        "5/10/5": {
+          "cross_section_days": 5,
+          "included_days": [
+            "D1",
+            "D2",
+            "D3",
+            "D4",
+            "D5"
+          ],
+          "top_bucket_observations": 3,
+          "empty_buckets": 0
+        },
+        "5/10/10": {
+          "cross_section_days": 3,
+          "included_days": [
+            "D1",
+            "D2",
+            "D4"
+          ],
+          "top_bucket_observations": 3,
+          "empty_buckets": 0
+        },
+        "5/10/20": {
+          "cross_section_days": 1,
+          "included_days": [
+            "D4"
+          ],
+          "top_bucket_observations": 1,
+          "empty_buckets": 0
+        }
+      },
+      "diff": [],
+      "mismatch_count": 0,
+      "bucket10_contributors_ok": true
+    },
+    "panel_sizes": {
+      "D1": 12,
+      "D2": 10,
+      "D3": 9,
+      "D4": 20,
+      "D5": 6
+    }
+  },
+  "sensitivity": [
+    {
+      "holding_days": 5,
+      "group_count": 4,
+      "min_cross_section_size": 8,
+      "is_base": false,
+      "cross_section_days": 4,
+      "rank_ic_mean": 0.3618725572672941,
+      "long_short_spread": 0.004851404181957302,
+      "long_short_spread_hex": "0x1.3df10e4d1a692p-8",
+      "spread_sign": 1,
+      "monotonicity": "NON_MONOTONIC",
+      "top_bucket_observations": 4,
+      "ic_exists": true,
+      "spread_sign_changed_vs_base": false,
+      "ic_mean_changed_vs_base": true
+    },
+    {
+      "holding_days": 5,
+      "group_count": 4,
+      "min_cross_section_size": 10,
+      "is_base": false,
+      "cross_section_days": 3,
+      "rank_ic_mean": 0.39916340968972547,
+      "long_short_spread": 0.004590639920838769,
+      "long_short_spread_hex": "0x1.2cda2853e519ap-8",
+      "spread_sign": 1,
+      "monotonicity": "NON_MONOTONIC",
+      "top_bucket_observations": 3,
+      "ic_exists": true,
+      "spread_sign_changed_vs_base": false,
+      "ic_mean_changed_vs_base": false
+    },
+    {
+      "holding_days": 5,
+      "group_count": 4,
+      "min_cross_section_size": 12,
+      "is_base": false,
+      "cross_section_days": 2,
+      "rank_ic_mean": 0.37753299332246704,
+      "long_short_spread": 0.004049619849250297,
+      "long_short_spread_hex": "0x1.096558d052bcdp-8",
+      "spread_sign": 1,
+      "monotonicity": "NON_MONOTONIC",
+      "top_bucket_observations": 2,
+      "ic_exists": true,
+      "spread_sign_changed_vs_base": false,
+      "ic_mean_changed_vs_base": true
+    },
+    {
+      "holding_days": 5,
+      "group_count": 5,
+      "min_cross_section_size": 8,
+      "is_base": false,
+      "cross_section_days": 4,
+      "rank_ic_mean": 0.3618725572672941,
+      "long_short_spread": 0.005989782861985274,
+      "long_short_spread_hex": "0x1.888be1809b31p-8",
+      "spread_sign": 1,
+      "monotonicity": "NON_MONOTONIC",
+      "top_bucket_observations": 4,
+      "ic_exists": true,
+      "spread_sign_changed_vs_base": false,
+      "ic_mean_changed_vs_base": true
+    },
+    {
+      "holding_days": 5,
+      "group_count": 5,
+      "min_cross_section_size": 10,
+      "is_base": true,
+      "cross_section_days": 3,
+      "rank_ic_mean": 0.39916340968972547,
+      "long_short_spread": 0.00523081695866722,
+      "long_short_spread_hex": "0x1.56ce8bc4d28f7p-8",
+      "spread_sign": 1,
+      "monotonicity": "NON_MONOTONIC",
+      "top_bucket_observations": 3,
+      "ic_exists": true,
+      "spread_sign_changed_vs_base": false,
+      "ic_mean_changed_vs_base": false
+    },
+    {
+      "holding_days": 5,
+      "group_count": 5,
+      "min_cross_section_size": 12,
+      "is_base": false,
+      "cross_section_days": 2,
+      "rank_ic_mean": 0.37753299332246704,
+      "long_short_spread": 0.005406235515081816,
+      "long_short_spread_hex": "0x1.624d94bb53f9cp-8",
+      "spread_sign": 1,
+      "monotonicity": "NON_MONOTONIC",
+      "top_bucket_observations": 2,
+      "ic_exists": true,
+      "spread_sign_changed_vs_base": false,
+      "ic_mean_changed_vs_base": true
+    },
+    {
+      "holding_days": 5,
+      "group_count": 6,
+      "min_cross_section_size": 8,
+      "is_base": false,
+      "cross_section_days": 4,
+      "rank_ic_mean": 0.3618725572672941,
+      "long_short_spread": 0.0060749141391017916,
+      "long_short_spread_hex": "0x1.8e20258daee96p-8",
+      "spread_sign": 1,
+      "monotonicity": "NON_MONOTONIC",
+      "top_bucket_observations": 4,
+      "ic_exists": true,
+      "spread_sign_changed_vs_base": false,
+      "ic_mean_changed_vs_base": true
+    },
+    {
+      "holding_days": 5,
+      "group_count": 6,
+      "min_cross_section_size": 10,
+      "is_base": false,
+      "cross_section_days": 3,
+      "rank_ic_mean": 0.39916340968972547,
+      "long_short_spread": 0.005344325328155908,
+      "long_short_spread_hex": "0x1.5e3ee680ecda7p-8",
+      "spread_sign": 1,
+      "monotonicity": "NON_MONOTONIC",
+      "top_bucket_observations": 3,
+      "ic_exists": true,
+      "spread_sign_changed_vs_base": false,
+      "ic_mean_changed_vs_base": false
+    },
+    {
+      "holding_days": 5,
+      "group_count": 6,
+      "min_cross_section_size": 12,
+      "is_base": false,
+      "cross_section_days": 2,
+      "rank_ic_mean": 0.37753299332246704,
+      "long_short_spread": 0.005355650901501361,
+      "long_short_spread_hex": "0x1.5efce978827fep-8",
+      "spread_sign": 1,
+      "monotonicity": "NON_MONOTONIC",
+      "top_bucket_observations": 2,
+      "ic_exists": true,
+      "spread_sign_changed_vs_base": false,
+      "ic_mean_changed_vs_base": true
+    }
+  ],
+  "forbidden_number_hits": [],
+  "bias_disclosure": {
+    "lookahead": "不适用：面板 57 行全为手写确定性数值，无时间序列依赖、无 PIT 依赖、无未来信息",
+    "survivorship": "不适用：本轮不构造任何标的池；项目 F-LEGACY 族自身的 LEGACY_SELECTION_BIASED 已由 R002/R005 审过，本轮**不重开、不引用其结论**",
+    "unit_of_measure": "探针测量的是 FactorResearchEngine 的**引擎级原始 double**；生产载荷还会经 round4 二次舍入（属 R010 命题面，本轮只登记）"
+  },
+  "excluded_forks": {
+    "reason": "已在 R007 审过，本轮不抽取、不判定、不引用其数值",
+    "items": [
+      "neweyWestHacStd lag = floor(n^(1/3))（FactorResearchEngine:324）",
+      "blockBootstrapCi blockSize/iterations=1000/seed=42L（FactorResearchEngine:358, 调用式 :191）"
+    ]
+  },
+  "reject_forks_owned_by_R010": [
+    "成本费率",
+    "convention/executionAssumptions 忠实性",
+    "labelDefinition() 文本",
+    "min_net_return"
+  ],
+  "run_log_lines": 9
+}

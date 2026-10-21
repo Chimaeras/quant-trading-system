@@ -1,0 +1,12 @@
+  [diag s1] t=+97min status=DEGRADED signals=0 new_closed=0 errors=['600519:WARMUP不足(19/21)']
+  [diag s1] t=+100min status=OK signals=1 new_closed=1 errors=[]
+会话1 信号: [('2026-08-18T11:10:00+08:00', 'hold', ('WARMUP', 'BAR_CLOSED', 'BAR_CLOSED'))]
+会话1 后 store 内 bar 数: 1（末根 end_ts=2026-08-18T11:10:00）
+会话1 后 strategy_state: [<sqlite3.Row object at 0x00000203BE927370>]
+  [diag s2] t=+103min status=DEGRADED signals=0 new_closed=0 errors=['600519:WARMUP不足(1/21)']
+  [diag s2] t=+105min status=OK signals=1 new_closed=1 errors=[]
+会话2 信号: [('2026-08-18T11:15:00+08:00', 'hold', ('WARMUP', 'BAR_CLOSED', 'BAR_CLOSED'))]
+会话2 后 strategy_state: [<sqlite3.Row object at 0x000002038D9CF130>]
+
+两份信号交集（=重复播报的同一根 bar）: 空
+结论: 未观察到重复播报

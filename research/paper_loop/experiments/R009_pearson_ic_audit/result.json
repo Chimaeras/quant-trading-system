@@ -1,0 +1,1481 @@
+{
+  "round": "R009",
+  "started_at": "2026-09-14T22:48:15",
+  "baseline_commit": "f139fbfb",
+  "counts": {
+    "rows": [
+      {
+        "id": "C1",
+        "expect_src": 11,
+        "actual_src": 11,
+        "expect_raw": 17,
+        "actual_raw": 17,
+        "by_file_expected": {
+          "FactorResearchService.java": 5,
+          "factor.ts": 3,
+          "FactorResearch.vue": 3
+        },
+        "by_file_actual": {
+          "FactorResearchService.java": 5,
+          "factor.ts": 3,
+          "FactorResearch.vue": 3
+        },
+        "match": true
+      },
+      {
+        "id": "C2",
+        "expect_src": 5,
+        "actual_src": 5,
+        "expect_raw": null,
+        "actual_raw": null,
+        "by_file_expected": {
+          "FactorResearchService.java": 5
+        },
+        "by_file_actual": {
+          "FactorResearchService.java": 5
+        },
+        "match": true
+      },
+      {
+        "id": "C3",
+        "expect_src": 6,
+        "actual_src": 6,
+        "expect_raw": null,
+        "actual_raw": null,
+        "by_file_expected": {
+          "factor.ts": 3,
+          "FactorResearch.vue": 3
+        },
+        "by_file_actual": {
+          "factor.ts": 3,
+          "FactorResearch.vue": 3
+        },
+        "match": true
+      },
+      {
+        "id": "C4",
+        "expect_src": 41,
+        "actual_src": 41,
+        "expect_raw": 53,
+        "actual_raw": 53,
+        "by_file_expected": {
+          "FactorResearchEngine.java": 13,
+          "FactorResearchService.java": 10,
+          "FactorResearchEngineTest.java": 7,
+          "FactorResearch.vue": 6,
+          "factor.ts": 4,
+          "FactorResearchController.java": 1
+        },
+        "by_file_actual": {
+          "FactorResearchEngine.java": 13,
+          "FactorResearchService.java": 10,
+          "FactorResearchEngineTest.java": 7,
+          "FactorResearch.vue": 6,
+          "factor.ts": 4,
+          "FactorResearchController.java": 1
+        },
+        "match": true
+      },
+      {
+        "id": "C5",
+        "expect_src": 7,
+        "actual_src": 7,
+        "expect_raw": 7,
+        "actual_raw": 7,
+        "by_file_expected": {
+          "FactorResearchEngineTest.java": 5,
+          "FactorResearchEngine.java": 2
+        },
+        "by_file_actual": {
+          "FactorResearchEngineTest.java": 5,
+          "FactorResearchEngine.java": 2
+        },
+        "match": true
+      },
+      {
+        "id": "C6",
+        "expect_src": 5,
+        "actual_src": 5,
+        "expect_raw": null,
+        "actual_raw": null,
+        "by_file_expected": {
+          "FactorResearchEngineTest.java": 5
+        },
+        "by_file_actual": {
+          "FactorResearchEngineTest.java": 5
+        },
+        "match": true
+      },
+      {
+        "id": "C7",
+        "expect_src": 4,
+        "actual_src": 4,
+        "expect_raw": null,
+        "actual_raw": null,
+        "by_file_expected": {
+          "FactorResearchEngine.java": 4
+        },
+        "by_file_actual": {
+          "FactorResearchEngine.java": 4
+        },
+        "match": true
+      },
+      {
+        "id": "C8",
+        "expect_src": 15,
+        "actual_src": 15,
+        "expect_raw": null,
+        "actual_raw": null,
+        "by_file_expected": {
+          "FactorResearchEngine.java": 5,
+          "FactorResearchService.java": 3,
+          "factor.ts": 3,
+          "ScoringBacktestResponse.java": 2,
+          "ScoringBacktestService.java": 2
+        },
+        "by_file_actual": {
+          "FactorResearchEngine.java": 5,
+          "FactorResearchService.java": 3,
+          "factor.ts": 3,
+          "ScoringBacktestResponse.java": 2,
+          "ScoringBacktestService.java": 2
+        },
+        "match": true
+      },
+      {
+        "id": "C9",
+        "expect_src": 6,
+        "actual_src": 6,
+        "expect_raw": null,
+        "actual_raw": null,
+        "by_file_expected": {
+          "FactorResearchEngine.java": 4,
+          "FactorResearchEngineTest.java": 2
+        },
+        "by_file_actual": {
+          "FactorResearchEngine.java": 4,
+          "FactorResearchEngineTest.java": 2
+        },
+        "match": true
+      },
+      {
+        "id": "C10",
+        "expect_src": 19,
+        "actual_src": 19,
+        "expect_raw": 27,
+        "actual_raw": 27,
+        "by_file_expected": {
+          "FactorResearchService.java": 7,
+          "FactorResearch.vue": 4,
+          "FactorResearchEngine.java": 3,
+          "FactorResearchEngineTest.java": 3,
+          "factor.ts": 2
+        },
+        "by_file_actual": {
+          "FactorResearchService.java": 7,
+          "FactorResearch.vue": 4,
+          "FactorResearchEngine.java": 3,
+          "FactorResearchEngineTest.java": 3,
+          "factor.ts": 2
+        },
+        "match": true
+      },
+      {
+        "id": "C11",
+        "expect_src": 0,
+        "actual_src": 0,
+        "expect_raw": null,
+        "actual_raw": null,
+        "by_file_expected": {},
+        "by_file_actual": {},
+        "match": true
+      },
+      {
+        "id": "C12",
+        "expect_src": 0,
+        "actual_src": 0,
+        "expect_raw": 0,
+        "actual_raw": 0,
+        "by_file_expected": {},
+        "by_file_actual": {},
+        "match": true
+      },
+      {
+        "id": "C13",
+        "expect_src": 2,
+        "actual_src": 2,
+        "expect_raw": null,
+        "actual_raw": null,
+        "by_file_expected": {
+          "FactorResearchEngine.java": 2
+        },
+        "by_file_actual": {
+          "FactorResearchEngine.java": 2
+        },
+        "match": true
+      },
+      {
+        "id": "C14",
+        "expect_src": 0,
+        "actual_src": 0,
+        "expect_raw": null,
+        "actual_raw": null,
+        "by_file_expected": {},
+        "by_file_actual": {},
+        "match": true
+      },
+      {
+        "id": "C15",
+        "expect_src": 2,
+        "actual_src": 2,
+        "expect_raw": null,
+        "actual_raw": null,
+        "by_file_expected": {
+          "FactorResearchEngine.java": 2
+        },
+        "by_file_actual": {
+          "FactorResearchEngine.java": 2
+        },
+        "match": true
+      },
+      {
+        "id": "C16",
+        "expect_src": 1,
+        "actual_src": 1,
+        "expect_raw": null,
+        "actual_raw": null,
+        "by_file_expected": {
+          "FactorResearch.vue": 1
+        },
+        "by_file_actual": {
+          "FactorResearch.vue": 1
+        },
+        "match": true
+      },
+      {
+        "id": "C17",
+        "expect_src": 12,
+        "actual_src": 12,
+        "expect_raw": null,
+        "actual_raw": null,
+        "by_file_expected": {
+          "ScoringBacktestService.java": 3,
+          "CrossSectionNeutralizer.java": 3,
+          "FactorResearchEngine.java": 2,
+          "CodexShortCycleScoringEngine.java": 2,
+          "AdjustFactorDerivationService.java": 1,
+          "T1CandidateService.java": 1
+        },
+        "by_file_actual": {
+          "ScoringBacktestService.java": 3,
+          "CrossSectionNeutralizer.java": 3,
+          "FactorResearchEngine.java": 2,
+          "CodexShortCycleScoringEngine.java": 2,
+          "AdjustFactorDerivationService.java": 1,
+          "T1CandidateService.java": 1
+        },
+        "match": true
+      },
+      {
+        "id": "C18",
+        "expect_src": 23,
+        "actual_src": 23,
+        "expect_raw": null,
+        "actual_raw": null,
+        "by_file_expected": {
+          "ProbabilityCalibrationService.java": 5,
+          "TechnicalIndicators.java": 4,
+          "FactorResearchEngine.java": 3,
+          "FactorCollinearityChecker.java": 3,
+          "CalibratorService.java": 2,
+          "LogisticModelTrainer.java": 2,
+          "PredictionService.java": 1,
+          "T1CandidateService.java": 1,
+          "CrossSectionNeutralizer.java": 1,
+          "DynamicWeightingService.java": 1
+        },
+        "by_file_actual": {
+          "ProbabilityCalibrationService.java": 5,
+          "TechnicalIndicators.java": 4,
+          "FactorResearchEngine.java": 3,
+          "FactorCollinearityChecker.java": 3,
+          "CalibratorService.java": 2,
+          "LogisticModelTrainer.java": 2,
+          "PredictionService.java": 1,
+          "T1CandidateService.java": 1,
+          "CrossSectionNeutralizer.java": 1,
+          "DynamicWeightingService.java": 1
+        },
+        "match": true
+      },
+      {
+        "id": "C19",
+        "expect_src": 22,
+        "actual_src": 22,
+        "expect_raw": null,
+        "actual_raw": null,
+        "by_file_expected": {
+          "FactorResearchService.java": 8,
+          "FactorResearchEngine.java": 8,
+          "FactorResearchEngineTest.java": 6
+        },
+        "by_file_actual": {
+          "FactorResearchService.java": 8,
+          "FactorResearchEngine.java": 8,
+          "FactorResearchEngineTest.java": 6
+        },
+        "match": true
+      },
+      {
+        "id": "C20",
+        "expect_src": 15,
+        "actual_src": 15,
+        "expect_raw": null,
+        "actual_raw": null,
+        "by_file_expected": {
+          "StrategyBacktestEngine.java": 9,
+          "FactorResearchEngine.java": 6
+        },
+        "by_file_actual": {
+          "StrategyBacktestEngine.java": 9,
+          "FactorResearchEngine.java": 6
+        },
+        "match": true
+      }
+    ],
+    "all_match": true
+  },
+  "probe_raw": {
+    "probe": {
+      "HARNESS": {
+        "service_ctor_params": 9
+      },
+      "V01": {
+        "engine_code_source": "file:/E:/Project/quant-trading-system/modules/backend-java/target/classes/",
+        "sentinel_normal_rho": 1.0,
+        "sentinel_defect_rho": "NaN",
+        "sentinel_normal_equals": 1,
+        "sentinel_defect_present": 1,
+        "existing_test_input_rho": 1.0,
+        "existing_test_input_ok": 1
+      },
+      "V02": {
+        "det_pearson_mean_1": 1.0,
+        "det_pearson_mean_2": 1.0,
+        "det_cross_days_1": 1,
+        "det_cross_days_2": 1,
+        "det_total_obs_1": 10,
+        "det_total_obs_2": 10,
+        "det_monotonicity_1": "MONOTONIC_INCREASING",
+        "det_monotonicity_2": "MONOTONIC_INCREASING",
+        "det_payload_1": "{metric_scope=String:RAW;basis_note=String:R009-probe-basis;embargo_note=String:�ź��սӽ�����ĩ�ˣ�forward ����δ�γɣ��Զ������������ơ���ʹ��δ�����ݣ��ص������� IC ���е��������� HAC ��׼���� block bootstrap CI Ϊ׼;universe_note=String:���� PIT feature snapshot ȫ���棨V2-MP-016��topN=0 �����ޣ����� selector TopN �Ӽ���forward return ֻ�� market_price_raw / label_v2������ selector/qfq;cross_section_days=Integer:1;total_observations=Integer:10;rank_ic_mean=1.0;rank_ic_std=0.0;rank_ic_ir=0.0;rank_ic_positive_rate=1.0;pearson_ic_mean=1.0;monotonicity=String:MONOTONIC_INCREASING;hac_std=0.0;ci_lower=0.0;ci_upper=0.0;long_short_spread=0.08;daily_rank_ic=[{trade_date=String:2026-01-05;rank_ic=1.0;sample_size=Integer:10;},];grouped_returns=[{group_no=Integer:1;label=String:G1(�ͷ�);avg_return=0.015;observations=Integer:1;},{group_no=Integer:2;label=String:G2;avg_return=0.035;observations=Integer:1;},{group_no=Integer:3;label=String:G3;avg_return=0.055;observations=Integer:1;},{group_no=Integer:4;label=String:G4;avg_return=0.075;observations=Integer:1;},{group_no=Integer:5;label=String:G5(�߷�);avg_return=0.095;observations=Integer:1;},];}",
+        "det_payload_2": "{metric_scope=String:RAW;basis_note=String:R009-probe-basis;embargo_note=String:�ź��սӽ�����ĩ�ˣ�forward ����δ�γɣ��Զ������������ơ���ʹ��δ�����ݣ��ص������� IC ���е��������� HAC ��׼���� block bootstrap CI Ϊ׼;universe_note=String:���� PIT feature snapshot ȫ���棨V2-MP-016��topN=0 �����ޣ����� selector TopN �Ӽ���forward return ֻ�� market_price_raw / label_v2������ selector/qfq;cross_section_days=Integer:1;total_observations=Integer:10;rank_ic_mean=1.0;rank_ic_std=0.0;rank_ic_ir=0.0;rank_ic_positive_rate=1.0;pearson_ic_mean=1.0;monotonicity=String:MONOTONIC_INCREASING;hac_std=0.0;ci_lower=0.0;ci_upper=0.0;long_short_spread=0.08;daily_rank_ic=[{trade_date=String:2026-01-05;rank_ic=1.0;sample_size=Integer:10;},];grouped_returns=[{group_no=Integer:1;label=String:G1(�ͷ�);avg_return=0.015;observations=Integer:1;},{group_no=Integer:2;label=String:G2;avg_return=0.035;observations=Integer:1;},{group_no=Integer:3;label=String:G3;avg_return=0.055;observations=Integer:1;},{group_no=Integer:4;label=String:G4;avg_return=0.075;observations=Integer:1;},{group_no=Integer:5;label=String:G5(�߷�);avg_return=0.095;observations=Integer:1;},];}"
+      },
+      "V03": {
+        "rho_p1": 1.0,
+        "rho_p1s": "NaN",
+        "rho_p1t": 1.0,
+        "rho_p1r": "NaN",
+        "rank_p1": 1.0,
+        "rank_p1s": 1.0,
+        "var_p1": 82.5,
+        "var_p1s": 8.25e-19,
+        "var_p1s_positive": 1,
+        "control_rho_affine": 1.0,
+        "control_rank_variance_n10": 82.5,
+        "var_p1s_over_guard": 0.825
+      },
+      "V04": {
+        "rho_n10": "NaN",
+        "rank_n10": 1.0,
+        "var_n10": 8.25e-19,
+        "finite_n10": 0,
+        "var_over_guard_n10": 0.825,
+        "rho_n11": 0.9999999999999999,
+        "rank_n11": 1.0,
+        "var_n11": 1.1000000000000003e-18,
+        "finite_n11": 1,
+        "var_over_guard_n11": 1.1000000000000003,
+        "rho_n12": 1.0000000000000002,
+        "rank_n12": 1.0,
+        "var_n12": 1.43e-18,
+        "finite_n12": 1,
+        "var_over_guard_n12": 1.43
+      },
+      "V06": {
+        "cells": 15
+      },
+      "V07": {
+        "cross_section_days": 2,
+        "total_observations": 20,
+        "daily_size": 2,
+        "pearson_ic_mean": 1.0,
+        "monotonicity": "MONOTONIC_INCREASING",
+        "pearson_support_days": 1,
+        "rank_support_days": 2,
+        "support_gap": 1,
+        "snapshot_normal_n_keys": 18,
+        "snapshot_normal_has_status": 0,
+        "snapshot_normal_has_monotonicity": 1,
+        "snapshot_normal_has_pearson_ic_mean": 1,
+        "snapshot_normal_has_daily_rank_ic": 1,
+        "snapshot_normal_has_grouped_returns": 1,
+        "snapshot_normal_has_note": 0,
+        "snapshot_normal_metric_scope": "RAW"
+      },
+      "V10": {
+        "rho_p4z": 0.0,
+        "rho_p4u": "NaN",
+        "var_p4z": 82.5,
+        "var_p4u": 8.25e-19,
+        "rank_days_p4z": 1,
+        "rank_days_p4u": 1,
+        "pearson_support_days_p4z": 1,
+        "pearson_support_days_p4u": 0,
+        "cross_days_p4z": 1,
+        "cross_days_p4u": 1,
+        "total_obs_p4z": 10,
+        "total_obs_p4u": 10,
+        "pearson_mean_p4z": 0.0,
+        "pearson_mean_p4u": 0.0,
+        "payload_len_p4z": 1060,
+        "payload_len_p4u": 1060,
+        "payload_p4z": "{metric_scope=String:RAW;basis_note=String:R009-probe-basis;embargo_note=String:�ź��սӽ�����ĩ�ˣ�forward ����δ�γɣ��Զ������������ơ���ʹ��δ�����ݣ��ص������� IC ���е��������� HAC ��׼���� block bootstrap CI Ϊ׼;universe_note=String:���� PIT feature snapshot ȫ���棨V2-MP-016��topN=0 �����ޣ����� selector TopN �Ӽ���forward return ֻ�� market_price_raw / label_v2������ selector/qfq;cross_section_days=Integer:1;total_observations=Integer:10;rank_ic_mean=0.0;rank_ic_std=0.0;rank_ic_ir=0.0;rank_ic_positive_rate=0.0;pearson_ic_mean=0.0;monotonicity=String:NON_MONOTONIC;hac_std=0.0;ci_lower=0.0;ci_upper=0.0;long_short_spread=0.0;daily_rank_ic=[{trade_date=String:2026-01-05;rank_ic=0.0;sample_size=Integer:10;},];grouped_returns=[{group_no=Integer:1;label=String:G1(�ͷ�);avg_return=1.5;observations=Integer:1;},{group_no=Integer:2;label=String:G2;avg_return=3.5;observations=Integer:1;},{group_no=Integer:3;label=String:G3;avg_return=5.0;observations=Integer:1;},{group_no=Integer:4;label=String:G4;avg_return=3.5;observations=Integer:1;},{group_no=Integer:5;label=String:G5(�߷�);avg_return=1.5;observations=Integer:1;},];}",
+        "payload_p4u": "{metric_scope=String:RAW;basis_note=String:R009-probe-basis;embargo_note=String:�ź��սӽ�����ĩ�ˣ�forward ����δ�γɣ��Զ������������ơ���ʹ��δ�����ݣ��ص������� IC ���е��������� HAC ��׼���� block bootstrap CI Ϊ׼;universe_note=String:���� PIT feature snapshot ȫ���棨V2-MP-016��topN=0 �����ޣ����� selector TopN �Ӽ���forward return ֻ�� market_price_raw / label_v2������ selector/qfq;cross_section_days=Integer:1;total_observations=Integer:10;rank_ic_mean=0.0;rank_ic_std=0.0;rank_ic_ir=0.0;rank_ic_positive_rate=0.0;pearson_ic_mean=0.0;monotonicity=String:NON_MONOTONIC;hac_std=0.0;ci_lower=0.0;ci_upper=0.0;long_short_spread=0.0;daily_rank_ic=[{trade_date=String:2026-01-05;rank_ic=0.0;sample_size=Integer:10;},];grouped_returns=[{group_no=Integer:1;label=String:G1(�ͷ�);avg_return=1.5;observations=Integer:1;},{group_no=Integer:2;label=String:G2;avg_return=3.5;observations=Integer:1;},{group_no=Integer:3;label=String:G3;avg_return=5.0;observations=Integer:1;},{group_no=Integer:4;label=String:G4;avg_return=3.5;observations=Integer:1;},{group_no=Integer:5;label=String:G5(�߷�);avg_return=1.5;observations=Integer:1;},];}"
+      },
+      "V11": {
+        "round4_nan": 0.0,
+        "round4_pinf": 922337203685477.6,
+        "round4_ninf": -922337203685477.6,
+        "round4_nan_is_zero": 1,
+        "undef_pearson_key_value": 0.0,
+        "undef_pearson_key_is_nan": 0,
+        "undef_pearson_key_is_finite": 1
+      },
+      "V12": {
+        "snapshot_obsy_n_keys": 18,
+        "snapshot_obsy_has_status": 0,
+        "snapshot_obsy_has_monotonicity": 1,
+        "snapshot_obsy_has_pearson_ic_mean": 1,
+        "snapshot_obsy_has_daily_rank_ic": 1,
+        "snapshot_obsy_has_grouped_returns": 1,
+        "snapshot_obsy_has_note": 0,
+        "snapshot_obsy_metric_scope": "RAW",
+        "snapshot_empty_n_keys": 19,
+        "snapshot_empty_has_status": 0,
+        "snapshot_empty_has_monotonicity": 1,
+        "snapshot_empty_has_pearson_ic_mean": 1,
+        "snapshot_empty_has_daily_rank_ic": 1,
+        "snapshot_empty_has_grouped_returns": 1,
+        "snapshot_empty_has_note": 1,
+        "snapshot_empty_metric_scope": "RAW",
+        "unavailable_n_keys": 18,
+        "unavailable_has_status": 1,
+        "unavailable_has_monotonicity": 1,
+        "unavailable_has_pearson_ic_mean": 1,
+        "unavailable_has_daily_rank_ic": 1,
+        "unavailable_has_grouped_returns": 1,
+        "unavailable_has_note": 1,
+        "unavailable_metric_scope": "EXECUTABLE",
+        "empty_net_n_keys": 14,
+        "empty_net_has_status": 0,
+        "empty_net_has_monotonicity": 0,
+        "empty_net_has_pearson_ic_mean": 1,
+        "empty_net_has_daily_rank_ic": 0,
+        "empty_net_has_grouped_returns": 0,
+        "empty_net_has_note": 1,
+        "empty_net_metric_scope": "COST_APPROX",
+        "net_n_keys": 15,
+        "net_has_status": 0,
+        "net_has_monotonicity": 1,
+        "net_has_pearson_ic_mean": 1,
+        "net_has_daily_rank_ic": 0,
+        "net_has_grouped_returns": 0,
+        "net_has_note": 1,
+        "net_metric_scope": "COST_APPROX"
+      },
+      "V15": {
+        "snapshot_metric_scope": "RAW",
+        "snapshot_has_basis_note": 1,
+        "snapshot_has_universe_note": 1,
+        "snapshot_has_embargo_note": 1,
+        "net_metric_scope": "COST_APPROX",
+        "net_has_basis_note": 1,
+        "net_has_universe_note": 0,
+        "net_has_embargo_note": 0,
+        "empty_net_metric_scope": "COST_APPROX",
+        "empty_net_has_basis_note": 1,
+        "empty_net_has_universe_note": 0,
+        "empty_net_has_embargo_note": 0
+      }
+    },
+    "probe_idx": {
+      "V06": {
+        "var": {
+          "0": 2.6879999999999997e-19,
+          "1": 3.84e-19,
+          "2": 5.279999999999999e-19,
+          "3": 7.039999999999999e-19,
+          "4": 9.151999999999998e-19,
+          "5": 4.200000000000001e-19,
+          "6": 6.000000000000001e-19,
+          "7": 8.25e-19,
+          "8": 1.1000000000000003e-18,
+          "9": 1.43e-18,
+          "10": 6.0480000000000005e-19,
+          "11": 8.64e-19,
+          "12": 1.1880000000000001e-18,
+          "13": 1.584e-18,
+          "14": 2.0591999999999998e-18
+        },
+        "rho": {
+          "0": "NaN",
+          "1": "NaN",
+          "2": "NaN",
+          "3": "NaN",
+          "4": "NaN",
+          "5": "NaN",
+          "6": "NaN",
+          "7": "NaN",
+          "8": 0.9999999999999999,
+          "9": 1.0000000000000002,
+          "10": "NaN",
+          "11": "NaN",
+          "12": 0.9999999999999998,
+          "13": 1.0,
+          "14": 1.0
+        },
+        "finite": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 1,
+          "9": 1,
+          "10": 0,
+          "11": 0,
+          "12": 1,
+          "13": 1,
+          "14": 1
+        },
+        "scale_c": {
+          "0": 8e-11,
+          "1": 8e-11,
+          "2": 8e-11,
+          "3": 8e-11,
+          "4": 8e-11,
+          "5": 1e-10,
+          "6": 1e-10,
+          "7": 1e-10,
+          "8": 1e-10,
+          "9": 1e-10,
+          "10": 1.2e-10,
+          "11": 1.2e-10,
+          "12": 1.2e-10,
+          "13": 1.2e-10,
+          "14": 1.2e-10
+        },
+        "n": {
+          "0": 8,
+          "1": 9,
+          "2": 10,
+          "3": 11,
+          "4": 12,
+          "5": 8,
+          "6": 9,
+          "7": 10,
+          "8": 11,
+          "9": 12,
+          "10": 8,
+          "11": 9,
+          "12": 10,
+          "13": 11,
+          "14": 12
+        }
+      }
+    },
+    "probe_list": {
+      "V07": {
+        "snapshot_normal_keys_ordered": [
+          "metric_scope",
+          "basis_note",
+          "embargo_note",
+          "universe_note",
+          "cross_section_days",
+          "total_observations",
+          "rank_ic_mean",
+          "rank_ic_std",
+          "rank_ic_ir",
+          "rank_ic_positive_rate",
+          "pearson_ic_mean",
+          "monotonicity",
+          "hac_std",
+          "ci_lower",
+          "ci_upper",
+          "long_short_spread",
+          "daily_rank_ic",
+          "grouped_returns"
+        ],
+        "snapshot_normal_keys_sorted": [
+          "basis_note",
+          "ci_lower",
+          "ci_upper",
+          "cross_section_days",
+          "daily_rank_ic",
+          "embargo_note",
+          "grouped_returns",
+          "hac_std",
+          "long_short_spread",
+          "metric_scope",
+          "monotonicity",
+          "pearson_ic_mean",
+          "rank_ic_ir",
+          "rank_ic_mean",
+          "rank_ic_positive_rate",
+          "rank_ic_std",
+          "total_observations",
+          "universe_note"
+        ]
+      },
+      "V12": {
+        "snapshot_obsy_keys_ordered": [
+          "metric_scope",
+          "basis_note",
+          "embargo_note",
+          "universe_note",
+          "cross_section_days",
+          "total_observations",
+          "rank_ic_mean",
+          "rank_ic_std",
+          "rank_ic_ir",
+          "rank_ic_positive_rate",
+          "pearson_ic_mean",
+          "monotonicity",
+          "hac_std",
+          "ci_lower",
+          "ci_upper",
+          "long_short_spread",
+          "daily_rank_ic",
+          "grouped_returns"
+        ],
+        "snapshot_obsy_keys_sorted": [
+          "basis_note",
+          "ci_lower",
+          "ci_upper",
+          "cross_section_days",
+          "daily_rank_ic",
+          "embargo_note",
+          "grouped_returns",
+          "hac_std",
+          "long_short_spread",
+          "metric_scope",
+          "monotonicity",
+          "pearson_ic_mean",
+          "rank_ic_ir",
+          "rank_ic_mean",
+          "rank_ic_positive_rate",
+          "rank_ic_std",
+          "total_observations",
+          "universe_note"
+        ],
+        "snapshot_empty_keys_ordered": [
+          "metric_scope",
+          "basis_note",
+          "embargo_note",
+          "universe_note",
+          "cross_section_days",
+          "total_observations",
+          "rank_ic_mean",
+          "rank_ic_std",
+          "rank_ic_ir",
+          "rank_ic_positive_rate",
+          "pearson_ic_mean",
+          "monotonicity",
+          "hac_std",
+          "ci_lower",
+          "ci_upper",
+          "long_short_spread",
+          "daily_rank_ic",
+          "grouped_returns",
+          "note"
+        ],
+        "snapshot_empty_keys_sorted": [
+          "basis_note",
+          "ci_lower",
+          "ci_upper",
+          "cross_section_days",
+          "daily_rank_ic",
+          "embargo_note",
+          "grouped_returns",
+          "hac_std",
+          "long_short_spread",
+          "metric_scope",
+          "monotonicity",
+          "note",
+          "pearson_ic_mean",
+          "rank_ic_ir",
+          "rank_ic_mean",
+          "rank_ic_positive_rate",
+          "rank_ic_std",
+          "total_observations",
+          "universe_note"
+        ],
+        "unavailable_keys_ordered": [
+          "metric_scope",
+          "status",
+          "basis_note",
+          "cross_section_days",
+          "total_observations",
+          "rank_ic_mean",
+          "rank_ic_std",
+          "rank_ic_ir",
+          "rank_ic_positive_rate",
+          "pearson_ic_mean",
+          "monotonicity",
+          "hac_std",
+          "ci_lower",
+          "ci_upper",
+          "long_short_spread",
+          "daily_rank_ic",
+          "grouped_returns",
+          "note"
+        ],
+        "unavailable_keys_sorted": [
+          "basis_note",
+          "ci_lower",
+          "ci_upper",
+          "cross_section_days",
+          "daily_rank_ic",
+          "grouped_returns",
+          "hac_std",
+          "long_short_spread",
+          "metric_scope",
+          "monotonicity",
+          "note",
+          "pearson_ic_mean",
+          "rank_ic_ir",
+          "rank_ic_mean",
+          "rank_ic_positive_rate",
+          "rank_ic_std",
+          "status",
+          "total_observations"
+        ],
+        "empty_net_keys_ordered": [
+          "basis_note",
+          "metric_scope",
+          "cross_section_days",
+          "total_observations",
+          "rank_ic_mean",
+          "rank_ic_std",
+          "rank_ic_ir",
+          "rank_ic_positive_rate",
+          "pearson_ic_mean",
+          "hac_std",
+          "ci_lower",
+          "ci_upper",
+          "long_short_spread",
+          "note"
+        ],
+        "empty_net_keys_sorted": [
+          "basis_note",
+          "ci_lower",
+          "ci_upper",
+          "cross_section_days",
+          "hac_std",
+          "long_short_spread",
+          "metric_scope",
+          "note",
+          "pearson_ic_mean",
+          "rank_ic_ir",
+          "rank_ic_mean",
+          "rank_ic_positive_rate",
+          "rank_ic_std",
+          "total_observations"
+        ],
+        "net_keys_ordered": [
+          "basis_note",
+          "metric_scope",
+          "cross_section_days",
+          "total_observations",
+          "rank_ic_mean",
+          "rank_ic_std",
+          "rank_ic_ir",
+          "rank_ic_positive_rate",
+          "pearson_ic_mean",
+          "monotonicity",
+          "hac_std",
+          "ci_lower",
+          "ci_upper",
+          "long_short_spread",
+          "note"
+        ],
+        "net_keys_sorted": [
+          "basis_note",
+          "ci_lower",
+          "ci_upper",
+          "cross_section_days",
+          "hac_std",
+          "long_short_spread",
+          "metric_scope",
+          "monotonicity",
+          "note",
+          "pearson_ic_mean",
+          "rank_ic_ir",
+          "rank_ic_mean",
+          "rank_ic_positive_rate",
+          "rank_ic_std",
+          "total_observations"
+        ]
+      }
+    }
+  },
+  "gates": {
+    "g3_code_source": "file:/E:/Project/quant-trading-system/modules/backend-java/target/classes",
+    "g3_expected_suffix": "target/classes",
+    "g3_pass": true,
+    "sentinel_defect_present": 1,
+    "sentinel_normal_equals": 1,
+    "existing_test_input_ok": 1,
+    "existing_test_input_rho": 1.0,
+    "reverse_anchors_pass": true
+  },
+  "a3c": {
+    "reachable": 1,
+    "days_with_data": 0,
+    "min_sxx": null,
+    "max_sxx": null,
+    "days_below_guard": null,
+    "margin_decades": null,
+    "rows": [],
+    "error": null,
+    "ds_origin": "application.yml（password 已解析 ${ENV:default} 占位）",
+    "n_rows_total": 0,
+    "columns": [
+      "signal_date",
+      "n_rows",
+      "n_scored",
+      "sxx"
+    ]
+  },
+  "determinism": {
+    "ok": true,
+    "v02": {
+      "det_pearson_mean_1": 1.0,
+      "det_pearson_mean_2": 1.0,
+      "det_cross_days_1": 1,
+      "det_cross_days_2": 1,
+      "det_total_obs_1": 10,
+      "det_total_obs_2": 10,
+      "det_monotonicity_1": "MONOTONIC_INCREASING",
+      "det_monotonicity_2": "MONOTONIC_INCREASING",
+      "det_payload_1": "{metric_scope=String:RAW;basis_note=String:R009-probe-basis;embargo_note=String:�ź��սӽ�����ĩ�ˣ�forward ����δ�γɣ��Զ������������ơ���ʹ��δ�����ݣ��ص������� IC ���е��������� HAC ��׼���� block bootstrap CI Ϊ׼;universe_note=String:���� PIT feature snapshot ȫ���棨V2-MP-016��topN=0 �����ޣ����� selector TopN �Ӽ���forward return ֻ�� market_price_raw / label_v2������ selector/qfq;cross_section_days=Integer:1;total_observations=Integer:10;rank_ic_mean=1.0;rank_ic_std=0.0;rank_ic_ir=0.0;rank_ic_positive_rate=1.0;pearson_ic_mean=1.0;monotonicity=String:MONOTONIC_INCREASING;hac_std=0.0;ci_lower=0.0;ci_upper=0.0;long_short_spread=0.08;daily_rank_ic=[{trade_date=String:2026-01-05;rank_ic=1.0;sample_size=Integer:10;},];grouped_returns=[{group_no=Integer:1;label=String:G1(�ͷ�);avg_return=0.015;observations=Integer:1;},{group_no=Integer:2;label=String:G2;avg_return=0.035;observations=Integer:1;},{group_no=Integer:3;label=String:G3;avg_return=0.055;observations=Integer:1;},{group_no=Integer:4;label=String:G4;avg_return=0.075;observations=Integer:1;},{group_no=Integer:5;label=String:G5(�߷�);avg_return=0.095;observations=Integer:1;},];}",
+      "det_payload_2": "{metric_scope=String:RAW;basis_note=String:R009-probe-basis;embargo_note=String:�ź��սӽ�����ĩ�ˣ�forward ����δ�γɣ��Զ������������ơ���ʹ��δ�����ݣ��ص������� IC ���е��������� HAC ��׼���� block bootstrap CI Ϊ׼;universe_note=String:���� PIT feature snapshot ȫ���棨V2-MP-016��topN=0 �����ޣ����� selector TopN �Ӽ���forward return ֻ�� market_price_raw / label_v2������ selector/qfq;cross_section_days=Integer:1;total_observations=Integer:10;rank_ic_mean=1.0;rank_ic_std=0.0;rank_ic_ir=0.0;rank_ic_positive_rate=1.0;pearson_ic_mean=1.0;monotonicity=String:MONOTONIC_INCREASING;hac_std=0.0;ci_lower=0.0;ci_upper=0.0;long_short_spread=0.08;daily_rank_ic=[{trade_date=String:2026-01-05;rank_ic=1.0;sample_size=Integer:10;},];grouped_returns=[{group_no=Integer:1;label=String:G1(�ͷ�);avg_return=0.015;observations=Integer:1;},{group_no=Integer:2;label=String:G2;avg_return=0.035;observations=Integer:1;},{group_no=Integer:3;label=String:G3;avg_return=0.055;observations=Integer:1;},{group_no=Integer:4;label=String:G4;avg_return=0.075;observations=Integer:1;},{group_no=Integer:5;label=String:G5(�߷�);avg_return=0.095;observations=Integer:1;},];}"
+    }
+  },
+  "panel_design_selfcheck": {
+    "pass": true,
+    "rows": [
+      {
+        "variant": "V03",
+        "path": "probe.V03.var_p1",
+        "actual": 82.5,
+        "expect": 82.5,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V03",
+        "path": "probe.V03.var_p1s",
+        "actual": 8.25e-19,
+        "expect": 8.25e-19,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V03",
+        "path": "probe.V03.rank_p1",
+        "actual": 1.0,
+        "expect": 1.0,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V03",
+        "path": "probe.V03.rank_p1s",
+        "actual": 1.0,
+        "expect": 1.0,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V03",
+        "path": "probe.V03.control_rank_variance_n10",
+        "actual": 82.5,
+        "expect": 82.5,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V03",
+        "path": "probe.V03.var_p1s_positive",
+        "actual": 1,
+        "expect": 1,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V04",
+        "path": "probe.V04.var_n10",
+        "actual": 8.25e-19,
+        "expect": 8.25e-19,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V04",
+        "path": "probe.V04.var_n11",
+        "actual": 1.1000000000000003e-18,
+        "expect": 1.1000000000000003e-18,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V04",
+        "path": "probe.V04.var_n12",
+        "actual": 1.43e-18,
+        "expect": 1.43e-18,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V04",
+        "path": "probe.V04.rank_n10",
+        "actual": 1.0,
+        "expect": 1.0,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V04",
+        "path": "probe.V04.rank_n11",
+        "actual": 1.0,
+        "expect": 1.0,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V04",
+        "path": "probe.V04.rank_n12",
+        "actual": 1.0,
+        "expect": 1.0,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V06",
+        "path": "probe.V06.cells",
+        "actual": 15,
+        "expect": 15,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V07",
+        "path": "probe.V07.cross_section_days",
+        "actual": 2,
+        "expect": 2,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V07",
+        "path": "probe.V07.daily_size",
+        "actual": 2,
+        "expect": 2,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V07",
+        "path": "probe.V07.rank_support_days",
+        "actual": 2,
+        "expect": 2,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V07",
+        "path": "probe.V07.pearson_support_days",
+        "actual": 1,
+        "expect": 1,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V07",
+        "path": "probe.V07.total_observations",
+        "actual": 20,
+        "expect": 20,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V10",
+        "path": "probe.V10.var_p4z",
+        "actual": 82.5,
+        "expect": 82.5,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V10",
+        "path": "probe.V10.var_p4u",
+        "actual": 8.25e-19,
+        "expect": 8.25e-19,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V10",
+        "path": "probe.V10.cross_days_p4z",
+        "actual": 1,
+        "expect": 1,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V10",
+        "path": "probe.V10.cross_days_p4u",
+        "actual": 1,
+        "expect": 1,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V10",
+        "path": "probe.V10.total_obs_p4z",
+        "actual": 10,
+        "expect": 10,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V10",
+        "path": "probe.V10.total_obs_p4u",
+        "actual": 10,
+        "expect": 10,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V10",
+        "path": "probe.V10.rank_days_p4z",
+        "actual": 1,
+        "expect": 1,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V10",
+        "path": "probe.V10.rank_days_p4u",
+        "actual": 1,
+        "expect": 1,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V10",
+        "path": "probe.V10.pearson_support_days_p4z",
+        "actual": 1,
+        "expect": 1,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V10",
+        "path": "probe.V10.pearson_support_days_p4u",
+        "actual": 0,
+        "expect": 0,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V11",
+        "path": "probe.V11.round4_pinf",
+        "actual": 922337203685477.6,
+        "expect": 922337203685477.6,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V11",
+        "path": "probe.V11.round4_ninf",
+        "actual": -922337203685477.6,
+        "expect": -922337203685477.6,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V12",
+        "path": "probe.V12.snapshot_obsy_n_keys",
+        "actual": 18,
+        "expect": 18,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V12",
+        "path": "probe.V12.snapshot_empty_n_keys",
+        "actual": 19,
+        "expect": 19,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V12",
+        "path": "probe.V12.unavailable_n_keys",
+        "actual": 18,
+        "expect": 18,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V12",
+        "path": "probe.V12.empty_net_n_keys",
+        "actual": 14,
+        "expect": 14,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V12",
+        "path": "probe.V12.net_n_keys",
+        "actual": 15,
+        "expect": 15,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V12",
+        "path": "probe.V12.empty_net_has_monotonicity",
+        "actual": 0,
+        "expect": 0,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V12",
+        "path": "probe.V12.net_has_monotonicity",
+        "actual": 1,
+        "expect": 1,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V12",
+        "path": "probe.V12.unavailable_has_status",
+        "actual": 1,
+        "expect": 1,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V12",
+        "path": "probe.V12.empty_net_has_status",
+        "actual": 0,
+        "expect": 0,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V15",
+        "path": "probe.V15.snapshot_metric_scope",
+        "actual": "RAW",
+        "expect": "RAW",
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V15",
+        "path": "probe.V15.net_metric_scope",
+        "actual": "COST_APPROX",
+        "expect": "COST_APPROX",
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V15",
+        "path": "probe.V15.empty_net_metric_scope",
+        "actual": "COST_APPROX",
+        "expect": "COST_APPROX",
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V15",
+        "path": "probe.V15.snapshot_has_universe_note",
+        "actual": 1,
+        "expect": 1,
+        "pass": true,
+        "note": ""
+      },
+      {
+        "variant": "V15",
+        "path": "probe.V15.net_has_universe_note",
+        "actual": 0,
+        "expect": 0,
+        "pass": true,
+        "note": ""
+      }
+    ]
+  },
+  "verdicts": {
+    "A2a": "VIOLATED",
+    "A2b": "VIOLATED",
+    "A1a": "NOT_VIOLATED",
+    "A1b": "NOT_VIOLATED",
+    "A2c": "NOT_VIOLATED",
+    "A2d": "NOT_VIOLATED",
+    "A3a": "VIOLATED",
+    "A3b": "REGISTERED_ONLY",
+    "A3c": "NOT_REACHABLE",
+    "A4a": "VIOLATED",
+    "A4b": "NOT_REACHABLE",
+    "A4c": "CONVENTION_DIVERGENCE",
+    "A5a": "CONTRACT_MISLABEL",
+    "A5b": "VIOLATED",
+    "A6a": "NOT_VIOLATED",
+    "A6b": "VIOLATED",
+    "A7a": "REGISTERED_ONLY",
+    "A7b": "REGISTERED_ONLY"
+  },
+  "canaries": {
+    "rows": [
+      {
+        "axis": "A1a",
+        "variant": "V01",
+        "clean_got": "NOT_VIOLATED",
+        "clean_expect": "NOT_VIOLATED",
+        "inj_got": "VIOLATED",
+        "inj_expect": "VIOLATED",
+        "distinct": true,
+        "passed": true,
+        "intent": "CLN：三个自检门全绿；INJ：sentinel_defect_present=0（探针没跑到带守卫的实现）"
+      },
+      {
+        "axis": "A1b",
+        "variant": "V02",
+        "clean_got": "NOT_VIOLATED",
+        "clean_expect": "NOT_VIOLATED",
+        "inj_got": "VIOLATED",
+        "inj_expect": "VIOLATED",
+        "distinct": true,
+        "passed": true,
+        "intent": "CLN：panel_design_selfcheck 全通过；INJ：把 V03 的面板结构谓词改成不符"
+      },
+      {
+        "axis": "A2a",
+        "variant": "V03",
+        "clean_got": "NOT_VIOLATED",
+        "clean_expect": "NOT_VIOLATED",
+        "inj_got": "VIOLATED",
+        "inj_expect": "VIOLATED",
+        "distinct": true,
+        "passed": true,
+        "intent": "CLN：rho_p1s 写成 1.0（尺度不变性成立）；INJ：恢复实测 NaN"
+      },
+      {
+        "axis": "A2b",
+        "variant": "V04",
+        "clean_got": "NOT_VIOLATED",
+        "clean_expect": "NOT_VIOLATED",
+        "inj_got": "VIOLATED",
+        "inj_expect": "VIOLATED",
+        "distinct": true,
+        "passed": true,
+        "intent": "CLN：rho_n10 写成 1.0（与 n12 一致）；INJ：恢复实测 NaN"
+      },
+      {
+        "axis": "A2c",
+        "variant": "V05",
+        "clean_got": "NOT_VIOLATED",
+        "clean_expect": "NOT_VIOLATED",
+        "inj_got": "VIOLATED",
+        "inj_expect": "VIOLATED",
+        "distinct": true,
+        "passed": true,
+        "intent": "CLN：判据来源摘录存在；INJ：摘录缺失（判据来源不支持该定义）"
+      },
+      {
+        "axis": "A2d",
+        "variant": "V06",
+        "clean_got": "NOT_VIOLATED",
+        "clean_expect": "NOT_VIOLATED",
+        "inj_got": "VIOLATED",
+        "inj_expect": "VIOLATED",
+        "distinct": true,
+        "passed": true,
+        "intent": "CLN：网格 15 格齐全；INJ：只报 14 格"
+      },
+      {
+        "axis": "A3a",
+        "variant": "V07",
+        "clean_got": "NOT_VIOLATED",
+        "clean_expect": "NOT_VIOLATED",
+        "inj_got": "VIOLATED",
+        "inj_expect": "VIOLATED",
+        "distinct": true,
+        "passed": true,
+        "intent": "CLN：support_gap=0（支撑集无缺口）；INJ：恢复实测 gap=1"
+      },
+      {
+        "axis": "A3b",
+        "variant": "V08",
+        "clean_got": "NOT_VIOLATED",
+        "clean_expect": "NOT_VIOLATED",
+        "inj_got": "REGISTERED_ONLY",
+        "inj_expect": "REGISTERED_ONLY",
+        "distinct": true,
+        "passed": true,
+        "intent": "CLN：C11 命中 1（存在支撑计数字段）；INJ：C11 命中 0（无字段）"
+      },
+      {
+        "axis": "A3c",
+        "variant": "V09",
+        "clean_got": "REGISTERED_ONLY",
+        "clean_expect": "REGISTERED_ONLY",
+        "inj_got": "NOT_REACHABLE",
+        "inj_expect": "NOT_REACHABLE",
+        "distinct": true,
+        "passed": true,
+        "intent": "CLN：DB 可达且有行；INJ：DB 不可达"
+      },
+      {
+        "axis": "A4a",
+        "variant": "V10",
+        "clean_got": "NOT_VIOLATED",
+        "clean_expect": "NOT_VIOLATED",
+        "inj_got": "VIOLATED",
+        "inj_expect": "VIOLATED",
+        "distinct": true,
+        "passed": true,
+        "intent": "CLN：两份载荷不同（不可定义与真 0 可区分）；INJ：两份载荷逐字符相同"
+      },
+      {
+        "axis": "A4b",
+        "variant": "V11",
+        "clean_got": "NOT_VIOLATED",
+        "clean_expect": "NOT_VIOLATED",
+        "inj_got": "NOT_REACHABLE",
+        "inj_expect": "NOT_REACHABLE",
+        "distinct": true,
+        "passed": true,
+        "intent": "CLN：round4(NaN) != 0.0；INJ：round4(NaN)=0.0 且该键有限（NaN 不可达）"
+      },
+      {
+        "axis": "A4c",
+        "variant": "V12",
+        "clean_got": "NOT_VIOLATED",
+        "clean_expect": "NOT_VIOLATED",
+        "inj_got": "CONVENTION_DIVERGENCE",
+        "inj_expect": "CONVENTION_DIVERGENCE",
+        "distinct": true,
+        "passed": true,
+        "intent": "CLN：两个降级分支的标记方式一致；INJ：一个用 status、另一个靠缺键"
+      },
+      {
+        "axis": "A5a",
+        "variant": "V13",
+        "clean_got": "NOT_VIOLATED",
+        "clean_expect": "NOT_VIOLATED",
+        "inj_got": "CONTRACT_MISLABEL",
+        "inj_expect": "CONTRACT_MISLABEL",
+        "distinct": true,
+        "passed": true,
+        "intent": "CLN：javadoc 含量级限定词；INJ：无限定词且 A2 已 VIOLATED"
+      },
+      {
+        "axis": "A5b",
+        "variant": "V14",
+        "clean_got": "NOT_VIOLATED",
+        "clean_expect": "NOT_VIOLATED",
+        "inj_got": "VIOLATED",
+        "inj_expect": "VIOLATED",
+        "distinct": true,
+        "passed": true,
+        "intent": "CLN：legacy 空分支不缺失声明的键；INJ：缺失且可达"
+      },
+      {
+        "axis": "A6a",
+        "variant": "V15",
+        "clean_got": "NOT_VIOLATED",
+        "clean_expect": "NOT_VIOLATED",
+        "inj_got": "CONTRACT_AMBIGUOUS",
+        "inj_expect": "CONTRACT_AMBIGUOUS",
+        "distinct": true,
+        "passed": true,
+        "intent": "CLN：各发射点口径一致或有结构化区分字段；INJ：两处口径不同且都缺区分字段"
+      },
+      {
+        "axis": "A6b",
+        "variant": "V16",
+        "clean_got": "NOT_VIOLATED",
+        "clean_expect": "NOT_VIOLATED",
+        "inj_got": "VIOLATED",
+        "inj_expect": "VIOLATED",
+        "distinct": true,
+        "passed": true,
+        "intent": "CLN：秩有限 ⟹ Pearson 有限（R006 A4b 的等价成立）；INJ：秩有限而 Pearson NaN"
+      },
+      {
+        "axis": "A7a",
+        "variant": "V17",
+        "clean_got": "NOT_VIOLATED",
+        "clean_expect": "NOT_VIOLATED",
+        "inj_got": "REGISTERED_ONLY",
+        "inj_expect": "REGISTERED_ONLY",
+        "distinct": true,
+        "passed": true,
+        "intent": "CLN：既有测试含尺度维度用例；INJ：只覆盖尺度 1"
+      },
+      {
+        "axis": "A7b",
+        "variant": "V18",
+        "clean_got": "NOT_VIOLATED",
+        "clean_expect": "NOT_VIOLATED",
+        "inj_got": "REGISTERED_ONLY",
+        "inj_expect": "REGISTERED_ONLY",
+        "distinct": true,
+        "passed": true,
+        "intent": "CLN：导出列含缺测分支；INJ：纯取值"
+      }
+    ],
+    "n": 18,
+    "all_passed": true
+  },
+  "k_table": {
+    "K1": true,
+    "K2": true,
+    "K3": true,
+    "K4": true,
+    "K5": true,
+    "K6": false,
+    "K7": true,
+    "K8": false,
+    "K9": false,
+    "K10": false
+  },
+  "h0_alive": false,
+  "total_verdict": "REJECTED",
+  "non_killing_axes": [
+    "A2c",
+    "A2d",
+    "A3c",
+    "A7a"
+  ],
+  "finished_at": "2026-09-14T22:50:10"
+}

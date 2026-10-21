@@ -1,0 +1,604 @@
+{
+  "round": "R011",
+  "subject": "承重分析分叉的载荷可恢复性与备选可枚举性审计",
+  "subject_kind": "只读审计（论文只作判据来源）",
+  "baseline_commit": "a8681459",
+  "judgment_source": {
+    "citation": "Menkveld, Dreber, Holzmeister, Huber, Johannesson, Kirchler, Neususs, Razen, Weitzel et al. (2024) Nonstandard Errors, The Journal of Finance 79(3):2339-2390",
+    "doi": "10.1111/jofi.13337",
+    "grade": "A",
+    "carrier_pdf": "papers/menkveld2024_jf_nonstandard_errors.pdf",
+    "carrier_pdf_bytes": 1220922,
+    "carrier_pdf_sha256": "9d9268f97a0876403cd21a814a9017fa366e96a9f6e4045787d8850916d86ebe",
+    "carrier_txt": "papers/menkveld2024_jf_nonstandard_errors.txt",
+    "carrier_txt_bytes": 170400,
+    "carrier_txt_sha256": "b0213178dbe16a7402ef8bbe4bd91f3e132c6f9e5d76b061203e1639c81cfa09",
+    "criteria": {
+      "S1": {
+        "text": "分析路径必须被指名",
+        "grade": "L"
+      },
+      "S2": {
+        "text": "关键分叉 + 该分叉的预定义备选集合必须存在",
+        "grade": "L"
+      },
+      "S3": {
+        "text": "敏感性 = 在备选上重算得到的分布",
+        "grade": "L"
+      },
+      "S4": {
+        "text": "路径先声明、偏离须显式对账",
+        "grade": "L"
+      }
+    },
+    "forbidden_numbers": [
+      "NSE 1.2%",
+      "NSE 6.7%",
+      "IQR as correct metric",
+      "AD test",
+      "multiple-testing factor 13-91",
+      "t >= 2.9 lower bound",
+      "sampling frequency / statistical model ranking"
+    ]
+  },
+  "tolerances": {
+    "TOL": 1e-15,
+    "TOL_INT": 0,
+    "TOL_IC": 1e-12,
+    "DET_BITS": 64,
+    "G3_SUFFIX": "modules/backend-java/target/classes",
+    "PANEL_DAYS": 5,
+    "GRID_CELLS": 27,
+    "CANARY_PAIRS": 20
+  },
+  "panel": {
+    "design": "score_i = i（整数、无并列）；fwd_i = A*x^2 + B*x + C*sin(3i)，x=(i-(n+1)/2)/n",
+    "A": 0.04,
+    "B": 0.006,
+    "C": 0.0015,
+    "n_by_day": {
+      "D1": 12,
+      "D2": 10,
+      "D3": 9,
+      "D4": 20,
+      "D5": 6
+    },
+    "days": [
+      {
+        "day": "D1",
+        "n": 12,
+        "rows": [
+          [
+            1.0,
+            0.005864457789867579
+          ],
+          [
+            2.0,
+            0.0029558767527016108
+          ],
+          [
+            3.0,
+            0.0022709555056404126
+          ],
+          [
+            4.0,
+            -0.00031874826588954117
+          ],
+          [
+            5.0,
+            0.0008504317602356752
+          ],
+          [
+            6.0,
+            -0.0013070364257130697
+          ],
+          [
+            7.0,
+            0.0015744279022485287
+          ],
+          [
+            8.0,
+            1.663245699006421e-05
+          ],
+          [
+            9.0,
+            0.004420675003717866
+          ],
+          [
+            10.0,
+            0.003670730341638486
+          ],
+          [
+            11.0,
+            0.0093748677901609
+          ],
+          [
+            12.0,
+            0.009665109497613105
+          ]
+        ]
+      },
+      {
+        "day": "D2",
+        "n": 10,
+        "rows": [
+          [
+            1.0,
+            0.005611680012089802
+          ],
+          [
+            2.0,
+            0.0023808767527016103
+          ],
+          [
+            3.0,
+            0.001618177727862635
+          ],
+          [
+            4.0,
+            -0.0008048593770006524
+          ],
+          [
+            5.0,
+            0.0007754317602356752
+          ],
+          [
+            6.0,
+            -0.0007264808701575142
+          ],
+          [
+            7.0,
+            0.0030549834578040844
+          ],
+          [
+            8.0,
+            0.0026416324569900644
+          ],
+          [
+            9.0,
+            0.008434563892606753
+          ],
+          [
+            10.0,
+            0.009317952563860707
+          ]
+        ]
+      },
+      {
+        "day": "D3",
+        "n": 9,
+        "rows": [
+          [
+            1.0,
+            0.00544624791332437
+          ],
+          [
+            2.0,
+            0.0020253211971460548
+          ],
+          [
+            3.0,
+            0.0012601530365046103
+          ],
+          [
+            4.0,
+            -0.0009776988831734917
+          ],
+          [
+            5.0,
+            0.0009754317602356752
+          ],
+          [
+            6.0,
+            3.4012957002979615e-05
+          ],
+          [
+            7.0,
+            0.004563625433112726
+          ],
+          [
+            8.0,
+            0.005086076901434508
+          ],
+          [
+            9.0,
+            0.012002465127174655
+          ]
+        ]
+      },
+      {
+        "day": "D4",
+        "n": 20,
+        "rows": [
+          [
+            1.0,
+            0.006386680012089801
+          ],
+          [
+            2.0,
+            0.0042558767527016116
+          ],
+          [
+            3.0,
+            0.003993177727862634
+          ],
+          [
+            4.0,
+            0.0014701406229993478
+          ],
+          [
+            5.0,
+            0.0023504317602356752
+          ],
+          [
+            6.0,
+            -0.00045148087015751395
+          ],
+          [
+            7.0,
+            0.001429983457804084
+          ],
+          [
+            8.0,
+            -0.0014833675430099358
+          ],
+          [
+            9.0,
+            0.0012095638926067547
+          ],
+          [
+            10.0,
+            -0.001607047436139293
+          ],
+          [
+            11.0,
+            0.001674867790160901
+          ],
+          [
+            12.0,
+            -0.0008126682801646737
+          ],
+          [
+            13.0,
+            0.0028206930794261315
+          ],
+          [
+            14.0,
+            0.0009002176781265489
+          ],
+          [
+            15.0,
+            0.004651355286801178
+          ],
+          [
+            16.0,
+            0.0035226180080145
+          ],
+          [
+            17.0,
+            0.007180343763765063
+          ],
+          [
+            18.0,
+            0.007036816426722575
+          ],
+          [
+            19.0,
+            0.010429247132871739
+          ],
+          [
+            20.0,
+            0.011417784068346676
+          ]
+        ]
+      },
+      {
+        "day": "D5",
+        "n": 6,
+        "rows": [
+          [
+            1.0,
+            0.004656124456534246
+          ],
+          [
+            2.0,
+            0.0005808767527016112
+          ],
+          [
+            3.0,
+            0.0003959555056404126
+          ],
+          [
+            4.0,
+            -2.7081599222874642e-05
+          ],
+          [
+            5.0,
+            0.004975431760235675
+          ],
+          [
+            6.0,
+            0.00831796357428693
+          ]
+        ]
+      }
+    ],
+    "note": "手写确定性数值；不含真实行情、不含时间序列依赖、无 PIT 依赖"
+  },
+  "grid": {
+    "holding_days": [
+      1,
+      3,
+      5
+    ],
+    "group_count": [
+      3,
+      5,
+      10
+    ],
+    "min_cross_section_size": [
+      5,
+      10,
+      20
+    ],
+    "cells": 27
+  },
+  "expected_arith": {
+    "days_by_min_size": {
+      "5": 5,
+      "10": 3,
+      "20": 1
+    },
+    "included_days": {
+      "5": [
+        "D1",
+        "D2",
+        "D3",
+        "D4",
+        "D5"
+      ],
+      "10": [
+        "D1",
+        "D2",
+        "D4"
+      ],
+      "20": [
+        "D4"
+      ]
+    },
+    "groups_per_day": {
+      "D1": {
+        "3": 3,
+        "5": 5,
+        "10": 10
+      },
+      "D2": {
+        "3": 3,
+        "5": 5,
+        "10": 10
+      },
+      "D3": {
+        "3": 3,
+        "5": 5,
+        "10": 9
+      },
+      "D4": {
+        "3": 3,
+        "5": 5,
+        "10": 10
+      },
+      "D5": {
+        "3": 3,
+        "5": 5,
+        "10": 6
+      }
+    },
+    "bucket10_days_J10": [
+      "D1",
+      "D2",
+      "D4"
+    ],
+    "clamp_days_J10": 2
+  },
+  "expected_counts": {
+    "summarize_prod_call_sites": 5,
+    "summarize_test_call_sites": 3,
+    "holding_days_emission_sites": 2,
+    "group_count_emission_sites": 1,
+    "min_size_emission_sites": 0,
+    "horizons_enumeration_sites": 1,
+    "group_count_backend_enum_sites": 0,
+    "group_count_distinct_definition_sources": 2,
+    "min_size_declaring_files": 2,
+    "min_size_shared_declaration_sites": 0,
+    "min_size_config_sites": 0,
+    "response_group_count_fields": 0,
+    "grouped_returns_emission_sites": 2
+  },
+  "anchors": {
+    "A1_spearman_perfect_positive": 1.0,
+    "A2_spearman_perfect_negative": -1.0,
+    "A3_monotonic_increasing": "MONOTONIC_INCREASING",
+    "A3_spread_sign": "positive"
+  },
+  "variants": [
+    {
+      "variant": "V01",
+      "axis": "A1",
+      "expected": "NOT_VIOLATED"
+    },
+    {
+      "variant": "V02",
+      "axis": "A2",
+      "expected": "RECOVERABLE"
+    },
+    {
+      "variant": "V03",
+      "axis": "A2",
+      "expected": "NOT_RECOVERABLE_ABSENT_KEY"
+    },
+    {
+      "variant": "V04",
+      "axis": "A2",
+      "expected": "NOT_RECOVERABLE_ABSENT_KEY"
+    },
+    {
+      "variant": "V05",
+      "axis": "A2",
+      "expected": "RECOVERABLE"
+    },
+    {
+      "variant": "V06",
+      "axis": "A3",
+      "expected": "ENUMERABLE_SINGLE_SITE"
+    },
+    {
+      "variant": "V07",
+      "axis": "A3",
+      "expected": "NOT_ENUMERABLE"
+    },
+    {
+      "variant": "V08",
+      "axis": "A3",
+      "expected": "NOT_ENUMERABLE"
+    },
+    {
+      "variant": "V09",
+      "axis": "A4",
+      "expected": "CONVENTION_DIVERGENCE"
+    },
+    {
+      "variant": "V10",
+      "axis": "A4",
+      "expected": "CONVENTION_DIVERGENCE"
+    },
+    {
+      "variant": "V11",
+      "axis": "A4",
+      "expected": "NOT_RECOVERABLE_ABSENT_KEY"
+    },
+    {
+      "variant": "V12",
+      "axis": "A5",
+      "expected": "REGISTERED_ONLY"
+    },
+    {
+      "variant": "V13",
+      "axis": "A6",
+      "expected": "NOT_VIOLATED"
+    },
+    {
+      "variant": "V14",
+      "axis": "A6",
+      "expected": "NOT_VIOLATED"
+    },
+    {
+      "variant": "V15",
+      "axis": "A6",
+      "expected": "NOT_VIOLATED"
+    },
+    {
+      "variant": "V16",
+      "axis": "A7",
+      "expected": "REGISTERED_ONLY"
+    },
+    {
+      "variant": "V17",
+      "axis": "A7",
+      "expected": "REGISTERED_ONLY"
+    },
+    {
+      "variant": "V18",
+      "axis": "A8",
+      "expected": "NOT_ENUMERABLE"
+    },
+    {
+      "variant": "V19",
+      "axis": "A9",
+      "expected": "NOT_VIOLATED"
+    },
+    {
+      "variant": "V20",
+      "axis": "A9",
+      "expected": "NOT_VIOLATED"
+    }
+  ],
+  "verdict_vocab": [
+    "NOT_VIOLATED",
+    "RECOVERABLE",
+    "NOT_RECOVERABLE_ABSENT_KEY",
+    "NOT_RECOVERABLE_INDIRECT",
+    "ENUMERABLE_SINGLE_SITE",
+    "NOT_ENUMERABLE",
+    "CONVENTION_DIVERGENCE",
+    "REGISTERED_ONLY",
+    "NOT_REACHABLE",
+    "INCONCLUSIVE"
+  ],
+  "load_bearing": [
+    "V03",
+    "V04",
+    "V07",
+    "V08",
+    "V09",
+    "V10",
+    "V11",
+    "V18"
+  ],
+  "non_killing_axes": [
+    "A5",
+    "A6",
+    "A7"
+  ],
+  "non_killing_variants": [
+    "V12",
+    "V13",
+    "V14",
+    "V15",
+    "V16",
+    "V17"
+  ],
+  "sensitivity": {
+    "tolerance": 0.2,
+    "grid": {
+      "group_count": {
+        "base": 5,
+        "values": [
+          4,
+          5,
+          6
+        ]
+      },
+      "min_cross_section_size": {
+        "base": 10,
+        "values": [
+          8,
+          10,
+          12
+        ]
+      },
+      "holding_days": {
+        "base": 5,
+        "values": [
+          4,
+          5,
+          6
+        ]
+      }
+    },
+    "role": "协议强制披露；不改变任何判定"
+  },
+  "excluded_forks": {
+    "reason": "已在 R007 审过，本轮不抽取、不判定、不引用其数值",
+    "items": [
+      "neweyWestHacStd lag = floor(n^(1/3))（FactorResearchEngine:324）",
+      "blockBootstrapCi blockSize/iterations=1000/seed=42L（FactorResearchEngine:358, 调用式 :191）"
+    ]
+  },
+  "reject_forks_owned_by_R010": [
+    "成本费率",
+    "convention/executionAssumptions 忠实性",
+    "labelDefinition() 文本",
+    "min_net_return"
+  ]
+}

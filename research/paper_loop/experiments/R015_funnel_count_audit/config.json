@@ -1,0 +1,223 @@
+{
+  "round": "R015",
+  "subject": "factor_return funnel count family",
+  "prereg": {
+    "path": "research/paper_loop/rounds/R015_prereg.md",
+    "bytes": 37861,
+    "sha256_32": "dacf03bf70cb71c7f20bc75ba9337880"
+  },
+  "review": {
+    "path": "research/paper_loop/rounds/R015_review.md",
+    "bytes": 29637,
+    "sha256_32": "9a45b53a50dea4de4427809472ebe2ab"
+  },
+  "frozen_files": {
+    "F01": {
+      "path": "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java",
+      "bytes": 14429,
+      "sha256_32": "efbf0678aabb2780b95c893e715ece9c"
+    },
+    "F02": {
+      "path": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "bytes": 56806,
+      "sha256_32": "b7c93af0e03c0d8006c4d228e0047877"
+    },
+    "F03": {
+      "path": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+      "bytes": 52264,
+      "sha256_32": "a0e6cf738bb60d39145f90b43f975349"
+    },
+    "F04": {
+      "path": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java",
+      "bytes": 6348,
+      "sha256_32": "40a7982b60c8d7cfd1391e5405e3b1bd"
+    },
+    "F05": {
+      "path": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestRequest.java",
+      "bytes": 1401,
+      "sha256_32": "01b85daef92b2cc5309fabb8e926f2d4"
+    },
+    "F06": {
+      "path": "modules/backend-java/src/main/java/com/quant/controller/FactorResearchController.java",
+      "bytes": 2822,
+      "sha256_32": "79bb33f56b857532286d0863345816b3"
+    },
+    "F07": {
+      "path": "modules/backend-java/src/test/java/com/quant/service/backtest/FactorResearchEngineTest.java",
+      "bytes": 10960,
+      "sha256_32": "42aa831eea4b45bdcc220ca905ca4faa"
+    },
+    "F08": {
+      "path": "modules/web/src/api/factor.ts",
+      "bytes": 6591,
+      "sha256_32": "3f8fe7e80c55cfb219736594811a6337"
+    },
+    "F09": {
+      "path": "modules/web/src/api/backtest.ts",
+      "bytes": 13140,
+      "sha256_32": "c3e4bfcd47c302c26cfbb541c79ffb4b"
+    },
+    "F10": {
+      "path": "modules/web/src/views/factor/FactorResearch.vue",
+      "bytes": 27171,
+      "sha256_32": "c59c81fc3933b5ff58607695cb2f8b7a"
+    },
+    "F11": {
+      "path": "modules/web/src/views/backtest/ScoringBacktest.vue",
+      "bytes": 60185,
+      "sha256_32": "05427ebc02bf392ae935713bced71102"
+    },
+    "F12": {
+      "path": "modules/backend-java/src/test/java/com/quant/service/FactorResearchServiceTest.java",
+      "bytes": 15356,
+      "sha256_32": "33dca6899b16d871da11d5455ed5a424"
+    },
+    "F13": {
+      "path": "modules/backend-java/src/main/java/com/quant/research/ResearchConvention.java",
+      "bytes": 5684,
+      "sha256_32": "08e4823811aadc759fc531d8404fc5b8"
+    }
+  },
+  "frozen_count": 13,
+  "judged_keys": [
+    "universe_count",
+    "cross_section_days",
+    "feature_valid_count",
+    "valid_observations",
+    "selector_item_count",
+    "total_observations"
+  ],
+  "marker_key": "universe_days_with_snapshot",
+  "vocab": [
+    "KEY_VALUE_UNIQUE",
+    "KEY_VALUE_NOT_UNIQUE",
+    "ALIAS_DECLARED",
+    "ALIAS_UNDECLARED",
+    "SAME_NAME_SAME_QUANTITY",
+    "SAME_NAME_DIFF_QUANTITY",
+    "FALLBACK_MARKER_EXACT",
+    "FALLBACK_UNNAMED",
+    "FALLBACK_UNDISCLOSED",
+    "SCOPE_LABEL_FAITHFUL",
+    "SCOPE_LABEL_UNFAITHFUL",
+    "DEGENERATE_KEYS_CONSISTENT",
+    "DEGENERATE_KEYS_INCONSISTENT",
+    "INSTRUMENT_GREEN",
+    "INSTRUMENT_RED",
+    "NOT_REACHED_STATIC_ONLY"
+  ],
+  "forbidden_scan": [
+    "24.09",
+    "6.71",
+    "72.15",
+    "0.0025",
+    "0.006",
+    "Brandt",
+    "1980",
+    "2002",
+    "180 bp",
+    "100 bp",
+    "60 bp",
+    "35 bp",
+    "bp/",
+    "1/√K",
+    "theta",
+    "多空对冲组合",
+    "联合显著",
+    "孤立显著"
+  ],
+  "variants_total": 20,
+  "canary_pairs": 20,
+  "axes": {
+    "A1": {
+      "name": "key_value_uniqueness",
+      "variants": [
+        "V01",
+        "V02",
+        "V03",
+        "V04",
+        "V05"
+      ],
+      "count": 5
+    },
+    "A2": {
+      "name": "same_name_same_quantity",
+      "variants": [
+        "V06",
+        "V07",
+        "V08"
+      ],
+      "count": 3
+    },
+    "A3": {
+      "name": "fallback_discernibility",
+      "variants": [
+        "V09",
+        "V10",
+        "V11",
+        "V12",
+        "V13",
+        "V14"
+      ],
+      "count": 6
+    },
+    "A4": {
+      "name": "scope_label_fidelity",
+      "variants": [
+        "V15",
+        "V16",
+        "V17",
+        "V18"
+      ],
+      "count": 4
+    },
+    "A5": {
+      "name": "instrument",
+      "variants": [
+        "V19",
+        "V20"
+      ],
+      "count": 2
+    }
+  },
+  "panels": [
+    "panel_R015_main",
+    "panel_R015_random",
+    "panel_R015_b8",
+    "panel_R015_b10",
+    "panel_R015_b12"
+  ],
+  "recon_tol_cnt": 0,
+  "recon_tol_fp": 1e-09,
+  "k_table": {
+    "K1": "(i) key_value_uniqueness falsified",
+    "K2": "(iii) fallback_discernibility falsified (FALLBACK_UNDISCLOSED only)",
+    "K3": "(ii) same_name_same_quantity falsified, outside pre-registered downgrades",
+    "K4": "out-of-scope: load-bearing word with reachability < REACHABLE_PUBLIC_API",
+    "K5": "count gate",
+    "K6": "instrument gate",
+    "K7": "freeze gate"
+  },
+  "reachability_frozen": {
+    "V01": "REACHABLE_PUBLIC_API",
+    "V02": "REACHABLE_PUBLIC_API",
+    "V03": "REACHABLE_PUBLIC_API",
+    "V04": "REACHABLE_PUBLIC_API",
+    "V05": "REACHABLE_PUBLIC_API",
+    "V06": "REACHABLE_PUBLIC_API",
+    "V07": "SYNTHETIC_ONLY",
+    "V08": "SYNTHETIC_ONLY",
+    "V09": "REACHABLE_PUBLIC_API",
+    "V10": "REACHABLE_PUBLIC_API",
+    "V11": "REACHABLE_PUBLIC_API",
+    "V12": "REACHABLE_PUBLIC_API",
+    "V13": "SYNTHETIC_ONLY",
+    "V14": "SYNTHETIC_ONLY",
+    "V15": "REACHABLE_PUBLIC_API",
+    "V16": "REACHABLE_PUBLIC_API",
+    "V17": "REACHABLE_PUBLIC_API",
+    "V18": "REACHABLE_PUBLIC_API",
+    "V19": "REACHABLE_PUBLIC_API",
+    "V20": "REACHABLE_PUBLIC_API"
+  }
+}

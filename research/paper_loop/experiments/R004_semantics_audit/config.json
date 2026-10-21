@@ -1,0 +1,86 @@
+{
+  "experiment_id": "R004_semantics_audit",
+  "paper_id": "FF2015",
+  "method_authority": "CCF2019",
+  "prereg": "research/paper_loop/rounds/R004_prereg.md",
+  "review": "research/paper_loop/rounds/R004_review.md",
+  "run_time": "2026-09-14T20:05:10",
+  "N": 20,
+  "h": 3,
+  "cost_grid_bp": [
+    0.0,
+    6.0,
+    9.6,
+    12.0,
+    14.4,
+    24.0,
+    36.0
+  ],
+  "group_counts": [
+    5,
+    10,
+    20
+  ],
+  "project_J": 5,
+  "ccf_standard_J": 10,
+  "degrade": {
+    "J": 5,
+    "n": 10
+  },
+  "segments": {
+    "IS": [
+      "2024-01-02",
+      "2025-12-31"
+    ],
+    "OOS": [
+      "2026-01-01",
+      "2026-09-07"
+    ]
+  },
+  "random_seed": 20260914,
+  "max_variants": 48,
+  "prereg_variants": 43,
+  "thresholds": {
+    "K1_abs_bp": 5.0,
+    "K1_rel": 0.3,
+    "K2_t_mult": 1.0,
+    "K2_abs_bp": 5.0,
+    "K3_rel": 0.3,
+    "tol_parity": 1e-12,
+    "tol_identity": 1e-12
+  },
+  "frozen_cost": {
+    "commission": 0.0003,
+    "sell_tax": 0.0005,
+    "slippage": 0.0002,
+    "r003_round_trip_bp": 11.999999999999998,
+    "project_round_trip_bp": 14.999999999999998
+  },
+  "variant_table_prereg": {
+    "A1_single_leg": 14,
+    "A1_two_leg": 14,
+    "A6_group_counts": 4,
+    "A3_four_definitions": 8,
+    "A2_sign": 1,
+    "A6_degradation": 1,
+    "K6_canary": 1,
+    "total": 43
+  },
+  "variant_table_realised": {
+    "A1_single_leg": 14,
+    "A1_two_leg": 14,
+    "A6_group_counts": 4,
+    "A3_four_definitions": 8,
+    "A2_sign": 1,
+    "A6_degradation": 1,
+    "K6_canary": 1,
+    "total_distinct_evaluations": 43,
+    "max_variants": 48,
+    "prereg_total": 43,
+    "parity_cells_reused": 2,
+    "within_budget": true
+  },
+  "read_only": true,
+  "data_source": "quant_db.market_data (qfq, 只读 SELECT) + quant_db.index_quote (000300)",
+  "raw_price_available": false
+}

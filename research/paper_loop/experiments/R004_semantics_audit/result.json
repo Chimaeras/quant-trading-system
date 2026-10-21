@@ -1,0 +1,912 @@
+{
+  "meta": {
+    "market_data_rows_total": 2455536,
+    "rows_loaded_since_2023_11_01": 2449886,
+    "duplicate_rows_dropped": 4965,
+    "rows_nonpositive_price_dropped": 0,
+    "distinct_codes": 5555,
+    "distinct_dates": 688
+  },
+  "audit_config": {
+    "N": 20,
+    "h": 3,
+    "cost_grid_bp": [
+      0.0,
+      6.0,
+      9.6,
+      12.0,
+      14.4,
+      24.0,
+      36.0
+    ],
+    "group_counts": [
+      5,
+      10,
+      20
+    ],
+    "project_J": 5,
+    "ccf_standard_J": 10,
+    "degrade": {
+      "J": 5,
+      "n": 10
+    },
+    "segments": {
+      "IS": [
+        "2024-01-02",
+        "2025-12-31"
+      ],
+      "OOS": [
+        "2026-01-01",
+        "2026-09-07"
+      ]
+    },
+    "random_seed": 20260914,
+    "max_variants": 48,
+    "prereg_variants": 43,
+    "thresholds": {
+      "K1_abs_bp": 5.0,
+      "K1_rel": 0.3,
+      "K2_t_mult": 1.0,
+      "K2_abs_bp": 5.0,
+      "K3_rel": 0.3,
+      "tol_parity": 1e-12,
+      "tol_identity": 1e-12
+    },
+    "frozen_cost": {
+      "commission": 0.0003,
+      "sell_tax": 0.0005,
+      "slippage": 0.0002,
+      "r003_round_trip_bp": 11.999999999999998,
+      "project_round_trip_bp": 14.999999999999998
+    }
+  },
+  "T1_grouping_parity": {
+    "grp_bitwise_equal": true,
+    "filled_rows_equal": true
+  },
+  "T2_cost_model_divergence": {
+    "project_a": 0.9990001600000001,
+    "project_b": 1.00050006,
+    "project_round_trip_bp": 14.998999999998874,
+    "r003_a": 0.9993000000000001,
+    "r003_b": 1.0005,
+    "r003_round_trip_bp": 11.999999999998678,
+    "note": "项目口径佣金两侧各收一次（15bp 往返）；R003 的 apply_cost 只收买入侧（12bp）。R003 的 c_rt=12bp 因此在冻结 s=1 处比项目实际低 3bp（= 1×COMMISSION）。"
+  },
+  "P0_2_zero_cost_identity": {
+    "gross_spread": -0.005378735397665594,
+    "zero_cost_spread": -0.005378735397665594,
+    "abs_diff": 0.0,
+    "passed": true
+  },
+  "P0_1_reuse_parity": {
+    "cells": {
+      "IS_N20_h3": {
+        "r003_ref": 0.005372284140816815,
+        "r004_recomputed": 0.005372284140816815,
+        "rel_err": 0.0,
+        "passed": true
+      },
+      "OOS_N20_h3": {
+        "r003_ref": -0.001891859456400312,
+        "r004_recomputed": -0.001891859456400312,
+        "rel_err": 0.0,
+        "passed": true
+      }
+    },
+    "passed": true
+  },
+  "T3_two_leg_zero_cost_identity": {
+    "checks": [
+      {
+        "segment": "IS",
+        "abs_diff": 0.0,
+        "passed": true
+      },
+      {
+        "segment": "OOS",
+        "abs_diff": 0.0,
+        "passed": true
+      }
+    ],
+    "passed": true
+  },
+  "A1_cost_axis": {
+    "cells": [
+      {
+        "segment": "IS",
+        "cost_bp": 0.0,
+        "single_leg_spread": -0.005378735397665594,
+        "single_leg_spread_bp": -53.78735397665594,
+        "two_leg_spread": -0.005378735397665594,
+        "two_leg_spread_bp": -53.78735397665594,
+        "two_leg_long_leg_mean_bp": 24.135740830517808,
+        "two_leg_short_leg_mean_bp": -77.9230948071737,
+        "gap": 0.0,
+        "gap_bp": 0.0,
+        "k1_threshold_bp": 16.13620619299678,
+        "k1_magnitude_ok": false,
+        "k1_fires": false,
+        "days": 465,
+        "dropped_obs_single": 0,
+        "dropped_obs_two": 0,
+        "mirror_single_bp": 53.78735397665589,
+        "gap_over_two_leg_abs": 0.0
+      },
+      {
+        "segment": "IS",
+        "cost_bp": 6.0,
+        "single_leg_spread": -0.005374702488873421,
+        "single_leg_spread_bp": -53.74702488873421,
+        "two_leg_spread": -0.006882255801566945,
+        "two_leg_spread_bp": -68.82255801566946,
+        "two_leg_long_leg_mean_bp": 16.619768734052162,
+        "two_leg_short_leg_mean_bp": -85.44232674972154,
+        "gap": 0.0015075533126935239,
+        "gap_bp": 15.07553312693524,
+        "k1_threshold_bp": 20.646767404700835,
+        "k1_magnitude_ok": false,
+        "k1_fires": false,
+        "days": 465,
+        "dropped_obs_single": 0,
+        "dropped_obs_two": 0,
+        "mirror_single_bp": 53.747024888734174,
+        "gap_over_two_leg_abs": 0.21904929955528327
+      },
+      {
+        "segment": "IS",
+        "cost_bp": 9.6,
+        "single_leg_spread": -0.0053722838402981464,
+        "single_leg_spread_bp": -53.722838402981466,
+        "two_leg_spread": -0.007784139768484125,
+        "two_leg_spread_bp": -77.84139768484125,
+        "two_leg_long_leg_mean_bp": 12.112229352502373,
+        "two_leg_short_leg_mean_bp": -89.95362703734357,
+        "gap": 0.0024118559281859787,
+        "gap_bp": 24.11855928185979,
+        "k1_threshold_bp": 23.352419305452376,
+        "k1_magnitude_ok": true,
+        "k1_fires": true,
+        "days": 465,
+        "dropped_obs_single": 0,
+        "dropped_obs_two": 0,
+        "mirror_single_bp": 53.72283840298146,
+        "gap_over_two_leg_abs": 0.30984232040012055
+      },
+      {
+        "segment": "IS",
+        "cost_bp": 12.0,
+        "single_leg_spread": -0.00537067186469293,
+        "single_leg_spread_bp": -53.706718646929296,
+        "two_leg_spread": -0.008385300665222731,
+        "two_leg_spread_bp": -83.85300665222731,
+        "two_leg_long_leg_mean_bp": 9.10805437773451,
+        "two_leg_short_leg_mean_bp": -92.96106102996187,
+        "gap": 0.0030146288005298014,
+        "gap_bp": 30.146288005298015,
+        "k1_threshold_bp": 25.15590199566819,
+        "k1_magnitude_ok": true,
+        "k1_fires": true,
+        "days": 465,
+        "dropped_obs_single": 0,
+        "dropped_obs_two": 0,
+        "mirror_single_bp": 53.706718646929254,
+        "gap_over_two_leg_abs": 0.3595135011714844
+      },
+      {
+        "segment": "IS",
+        "cost_bp": 14.4,
+        "single_leg_spread": -0.005369060254409573,
+        "single_leg_spread_bp": -53.69060254409573,
+        "two_leg_spread": -0.008986385515779636,
+        "two_leg_spread_bp": -89.86385515779635,
+        "two_leg_long_leg_mean_bp": 6.104560238817968,
+        "two_leg_short_leg_mean_bp": -95.9684153966144,
+        "gap": 0.003617325261370062,
+        "gap_bp": 36.17325261370062,
+        "k1_threshold_bp": 26.959156547338903,
+        "k1_magnitude_ok": true,
+        "k1_fires": true,
+        "days": 465,
+        "dropped_obs_single": 0,
+        "dropped_obs_two": 0,
+        "mirror_single_bp": 53.69060254409575,
+        "gap_over_two_leg_abs": 0.4025339503873079
+      },
+      {
+        "segment": "IS",
+        "cost_bp": 24.0,
+        "single_leg_spread": -0.005362617464767955,
+        "single_leg_spread_bp": -53.62617464767955,
+        "two_leg_spread": -0.011389964777998893,
+        "two_leg_spread_bp": -113.89964777998894,
+        "two_leg_long_leg_mean_bp": -5.902611176465449,
+        "two_leg_short_leg_mean_bp": -107.9970366035235,
+        "gap": 0.006027347313230938,
+        "gap_bp": 60.273473132309384,
+        "k1_threshold_bp": 34.16989433399668,
+        "k1_magnitude_ok": true,
+        "k1_fires": true,
+        "days": 465,
+        "dropped_obs_single": 0,
+        "dropped_obs_two": 0,
+        "mirror_single_bp": 53.626174647679505,
+        "gap_over_two_leg_abs": 0.5291805050067842
+      },
+      {
+        "segment": "IS",
+        "cost_bp": 36.0,
+        "single_leg_spread": -0.0053545721871019305,
+        "single_leg_spread_bp": -53.5457218710193,
+        "two_leg_spread": -0.01439272974664633,
+        "two_leg_spread_bp": -143.9272974664633,
+        "two_leg_long_leg_mean_bp": -20.89627593860896,
+        "two_leg_short_leg_mean_bp": -123.03102152785429,
+        "gap": 0.009038157559544398,
+        "gap_bp": 90.38157559544399,
+        "k1_threshold_bp": 43.17818923993899,
+        "k1_magnitude_ok": true,
+        "k1_fires": true,
+        "days": 465,
+        "dropped_obs_single": 0,
+        "dropped_obs_two": 0,
+        "mirror_single_bp": 53.545721871019346,
+        "gap_over_two_leg_abs": 0.6279668776279491
+      },
+      {
+        "segment": "OOS",
+        "cost_bp": 0.0,
+        "single_leg_spread": 0.0018941312780231334,
+        "single_leg_spread_bp": 18.941312780231335,
+        "two_leg_spread": 0.0018941312780231334,
+        "two_leg_spread_bp": 18.941312780231335,
+        "two_leg_long_leg_mean_bp": 18.32745305809356,
+        "two_leg_short_leg_mean_bp": 0.6138597221377231,
+        "gap": 0.0,
+        "gap_bp": 0.0,
+        "k1_threshold_bp": 5.6823938340694005,
+        "k1_magnitude_ok": false,
+        "k1_fires": false,
+        "days": 156,
+        "dropped_obs_single": 0,
+        "dropped_obs_two": 0,
+        "mirror_single_bp": -18.941312780231286,
+        "gap_over_two_leg_abs": 0.0
+      },
+      {
+        "segment": "OOS",
+        "cost_bp": 6.0,
+        "single_leg_spread": 0.0018927110819882036,
+        "single_leg_spread_bp": 18.927110819882035,
+        "two_leg_spread": 0.00039300991397158244,
+        "two_leg_spread_bp": 3.9300991397158245,
+        "two_leg_long_leg_mean_bp": 10.815835943439247,
+        "two_leg_short_leg_mean_bp": -6.885736803723465,
+        "gap": 0.0014997011680166212,
+        "gap_bp": 14.997011680166212,
+        "k1_threshold_bp": 5.0,
+        "k1_magnitude_ok": true,
+        "k1_fires": true,
+        "days": 156,
+        "dropped_obs_single": 0,
+        "dropped_obs_two": 0,
+        "mirror_single_bp": -18.92711081988204,
+        "gap_over_two_leg_abs": 3.815937244079448
+      },
+      {
+        "segment": "OOS",
+        "cost_bp": 9.6,
+        "single_leg_spread": 0.0018918593505721293,
+        "single_leg_spread_bp": 18.918593505721294,
+        "two_leg_spread": -0.00050743463437089,
+        "two_leg_spread_bp": -5.0743463437089,
+        "two_leg_long_leg_mean_bp": 6.310908366692442,
+        "two_leg_short_leg_mean_bp": -11.385254710401343,
+        "gap": 0.0023992939849430193,
+        "gap_bp": 23.992939849430194,
+        "k1_threshold_bp": 5.0,
+        "k1_magnitude_ok": true,
+        "k1_fires": true,
+        "days": 156,
+        "dropped_obs_single": 0,
+        "dropped_obs_two": 0,
+        "mirror_single_bp": -18.918593505721223,
+        "gap_over_two_leg_abs": 4.728281875985128
+      },
+      {
+        "segment": "OOS",
+        "cost_bp": 12.0,
+        "single_leg_spread": 0.0018912916904833747,
+        "single_leg_spread_bp": 18.912916904833747,
+        "two_leg_spread": -0.001107635920929911,
+        "two_leg_spread_bp": -11.07635920929911,
+        "two_leg_long_leg_mean_bp": 3.3084741018693724,
+        "two_leg_short_leg_mean_bp": -14.384833311168489,
+        "gap": 0.0029989276114132856,
+        "gap_bp": 29.989276114132856,
+        "k1_threshold_bp": 5.0,
+        "k1_magnitude_ok": true,
+        "k1_fires": true,
+        "days": 156,
+        "dropped_obs_single": 0,
+        "dropped_obs_two": 0,
+        "mirror_single_bp": -18.91291690483367,
+        "gap_over_two_leg_abs": 2.7075030294210296
+      },
+      {
+        "segment": "OOS",
+        "cost_bp": 14.4,
+        "single_leg_spread": 0.0018907241590433515,
+        "single_leg_spread_bp": 18.907241590433514,
+        "two_leg_spread": -0.001707761163059176,
+        "two_leg_spread_bp": -17.07761163059176,
+        "two_leg_long_leg_mean_bp": 0.3067202784007452,
+        "two_leg_short_leg_mean_bp": -17.384331908992518,
+        "gap": 0.0035984853221025276,
+        "gap_bp": 35.984853221025276,
+        "k1_threshold_bp": 5.1232834891775285,
+        "k1_magnitude_ok": true,
+        "k1_fires": true,
+        "days": 156,
+        "dropped_obs_single": 0,
+        "dropped_obs_two": 0,
+        "mirror_single_bp": -18.90724159043353,
+        "gap_over_two_leg_abs": 2.1071361733372758
+      },
+      {
+        "segment": "OOS",
+        "cost_bp": 24.0,
+        "single_leg_spread": 0.0018884553191626625,
+        "single_leg_spread_bp": 18.884553191626626,
+        "two_leg_spread": -0.004107502008900916,
+        "two_leg_spread_bp": -41.075020089009165,
+        "two_leg_long_leg_mean_bp": -11.693493818195453,
+        "two_leg_short_leg_mean_bp": -29.381526270813715,
+        "gap": 0.005995957328063579,
+        "gap_bp": 59.95957328063579,
+        "k1_threshold_bp": 12.322506026702749,
+        "k1_magnitude_ok": true,
+        "k1_fires": true,
+        "days": 156,
+        "dropped_obs_single": 0,
+        "dropped_obs_two": 0,
+        "mirror_single_bp": -18.884553191626676,
+        "gap_over_two_leg_abs": 1.4597576130383865
+      },
+      {
+        "segment": "OOS",
+        "cost_bp": 36.0,
+        "single_leg_spread": 0.0018856221602617373,
+        "single_leg_spread_bp": 18.85622160261737,
+        "two_leg_spread": -0.007105468995377102,
+        "two_leg_spread_bp": -71.05468995377102,
+        "two_leg_long_leg_mean_bp": -26.678470796977546,
+        "two_leg_short_leg_mean_bp": -44.3762191567935,
+        "gap": 0.00899109115563884,
+        "gap_bp": 89.9109115563884,
+        "k1_threshold_bp": 21.316406986131305,
+        "k1_magnitude_ok": true,
+        "k1_fires": true,
+        "days": 156,
+        "dropped_obs_single": 0,
+        "dropped_obs_two": 0,
+        "mirror_single_bp": -18.856221602617413,
+        "gap_over_two_leg_abs": 1.2653761717190724
+      }
+    ],
+    "M1_frozen_12bp": {
+      "IS": {
+        "single_leg_spread_bp": -53.706718646929296,
+        "two_leg_spread_bp": -83.85300665222731,
+        "gap_bp": 30.146288005298015,
+        "k1_threshold_bp": 25.15590199566819,
+        "k1_magnitude_ok": true,
+        "k1_fires": true,
+        "gap_over_two_leg_abs": 0.3595135011714844
+      },
+      "OOS": {
+        "single_leg_spread_bp": 18.912916904833747,
+        "two_leg_spread_bp": -11.07635920929911,
+        "gap_bp": 29.989276114132856,
+        "k1_threshold_bp": 5.0,
+        "k1_magnitude_ok": true,
+        "k1_fires": true,
+        "gap_over_two_leg_abs": 2.7075030294210296
+      }
+    },
+    "K1": {
+      "magnitude_only_fires_both_segments": true,
+      "gap_same_sign": true,
+      "fires_as_frozen": true,
+      "note": "prereg §9-K1 冻结文本 = 幅值条件 **且** IS/OOS 同号。以**修正后的**双腿构造（§附录勘误 E-1）实测：缺口 G 在 IS/OOS 两段均为正（成本在双腿上存活两次 ⟹ G>0 与 spread 自身符号无关），故同号子句成立，K1 按冻结文本干净触发，无需任何解释性放宽。勘误 E-3 记录：审计实现首次（错误）产出双腿恒为 0，使 G 退化为 spread 本身、随 spread 的 IS/OOS 变号而变号；我据此**一度**怀疑冻结文本的同号子句误写，该怀疑经证伪后撤回——错误源在实现侧，不在预注册侧。"
+    }
+  },
+  "A6_group_count_axis": {
+    "segments": {
+      "IS": {
+        "5": {
+          "spread_bp": -36.761036444650216,
+          "gross_spread_bp": -36.8162295074454,
+          "days": 465
+        },
+        "10": {
+          "spread_bp": -53.706718646929296,
+          "gross_spread_bp": -53.78735397665594,
+          "days": 465
+        },
+        "20": {
+          "spread_bp": -69.51454406044076,
+          "gross_spread_bp": -69.61891327759513,
+          "days": 465
+        },
+        "delta_J10_minus_J5": {
+          "bp": -16.94568220227908,
+          "mean_series_bp": -16.945682202279116,
+          "se_nw_bp": 5.386496538532058,
+          "t_nw": -3.1459562038254267,
+          "n_days": 465
+        },
+        "K2": {
+          "t_ok": true,
+          "abs_ok": true,
+          "fires": true
+        }
+      },
+      "OOS": {
+        "5": {
+          "spread_bp": 14.304509689588528,
+          "gross_spread_bp": 14.325986497043116,
+          "days": 156
+        },
+        "10": {
+          "spread_bp": 18.912916904833747,
+          "gross_spread_bp": 18.941312780231335,
+          "days": 156
+        },
+        "20": {
+          "spread_bp": 18.254177438680614,
+          "gross_spread_bp": 18.28158428187897,
+          "days": 156
+        },
+        "delta_J10_minus_J5": {
+          "bp": 4.608407215245219,
+          "mean_series_bp": 4.608407215245153,
+          "se_nw_bp": 13.53565080587918,
+          "t_nw": 0.3404643988927005,
+          "n_days": 156
+        },
+        "K2": {
+          "t_ok": false,
+          "abs_ok": false,
+          "fires": false
+        }
+      }
+    },
+    "same_sign": false,
+    "K2_fires": false
+  },
+  "A6_degradation": {
+    "J": 5,
+    "project_min_cross_section": 10,
+    "r003_min_names_per_date": 30,
+    "median_names_per_day": 3389.0,
+    "days_at_or_below_project_floor": 0,
+    "days_below_r003_floor": 0,
+    "group_size_at_floor": 2,
+    "note": "项目用 RANK_IC_MIN_CROSS_SECTION_SIZE=10 放行截面；在 n=10 时 J=5 每组 2 只，组均值由 2 个观测决定。R003 用的截面下限是 30。两者不是同一个有效性闸。",
+    "days_reaching_degraded_path": 0,
+    "degraded_path_reachable": false
+  },
+  "A3_gross_net_axis": {
+    "segments": {
+      "IS": {
+        "(i)_project_RAW_qfq_close_close_bp": -71.77516088680741,
+        "(iii)_same_window_net_bp": -53.706718646929296,
+        "(iv)_same_window_gross_bp": -53.78735397665594,
+        "cost_term_same_window_bp": 0.08063532972664689,
+        "window_term_bp": 17.98780691015147,
+        "project_gross_to_net_diff_bp": 18.068442239878117,
+        "cost_share_of_project_diff": 0.004462771535925768,
+        "noncost_share_of_project_diff": 0.9955372284640742,
+        "K3_fires": true
+      },
+      "OOS": {
+        "(i)_project_RAW_qfq_close_close_bp": -22.116313837201215,
+        "(iii)_same_window_net_bp": 18.912916904833747,
+        "(iv)_same_window_gross_bp": 18.941312780231335,
+        "cost_term_same_window_bp": -0.02839587539758881,
+        "window_term_bp": 41.05762661743255,
+        "project_gross_to_net_diff_bp": 41.02923074203496,
+        "cost_share_of_project_diff": 0.0006920889054957806,
+        "noncost_share_of_project_diff": 1.0006920889054958,
+        "K3_fires": true
+      }
+    },
+    "(ii)_project_COST_APPROX_computable": false,
+    "market_price_raw_rows": 0,
+    "K3_fires": true,
+    "blocked_note": "项目 COST_APPROX 块要求 market_price_raw（V2-MP-014 raw-only）；本地该表 0 行，⟹ 生产路径下每个观测都被跳过，(ii) 无法在本地计算。本轮 (iii)/(iv) 用 market_data（qfq）作同窗口代理，用于分离成本项与窗口项。"
+  },
+  "A2_sign_axis": {
+    "last_minus_first": -0.005370671864692925,
+    "first_minus_last": 0.005370671864692925,
+    "sum": 0.0,
+    "exact_negation": true,
+    "orientation_is_high_minus_low": true,
+    "note": "FactorResearchEngine.java:181-186 按得分升序建组，spread = last − first ⟹ 高 − 低，与 CCF2019 的 µ(z_H) − µ(z_L) 同向。",
+    "no_direction_flag": true,
+    "K2s_fires": false
+  },
+  "static_scans": {
+    "metric_scope": {
+      "count": 47,
+      "by_ext": {
+        ".java": 24,
+        ".ts": 15,
+        ".vue": 8
+      },
+      "by_file": {
+        "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java": 1,
+        "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java": 20,
+        "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java": 3,
+        "modules/web/src/api/backtest.ts": 1,
+        "modules/web/src/api/factor.ts": 14,
+        "modules/web/src/views/factor/FactorResearch.vue": 8
+      },
+      "sample": [
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java",
+          "line": 50,
+          "text": "* metric_scope 标明汇总指标分母口径。"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "line": 49,
+          "text": "*       metric_scope 分 RAW / COST_APPROX / EXECUTABLE 三类，EXECUTABLE 仅对 FILLED 样本给出。</li>"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "line": 76,
+          "text": "\"毛收益 IC（metric_scope=RAW）：forward return = close[t+h]/close[t]-1，未计费用/滑点/涨跌停可成交性；\""
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "line": 79,
+          "text": "\"成本后近似净收益 IC（metric_scope=COST_APPROX）：entry = rawOpen[t+1]×(1+佣金+滑点)，\""
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "line": 165,
+          "text": "out.put(\"metric_scopes\", List.of(METRIC_SCOPE_RAW, METRIC_SCOPE_COST_APPROX));"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "line": 166,
+          "text": "out.put(\"metric_scope\", METRIC_SCOPE_COST_APPROX);"
+        }
+      ]
+    },
+    "outperform": {
+      "count": 10,
+      "by_ext": {
+        ".java": 4,
+        ".ts": 2,
+        ".vue": 4
+      },
+      "by_file": {
+        "modules/backend-java/src/main/java/com/quant/service/BacktestStabilityService.java": 2,
+        "modules/backend-java/src/main/java/com/quant/service/T1CandidateService.java": 2,
+        "modules/web/src/api/backtest.ts": 1,
+        "modules/web/src/api/research.ts": 1,
+        "modules/web/src/views/backtest/ScoringBacktest.vue": 2,
+        "modules/web/src/views/market/T1Candidate.vue": 2
+      },
+      "sample": [
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/BacktestStabilityService.java",
+          "line": 152,
+          "text": "\"outperform\", strategyAvgReturn > benchmarkAvgReturn));"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/BacktestStabilityService.java",
+          "line": 173,
+          "text": "* holdingDay+1 个交易日，比策略多赚/多亏一天，benchmark_avg_return 与 outperform"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/T1CandidateService.java",
+          "line": 467,
+          "text": "\"outperform\", avgNextRet > indexAvgDaily);"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/T1CandidateService.java",
+          "line": 482,
+          "text": "+ \"benchmark=沪深300区间收益与日均收益（outperform=策略日均次日涨幅>指数日均收益）\");"
+        },
+        {
+          "file": "modules/web/src/api/backtest.ts",
+          "line": 244,
+          "text": "outperform?: boolean"
+        },
+        {
+          "file": "modules/web/src/api/research.ts",
+          "line": 392,
+          "text": "outperform?: boolean"
+        }
+      ]
+    },
+    "excess_field": {
+      "count": 0,
+      "by_ext": {},
+      "by_file": {},
+      "sample": []
+    },
+    "rf_field": {
+      "count": 0,
+      "by_ext": {},
+      "by_file": {},
+      "sample": []
+    },
+    "long_short_spread": {
+      "count": 35,
+      "by_ext": {
+        ".java": 15,
+        ".py": 1,
+        ".ts": 7,
+        ".vue": 12
+      },
+      "by_file": {
+        "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java": 2,
+        "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java": 6,
+        "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java": 3,
+        "modules/backend-java/src/main/java/com/quant/service/backtest/FactorResearchEngine.java": 1,
+        "modules/backend-java/src/test/java/com/quant/service/FactorResearchServiceTest.java": 2,
+        "modules/backend-java/src/test/java/com/quant/service/backtest/FactorResearchEngineTest.java": 1,
+        "modules/compute-python/research/evaluation.py": 1,
+        "modules/web/src/api/backtest.ts": 2,
+        "modules/web/src/api/factor.ts": 5,
+        "modules/web/src/views/backtest/ScoringBacktest.vue": 7,
+        "modules/web/src/views/factor/FactorResearch.vue": 5
+      },
+      "sample": [
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java",
+          "line": 72,
+          "text": "private double longShortSpread;"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java",
+          "line": 90,
+          "text": "private double longShortSpread;"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "line": 547,
+          "text": "block.put(\"long_short_spread\", round4(summary.longShortSpread()));"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "line": 573,
+          "text": "block.put(\"long_short_spread\", 0.0);"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "line": 667,
+          "text": "block.put(\"long_short_spread\", 0.0);"
+        },
+        {
+          "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+          "line": 766,
+          "text": "block.put(\"long_short_spread\", round4(summary.longShortSpread()));"
+        }
+      ]
+    },
+    "non_excess_disclaimer": {
+      "count": 0,
+      "by_ext": {},
+      "by_file": {},
+      "sample": []
+    }
+  },
+  "A4_scale_axis": {
+    "metric_scope_by_ext": {
+      ".java": 24,
+      ".ts": 15,
+      ".vue": 8
+    },
+    "metric_scope_vue_files": [
+      "modules/web/src/views/factor/FactorResearch.vue"
+    ],
+    "spread_vue_files": [
+      "modules/web/src/views/backtest/ScoringBacktest.vue",
+      "modules/web/src/views/factor/FactorResearch.vue"
+    ],
+    "surfaces": [
+      {
+        "file": "modules/web/src/views/backtest/ScoringBacktest.vue",
+        "shows_spread": true,
+        "shows_scope": false,
+        "spread_hits": 7,
+        "scope_hits": 0
+      },
+      {
+        "file": "modules/web/src/views/factor/FactorResearch.vue",
+        "shows_spread": true,
+        "shows_scope": true,
+        "spread_hits": 5,
+        "scope_hits": 8
+      }
+    ],
+    "surfaces_missing_scope": [
+      "modules/web/src/views/backtest/ScoringBacktest.vue"
+    ],
+    "non_excess_disclaimer_hits": 0,
+    "declares_scope_in_ui": true,
+    "K4s_fires": true,
+    "note": "K4s 判据 = 「呈现该量的界面是否**同时**标注口径」。判定用 `modules/web/src/**/*.vue`（展示层），`.ts` 里的 `metric_scope?: string` 只是类型声明，用户不可见，不计入。"
+  },
+  "A5_benchmark_axis": {
+    "index": {
+      "index_code": "000300",
+      "index_name": "沪深300",
+      "rows": 485,
+      "first": "2024-08-19",
+      "last": "2026-08-19",
+      "rf_like_tables": [],
+      "rf_series_exists": false
+    },
+    "panel_days_in_window": 645,
+    "index_covered_days_in_window": 480,
+    "coverage_ratio": 0.7441860465116279,
+    "outperform_is_boolean_only": true,
+    "outperform_hits": 10,
+    "excess_field_hits": 0,
+    "rf_field_hits": 0,
+    "rf_series_exists": false,
+    "excess_magnitude_not_exposed": {
+      "IS": {
+        "benchmark_fwd_mean_bp": 34.96359449490867,
+        "index_days_used": 334,
+        "strategy_same_window_gross_bp": -53.78735397665594
+      },
+      "OOS": {
+        "benchmark_fwd_mean_bp": -2.2060795316297406,
+        "index_days_used": 143,
+        "strategy_same_window_gross_bp": 18.941312780231335
+      }
+    },
+    "net_vs_gross_asymmetry": {
+      "strategy_leg": "NET_AFTER_MODELED_COSTS（ScoringBacktestService assumptions）",
+      "benchmark_leg": "指数收盘收益，无任何成本",
+      "bias_direction": "系统性不利于策略（对策略保守）",
+      "magnitude_bp_per_holding": 14.999999999999998
+    },
+    "K5_fires": true
+  },
+  "K6_canary": {
+    "rows": [
+      {
+        "name": "OK-1 标准多空（双腿、有 Rf、J=10）",
+        "compliant": true,
+        "issues": []
+      },
+      {
+        "name": "OK-2 毛收益统计估计量",
+        "compliant": true,
+        "issues": []
+      },
+      {
+        "name": "OK-3 基准差（数值型）",
+        "compliant": true,
+        "issues": []
+      },
+      {
+        "name": "OK-4 bp 单位且声明为 bp",
+        "compliant": true,
+        "issues": []
+      },
+      {
+        "name": "BAD-C1 把单腿口径标为 two_leg_net",
+        "compliant": false,
+        "issues": [
+          "cost: 标记 two_leg_net，但数值与单腿口径理论值一致（成本未在差分中存活）"
+        ]
+      },
+      {
+        "name": "BAD-C2 用 first−last 却标 high−low",
+        "compliant": false,
+        "issues": [
+          "sign: 标记 high_minus_low，但实际用 first−last 计算"
+        ]
+      },
+      {
+        "name": "BAD-C3 小数口径标为 bp",
+        "compliant": false,
+        "issues": [
+          "scale: 声明 decimal 但标记为 bp/pct"
+        ]
+      }
+    ],
+    "expected_bad": [
+      "BAD-C1 把单腿口径标为 two_leg_net",
+      "BAD-C2 用 first−last 却标 high−low",
+      "BAD-C3 小数口径标为 bp"
+    ],
+    "flagged": [
+      "BAD-C1 把单腿口径标为 two_leg_net",
+      "BAD-C2 用 first−last 却标 high−low",
+      "BAD-C3 小数口径标为 bp"
+    ],
+    "missed": [],
+    "false_positives": [],
+    "passed": true
+  },
+  "live_audit_table": [
+    {
+      "name": "项目 long_short_spread（IS，h=3，COST_APPROX 命名）",
+      "segment": "IS",
+      "compliant": false,
+      "issues": [
+        "cost: 标记 two_leg_net，但数值与单腿口径理论值一致（成本未在差分中存活）",
+        "group_count: J 为编译期常量（5），不是调参量",
+        "benchmark: 无 Rf / 无数值型基准差，不构成文献意义的超额收益",
+        "gross_net: 毛净之差混淆了成本以外的机制"
+      ]
+    },
+    {
+      "name": "项目 long_short_spread（OOS，h=3，COST_APPROX 命名）",
+      "segment": "OOS",
+      "compliant": false,
+      "issues": [
+        "cost: 标记 two_leg_net，但数值与单腿口径理论值一致（成本未在差分中存活）",
+        "group_count: J 为编译期常量（5），不是调参量",
+        "benchmark: 无 Rf / 无数值型基准差，不构成文献意义的超额收益",
+        "gross_net: 毛净之差混淆了成本以外的机制"
+      ]
+    }
+  ],
+  "variant_table_realised": {
+    "A1_single_leg": 14,
+    "A1_two_leg": 14,
+    "A6_group_counts": 4,
+    "A3_four_definitions": 8,
+    "A2_sign": 1,
+    "A6_degradation": 1,
+    "K6_canary": 1,
+    "total_distinct_evaluations": 43,
+    "max_variants": 48,
+    "prereg_total": 43,
+    "parity_cells_reused": 2,
+    "within_budget": true
+  },
+  "verdict": {
+    "status": "REJECTED",
+    "fired": [
+      "K1 成本轴",
+      "K3 毛净轴",
+      "K4s 尺度轴",
+      "K5 基准轴"
+    ],
+    "fired_numeric": [
+      "K1 成本轴",
+      "K3 毛净轴"
+    ],
+    "fired_structural": [
+      "K4s 尺度轴",
+      "K5 基准轴"
+    ],
+    "additional_magnitude_only": {
+      "K1_magnitude_only_fires": true,
+      "note": "仅按幅值读法；**不计入** status（本轮同号子句亦成立，故该附加读法与冻结判定同结论），保留该字段以便与 R004_report 并列陈述。"
+    },
+    "gate_invalid": false,
+    "canary_passed": true,
+    "structural_only": false,
+    "semantics": "命名与标准定义结构不同构（至少一条数值型 K 触发）",
+    "ledger_status_mapping": {
+      "REJECTED": "REJECTED",
+      "INCONCLUSIVE": "INCONCLUSIVE",
+      "INVALID": "INCONCLUSIVE"
+    }
+  },
+  "run_time": "2026-09-14T20:05:10"
+}

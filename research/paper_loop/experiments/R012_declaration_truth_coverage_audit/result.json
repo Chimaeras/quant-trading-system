@@ -1,0 +1,4624 @@
+{
+  "K": {
+    "K1": false,
+    "K2": true,
+    "K3": true,
+    "K4": false,
+    "K5": false,
+    "K6": false,
+    "K7": false
+  },
+  "axis_counts": {
+    "A1": 4,
+    "A2": 6,
+    "A3": 5,
+    "A4": 4,
+    "A5": 3
+  },
+  "axis_total": 22,
+  "baseline_commit": "942714fb",
+  "blocks": [
+    {
+      "actual": [
+        150,
+        171
+      ],
+      "anchor_hit": true,
+      "children": [
+        "B07",
+        "B10"
+      ],
+      "desc": "research() 顶层 out（legacy 研究）",
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "frozen": [
+        150,
+        171
+      ],
+      "id": "B01",
+      "key_count": 18,
+      "keys": [
+        "source",
+        "strategy",
+        "start_date",
+        "end_date",
+        "cross_section_days",
+        "total_observations",
+        "valid_observations",
+        "coverage",
+        "distribution",
+        "group_bands",
+        "rank_ic",
+        "funnel",
+        "metric_scopes",
+        "metric_scope",
+        "executable_metric_scope",
+        "feature_snapshot_note",
+        "universe_note",
+        "note"
+      ],
+      "kind": "map",
+      "load_bearing": true,
+      "parents": [],
+      "sig": "out.put(\"rank_ic\"",
+      "sig_line": 163
+    },
+    {
+      "actual": [
+        213,
+        231
+      ],
+      "anchor_hit": true,
+      "children": [
+        "B07",
+        "B10"
+      ],
+      "desc": "unifiedReport() 顶层 out（统一报告）",
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "frozen": [
+        213,
+        231
+      ],
+      "id": "B02",
+      "key_count": 14,
+      "keys": [
+        "source",
+        "strategy",
+        "start_date",
+        "end_date",
+        "horizons",
+        "by_horizon",
+        "convention",
+        "funnel",
+        "metric_scopes",
+        "metric_scope",
+        "executable_metric_scope",
+        "feature_snapshot_note",
+        "universe_note",
+        "note"
+      ],
+      "kind": "map",
+      "load_bearing": true,
+      "parents": [],
+      "sig": "out.put(\"by_horizon\"",
+      "sig_line": 219
+    },
+    {
+      "actual": [
+        432,
+        461
+      ],
+      "anchor_hit": true,
+      "children": [
+        "B04",
+        "B05",
+        "B06"
+      ],
+      "desc": "snapshotResearch() 顶层 out（V2-MP-022 权威路径；本层无 universe_note）",
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "frozen": [
+        432,
+        461
+      ],
+      "id": "B03",
+      "key_count": 22,
+      "keys": [
+        "source",
+        "snapshot_id",
+        "strategy",
+        "feature_version",
+        "schema_hash",
+        "label_version",
+        "start_date",
+        "end_date",
+        "holding_days",
+        "universe_source",
+        "cross_section_days",
+        "partitions_reusable",
+        "partitions_skipped",
+        "rows_total",
+        "scored_valid",
+        "coverage",
+        "metric_scopes",
+        "executable_metric_scope",
+        "funnel",
+        "daily_funnel",
+        "scopes",
+        "note"
+      ],
+      "kind": "map",
+      "load_bearing": true,
+      "parents": [],
+      "sig": "out.put(\"universe_source\"",
+      "sig_line": 442
+    },
+    {
+      "actual": [
+        525,
+        553
+      ],
+      "anchor_hit": true,
+      "children": [],
+      "desc": "buildSnapshotScopeBlock（三口径块）",
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "frozen": [
+        525,
+        553
+      ],
+      "id": "B04",
+      "key_count": 19,
+      "keys": [
+        "metric_scope",
+        "basis_note",
+        "embargo_note",
+        "universe_note",
+        "cross_section_days",
+        "total_observations",
+        "rank_ic_mean",
+        "rank_ic_std",
+        "rank_ic_ir",
+        "rank_ic_positive_rate",
+        "pearson_ic_mean",
+        "monotonicity",
+        "hac_std",
+        "ci_lower",
+        "ci_upper",
+        "long_short_spread",
+        "daily_rank_ic",
+        "grouped_returns",
+        "note"
+      ],
+      "kind": "map",
+      "load_bearing": true,
+      "parents": [
+        "B03"
+      ],
+      "sig": "private Map<String, Object> buildSnapshotScopeBlock",
+      "sig_line": 526
+    },
+    {
+      "actual": [
+        556,
+        578
+      ],
+      "anchor_hit": true,
+      "children": [],
+      "desc": "unavailableScopeBlock（口径不可用退化块）",
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "frozen": [
+        556,
+        578
+      ],
+      "id": "B05",
+      "key_count": 18,
+      "keys": [
+        "metric_scope",
+        "status",
+        "basis_note",
+        "cross_section_days",
+        "total_observations",
+        "rank_ic_mean",
+        "rank_ic_std",
+        "rank_ic_ir",
+        "rank_ic_positive_rate",
+        "pearson_ic_mean",
+        "monotonicity",
+        "hac_std",
+        "ci_lower",
+        "ci_upper",
+        "long_short_spread",
+        "daily_rank_ic",
+        "grouped_returns",
+        "note"
+      ],
+      "kind": "map",
+      "load_bearing": false,
+      "parents": [
+        "B03"
+      ],
+      "sig": "private Map<String, Object> unavailableScopeBlock",
+      "sig_line": 557
+    },
+    {
+      "actual": [
+        605,
+        627
+      ],
+      "anchor_hit": true,
+      "children": [],
+      "desc": "buildSnapshotFunnel（snapshot 漏斗）",
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "frozen": [
+        605,
+        627
+      ],
+      "id": "B06",
+      "key_count": 13,
+      "keys": [
+        "universe_source",
+        "partitions_reusable",
+        "partitions_skipped",
+        "cross_section_days",
+        "rows_total",
+        "scored_valid",
+        "coverage",
+        "label_version",
+        "exec_status_breakdown",
+        "tradable_status",
+        "tradable_note",
+        "metric_scope",
+        "note"
+      ],
+      "kind": "map",
+      "load_bearing": true,
+      "parents": [
+        "B03"
+      ],
+      "sig": "private Map<String, Object> buildSnapshotFunnel",
+      "sig_line": 605
+    },
+    {
+      "actual": [
+        641,
+        797
+      ],
+      "anchor_hit": true,
+      "children": [
+        "B08",
+        "B09"
+      ],
+      "desc": "buildRankIc（legacy rank_ic 块）",
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "frozen": [
+        641,
+        797
+      ],
+      "id": "B07",
+      "key_count": 32,
+      "keys": [
+        "holding_days",
+        "group_count",
+        "basis_note",
+        "net_basis_note",
+        "embargo_note",
+        "universe_note",
+        "metric_scope",
+        "metric_scopes",
+        "executable_metric_scope",
+        "feature_snapshot_note",
+        "cross_section_days",
+        "total_observations",
+        "rank_ic_mean",
+        "rank_ic_std",
+        "rank_ic_ir",
+        "rank_ic_positive_rate",
+        "long_short_spread",
+        "daily_rank_ic",
+        "grouped_returns",
+        "cost_net_ic",
+        "pearson_ic_mean",
+        "monotonicity",
+        "hac_std",
+        "ci_lower",
+        "ci_upper",
+        "trade_date",
+        "rank_ic",
+        "sample_size",
+        "group_no",
+        "label",
+        "avg_return",
+        "observations"
+      ],
+      "kind": "map",
+      "load_bearing": true,
+      "parents": [
+        "B01",
+        "B02"
+      ],
+      "sig": "private Map<String, Object> buildRankIc",
+      "sig_line": 641
+    },
+    {
+      "actual": [
+        800,
+        818
+      ],
+      "anchor_hit": true,
+      "children": [],
+      "desc": "emptyNetIcBlock（cost_net_ic 空路径生产者）",
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "frozen": [
+        800,
+        818
+      ],
+      "id": "B08",
+      "key_count": 14,
+      "keys": [
+        "basis_note",
+        "metric_scope",
+        "cross_section_days",
+        "total_observations",
+        "rank_ic_mean",
+        "rank_ic_std",
+        "rank_ic_ir",
+        "rank_ic_positive_rate",
+        "pearson_ic_mean",
+        "hac_std",
+        "ci_lower",
+        "ci_upper",
+        "long_short_spread",
+        "note"
+      ],
+      "kind": "map",
+      "load_bearing": true,
+      "parents": [
+        "B07"
+      ],
+      "sig": "private Map<String, Object> emptyNetIcBlock",
+      "sig_line": 800
+    },
+    {
+      "actual": [
+        820,
+        839
+      ],
+      "anchor_hit": true,
+      "children": [],
+      "desc": "buildNetIcBlock（cost_net_ic 非空生产者）",
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "frozen": [
+        820,
+        839
+      ],
+      "id": "B09",
+      "key_count": 15,
+      "keys": [
+        "basis_note",
+        "metric_scope",
+        "cross_section_days",
+        "total_observations",
+        "rank_ic_mean",
+        "rank_ic_std",
+        "rank_ic_ir",
+        "rank_ic_positive_rate",
+        "pearson_ic_mean",
+        "monotonicity",
+        "hac_std",
+        "ci_lower",
+        "ci_upper",
+        "long_short_spread",
+        "note"
+      ],
+      "kind": "map",
+      "load_bearing": true,
+      "parents": [
+        "B07"
+      ],
+      "sig": "private Map<String, Object> buildNetIcBlock",
+      "sig_line": 820
+    },
+    {
+      "actual": [
+        845,
+        877
+      ],
+      "anchor_hit": true,
+      "children": [],
+      "desc": "buildResearchFunnel（legacy 漏斗）",
+      "file": "modules/backend-java/src/main/java/com/quant/service/FactorResearchService.java",
+      "frozen": [
+        845,
+        877
+      ],
+      "id": "B10",
+      "key_count": 13,
+      "keys": [
+        "universe_count",
+        "universe_days_with_snapshot",
+        "cross_section_days",
+        "feature_valid_count",
+        "valid_observations",
+        "selector_item_count",
+        "total_observations",
+        "tradable_count",
+        "tradable_status",
+        "tradable_note",
+        "universe_source",
+        "metric_scope",
+        "note"
+      ],
+      "kind": "map",
+      "load_bearing": true,
+      "parents": [
+        "B01",
+        "B02"
+      ],
+      "sig": "private Map<String, Object> buildResearchFunnel",
+      "sig_line": 845
+    },
+    {
+      "actual": [
+        79,
+        91
+      ],
+      "anchor_hit": true,
+      "children": [],
+      "desc": "SBS FactorAnalysis（有 universeNote）",
+      "file": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java",
+      "frozen": [
+        79,
+        91
+      ],
+      "id": "B11",
+      "key_count": 12,
+      "keys": [
+        "holdingDays",
+        "groupCount",
+        "crossSectionDays",
+        "totalObservations",
+        "rankIcMean",
+        "rankIcStd",
+        "rankIcIr",
+        "rankIcPositiveRate",
+        "dailyRankIc",
+        "groupedReturns",
+        "longShortSpread",
+        "universeNote"
+      ],
+      "kind": "dto",
+      "load_bearing": true,
+      "parents": [],
+      "sig": "public static class FactorAnalysis",
+      "sig_line": 79
+    },
+    {
+      "actual": [
+        64,
+        72
+      ],
+      "anchor_hit": true,
+      "children": [],
+      "desc": "SBS FactorIcSummary（无 universe 类字段）",
+      "file": "modules/backend-java/src/main/java/com/quant/dto/ScoringBacktestResponse.java",
+      "frozen": [
+        64,
+        72
+      ],
+      "id": "B12",
+      "key_count": 8,
+      "keys": [
+        "holdingDays",
+        "crossSectionDays",
+        "totalObservations",
+        "rankIcMean",
+        "rankIcStd",
+        "rankIcIr",
+        "rankIcPositiveRate",
+        "longShortSpread"
+      ],
+      "kind": "dto",
+      "load_bearing": true,
+      "parents": [],
+      "sig": "public static class FactorIcSummary",
+      "sig_line": 64
+    },
+    {
+      "actual": [
+        465,
+        467
+      ],
+      "anchor_hit": true,
+      "children": [],
+      "desc": "SBS assumptions（口径声明）",
+      "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+      "frozen": [
+        465,
+        467
+      ],
+      "id": "B13",
+      "key_count": 3,
+      "keys": [
+        "price_source",
+        "metric_scope",
+        "execution_funnel"
+      ],
+      "kind": "map",
+      "load_bearing": true,
+      "parents": [],
+      "sig": "assumptions.put(\"metric_scope\", \"FILLED_SAMPLE\")",
+      "sig_line": 466
+    },
+    {
+      "actual": [
+        441,
+        453
+      ],
+      "anchor_hit": true,
+      "children": [],
+      "desc": "SBS Codex 子因子摘要（复用 B12 DTO，note 在 :448 构造后被丢弃）",
+      "file": "modules/backend-java/src/main/java/com/quant/service/ScoringBacktestService.java",
+      "frozen": [
+        441,
+        453
+      ],
+      "id": "B14",
+      "key_count": 0,
+      "keys": [],
+      "kind": "code",
+      "load_bearing": true,
+      "parents": [],
+      "sig": "codexFactorObsByHolding.getOrDefault",
+      "sig_line": 444
+    }
+  ],
+  "canary": {
+    "all_cln_pass": true,
+    "all_inj_pass": true,
+    "items": [
+      {
+        "cln_pass": true,
+        "declared_keys": 2,
+        "inj_flip_count": 2,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V01"
+      },
+      {
+        "cln_pass": true,
+        "declared_keys": 1,
+        "inj_flip_count": 1,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V02"
+      },
+      {
+        "cln_pass": true,
+        "declared_keys": 1,
+        "inj_flip_count": 1,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V03"
+      },
+      {
+        "cln_pass": true,
+        "declared_keys": 3,
+        "inj_flip_count": 3,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V04"
+      },
+      {
+        "cln_pass": true,
+        "declared_keys": 7,
+        "inj_flip_count": 7,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V05"
+      },
+      {
+        "cln_pass": true,
+        "declared_keys": 13,
+        "inj_flip_count": 13,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V06"
+      },
+      {
+        "cln_pass": true,
+        "declared_keys": 12,
+        "inj_flip_count": 12,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V07"
+      },
+      {
+        "cln_pass": true,
+        "declared_keys": 9,
+        "inj_flip_count": 9,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V08"
+      },
+      {
+        "cln_pass": true,
+        "declared_keys": 5,
+        "inj_flip_count": 5,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V09"
+      },
+      {
+        "cln_pass": true,
+        "declared_keys": 26,
+        "inj_flip_count": 26,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V10"
+      },
+      {
+        "cln_pass": true,
+        "declared_keys": 15,
+        "inj_flip_count": 15,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V11"
+      },
+      {
+        "cln_pass": true,
+        "declared_keys": 15,
+        "inj_flip_count": 15,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V12"
+      },
+      {
+        "cln_pass": true,
+        "declared_keys": 1,
+        "inj_flip_count": 1,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V13"
+      },
+      {
+        "cln_pass": true,
+        "declared_keys": 1,
+        "inj_flip_count": 1,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V14"
+      },
+      {
+        "cln_pass": true,
+        "declared_keys": 4,
+        "inj_flip_count": 4,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V15"
+      },
+      {
+        "cln_pass": true,
+        "declared_keys": 3,
+        "inj_flip_count": 3,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V16"
+      },
+      {
+        "cln_pass": true,
+        "declared_keys": 1,
+        "inj_flip_count": 1,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V17"
+      },
+      {
+        "cln_pass": true,
+        "declared_keys": 5,
+        "inj_flip_count": 5,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V18"
+      },
+      {
+        "cln_pass": true,
+        "declared_keys": 1,
+        "inj_flip_count": 1,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V19"
+      },
+      {
+        "cln_pass": true,
+        "declared_keys": 4,
+        "inj_flip_count": 4,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V20"
+      },
+      {
+        "cln_pass": true,
+        "declared_keys": 3,
+        "inj_flip_count": 3,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V21"
+      },
+      {
+        "cln_pass": true,
+        "declared_keys": 0,
+        "inj_flip_count": 0,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V22"
+      },
+      {
+        "cln_pass": true,
+        "declared_keys": 0,
+        "inj_flip_count": 0,
+        "inj_pass": true,
+        "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+        "variant": "V22"
+      }
+    ],
+    "pairs": 23
+  },
+  "determinism": {
+    "probe_bytes_equal": true,
+    "static_equal": true
+  },
+  "expected_check": {
+    "P1": {
+      "actual": {
+        "anchor_mismatch": 0,
+        "blocks": 14
+      },
+      "expect": 14,
+      "pass_": true,
+      "what": "块清单实测 = 14，锚点 mismatch = 0"
+    },
+    "P10": {
+      "actual": "SCOPE_VOCAB_UNRECONCILED",
+      "expect": "SCOPE_VOCAB_UNRECONCILED",
+      "pass_": true,
+      "what": "V17 -> SCOPE_VOCAB_UNRECONCILED（注册项，不杀）"
+    },
+    "P11": {
+      "actual": "CONSISTENT_DISTINCT_SOURCES",
+      "expect": "CONSISTENT_DISTINCT_SOURCES",
+      "pass_": true,
+      "what": "V18 -> CONSISTENT_DISTINCT_SOURCES（不杀）"
+    },
+    "P12": {
+      "actual": {
+        "count": 3,
+        "missing": [
+          "B12",
+          "B13",
+          "B14"
+        ]
+      },
+      "expect": {
+        "min_blocks": 5,
+        "nonempty": true
+      },
+      "pass_": false,
+      "what": "V13（仅自身字段）缺失清单非空（≥5 块）"
+    },
+    "P13": {
+      "actual": {
+        "h0_alive": false,
+        "total_verdict": "REJECTED"
+      },
+      "expect": "REJECTED",
+      "pass_": true,
+      "what": "total_verdict = REJECTED，h0_alive = false"
+    },
+    "P14": {
+      "actual": 0,
+      "expect": 0,
+      "pass_": true,
+      "what": "K1 不触发（FALSE_CLAIM 计 0）"
+    },
+    "P15": {
+      "actual": {
+        "off_vocab": [],
+        "probe_bytes_equal": true,
+        "static_equal": true
+      },
+      "expect": true,
+      "pass_": true,
+      "what": "表外词 = []；两次运行逐位相等"
+    },
+    "P16": {
+      "actual": {
+        "t24": "TRUE_CLAIM",
+        "unreconciled": [
+          "FILLED_SAMPLE",
+          "UNAVAILABLE"
+        ]
+      },
+      "expect": true,
+      "pass_": true,
+      "what": "T24 词表不含 FILLED_SAMPLE ⟹ 与 T21/T22 不可调和"
+    },
+    "P2": {
+      "actual": [
+        "holding_days",
+        "group_count",
+        "basis_note",
+        "net_basis_note",
+        "embargo_note",
+        "universe_note",
+        "metric_scope",
+        "metric_scopes",
+        "executable_metric_scope",
+        "feature_snapshot_note",
+        "pearson_ic_mean",
+        "monotonicity",
+        "hac_std",
+        "ci_lower",
+        "ci_upper",
+        "trade_date",
+        "rank_ic",
+        "sample_size",
+        "group_no",
+        "label",
+        "avg_return",
+        "observations"
+      ],
+      "expect": true,
+      "pass_": true,
+      "what": "B07 两分支键集差集非空"
+    },
+    "P3": {
+      "actual": [
+        "monotonicity"
+      ],
+      "expect": [
+        "monotonicity"
+      ],
+      "pass_": true,
+      "what": "B08/B09 键集差集 = {monotonicity}（仅描述）"
+    },
+    "P4": {
+      "actual": {
+        "b11_has_note": true,
+        "b12_no_universe": 2,
+        "in_scope_all_ok": true
+      },
+      "expect": true,
+      "pass_": true,
+      "what": "B12 无 universe 字段 / B11 有 universeNote"
+    },
+    "P5": {
+      "actual": {
+        "backed": [
+          "V06-a",
+          "V06-b",
+          "V06-c",
+          "V06-d",
+          "V06-e"
+        ],
+        "notation": "TRUE_CLAIM",
+        "t03": "TRUE_CLAIM"
+      },
+      "expect": true,
+      "pass_": true,
+      "what": "T03 四件事全真 + 记法 UNFALSIFIABLE"
+    },
+    "P6": {
+      "actual": "TRUE_CLAIM",
+      "expect": true,
+      "pass_": true,
+      "what": "T04 两条主张全真"
+    },
+    "P7": {
+      "actual": {
+        "T16": "TRUE_CLAIM",
+        "T17": "TRUE_CLAIM"
+      },
+      "expect": true,
+      "pass_": true,
+      "what": "T16/T17 窗口差一日为真"
+    },
+    "P8": {
+      "actual": "COVERAGE_MISSING_UNIVERSE",
+      "expect": "COVERAGE_MISSING_UNIVERSE",
+      "pass_": true,
+      "what": "V15 -> COVERAGE_MISSING_UNIVERSE（K2 触发）"
+    },
+    "P9": {
+      "actual": "INCONSISTENT",
+      "expect": "INCONSISTENT",
+      "pass_": true,
+      "what": "V16 -> INCONSISTENT（K3 触发）"
+    },
+    "_summary": {
+      "failed": [
+        "P12"
+      ],
+      "passed": [
+        "P1",
+        "P10",
+        "P11",
+        "P13",
+        "P14",
+        "P15",
+        "P16",
+        "P2",
+        "P3",
+        "P4",
+        "P5",
+        "P6",
+        "P7",
+        "P8",
+        "P9"
+      ]
+    }
+  },
+  "forbidden_scan": {
+    "excluded": "config.judgment_source 子树与本执行器自身的 denylist 字面量",
+    "note": "按 R011 教训 64：不得匹配到自己的 denylist 描述串",
+    "numeric_hits": [
+      {
+        "value": 3.0,
+        "where": "/axis_counts/A5"
+      },
+      {
+        "value": 3.0,
+        "where": "/panel/scenarios/0/days/0/rows/2/0"
+      },
+      {
+        "value": 3.0,
+        "where": "/panel/scenarios/0/days/1/rows/2/0"
+      },
+      {
+        "value": 3.0,
+        "where": "/panel/scenarios/0/days/2/rows/2/0"
+      },
+      {
+        "value": 3.0,
+        "where": "/panel/scenarios/2/days/0/rows/2/0"
+      },
+      {
+        "value": 3.0,
+        "where": "/panel/scenarios/2/days/1/rows/2/0"
+      }
+    ],
+    "patterns": [
+      "1.96",
+      "t >= 3",
+      "0.64",
+      "0.85",
+      "3.28",
+      "20th percentile"
+    ]
+  },
+  "frozen_intact": true,
+  "gates": {
+    "compile_ok": true,
+    "compile_output": "",
+    "det_probe_bytes_equal": true,
+    "g3_code_source": "/E:/Project/quant-trading-system/modules/backend-java/target/classes/",
+    "g3_expected_suffix": "modules/backend-java/target/classes",
+    "g3_pass": true,
+    "probe": "OK",
+    "probe_rc": [
+      0,
+      0
+    ]
+  },
+  "grid_mismatch_count": 0,
+  "h0_alive": false,
+  "instrument_alerts": [],
+  "judgment_source": {
+    "carrier_pages": 130,
+    "carrier_pdf": "papers/hxz2020_rfs_replicating_anomalies.pdf",
+    "carrier_pdf_bytes": 821858,
+    "carrier_pdf_sha256": "8d00169a4cf6b4895587b054b41fe934b600ea501f210f02433cfe4db316f163",
+    "carrier_txt": "papers/hxz2020_rfs_replicating_anomalies.txt",
+    "carrier_txt_bytes": 418945,
+    "carrier_txt_chars": 401306,
+    "carrier_txt_sha256": "8ab941bf1f37b287d5bfa35526e1ece551bb9432fefa71c7dd538fd08164e2d8",
+    "citation": "Hou, Kewei; Xue, Chen; Zhang, Lu — Replicating Anomalies (NBER WP 23394 / RFS 2020)",
+    "criteria": {
+      "J1": {
+        "grade": "L",
+        "text": "样本域是第一位口径选择；不同样本域下定性结论翻转"
+      },
+      "J2": {
+        "grade": "L",
+        "text": "口径选择必须逐项显式声明（consistent set of replication procedures）"
+      },
+      "J3": {
+        "grade": "L",
+        "text": "未声明的关键选择 ⟹ 结果不可重建"
+      },
+      "J4": {
+        "grade": "X",
+        "text": "论文样本（1967-2014 美国、447 异象）不可移植"
+      }
+    },
+    "doi": "10.3386/w23394",
+    "forbidden_numbers": [
+      "t >= 1.96",
+      "t >= 3",
+      "0.64",
+      "0.85",
+      "0.0328",
+      "1.32",
+      "1.03",
+      "20th percentile",
+      "447",
+      "452",
+      "57",
+      "68",
+      "38",
+      "79",
+      "103",
+      "102"
+    ],
+    "grade": "A",
+    "local_carrier": "NBER Working Paper 23394, May 2017",
+    "published": "The Review of Financial Studies 33(5):2019-2133 (2020)"
+  },
+  "kill_evidence": {
+    "A2_false_claims": [],
+    "A2_false_claims_reading_dependent": [],
+    "A2_reading_dependent_claims": [
+      "V07-c"
+    ],
+    "K2_all_missing": [
+      "B12",
+      "B13",
+      "B14"
+    ],
+    "K2_load_bearing_missing": [
+      "B12",
+      "B13",
+      "B14"
+    ],
+    "K3_inconsistent_variants": [
+      "V16"
+    ],
+    "K4_missing_text_fields": [],
+    "off_vocab": []
+  },
+  "prereg": "rounds/R012_prereg.md",
+  "prereg_sha256_frozen": "3336f070741bea65092eb3dafa0e7a7552d9d8c498b93970ecf57a0c8ec301fb",
+  "prereg_sha256_now": "3336f070741bea65092eb3dafa0e7a7552d9d8c498b93970ecf57a0c8ec301fb",
+  "round": "R012",
+  "row_sum": 22,
+  "runtime": {
+    "determinism": {
+      "bits": "PA:0x1.6d3e19b30f8e1p-2:0x1.28df53da56b46p-5:0x1.0p-2:0x1.c50adc50adc51p-2:0x1.9e656d07721a6p-8:NON_MONOTONIC:R012-PROBE-PA-UNIVERSE-NOTE;PB:0x0.0p0:0x0.0p0:0x0.0p0:0x0.0p0:0x0.0p0:N/A:R012-PROBE-PB-UNIVERSE-NOTE;PC:0x0.0p0:0x0.0p0:0x0.0p0:0x0.0p0:0x0.0p0:N/A:R012-PROBE-PC-UNIVERSE-NOTE;",
+      "probe_bytes_equal": true,
+      "static_equal": true
+    },
+    "positive_control": {
+      "engine_note": "R012-PROBE-PA-UNIVERSE-NOTE",
+      "note": "引擎 summarize(..., universeNote) → summary.universeNote() 逐字符透传",
+      "passthrough_ok": true,
+      "universe_note": "R012-PROBE-PA-UNIVERSE-NOTE"
+    },
+    "reverse_anchor": {
+      "ci_finite": true,
+      "ci_lower": 0.25,
+      "ci_order_ok": true,
+      "ci_upper": 0.44242424242424244,
+      "grouped_len_ok": true,
+      "hac_finite": true,
+      "hac_std": 0.036239303374449736,
+      "note": "hac_std / ci_lower / ci_upper 必须由同一条 IC 序列产出且有限、ci_lower<=ci_upper",
+      "ok": true
+    },
+    "scenarios": {
+      "PA": {
+        "ci_finite": true,
+        "ci_lower": 0.25,
+        "ci_lower_hex": "0x1.0p-2",
+        "ci_order_ok": true,
+        "ci_upper": 0.44242424242424244,
+        "ci_upper_hex": "0x1.c50adc50adc51p-2",
+        "cross_section_days": 3,
+        "daily_len": 3,
+        "days": 3,
+        "group_count": 5,
+        "grouped_len": 5,
+        "grouped_len_ok": true,
+        "hac_finite": true,
+        "hac_hex": "0x1.28df53da56b46p-5",
+        "hac_std": 0.036239303374449736,
+        "holding_days": 2,
+        "long_short_hex": "0x1.9e656d07721a6p-8",
+        "monotonicity": "NON_MONOTONIC",
+        "rank_ic_hex": "0x1.6d3e19b30f8e1p-2",
+        "total_observations": 31,
+        "universe_note": "R012-PROBE-PA-UNIVERSE-NOTE",
+        "universe_note_equal_passed": true,
+        "universe_note_input": "R012-PROBE-PA-UNIVERSE-NOTE",
+        "universe_note_literal_ok": true
+      },
+      "PB": {
+        "ci_finite": true,
+        "ci_lower": 0.0,
+        "ci_lower_hex": "0x0.0p0",
+        "ci_order_ok": true,
+        "ci_upper": 0.0,
+        "ci_upper_hex": "0x0.0p0",
+        "cross_section_days": 0,
+        "daily_len": 0,
+        "days": 0,
+        "group_count": 5,
+        "grouped_len": 0,
+        "grouped_len_ok": true,
+        "hac_finite": true,
+        "hac_hex": "0x0.0p0",
+        "hac_std": 0.0,
+        "holding_days": 2,
+        "long_short_hex": "0x0.0p0",
+        "monotonicity": "N/A",
+        "rank_ic_hex": "0x0.0p0",
+        "total_observations": 0,
+        "universe_note": "R012-PROBE-PB-UNIVERSE-NOTE",
+        "universe_note_equal_passed": true,
+        "universe_note_input": "R012-PROBE-PB-UNIVERSE-NOTE",
+        "universe_note_literal_ok": true
+      },
+      "PC": {
+        "ci_finite": true,
+        "ci_lower": 0.0,
+        "ci_lower_hex": "0x0.0p0",
+        "ci_order_ok": true,
+        "ci_upper": 0.0,
+        "ci_upper_hex": "0x0.0p0",
+        "cross_section_days": 0,
+        "daily_len": 0,
+        "days": 2,
+        "group_count": 5,
+        "grouped_len": 0,
+        "grouped_len_ok": true,
+        "hac_finite": true,
+        "hac_hex": "0x0.0p0",
+        "hac_std": 0.0,
+        "holding_days": 2,
+        "long_short_hex": "0x0.0p0",
+        "monotonicity": "N/A",
+        "rank_ic_hex": "0x0.0p0",
+        "total_observations": 0,
+        "universe_note": "R012-PROBE-PC-UNIVERSE-NOTE",
+        "universe_note_equal_passed": true,
+        "universe_note_input": "R012-PROBE-PC-UNIVERSE-NOTE",
+        "universe_note_literal_ok": true
+      }
+    }
+  },
+  "sensitivity_reading": {
+    "blocks_where_reading_matters": [],
+    "details": [
+      {
+        "block": "B01",
+        "kind": "map",
+        "loose_read_hit": true,
+        "strict_read_hit": true,
+        "substring_note": 1
+      },
+      {
+        "block": "B02",
+        "kind": "map",
+        "loose_read_hit": true,
+        "strict_read_hit": true,
+        "substring_note": 1
+      },
+      {
+        "block": "B03",
+        "kind": "map",
+        "loose_read_hit": true,
+        "strict_read_hit": true,
+        "substring_note": 1
+      },
+      {
+        "block": "B04",
+        "kind": "map",
+        "loose_read_hit": true,
+        "strict_read_hit": true,
+        "substring_note": 1
+      },
+      {
+        "block": "B05",
+        "kind": "map",
+        "loose_read_hit": false,
+        "strict_read_hit": false,
+        "substring_note": 1
+      },
+      {
+        "block": "B06",
+        "kind": "map",
+        "loose_read_hit": true,
+        "strict_read_hit": true,
+        "substring_note": 1
+      },
+      {
+        "block": "B07",
+        "kind": "map",
+        "loose_read_hit": true,
+        "strict_read_hit": true,
+        "substring_note": 0
+      },
+      {
+        "block": "B08",
+        "kind": "map",
+        "loose_read_hit": false,
+        "strict_read_hit": false,
+        "substring_note": 1
+      },
+      {
+        "block": "B09",
+        "kind": "map",
+        "loose_read_hit": false,
+        "strict_read_hit": false,
+        "substring_note": 1
+      },
+      {
+        "block": "B10",
+        "kind": "map",
+        "loose_read_hit": true,
+        "strict_read_hit": true,
+        "substring_note": 1
+      },
+      {
+        "block": "B11",
+        "kind": "dto",
+        "loose_read_hit": true,
+        "strict_read_hit": true,
+        "substring_note": 0
+      },
+      {
+        "block": "B12",
+        "kind": "dto",
+        "loose_read_hit": false,
+        "strict_read_hit": false,
+        "substring_note": 0
+      },
+      {
+        "block": "B13",
+        "kind": "map",
+        "loose_read_hit": false,
+        "strict_read_hit": false,
+        "substring_note": 0
+      },
+      {
+        "block": "B14",
+        "kind": "code",
+        "loose_read_hit": true,
+        "strict_read_hit": true,
+        "substring_note": 0
+      }
+    ],
+    "key_decl_total": 26,
+    "reading_stable": true,
+    "substring_total": 9
+  },
+  "subject": "研究载荷声明性文本字段族的『真值 / 覆盖 / 跨块跨面同义』审计",
+  "subject_kind": "只读审计（论文只作判据来源，不采纳任何结论/数值）",
+  "text_fields": [
+    {
+      "anchors_ok": 3,
+      "anchors_total": 3,
+      "aux": "claim_rollup",
+      "backed_by": [
+        "V07-a"
+      ],
+      "extra_facts": [],
+      "frozen_line": 72,
+      "id": "T01",
+      "key": "RANK_IC_UNIVERSE_NOTE",
+      "owner": "B01/B02/B07",
+      "sample": "    private static final String RANK_IC_UNIVERSE_NOTE =\n            \"LEGACY_SELECTION_BIASED：sparse selector_result 取样（非完整 PIT 截面），存在选择/幸存者偏差；\"\n                    + \"完整截面 IC 请走 snapshot-research（V2-MP-022，输入 snapshotId 读取 MP-016 feature snapshot）\";\n    private static final String RANK_IC_BASIS_NOTE =",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 2,
+      "anchors_total": 2,
+      "aux": "claim_rollup",
+      "backed_by": [
+        "V05-a",
+        "V05-b"
+      ],
+      "extra_facts": [],
+      "frozen_line": 75,
+      "id": "T02",
+      "key": "RANK_IC_BASIS_NOTE",
+      "owner": "B07",
+      "sample": "    private static final String RANK_IC_BASIS_NOTE =\n            \"毛收益 IC（metric_scope=RAW）：forward return = close[t+h]/close[t]-1，未计费用/滑点/涨跌停可成交性；\"\n                    + \"与回测成交收益口径不同，仅用于因子方向预测力评价\";\n    private static final String RANK_IC_NET_BASIS_NOTE =",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 4,
+      "anchors_total": 4,
+      "aux": "claim_rollup",
+      "backed_by": [
+        "V06-a",
+        "V06-b",
+        "V06-c",
+        "V06-d",
+        "V06-e"
+      ],
+      "extra_facts": [],
+      "frozen_line": 78,
+      "id": "T03",
+      "key": "RANK_IC_NET_BASIS_NOTE",
+      "owner": "B08/B09",
+      "sample": "    private static final String RANK_IC_NET_BASIS_NOTE =\n            \"成本后近似净收益 IC（metric_scope=COST_APPROX）：entry = rawOpen[t+1]×(1+佣金+滑点)，\"\n                    + \"exit = rawClose[t+1+h]×(1-佣金-印花税-滑点)，成交价只读 market_price_raw（V2-MP-014），\"\n                    + \"缺 raw 即跳过该观测；与 ResearchConvention / LabelFactory 成交口径一致；\"",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 4,
+      "anchors_total": 4,
+      "aux": "claim_rollup",
+      "backed_by": [
+        "V08-a",
+        "V08-b",
+        "V08-c"
+      ],
+      "extra_facts": [],
+      "frozen_line": 83,
+      "id": "T04",
+      "key": "RANK_IC_EMBARGO_NOTE",
+      "owner": "B07",
+      "sample": "    private static final String RANK_IC_EMBARGO_NOTE =\n            \"信号日接近数据末端（forward 区间未形成）自动跳过，不外推、不使用未来数据；\"\n                    + \"重叠持有期 IC 序列的显著性以 HAC 标准误与 block bootstrap CI 为准\";\n    private static final String METRIC_SCOPE_RAW = \"RAW\";",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 3,
+      "anchors_total": 3,
+      "aux": "claim_rollup",
+      "backed_by": [
+        "V07-b",
+        "V07-c"
+      ],
+      "extra_facts": [],
+      "frozen_line": 91,
+      "id": "T05",
+      "key": "SNAPSHOT_UNIVERSE_NOTE",
+      "owner": "B04",
+      "sample": "    private static final String SNAPSHOT_UNIVERSE_NOTE =\n            \"完整 PIT feature snapshot 全截面（V2-MP-016，topN=0 无上限），非 selector TopN 子集；\"\n                    + \"forward return 只读 market_price_raw / label_v2，不读 selector/qfq\";\n    private static final String FEATURE_SNAPSHOT_NOTE =",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 2,
+      "anchors_total": 2,
+      "aux": "anchor",
+      "backed_by": [],
+      "extra_facts": [
+        {
+          "at": 658,
+          "fact": "FEATURE_SNAPSHOT_NOTE",
+          "kind": "regex_present",
+          "note": "B07 发射",
+          "ok": true
+        }
+      ],
+      "frozen_line": 94,
+      "id": "T06",
+      "key": "FEATURE_SNAPSHOT_NOTE",
+      "owner": "B01/B02/B07",
+      "sample": "    private static final String FEATURE_SNAPSHOT_NOTE =\n            \"完整 PIT feature snapshot IC 请用 snapshot-research（V2-MP-022，输入 snapshotId 读取 MP-016 全截面）；\"\n                    + \"本路径沿用 sparse selector_result，标注 LEGACY_SELECTION_BIASED\";\n    private static final List<Integer> UNIFIED_HORIZONS = List.of(1, 2, 3, 5);",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 3,
+      "anchors_total": 3,
+      "aux": "claim_rollup",
+      "backed_by": [
+        "V10-a",
+        "V10-b"
+      ],
+      "extra_facts": [],
+      "frozen_line": 410,
+      "id": "T07",
+      "key": "rawNote",
+      "owner": "B04(RAW)",
+      "sample": "        String rawNote = \"RAW：rawClose[t+h]/rawClose[t]-1，只读 market_price_raw 不复权（含分红/除权缺口），\"\n                + \"不计费用/滑点/涨跌停可成交性；全截面来自 feature_snapshot_row（V2-MP-016），不读 selector/qfq；\"\n                + \"仅方向预测力评价，禁止据此直接调整因子权重\";\n        String costNote = \"COST_APPROX：next-open 入场 + 持有期收盘退出 + 扣费（ResearchConvention），成交价只读 market_price_raw；\"",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 2,
+      "anchors_total": 2,
+      "aux": "claim_rollup",
+      "backed_by": [
+        "V10-c",
+        "V10-d"
+      ],
+      "extra_facts": [],
+      "frozen_line": 413,
+      "id": "T08",
+      "key": "costNote",
+      "owner": "B04(COST_APPROX)",
+      "sample": "        String costNote = \"COST_APPROX：next-open 入场 + 持有期收盘退出 + 扣费（ResearchConvention），成交价只读 market_price_raw；\"\n                + \"不含涨跌停/停牌拒单过滤，不得称为完整可执行 IC\";\n        String execNote = executableAvailable\n                ? \"EXECUTABLE：join label_v2（label_snapshot）execStatus=FILLED，forward return = label.netReturn（\"",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 4,
+      "anchors_total": 4,
+      "aux": "claim_rollup",
+      "backed_by": [
+        "V10-e",
+        "V10-f",
+        "V10-g"
+      ],
+      "extra_facts": [],
+      "frozen_line": 415,
+      "id": "T09",
+      "key": "execNote",
+      "owner": "B04/B05(EXECUTABLE)",
+      "sample": "        String execNote = executableAvailable\n                ? \"EXECUTABLE：join label_v2（label_snapshot）execStatus=FILLED，forward return = label.netReturn（\"\n                + \"入场 next-open×成本、出场持有期收盘×扣费，按统一执行政策）；NOT_BUYABLE/SUSPENDED/NOT_SELLABLE/DELISTED\"\n                + \" 不计入可执行 IC，分别计入拒绝漏斗\"",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 3,
+      "anchors_total": 3,
+      "aux": "anchor",
+      "backed_by": [],
+      "extra_facts": [
+        {
+          "at": 169,
+          "fact": "universe_note",
+          "kind": "regex_present",
+          "note": "B01 发射点",
+          "ok": true
+        }
+      ],
+      "frozen_line": 170,
+      "id": "T10",
+      "key": "B01.note",
+      "owner": "B01",
+      "sample": "        out.put(\"note\", \"仅作因子研究评价（覆盖率/分布/分组/Rank IC）；毛收益=RAW、净收益=COST_APPROX；\"\n                + \"EXECUTABLE 需成交规则过滤，当前不可用；禁止据此直接调整因子权重\");\n        return out;\n    }",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 3,
+      "anchors_total": 3,
+      "aux": "anchor",
+      "backed_by": [],
+      "extra_facts": [
+        {
+          "at": 227,
+          "fact": "universe_note",
+          "kind": "regex_present",
+          "note": "B02 发射点",
+          "ok": true
+        }
+      ],
+      "frozen_line": 228,
+      "id": "T11",
+      "key": "B02.note",
+      "owner": "B02",
+      "sample": "        out.put(\"note\", \"统一因子研究报告：Pearson/Rank IC 为 RAW；净收益 IC 为 COST_APPROX（成本后近似，不含涨跌停/停牌拒单）；\"\n                + \"EXECUTABLE 暂不可用；sparse selector_result 存在选择偏差；禁止据此直接调整因子权重\");\n        return out;\n    }",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 3,
+      "anchors_total": 3,
+      "aux": "anchor",
+      "backed_by": [],
+      "extra_facts": [
+        {
+          "at": 459,
+          "fact": "不读 selector_result",
+          "kind": "regex_present",
+          "note": "B03 发射点",
+          "ok": true
+        }
+      ],
+      "frozen_line": 458,
+      "id": "T12",
+      "key": "B03.note",
+      "owner": "B03",
+      "sample": "        out.put(\"note\", \"V2-MP-022 权威路径：完整 PIT feature snapshot 全截面 IC；EXECUTABLE 仅对 FILLED 样本；\"\n                + \"不读 selector_result / 不读 qfq；禁止把 COST_APPROX 命名 executable\");\n        return out;\n    }",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 2,
+      "anchors_total": 2,
+      "aux": "cond_guard",
+      "backed_by": [],
+      "extra_facts": [
+        {
+          "at": 550,
+          "fact": "summary\\.totalObservations\\(\\) == 0",
+          "kind": "regex_present",
+          "note": "note 仅在 0 观测时发射",
+          "ok": true
+        },
+        {
+          "at": 551,
+          "fact": "该口径无可用观测",
+          "kind": "regex_present",
+          "note": "",
+          "ok": true
+        }
+      ],
+      "frozen_line": 551,
+      "id": "T13",
+      "key": "B04.note(0 观测)",
+      "owner": "B04",
+      "sample": "            block.put(\"note\", \"该口径无可用观测（forward 区间未形成、raw 缺失或无可执行标签），不给出 IC\");\n        }\n        return block;\n    }",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 1,
+      "anchors_total": 1,
+      "aux": "equals_basis_note",
+      "backed_by": [],
+      "extra_facts": [
+        {
+          "at": 576,
+          "fact": "block\\.put\\(\\\"note\\\", basisNote\\)",
+          "kind": "regex_present",
+          "note": "B05 note = basisNote",
+          "ok": true
+        }
+      ],
+      "frozen_line": 576,
+      "id": "T14",
+      "key": "B05.note",
+      "owner": "B05",
+      "sample": "        block.put(\"note\", basisNote);\n        return block;\n    }\n",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 2,
+      "anchors_total": 2,
+      "aux": "anchor",
+      "backed_by": [],
+      "extra_facts": [
+        {
+          "at": 605,
+          "fact": "buildSnapshotFunnel",
+          "kind": "regex_present",
+          "note": "B06 自证",
+          "ok": true
+        }
+      ],
+      "frozen_line": 625,
+      "id": "T15",
+      "key": "B06.note",
+      "owner": "B06",
+      "sample": "        funnel.put(\"note\", \"完整 PIT feature snapshot 漏斗：rows_total = feature_snapshot_row 全截面行数；\"\n                + \"scored_valid = final_score>0；各口径观测数见 daily_funnel；FAILED/RUNNING 分区不参与\");\n        return funnel;\n    }",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 2,
+      "anchors_total": 2,
+      "aux": "claim_rollup",
+      "backed_by": [
+        "V09-a",
+        "V09-b"
+      ],
+      "extra_facts": [],
+      "frozen_line": 815,
+      "id": "T16",
+      "key": "B08.note",
+      "owner": "B08",
+      "sample": "        net.put(\"note\", \"成本后近似净收益 IC（COST_APPROX；next-open 入场 + 持有期收盘退出 + 扣费；不含涨跌停/停牌拒单）；\"\n                + \"EXECUTABLE 暂不可用；与毛收益 IC 窗口差一日，并列仅作口径对照\");\n        return net;\n    }",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 2,
+      "anchors_total": 2,
+      "aux": "claim_rollup",
+      "backed_by": [
+        "V09-a",
+        "V09-b"
+      ],
+      "extra_facts": [],
+      "frozen_line": 836,
+      "id": "T17",
+      "key": "B09.note",
+      "owner": "B09",
+      "sample": "        net.put(\"note\", \"成本后近似净收益 IC（COST_APPROX；next-open 入场 + 持有期收盘退出 + 扣费；不含涨跌停/停牌拒单）；\"\n                + \"EXECUTABLE 暂不可用；与毛收益 IC 窗口差一日，并列仅作口径对照\");\n        return net;\n    }",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 1,
+      "anchors_total": 1,
+      "aux": "anchor",
+      "backed_by": [],
+      "extra_facts": [
+        {
+          "at": 872,
+          "fact": "tradable_note",
+          "kind": "regex_present",
+          "note": "B10 发射",
+          "ok": true
+        }
+      ],
+      "frozen_line": 872,
+      "id": "T18",
+      "key": "B10.tradable_note",
+      "owner": "B10",
+      "sample": "        funnel.put(\"tradable_note\", \"EXECUTABLE tradable funnel unavailable without feature snapshot + TradabilityPolicy\");\n        funnel.put(\"universe_source\", \"sparse_selector_result\");\n        funnel.put(\"metric_scope\", METRIC_SCOPE_COST_APPROX);\n        funnel.put(\"note\", \"tradable_count 需统一 TradabilityPolicy；当前仅披露 selector 候选漏斗\");",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 2,
+      "anchors_total": 2,
+      "aux": "anchor",
+      "backed_by": [],
+      "extra_facts": [
+        {
+          "at": 875,
+          "fact": "selector 候选漏斗",
+          "kind": "regex_present",
+          "note": "B10 发射",
+          "ok": true
+        }
+      ],
+      "frozen_line": 875,
+      "id": "T19",
+      "key": "B10.note",
+      "owner": "B10",
+      "sample": "        funnel.put(\"note\", \"tradable_count 需统一 TradabilityPolicy；当前仅披露 selector 候选漏斗\");\n        return funnel;\n    }\n",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 1,
+      "anchors_total": 1,
+      "aux": "cond_guard",
+      "backed_by": [],
+      "extra_facts": [
+        {
+          "at": 621,
+          "fact": "tradable_note",
+          "kind": "regex_present",
+          "note": "B06 条件式发射",
+          "ok": true
+        },
+        {
+          "at": 608,
+          "fact": "executableAvailable",
+          "kind": "regex_present",
+          "note": "条件变量",
+          "ok": true
+        }
+      ],
+      "frozen_line": 621,
+      "id": "T20",
+      "key": "B06.tradable_note",
+      "owner": "B06",
+      "sample": "        funnel.put(\"tradable_note\", executableAvailable\n                ? \"EXECUTABLE 样本 = label_v2 execStatus=FILLED（统一执行政策产物）；其余状态分别计入拒绝漏斗\"\n                : \"未提供 labelVersion，无法按执行状态过滤，tradable 不可用\");\n        funnel.put(\"metric_scope\", METRIC_SCOPE_COST_APPROX);",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 3,
+      "anchors_total": 3,
+      "aux": "anchor",
+      "backed_by": [],
+      "extra_facts": [
+        {
+          "at": 61,
+          "fact": "未复现历史时点股票池",
+          "kind": "regex_present",
+          "note": "T21 逐字",
+          "ok": true
+        }
+      ],
+      "frozen_line": 60,
+      "id": "T21",
+      "key": "FACTOR_UNIVERSE_NOTE",
+      "owner": "B13/B12/B14",
+      "sample": "    private static final String FACTOR_UNIVERSE_NOTE =\n            \"基于 persisted 全截面候选（通过质量闸的全部条目，非 TopN 子集）；未复现历史时点股票池，存在幸存者偏差\";\n\n    private final SelectorResultRepository resultRepo;",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 1,
+      "anchors_total": 1,
+      "aux": "anchor",
+      "backed_by": [],
+      "extra_facts": [
+        {
+          "at": 466,
+          "fact": "FILLED_SAMPLE",
+          "kind": "regex_present",
+          "note": "B13 口径值",
+          "ok": true
+        }
+      ],
+      "frozen_line": 466,
+      "id": "T22",
+      "key": "B13.metric_scope",
+      "owner": "B13",
+      "sample": "        assumptions.put(\"metric_scope\", \"FILLED_SAMPLE\");\n        assumptions.put(\"execution_funnel\", funnel);\n\n        ScoringBacktestResponse response = ScoringBacktestResponse.builder()",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 2,
+      "anchors_total": 2,
+      "aux": "anchor",
+      "backed_by": [],
+      "extra_facts": [
+        {
+          "at": 448,
+          "fact": "\\\"Codex 子因子 \\\" \\+ factorKey",
+          "kind": "regex_present",
+          "note": "B14 条件拼接",
+          "ok": true
+        }
+      ],
+      "frozen_line": 448,
+      "id": "T23",
+      "key": "B14.universeNote",
+      "owner": "B14",
+      "sample": "                        \"Codex 子因子 \" + factorKey + \"；\" + FACTOR_UNIVERSE_NOTE\n                );\n                if (subSummary.crossSectionDays() > 0) {\n                    subMap.put(factorKey, toFactorIcSummaryDto(subSummary));",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "anchors_ok": 1,
+      "anchors_total": 1,
+      "aux": "vocab",
+      "backed_by": [],
+      "extra_facts": [
+        {
+          "at": 49,
+          "fact": "metric_scope 分 RAW / COST_APPROX / EXECUTABLE 三类",
+          "kind": "regex_present",
+          "note": "词表逐字",
+          "ok": true
+        }
+      ],
+      "frozen_line": 49,
+      "id": "T24",
+      "key": "类 Javadoc scope 词表",
+      "owner": "全",
+      "sample": " *       metric_scope 分 RAW / COST_APPROX / EXECUTABLE 三类，EXECUTABLE 仅对 FILLED 样本给出。</li>\n *   <li><b>research / unifiedReport（LEGACY_SELECTION_BIASED）</b>：sparse selector_result 取样，\n *       存在选择偏差，仅保留供历史对照，响应必须标注 LEGACY_SELECTION_BIASED。</li>\n * </ul>",
+      "verdict": "TRUE_CLAIM"
+    }
+  ],
+  "tolerances": {
+    "BLOCK_COUNT": 14,
+    "CANARY_PAIRS": 22,
+    "DET_BITS": 64,
+    "G3_SUFFIX": "modules/backend-java/target/classes",
+    "MAX_VARIANTS": 22,
+    "PROBE_CLEANUP": true,
+    "TEXT_FIELD_COUNT": 24,
+    "TOL": 1e-15,
+    "TOL_INT": 0
+  },
+  "total_verdict": "REJECTED",
+  "variants": [
+    {
+      "axis": "A1",
+      "desc": "块清单 = 14，冻结锚点全部命中（0 mismatch）",
+      "detail": {
+        "anchor_mismatch": [],
+        "block_count": 14,
+        "frozen_count": 14,
+        "ids": [
+          "B01",
+          "B02",
+          "B03",
+          "B04",
+          "B05",
+          "B06",
+          "B07",
+          "B08",
+          "B09",
+          "B10",
+          "B11",
+          "B12",
+          "B13",
+          "B14"
+        ]
+      },
+      "expect": "TRUE_CLAIM",
+      "id": "V01",
+      "rule": "block_structure",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "axis": "A1",
+      "desc": "B07 空/非空两分支键集差集非空",
+      "detail": {
+        "diff": [
+          "holding_days",
+          "group_count",
+          "basis_note",
+          "net_basis_note",
+          "embargo_note",
+          "universe_note",
+          "metric_scope",
+          "metric_scopes",
+          "executable_metric_scope",
+          "feature_snapshot_note",
+          "pearson_ic_mean",
+          "monotonicity",
+          "hac_std",
+          "ci_lower",
+          "ci_upper",
+          "trade_date",
+          "rank_ic",
+          "sample_size",
+          "group_no",
+          "label",
+          "avg_return",
+          "observations"
+        ],
+        "empty_keys": [
+          "cross_section_days",
+          "total_observations",
+          "rank_ic_mean",
+          "rank_ic_std",
+          "rank_ic_ir",
+          "rank_ic_positive_rate",
+          "long_short_spread",
+          "daily_rank_ic",
+          "grouped_returns",
+          "cost_net_ic"
+        ],
+        "full_keys": [
+          "holding_days",
+          "group_count",
+          "basis_note",
+          "net_basis_note",
+          "embargo_note",
+          "universe_note",
+          "metric_scope",
+          "metric_scopes",
+          "executable_metric_scope",
+          "feature_snapshot_note",
+          "cross_section_days",
+          "total_observations",
+          "rank_ic_mean",
+          "rank_ic_std",
+          "rank_ic_ir",
+          "rank_ic_positive_rate",
+          "pearson_ic_mean",
+          "monotonicity",
+          "hac_std",
+          "ci_lower",
+          "ci_upper",
+          "long_short_spread",
+          "trade_date",
+          "rank_ic",
+          "sample_size",
+          "daily_rank_ic",
+          "group_no",
+          "label",
+          "avg_return",
+          "observations",
+          "grouped_returns",
+          "cost_net_ic"
+        ],
+        "note": "空分支 = :660-671；非空分支 = :649-658（公共头）+ :755-796（数值段）"
+      },
+      "expect": "TRUE_CLAIM",
+      "id": "V02",
+      "rule": "keyset_diff_branch",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "axis": "A1",
+      "desc": "B08 与 B09 键集差集（预期 {monotonicity}）",
+      "detail": {
+        "a": "B08",
+        "b": "B09",
+        "cross_ref": "B-R009-A5b（不作 kill）",
+        "diff": [
+          "monotonicity"
+        ],
+        "expected": [
+          "monotonicity"
+        ],
+        "keys_a": [
+          "basis_note",
+          "metric_scope",
+          "cross_section_days",
+          "total_observations",
+          "rank_ic_mean",
+          "rank_ic_std",
+          "rank_ic_ir",
+          "rank_ic_positive_rate",
+          "pearson_ic_mean",
+          "hac_std",
+          "ci_lower",
+          "ci_upper",
+          "long_short_spread",
+          "note"
+        ],
+        "keys_b": [
+          "basis_note",
+          "metric_scope",
+          "cross_section_days",
+          "total_observations",
+          "rank_ic_mean",
+          "rank_ic_std",
+          "rank_ic_ir",
+          "rank_ic_positive_rate",
+          "pearson_ic_mean",
+          "monotonicity",
+          "hac_std",
+          "ci_lower",
+          "ci_upper",
+          "long_short_spread",
+          "note"
+        ]
+      },
+      "expect": "TRUE_CLAIM",
+      "id": "V03",
+      "rule": "keyset_diff_pair",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "axis": "A1",
+      "desc": "B11 有 universeNote / B12 无 universe 类字段（判定只用冻结扫描根内事实）",
+      "detail": {
+        "corroboration": [
+          {
+            "at": 64,
+            "fact": "universeNote",
+            "kind": "regex_present",
+            "note": "TS FactorAnalysis 有 universeNote",
+            "ok": true
+          },
+          {
+            "at": null,
+            "fact": "universeNote",
+            "kind": "regex_absent",
+            "note": "TS FactorIcSummary 无 universeNote",
+            "ok": true
+          }
+        ],
+        "corroboration_note": "冻结扫描根之外（modules/web），仅旁证、不参与判定",
+        "facts": [
+          {
+            "at": 91,
+            "fact": "universeNote",
+            "kind": "regex_present",
+            "note": "B11 Java DTO 字段",
+            "ok": true
+          },
+          {
+            "at": 1047,
+            "fact": "\\.universeNote\\(summary\\.universeNote\\(\\)\\)",
+            "kind": "regex_present",
+            "note": "B11 接线",
+            "ok": true
+          },
+          {
+            "at": null,
+            "fact": "universe",
+            "kind": "regex_absent",
+            "note": "B12 Java DTO 无 universe 类字段",
+            "ok": true
+          },
+          {
+            "at": null,
+            "fact": "universe",
+            "kind": "regex_absent",
+            "note": "B12 映射器未写 universe 字段",
+            "ok": true
+          }
+        ]
+      },
+      "expect": "TRUE_CLAIM",
+      "id": "V04",
+      "rule": "dto_field_asymmetry",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "axis": "A2",
+      "desc": "T02（RAW 公式 / 未计费用）逐条",
+      "detail": {
+        "claims": [
+          {
+            "claim_id": "V05-a",
+            "facts": [
+              {
+                "at": 692,
+                "fact": "grossExitIdx = baseIdx \\+ holdingDays",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 706,
+                "fact": "// 毛收益：close\\[t\\+h\\] / close\\[t\\] - 1",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 713,
+                "fact": "double forwardReturn = closeExit\\.doubleValue\\(\\) / closeSignal\\.doubleValue\\(\\) - 1\\.0",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 709,
+                "fact": "BigDecimal closeSignal = prices\\.close\\(\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "klass": "F1",
+            "naive_facts": [
+              {
+                "at": 692,
+                "fact": "grossExitIdx = baseIdx \\+ holdingDays",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 706,
+                "fact": "// 毛收益：close\\[t\\+h\\] / close\\[t\\] - 1",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 713,
+                "fact": "double forwardReturn = closeExit\\.doubleValue\\(\\) / closeSignal\\.doubleValue\\(\\) - 1\\.0",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 709,
+                "fact": "BigDecimal closeSignal = prices\\.close\\(\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "naive_verdict": "TRUE_CLAIM",
+            "reading_dependent": false,
+            "reason": "",
+            "text": "毛收益 forward return = close[t+h]/close[t]-1（t=信号日，h=持仓交易日数）",
+            "verdict": "TRUE_CLAIM"
+          },
+          {
+            "claim_id": "V05-b",
+            "facts": [
+              {
+                "at": null,
+                "fact": "ResearchConvention\\.",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": null,
+                "fact": "SLIPPAGE|COMMISSION|SELL_TAX",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": null,
+                "fact": "tradab|Tradab|LIMIT_UP|limitUp|SUSPEND|execStatus",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "klass": "F3",
+            "naive_facts": [
+              {
+                "at": null,
+                "fact": "ResearchConvention\\.",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": null,
+                "fact": "SLIPPAGE|COMMISSION|SELL_TAX",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": null,
+                "fact": "tradab|Tradab|LIMIT_UP|limitUp|SUSPEND|execStatus",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "naive_verdict": "TRUE_CLAIM",
+            "reading_dependent": false,
+            "reason": "",
+            "text": "未计费用/滑点/涨跌停可成交性（毛收益路径）",
+            "verdict": "TRUE_CLAIM"
+          }
+        ]
+      },
+      "expect": "TRUE_CLAIM",
+      "id": "V05",
+      "rule": "truth",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "axis": "A2",
+      "desc": "T03（COST_APPROX 四件事 + 记法）逐条",
+      "detail": {
+        "claims": [
+          {
+            "claim_id": "V06-a",
+            "facts": [
+              {
+                "at": 693,
+                "fact": "netEntryIdx = baseIdx \\+ 1",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 723,
+                "fact": "BigDecimal openEntry = prices\\.rawOpen\\(\\)\\.get",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 728,
+                "fact": "ResearchConvention\\.DEFAULT_SLIPPAGE_RATE",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 729,
+                "fact": "ResearchConvention\\.DEFAULT_COMMISSION_RATE",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "klass": "F1",
+            "naive_facts": [
+              {
+                "at": 693,
+                "fact": "netEntryIdx = baseIdx \\+ 1",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 723,
+                "fact": "BigDecimal openEntry = prices\\.rawOpen\\(\\)\\.get",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 728,
+                "fact": "ResearchConvention\\.DEFAULT_SLIPPAGE_RATE",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 729,
+                "fact": "ResearchConvention\\.DEFAULT_COMMISSION_RATE",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "naive_verdict": "TRUE_CLAIM",
+            "reading_dependent": false,
+            "reason": "",
+            "text": "entry = rawOpen[t+1]×(1+佣金+滑点)",
+            "verdict": "TRUE_CLAIM"
+          },
+          {
+            "claim_id": "V06-b",
+            "facts": [
+              {
+                "at": 694,
+                "fact": "netExitIdx = netEntryIdx \\+ holdingDays",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 724,
+                "fact": "BigDecimal closeExit = prices\\.rawClose\\(\\)\\.get",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 733,
+                "fact": "ResearchConvention\\.DEFAULT_SELL_TAX_RATE",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "klass": "F1",
+            "naive_facts": [
+              {
+                "at": 694,
+                "fact": "netExitIdx = netEntryIdx \\+ holdingDays",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 724,
+                "fact": "BigDecimal closeExit = prices\\.rawClose\\(\\)\\.get",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 733,
+                "fact": "ResearchConvention\\.DEFAULT_SELL_TAX_RATE",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "naive_verdict": "TRUE_CLAIM",
+            "reading_dependent": false,
+            "reason": "",
+            "text": "exit = rawClose[t+1+h]×(1-佣金-印花税-滑点)",
+            "verdict": "TRUE_CLAIM"
+          },
+          {
+            "claim_id": "V06-c",
+            "facts": [
+              {
+                "at": 719,
+                "fact": "V2-MP-014：成交价只读 market_price_raw",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 723,
+                "fact": "prices\\.rawOpen\\(\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 724,
+                "fact": "prices\\.rawClose\\(\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": [
+                  725,
+                  735
+                ],
+                "fact": "if \\(openEntry != null && closeExit != null << netObs\\.add",
+                "kind": "ordered",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": null,
+                "fact": "prices\\.close\\(\\)|prices\\.open\\(\\)|marketDataRepository",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "klass": "F2",
+            "naive_facts": [
+              {
+                "at": 719,
+                "fact": "V2-MP-014：成交价只读 market_price_raw",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 723,
+                "fact": "prices\\.rawOpen\\(\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 724,
+                "fact": "prices\\.rawClose\\(\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": [
+                  725,
+                  735
+                ],
+                "fact": "if \\(openEntry != null && closeExit != null << netObs\\.add",
+                "kind": "ordered",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": null,
+                "fact": "prices\\.close\\(\\)|prices\\.open\\(\\)|marketDataRepository",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "naive_verdict": "TRUE_CLAIM",
+            "reading_dependent": false,
+            "reason": "",
+            "text": "成交价只读 market_price_raw（V2-MP-014）；缺 raw 即跳过该观测",
+            "verdict": "TRUE_CLAIM"
+          },
+          {
+            "claim_id": "V06-d",
+            "facts": [
+              {
+                "at": null,
+                "fact": "LIMIT_UP|tradab|Tradab|SUSPEND|NOT_BUYABLE|NOT_SELLABLE|execStatus|execBreakdown",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "klass": "F3",
+            "naive_facts": [
+              {
+                "at": null,
+                "fact": "LIMIT_UP|tradab|Tradab|SUSPEND|NOT_BUYABLE|NOT_SELLABLE|execStatus|execBreakdown",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "naive_verdict": "TRUE_CLAIM",
+            "reading_dependent": false,
+            "reason": "",
+            "text": "不含涨跌停/停牌拒单过滤（净收益路径）",
+            "verdict": "TRUE_CLAIM"
+          },
+          {
+            "claim_id": "V06-e",
+            "facts": [],
+            "klass": "NOT_FALSIFIABLE",
+            "naive_facts": [],
+            "naive_verdict": "UNFALSIFIABLE",
+            "reading_dependent": false,
+            "reason": "§6.2 记法差异类：同一算术的书写形式不同，不构成事实主张；交叉引用 D-R010-01（R010 已登记）",
+            "text": "记法「×(1+佣金+滑点)」写作单级乘性，实现为两级乘性 entryPrice×(1+佣金)",
+            "verdict": "UNFALSIFIABLE"
+          }
+        ]
+      },
+      "expect": "TRUE_CLAIM",
+      "id": "V06",
+      "rule": "truth",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "axis": "A2",
+      "desc": "T01 + T05（两条样本域主张）",
+      "detail": {
+        "claims": [
+          {
+            "claim_id": "V07-a",
+            "facts": [
+              {
+                "at": 118,
+                "fact": "selectorResultRepository",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 133,
+                "fact": "selectorResultItemRepository",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 152,
+                "fact": "SOURCE_LEGACY_SELECTION_BIASED",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": null,
+                "fact": "featureSnapshotRowRepository",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": null,
+                "fact": "loadRawPriceCache",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "klass": "F2",
+            "naive_facts": [
+              {
+                "at": 118,
+                "fact": "selectorResultRepository",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 133,
+                "fact": "selectorResultItemRepository",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 152,
+                "fact": "SOURCE_LEGACY_SELECTION_BIASED",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": null,
+                "fact": "featureSnapshotRowRepository",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": null,
+                "fact": "loadRawPriceCache",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "naive_verdict": "TRUE_CLAIM",
+            "reading_dependent": false,
+            "reason": "",
+            "text": "T01：LEGACY_SELECTION_BIASED，sparse selector_result 取样（非完整 PIT 截面）",
+            "verdict": "TRUE_CLAIM"
+          },
+          {
+            "claim_id": "V07-b",
+            "facts": [
+              {
+                "at": 273,
+                "fact": "featureSnapshotManifestRepository",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 288,
+                "fact": "featureSnapshotRowRepository\\.listPartition",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": null,
+                "fact": "topN|LIMIT",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "klass": "F2",
+            "naive_facts": [
+              {
+                "at": 273,
+                "fact": "featureSnapshotManifestRepository",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 288,
+                "fact": "featureSnapshotRowRepository\\.listPartition",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": null,
+                "fact": "topN|LIMIT|top_n",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "naive_verdict": "TRUE_CLAIM",
+            "reading_dependent": false,
+            "reason": "",
+            "text": "T05：完整 PIT feature snapshot 全截面（V2-MP-016，topN=0 无上限）",
+            "verdict": "TRUE_CLAIM"
+          },
+          {
+            "claim_id": "V07-c",
+            "facts": [
+              {
+                "at": 313,
+                "fact": "loadRawPriceCache",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 304,
+                "fact": "labelSnapshotRepository",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": null,
+                "fact": "selectorResult",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": null,
+                "fact": "loadPriceCache|marketDataRepository|qfqClose|qfqOpen|QfqPrice",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "klass": "F2",
+            "naive_facts": [
+              {
+                "at": 313,
+                "fact": "loadRawPriceCache",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 304,
+                "fact": "labelSnapshotRepository",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 459,
+                "fact": "selector_result|selectorResult",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": false
+              },
+              {
+                "at": 311,
+                "fact": "qfq|Qfq|QFQ|marketDataRepository",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": false
+              }
+            ],
+            "naive_verdict": "FALSE_CLAIM",
+            "reading_dependent": true,
+            "reason": "",
+            "text": "T05：forward return 只读 market_price_raw / label_v2，不读 selector/qfq",
+            "verdict": "TRUE_CLAIM"
+          }
+        ]
+      },
+      "expect": "TRUE_CLAIM",
+      "id": "V07",
+      "rule": "truth",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "axis": "A2",
+      "desc": "T04（自动跳过 / 不外推 / 显著性口径）逐条",
+      "detail": {
+        "claims": [
+          {
+            "claim_id": "V08-a",
+            "facts": [
+              {
+                "at": 707,
+                "fact": "grossExitIdx < tradingDays\\.size\\(\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 341,
+                "fact": "baseIdx \\+ holding < prices\\.days\\(\\)\\.size\\(\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 676,
+                "fact": "endDate\\.plusDays\\(holdingDays \\* 2L\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "klass": "F3",
+            "naive_facts": [
+              {
+                "at": 707,
+                "fact": "grossExitIdx < tradingDays\\.size\\(\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 341,
+                "fact": "baseIdx \\+ holding < prices\\.days\\(\\)\\.size\\(\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 676,
+                "fact": "endDate\\.plusDays\\(holdingDays \\* 2L\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "naive_verdict": "TRUE_CLAIM",
+            "reading_dependent": false,
+            "reason": "",
+            "text": "信号日接近数据末端（forward 区间未形成）自动跳过，不外推",
+            "verdict": "TRUE_CLAIM"
+          },
+          {
+            "claim_id": "V08-b",
+            "facts": [
+              {
+                "at": null,
+                "fact": "interpolat|extrapolat|forwardFill|ffill",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "klass": "F3",
+            "naive_facts": [
+              {
+                "at": null,
+                "fact": "interpolat|extrapolat|forwardFill|ffill",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "naive_verdict": "TRUE_CLAIM",
+            "reading_dependent": false,
+            "reason": "",
+            "text": "不外推（不合成/插值 forward 收益）",
+            "verdict": "TRUE_CLAIM"
+          },
+          {
+            "claim_id": "V08-c",
+            "facts": [
+              {
+                "at": 190,
+                "fact": "neweyWestHacStd\\(icSeries\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 191,
+                "fact": "blockBootstrapCi\\(icSeries",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 763,
+                "fact": "hac_std",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 764,
+                "fact": "ci_lower",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 765,
+                "fact": "ci_upper",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "klass": "F4",
+            "naive_facts": [
+              {
+                "at": 190,
+                "fact": "neweyWestHacStd\\(icSeries\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 191,
+                "fact": "blockBootstrapCi\\(icSeries",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 763,
+                "fact": "hac_std",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 764,
+                "fact": "ci_lower",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 765,
+                "fact": "ci_upper",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "naive_verdict": "TRUE_CLAIM",
+            "reading_dependent": false,
+            "reason": "",
+            "text": "重叠持有期 IC 序列的显著性以 HAC 标准误与 block bootstrap CI 为准",
+            "verdict": "TRUE_CLAIM"
+          }
+        ]
+      },
+      "expect": "TRUE_CLAIM",
+      "id": "V08",
+      "rule": "truth",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "axis": "A2",
+      "desc": "T16/T17（窗口差一日 + EXECUTABLE 暂不可用）",
+      "detail": {
+        "claims": [
+          {
+            "claim_id": "V09-a",
+            "facts": [
+              {
+                "at": 692,
+                "fact": "int grossExitIdx = baseIdx \\+ holdingDays",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 693,
+                "fact": "int netEntryIdx = baseIdx \\+ 1",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 694,
+                "fact": "int netExitIdx = netEntryIdx \\+ holdingDays",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "klass": "F1",
+            "naive_facts": [
+              {
+                "at": 692,
+                "fact": "int grossExitIdx = baseIdx \\+ holdingDays",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 693,
+                "fact": "int netEntryIdx = baseIdx \\+ 1",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 694,
+                "fact": "int netExitIdx = netEntryIdx \\+ holdingDays",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "naive_verdict": "TRUE_CLAIM",
+            "reading_dependent": false,
+            "reason": "",
+            "text": "净收益 IC 与毛收益 IC 窗口差一日（t→t+h vs t+1→t+1+h）",
+            "verdict": "TRUE_CLAIM"
+          },
+          {
+            "claim_id": "V09-b",
+            "facts": [
+              {
+                "at": 167,
+                "fact": "executable_metric_scope\\\"?,?\\s*\\\"?UNAVAILABLE",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": null,
+                "fact": "labelVersion",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "klass": "F3",
+            "naive_facts": [
+              {
+                "at": 167,
+                "fact": "executable_metric_scope\\\"?,?\\s*\\\"?UNAVAILABLE",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": null,
+                "fact": "labelVersion",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "naive_verdict": "TRUE_CLAIM",
+            "reading_dependent": false,
+            "reason": "",
+            "text": "EXECUTABLE 暂不可用（legacy 路径无 labelVersion 入口）",
+            "verdict": "TRUE_CLAIM"
+          }
+        ]
+      },
+      "expect": "TRUE_CLAIM",
+      "id": "V09",
+      "rule": "truth",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "axis": "A2",
+      "desc": "T07/T08/T09（snapshot 三口径 note）",
+      "detail": {
+        "claims": [
+          {
+            "claim_id": "V10-a",
+            "facts": [
+              {
+                "at": 340,
+                "fact": "// RAW：rawClose\\[t\\+h\\]/rawClose\\[t\\]-1",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 341,
+                "fact": "baseIdx \\+ holding",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 499,
+                "fact": "marketPriceRawRepository",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 522,
+                "fact": "new SnapshotPriceCache\\(dayIndex, days, close, open\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": null,
+                "fact": "marketDataRepository|qfq|adj",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "klass": "F2",
+            "naive_facts": [
+              {
+                "at": 340,
+                "fact": "// RAW：rawClose\\[t\\+h\\]/rawClose\\[t\\]-1",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 341,
+                "fact": "baseIdx \\+ holding",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 499,
+                "fact": "marketPriceRawRepository",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 522,
+                "fact": "new SnapshotPriceCache\\(dayIndex, days, close, open\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": null,
+                "fact": "marketDataRepository|qfq|adj",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "naive_verdict": "TRUE_CLAIM",
+            "reading_dependent": false,
+            "reason": "",
+            "text": "T07：RAW = rawClose[t+h]/rawClose[t]-1，只读 market_price_raw 不复权（含分红/除权缺口）",
+            "verdict": "TRUE_CLAIM"
+          },
+          {
+            "claim_id": "V10-b",
+            "facts": [
+              {
+                "at": null,
+                "fact": "ResearchConvention\\.|tradab|LIMIT_UP|SUSPEND",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "klass": "F3",
+            "naive_facts": [
+              {
+                "at": null,
+                "fact": "ResearchConvention\\.|tradab|LIMIT_UP|SUSPEND",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "naive_verdict": "TRUE_CLAIM",
+            "reading_dependent": false,
+            "reason": "",
+            "text": "T07：不计费用/滑点/涨跌停可成交性（snapshot RAW 路径）",
+            "verdict": "TRUE_CLAIM"
+          },
+          {
+            "claim_id": "V10-c",
+            "facts": [
+              {
+                "at": 353,
+                "fact": "baseIdx \\+ 1",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 353,
+                "fact": "baseIdx \\+ 1 \\+ holding",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 356,
+                "fact": "prices\\.open\\(\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 357,
+                "fact": "prices\\.close\\(\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 362,
+                "fact": "ResearchConvention\\.DEFAULT_COMMISSION_RATE",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 361,
+                "fact": "ResearchConvention\\.DEFAULT_SLIPPAGE_RATE",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "klass": "F1",
+            "naive_facts": [
+              {
+                "at": 353,
+                "fact": "baseIdx \\+ 1",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 353,
+                "fact": "baseIdx \\+ 1 \\+ holding",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 356,
+                "fact": "prices\\.open\\(\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 357,
+                "fact": "prices\\.close\\(\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 362,
+                "fact": "ResearchConvention\\.DEFAULT_COMMISSION_RATE",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 361,
+                "fact": "ResearchConvention\\.DEFAULT_SLIPPAGE_RATE",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "naive_verdict": "TRUE_CLAIM",
+            "reading_dependent": false,
+            "reason": "",
+            "text": "T08：next-open 入场 + 持有期收盘退出 + 扣费（ResearchConvention），成交价只读 market_price_raw",
+            "verdict": "TRUE_CLAIM"
+          },
+          {
+            "claim_id": "V10-d",
+            "facts": [
+              {
+                "at": null,
+                "fact": "LIMIT_UP|tradab|SUSPEND",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "klass": "F3",
+            "naive_facts": [
+              {
+                "at": null,
+                "fact": "LIMIT_UP|tradab|SUSPEND",
+                "kind": "regex_absent",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "naive_verdict": "TRUE_CLAIM",
+            "reading_dependent": false,
+            "reason": "",
+            "text": "T08：不含涨跌停/停牌拒单过滤（snapshot COST_APPROX 路径）",
+            "verdict": "TRUE_CLAIM"
+          },
+          {
+            "claim_id": "V10-e",
+            "facts": [
+              {
+                "at": 304,
+                "fact": "labelSnapshotRepository",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 295,
+                "fact": "labelByKey",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 378,
+                "fact": "ResearchConvention\\.EXEC_STATUS_FILLED\\.equals",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 379,
+                "fact": "label\\.getNetReturn\\(\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 380,
+                "fact": "execObs\\.add",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "klass": "F3",
+            "naive_facts": [
+              {
+                "at": 304,
+                "fact": "labelSnapshotRepository",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 295,
+                "fact": "labelByKey",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 378,
+                "fact": "ResearchConvention\\.EXEC_STATUS_FILLED\\.equals",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 379,
+                "fact": "label\\.getNetReturn\\(\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 380,
+                "fact": "execObs\\.add",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "naive_verdict": "TRUE_CLAIM",
+            "reading_dependent": false,
+            "reason": "",
+            "text": "T09 分支A：join label_v2 execStatus=FILLED，forward return = label.netReturn",
+            "verdict": "TRUE_CLAIM"
+          },
+          {
+            "claim_id": "V10-f",
+            "facts": [
+              {
+                "at": 297,
+                "fact": "NOT_BUYABLE",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 298,
+                "fact": "EXEC_STATUS_SUSPENDED",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 298,
+                "fact": "EXEC_STATUS_NOT_SELLABLE",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 299,
+                "fact": "EXEC_STATUS_DELISTED",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 377,
+                "fact": "incrementCount\\(execBreakdown",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": [
+                  378,
+                  380
+                ],
+                "fact": "ResearchConvention\\.EXEC_STATUS_FILLED\\.equals << execObs\\.add",
+                "kind": "ordered",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "klass": "F3",
+            "naive_facts": [
+              {
+                "at": 297,
+                "fact": "NOT_BUYABLE",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 298,
+                "fact": "EXEC_STATUS_SUSPENDED",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 298,
+                "fact": "EXEC_STATUS_NOT_SELLABLE",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 299,
+                "fact": "EXEC_STATUS_DELISTED",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 377,
+                "fact": "incrementCount\\(execBreakdown",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": [
+                  378,
+                  380
+                ],
+                "fact": "ResearchConvention\\.EXEC_STATUS_FILLED\\.equals << execObs\\.add",
+                "kind": "ordered",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "naive_verdict": "TRUE_CLAIM",
+            "reading_dependent": false,
+            "reason": "",
+            "text": "T09 分支A：四类拒单不计入可执行 IC，分别计入拒绝漏斗",
+            "verdict": "TRUE_CLAIM"
+          },
+          {
+            "claim_id": "V10-g",
+            "facts": [
+              {
+                "at": 302,
+                "fact": "labelVersion != null && !labelVersion\\.isBlank\\(\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 429,
+                "fact": "unavailableScopeBlock\\(METRIC_SCOPE_EXECUTABLE, execNote\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "klass": "F3",
+            "naive_facts": [
+              {
+                "at": 302,
+                "fact": "labelVersion != null && !labelVersion\\.isBlank\\(\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              },
+              {
+                "at": 429,
+                "fact": "unavailableScopeBlock\\(METRIC_SCOPE_EXECUTABLE, execNote\\)",
+                "kind": "regex_present",
+                "note": "",
+                "ok": true
+              }
+            ],
+            "naive_verdict": "TRUE_CLAIM",
+            "reading_dependent": false,
+            "reason": "",
+            "text": "T09 分支B：未提供 labelVersion 时口径不可用",
+            "verdict": "TRUE_CLAIM"
+          }
+        ]
+      },
+      "expect": "TRUE_CLAIM",
+      "id": "V10",
+      "rule": "truth",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "axis": "A3",
+      "desc": "14 块 × 样本域声明覆盖矩阵（自身 ∪ 祖先 ∪ 直接子）",
+      "detail": {
+        "cells": [
+          {
+            "ancestor_hit": [],
+            "ancestors": [],
+            "block": "B01",
+            "child_hit": [
+              "universe_note",
+              "universe_source"
+            ],
+            "key_class": "universe",
+            "self_hit": [
+              "universe_note"
+            ],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          },
+          {
+            "ancestor_hit": [],
+            "ancestors": [],
+            "block": "B02",
+            "child_hit": [
+              "universe_note",
+              "universe_source"
+            ],
+            "key_class": "universe",
+            "self_hit": [
+              "universe_note"
+            ],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          },
+          {
+            "ancestor_hit": [],
+            "ancestors": [],
+            "block": "B03",
+            "child_hit": [
+              "universe_note",
+              "universe_source"
+            ],
+            "key_class": "universe",
+            "self_hit": [
+              "universe_source"
+            ],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          },
+          {
+            "ancestor_hit": [
+              "universe_source"
+            ],
+            "ancestors": [
+              "B03"
+            ],
+            "block": "B04",
+            "child_hit": [],
+            "key_class": "universe",
+            "self_hit": [
+              "universe_note"
+            ],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          },
+          {
+            "ancestor_hit": [
+              "universe_source"
+            ],
+            "ancestors": [
+              "B03"
+            ],
+            "block": "B05",
+            "child_hit": [],
+            "key_class": "universe",
+            "self_hit": [],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          },
+          {
+            "ancestor_hit": [
+              "universe_source"
+            ],
+            "ancestors": [
+              "B03"
+            ],
+            "block": "B06",
+            "child_hit": [],
+            "key_class": "universe",
+            "self_hit": [
+              "universe_source"
+            ],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          },
+          {
+            "ancestor_hit": [
+              "universe_note"
+            ],
+            "ancestors": [
+              "B01",
+              "B02"
+            ],
+            "block": "B07",
+            "child_hit": [],
+            "key_class": "universe",
+            "self_hit": [
+              "universe_note"
+            ],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          },
+          {
+            "ancestor_hit": [
+              "universe_note"
+            ],
+            "ancestors": [
+              "B01",
+              "B02",
+              "B07"
+            ],
+            "block": "B08",
+            "child_hit": [],
+            "key_class": "universe",
+            "self_hit": [],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          },
+          {
+            "ancestor_hit": [
+              "universe_note"
+            ],
+            "ancestors": [
+              "B01",
+              "B02",
+              "B07"
+            ],
+            "block": "B09",
+            "child_hit": [],
+            "key_class": "universe",
+            "self_hit": [],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          },
+          {
+            "ancestor_hit": [
+              "universe_note"
+            ],
+            "ancestors": [
+              "B01",
+              "B02"
+            ],
+            "block": "B10",
+            "child_hit": [],
+            "key_class": "universe",
+            "self_hit": [
+              "universe_source"
+            ],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          },
+          {
+            "ancestor_hit": [],
+            "ancestors": [],
+            "block": "B11",
+            "child_hit": [],
+            "key_class": "universe",
+            "self_hit": [
+              "universeNote"
+            ],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          },
+          {
+            "ancestor_hit": [],
+            "ancestors": [],
+            "block": "B12",
+            "child_hit": [],
+            "key_class": "universe",
+            "self_hit": [],
+            "self_only_verdict": "COVERAGE_MISSING_UNIVERSE",
+            "verdict": "COVERAGE_MISSING_UNIVERSE"
+          },
+          {
+            "ancestor_hit": [],
+            "ancestors": [],
+            "block": "B13",
+            "child_hit": [],
+            "key_class": "universe",
+            "self_hit": [],
+            "self_only_verdict": "COVERAGE_MISSING_UNIVERSE",
+            "verdict": "COVERAGE_MISSING_UNIVERSE"
+          },
+          {
+            "ancestor_hit": [],
+            "ancestors": [],
+            "block": "B14",
+            "child_hit": [],
+            "key_class": "universe",
+            "self_hit": [],
+            "self_only_verdict": "COVERAGE_MISSING_UNIVERSE",
+            "verdict": "COVERAGE_MISSING_UNIVERSE"
+          }
+        ],
+        "key_class": "universe",
+        "missing": [
+          "B12",
+          "B13",
+          "B14"
+        ]
+      },
+      "expect": "COVERAGE_MISSING_UNIVERSE",
+      "id": "V11",
+      "rule": "coverage_matrix",
+      "verdict": "COVERAGE_MISSING_UNIVERSE"
+    },
+    {
+      "axis": "A3",
+      "desc": "14 块 × 口径声明覆盖矩阵",
+      "detail": {
+        "cells": [
+          {
+            "ancestor_hit": [],
+            "ancestors": [],
+            "block": "B01",
+            "child_hit": [
+              "basis_note",
+              "metric_scope",
+              "metric_scopes",
+              "executable_metric_scope",
+              "tradable_note",
+              "note"
+            ],
+            "key_class": "scope",
+            "self_hit": [
+              "executable_metric_scope",
+              "metric_scope",
+              "metric_scopes",
+              "note"
+            ],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          },
+          {
+            "ancestor_hit": [],
+            "ancestors": [],
+            "block": "B02",
+            "child_hit": [
+              "basis_note",
+              "metric_scope",
+              "metric_scopes",
+              "executable_metric_scope",
+              "tradable_note",
+              "note"
+            ],
+            "key_class": "scope",
+            "self_hit": [
+              "executable_metric_scope",
+              "metric_scope",
+              "metric_scopes",
+              "note"
+            ],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          },
+          {
+            "ancestor_hit": [],
+            "ancestors": [],
+            "block": "B03",
+            "child_hit": [
+              "metric_scope",
+              "basis_note",
+              "note",
+              "tradable_note"
+            ],
+            "key_class": "scope",
+            "self_hit": [
+              "executable_metric_scope",
+              "metric_scopes",
+              "note"
+            ],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          },
+          {
+            "ancestor_hit": [
+              "metric_scopes",
+              "executable_metric_scope",
+              "note"
+            ],
+            "ancestors": [
+              "B03"
+            ],
+            "block": "B04",
+            "child_hit": [],
+            "key_class": "scope",
+            "self_hit": [
+              "basis_note",
+              "metric_scope",
+              "note"
+            ],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          },
+          {
+            "ancestor_hit": [
+              "metric_scopes",
+              "executable_metric_scope",
+              "note"
+            ],
+            "ancestors": [
+              "B03"
+            ],
+            "block": "B05",
+            "child_hit": [],
+            "key_class": "scope",
+            "self_hit": [
+              "basis_note",
+              "metric_scope",
+              "note"
+            ],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          },
+          {
+            "ancestor_hit": [
+              "metric_scopes",
+              "executable_metric_scope",
+              "note"
+            ],
+            "ancestors": [
+              "B03"
+            ],
+            "block": "B06",
+            "child_hit": [],
+            "key_class": "scope",
+            "self_hit": [
+              "metric_scope",
+              "note",
+              "tradable_note"
+            ],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          },
+          {
+            "ancestor_hit": [
+              "metric_scopes",
+              "metric_scope",
+              "executable_metric_scope",
+              "note"
+            ],
+            "ancestors": [
+              "B01",
+              "B02"
+            ],
+            "block": "B07",
+            "child_hit": [
+              "basis_note",
+              "metric_scope",
+              "note"
+            ],
+            "key_class": "scope",
+            "self_hit": [
+              "basis_note",
+              "executable_metric_scope",
+              "metric_scope",
+              "metric_scopes"
+            ],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          },
+          {
+            "ancestor_hit": [
+              "metric_scopes",
+              "metric_scope",
+              "executable_metric_scope",
+              "note",
+              "basis_note"
+            ],
+            "ancestors": [
+              "B01",
+              "B02",
+              "B07"
+            ],
+            "block": "B08",
+            "child_hit": [],
+            "key_class": "scope",
+            "self_hit": [
+              "basis_note",
+              "metric_scope",
+              "note"
+            ],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          },
+          {
+            "ancestor_hit": [
+              "metric_scopes",
+              "metric_scope",
+              "executable_metric_scope",
+              "note",
+              "basis_note"
+            ],
+            "ancestors": [
+              "B01",
+              "B02",
+              "B07"
+            ],
+            "block": "B09",
+            "child_hit": [],
+            "key_class": "scope",
+            "self_hit": [
+              "basis_note",
+              "metric_scope",
+              "note"
+            ],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          },
+          {
+            "ancestor_hit": [
+              "metric_scopes",
+              "metric_scope",
+              "executable_metric_scope",
+              "note"
+            ],
+            "ancestors": [
+              "B01",
+              "B02"
+            ],
+            "block": "B10",
+            "child_hit": [],
+            "key_class": "scope",
+            "self_hit": [
+              "metric_scope",
+              "note",
+              "tradable_note"
+            ],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          },
+          {
+            "ancestor_hit": [],
+            "ancestors": [],
+            "block": "B11",
+            "child_hit": [],
+            "key_class": "scope",
+            "self_hit": [],
+            "self_only_verdict": "COVERAGE_MISSING_SCOPE",
+            "verdict": "COVERAGE_MISSING_SCOPE"
+          },
+          {
+            "ancestor_hit": [],
+            "ancestors": [],
+            "block": "B12",
+            "child_hit": [],
+            "key_class": "scope",
+            "self_hit": [],
+            "self_only_verdict": "COVERAGE_MISSING_SCOPE",
+            "verdict": "COVERAGE_MISSING_SCOPE"
+          },
+          {
+            "ancestor_hit": [],
+            "ancestors": [],
+            "block": "B13",
+            "child_hit": [],
+            "key_class": "scope",
+            "self_hit": [
+              "metric_scope"
+            ],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          },
+          {
+            "ancestor_hit": [],
+            "ancestors": [],
+            "block": "B14",
+            "child_hit": [],
+            "key_class": "scope",
+            "self_hit": [
+              "note"
+            ],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          }
+        ],
+        "key_class": "scope",
+        "missing": [
+          "B11",
+          "B12"
+        ]
+      },
+      "expect": null,
+      "id": "V12",
+      "rule": "coverage_matrix",
+      "verdict": "COVERAGE_MISSING_SCOPE"
+    },
+    {
+      "axis": "A3",
+      "desc": "仅自身字段口径下的样本域缺失清单（描述性，不作 kill）",
+      "detail": {
+        "cells": [
+          {
+            "block": "B01",
+            "self_hit": [
+              "universe_note"
+            ],
+            "self_only": "COVERAGE_OK"
+          },
+          {
+            "block": "B02",
+            "self_hit": [
+              "universe_note"
+            ],
+            "self_only": "COVERAGE_OK"
+          },
+          {
+            "block": "B03",
+            "self_hit": [
+              "universe_source"
+            ],
+            "self_only": "COVERAGE_OK"
+          },
+          {
+            "block": "B04",
+            "self_hit": [
+              "universe_note"
+            ],
+            "self_only": "COVERAGE_OK"
+          },
+          {
+            "block": "B05",
+            "self_hit": [],
+            "self_only": "COVERAGE_OK"
+          },
+          {
+            "block": "B06",
+            "self_hit": [
+              "universe_source"
+            ],
+            "self_only": "COVERAGE_OK"
+          },
+          {
+            "block": "B07",
+            "self_hit": [
+              "universe_note"
+            ],
+            "self_only": "COVERAGE_OK"
+          },
+          {
+            "block": "B08",
+            "self_hit": [],
+            "self_only": "COVERAGE_OK"
+          },
+          {
+            "block": "B09",
+            "self_hit": [],
+            "self_only": "COVERAGE_OK"
+          },
+          {
+            "block": "B10",
+            "self_hit": [
+              "universe_source"
+            ],
+            "self_only": "COVERAGE_OK"
+          },
+          {
+            "block": "B11",
+            "self_hit": [
+              "universeNote"
+            ],
+            "self_only": "COVERAGE_OK"
+          },
+          {
+            "block": "B12",
+            "self_hit": [],
+            "self_only": "COVERAGE_MISSING_UNIVERSE"
+          },
+          {
+            "block": "B13",
+            "self_hit": [],
+            "self_only": "COVERAGE_MISSING_UNIVERSE"
+          },
+          {
+            "block": "B14",
+            "self_hit": [],
+            "self_only": "COVERAGE_MISSING_UNIVERSE"
+          }
+        ],
+        "missing_self_only": [
+          "B12",
+          "B13",
+          "B14"
+        ],
+        "note": "仅自身字段口径：描述性，不作 kill 依据"
+      },
+      "expect": "COVERAGE_MISSING_UNIVERSE",
+      "id": "V13",
+      "rule": "self_only",
+      "verdict": "COVERAGE_MISSING_UNIVERSE"
+    },
+    {
+      "axis": "A3",
+      "desc": "承载数值结果的块判定（按 §4.1 冻结列）",
+      "detail": {
+        "frozen": [
+          "B01",
+          "B02",
+          "B03",
+          "B04",
+          "B06",
+          "B07",
+          "B08",
+          "B09",
+          "B10",
+          "B11",
+          "B12",
+          "B13",
+          "B14"
+        ],
+        "load_bearing": [
+          "B01",
+          "B02",
+          "B03",
+          "B04",
+          "B06",
+          "B07",
+          "B08",
+          "B09",
+          "B10",
+          "B11",
+          "B12",
+          "B13",
+          "B14"
+        ],
+        "not_load_bearing": [
+          "B05"
+        ],
+        "note": "按 §4.1 冻结列；描述性"
+      },
+      "expect": "TRUE_CLAIM",
+      "id": "V14",
+      "rule": "load_bearing",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "axis": "A3",
+      "desc": "B12/B14 = COVERAGE_MISSING_UNIVERSE？（候选 K2）",
+      "detail": {
+        "b11": {
+          "ancestor_hit": [],
+          "ancestors": [],
+          "block": "B11",
+          "child_hit": [],
+          "key_class": "universe",
+          "self_hit": [
+            "universeNote"
+          ],
+          "self_only_verdict": "COVERAGE_OK",
+          "verdict": "COVERAGE_OK"
+        },
+        "b12": {
+          "ancestor_hit": [],
+          "ancestors": [],
+          "block": "B12",
+          "child_hit": [],
+          "key_class": "universe",
+          "self_hit": [],
+          "self_only_verdict": "COVERAGE_MISSING_UNIVERSE",
+          "verdict": "COVERAGE_MISSING_UNIVERSE"
+        },
+        "b13": {
+          "ancestor_hit": [],
+          "ancestors": [],
+          "block": "B13",
+          "child_hit": [],
+          "key_class": "universe",
+          "self_hit": [],
+          "self_only_verdict": "COVERAGE_MISSING_UNIVERSE",
+          "verdict": "COVERAGE_MISSING_UNIVERSE"
+        },
+        "b14": {
+          "ancestor_hit": [],
+          "ancestors": [],
+          "block": "B14",
+          "child_hit": [],
+          "key_class": "universe",
+          "self_hit": [],
+          "self_only_verdict": "COVERAGE_MISSING_UNIVERSE",
+          "verdict": "COVERAGE_MISSING_UNIVERSE"
+        },
+        "cells": [
+          {
+            "ancestor_hit": [],
+            "ancestors": [],
+            "block": "B12",
+            "child_hit": [],
+            "key_class": "universe",
+            "self_hit": [],
+            "self_only_verdict": "COVERAGE_MISSING_UNIVERSE",
+            "verdict": "COVERAGE_MISSING_UNIVERSE"
+          },
+          {
+            "ancestor_hit": [],
+            "ancestors": [],
+            "block": "B14",
+            "child_hit": [],
+            "key_class": "universe",
+            "self_hit": [],
+            "self_only_verdict": "COVERAGE_MISSING_UNIVERSE",
+            "verdict": "COVERAGE_MISSING_UNIVERSE"
+          },
+          {
+            "ancestor_hit": [],
+            "ancestors": [],
+            "block": "B13",
+            "child_hit": [],
+            "key_class": "universe",
+            "self_hit": [],
+            "self_only_verdict": "COVERAGE_MISSING_UNIVERSE",
+            "verdict": "COVERAGE_MISSING_UNIVERSE"
+          },
+          {
+            "ancestor_hit": [],
+            "ancestors": [],
+            "block": "B11",
+            "child_hit": [],
+            "key_class": "universe",
+            "self_hit": [
+              "universeNote"
+            ],
+            "self_only_verdict": "COVERAGE_OK",
+            "verdict": "COVERAGE_OK"
+          }
+        ]
+      },
+      "expect": "COVERAGE_MISSING_UNIVERSE",
+      "id": "V15",
+      "rule": "coverage_b12",
+      "verdict": "COVERAGE_MISSING_UNIVERSE"
+    },
+    {
+      "axis": "A4",
+      "desc": "B11 vs B12 样本域声明不对称（候选 K3）",
+      "detail": {
+        "asymmetry": true,
+        "b11_covered": true,
+        "b12_missing": true,
+        "facts": [
+          {
+            "at": 436,
+            "fact": "FACTOR_UNIVERSE_NOTE",
+            "kind": "regex_present",
+            "note": "B12 的 note 在调用处构造",
+            "ok": true
+          },
+          {
+            "at": 448,
+            "fact": "FACTOR_UNIVERSE_NOTE",
+            "kind": "regex_present",
+            "note": "B14 的 note 在调用处构造",
+            "ok": true
+          },
+          {
+            "at": 91,
+            "fact": "universeNote",
+            "kind": "regex_present",
+            "note": "B11 有字段",
+            "ok": true
+          },
+          {
+            "at": null,
+            "fact": "universe",
+            "kind": "regex_absent",
+            "note": "B12 无字段",
+            "ok": true
+          },
+          {
+            "at": null,
+            "fact": "universe",
+            "kind": "regex_absent",
+            "note": "B12 映射器丢弃 note",
+            "ok": true
+          }
+        ]
+      },
+      "expect": "INCONSISTENT",
+      "id": "V16",
+      "rule": "consistency_b11_b12",
+      "verdict": "INCONSISTENT"
+    },
+    {
+      "axis": "A4",
+      "desc": "metric_scope 取值域跨面 × T24 词表的可调和性（注册项，不杀）",
+      "detail": {
+        "constants": [
+          "COST_APPROX",
+          "EXECUTABLE",
+          "RAW"
+        ],
+        "domain": [
+          "COST_APPROX",
+          "EXECUTABLE",
+          "FILLED_SAMPLE",
+          "RAW",
+          "UNAVAILABLE"
+        ],
+        "filled_sample_values": [
+          "FILLED_SAMPLE",
+          "FILLED_SAMPLE"
+        ],
+        "note": "注册项（D-R012-01/D-R012-02），不作 kill 依据",
+        "raw_basis": {
+          "legacy_qfq": true,
+          "snapshot_raw": true
+        },
+        "t24_vocab": [
+          "RAW",
+          "COST_APPROX",
+          "EXECUTABLE"
+        ],
+        "unreconciled": [
+          "FILLED_SAMPLE",
+          "UNAVAILABLE"
+        ]
+      },
+      "expect": "SCOPE_VOCAB_UNRECONCILED",
+      "id": "V17",
+      "rule": "scope_vocab",
+      "verdict": "SCOPE_VOCAB_UNRECONCILED"
+    },
+    {
+      "axis": "A4",
+      "desc": "T01 与 T21 两条样本域声明的同义性（各自是否描述不同数据路径）",
+      "detail": {
+        "facts": [
+          {
+            "at": 73,
+            "fact": "sparse selector_result 取样",
+            "kind": "regex_present",
+            "note": "T01 描述 FRS legacy 路径",
+            "ok": true
+          },
+          {
+            "at": 61,
+            "fact": "persisted 全截面候选",
+            "kind": "regex_present",
+            "note": "T21 描述 SBS 候选路径",
+            "ok": true
+          },
+          {
+            "at": 152,
+            "fact": "SOURCE_LEGACY_SELECTION_BIASED",
+            "kind": "regex_present",
+            "note": "FRS 来源常量",
+            "ok": true
+          },
+          {
+            "at": 466,
+            "fact": "FILLED_SAMPLE",
+            "kind": "regex_present",
+            "note": "SBS 口径常量",
+            "ok": true
+          }
+        ],
+        "same_data_source_claimed": false,
+        "t01": "private static final String RANK_IC_UNIVERSE_NOTE =\n            \"LEGACY_SELECTION_BIASED：sparse selector_result 取样（非完整 PIT 截面），存在选择/幸存者偏差；\"\n                    + \"完整截面 IC 请走 snapshot-research（V2-MP-022，输入 snapshotId 读取 MP-016 feature snapshot）\";",
+        "t21": "private static final String FACTOR_UNIVERSE_NOTE =\n            \"基于 persisted 全截面候选（通过质量闸的全部条目，非 TopN 子集）；未复现历史时点股票池，存在幸存者偏差\";"
+      },
+      "expect": "CONSISTENT_DISTINCT_SOURCES",
+      "id": "V18",
+      "rule": "synonymy",
+      "verdict": "CONSISTENT_DISTINCT_SOURCES"
+    },
+    {
+      "axis": "A4",
+      "desc": "T10/T11/T12 三个顶层 note 与各自块内 metric_scope 的表述一致性",
+      "detail": {
+        "checks": [
+          {
+            "block": "B01",
+            "block_metric_scopes": true,
+            "block_scopes": [
+              "RAW",
+              "COST_APPROX"
+            ],
+            "note_names_approx": true,
+            "note_names_raw": true
+          },
+          {
+            "block": "B02",
+            "block_metric_scopes": true,
+            "block_scopes": [
+              "RAW",
+              "COST_APPROX"
+            ],
+            "note_names_approx": true,
+            "note_names_raw": true
+          },
+          {
+            "block": "B03",
+            "block_metric_scopes": true,
+            "block_scopes": [
+              "RAW",
+              "COST_APPROX",
+              "EXECUTABLE?"
+            ],
+            "note_names_approx": true,
+            "note_names_raw": true
+          }
+        ],
+        "contradictions": []
+      },
+      "expect": "CONSISTENT",
+      "id": "V19",
+      "rule": "toplevel_notes",
+      "verdict": "CONSISTENT"
+    },
+    {
+      "axis": "A5",
+      "desc": "正面对照：T01 常量确实到达载荷（发射点 + 引擎透传）",
+      "detail": {
+        "facts": [
+          {
+            "at": 752,
+            "fact": "RANK_IC_UNIVERSE_NOTE",
+            "kind": "regex_present",
+            "note": "legacy 传给 summarize",
+            "ok": true
+          },
+          {
+            "at": 654,
+            "fact": "universe_note\\\", RANK_IC_UNIVERSE_NOTE",
+            "kind": "regex_present",
+            "note": "B07 发射",
+            "ok": true
+          },
+          {
+            "at": 169,
+            "fact": "universe_note\\\", RANK_IC_UNIVERSE_NOTE",
+            "kind": "regex_present",
+            "note": "B01 发射",
+            "ok": true
+          },
+          {
+            "at": 227,
+            "fact": "universe_note\\\", RANK_IC_UNIVERSE_NOTE",
+            "kind": "regex_present",
+            "note": "B02 发射",
+            "ok": true
+          },
+          {
+            "at": 436,
+            "fact": "FACTOR_UNIVERSE_NOTE",
+            "kind": "regex_present",
+            "note": "SBS 传给 summarize",
+            "ok": true
+          },
+          {
+            "at": 1047,
+            "fact": "\\.universeNote\\(summary\\.universeNote\\(\\)\\)",
+            "kind": "regex_present",
+            "note": "引擎→DTO",
+            "ok": true
+          }
+        ],
+        "runtime": {
+          "engine_note": "R012-PROBE-PA-UNIVERSE-NOTE",
+          "note": "引擎 summarize(..., universeNote) → summary.universeNote() 逐字符透传",
+          "passthrough_ok": true,
+          "universe_note": "R012-PROBE-PA-UNIVERSE-NOTE"
+        },
+        "runtime_ok": true,
+        "static_ok": true
+      },
+      "expect": "TRUE_CLAIM",
+      "id": "V20",
+      "rule": "positive_control",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "axis": "A5",
+      "desc": "反向锚点：hac_std/ci_* 来自同一 IC 序列（静态 + 运行时）",
+      "detail": {
+        "facts": [
+          {
+            "at": 170,
+            "fact": "List<Double> icSeries",
+            "kind": "regex_present",
+            "note": "",
+            "ok": true
+          },
+          {
+            "at": 190,
+            "fact": "neweyWestHacStd\\(icSeries\\)",
+            "kind": "regex_present",
+            "note": "",
+            "ok": true
+          },
+          {
+            "at": 191,
+            "fact": "blockBootstrapCi\\(icSeries",
+            "kind": "regex_present",
+            "note": "",
+            "ok": true
+          }
+        ],
+        "runtime": {
+          "ci_finite": true,
+          "ci_lower": 0.25,
+          "ci_order_ok": true,
+          "ci_upper": 0.44242424242424244,
+          "grouped_len_ok": true,
+          "hac_finite": true,
+          "hac_std": 0.036239303374449736,
+          "note": "hac_std / ci_lower / ci_upper 必须由同一条 IC 序列产出且有限、ci_lower<=ci_upper",
+          "ok": true
+        },
+        "runtime_ok": true,
+        "static_ok": true
+      },
+      "expect": "TRUE_CLAIM",
+      "id": "V21",
+      "rule": "reverse_anchor",
+      "verdict": "TRUE_CLAIM"
+    },
+    {
+      "axis": "A5",
+      "desc": "金丝雀（CLN/INJ）+ 行和/轴计数/网格 + 逐位确定性",
+      "detail": {
+        "canary": {
+          "all_cln_pass": true,
+          "all_inj_pass": true,
+          "items": [
+            {
+              "cln_pass": true,
+              "declared_keys": 2,
+              "inj_flip_count": 2,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V01"
+            },
+            {
+              "cln_pass": true,
+              "declared_keys": 1,
+              "inj_flip_count": 1,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V02"
+            },
+            {
+              "cln_pass": true,
+              "declared_keys": 1,
+              "inj_flip_count": 1,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V03"
+            },
+            {
+              "cln_pass": true,
+              "declared_keys": 3,
+              "inj_flip_count": 3,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V04"
+            },
+            {
+              "cln_pass": true,
+              "declared_keys": 7,
+              "inj_flip_count": 7,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V05"
+            },
+            {
+              "cln_pass": true,
+              "declared_keys": 13,
+              "inj_flip_count": 13,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V06"
+            },
+            {
+              "cln_pass": true,
+              "declared_keys": 12,
+              "inj_flip_count": 12,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V07"
+            },
+            {
+              "cln_pass": true,
+              "declared_keys": 9,
+              "inj_flip_count": 9,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V08"
+            },
+            {
+              "cln_pass": true,
+              "declared_keys": 5,
+              "inj_flip_count": 5,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V09"
+            },
+            {
+              "cln_pass": true,
+              "declared_keys": 26,
+              "inj_flip_count": 26,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V10"
+            },
+            {
+              "cln_pass": true,
+              "declared_keys": 15,
+              "inj_flip_count": 15,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V11"
+            },
+            {
+              "cln_pass": true,
+              "declared_keys": 15,
+              "inj_flip_count": 15,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V12"
+            },
+            {
+              "cln_pass": true,
+              "declared_keys": 1,
+              "inj_flip_count": 1,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V13"
+            },
+            {
+              "cln_pass": true,
+              "declared_keys": 1,
+              "inj_flip_count": 1,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V14"
+            },
+            {
+              "cln_pass": true,
+              "declared_keys": 4,
+              "inj_flip_count": 4,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V15"
+            },
+            {
+              "cln_pass": true,
+              "declared_keys": 3,
+              "inj_flip_count": 3,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V16"
+            },
+            {
+              "cln_pass": true,
+              "declared_keys": 1,
+              "inj_flip_count": 1,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V17"
+            },
+            {
+              "cln_pass": true,
+              "declared_keys": 5,
+              "inj_flip_count": 5,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V18"
+            },
+            {
+              "cln_pass": true,
+              "declared_keys": 1,
+              "inj_flip_count": 1,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V19"
+            },
+            {
+              "cln_pass": true,
+              "declared_keys": 4,
+              "inj_flip_count": 4,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V20"
+            },
+            {
+              "cln_pass": true,
+              "declared_keys": 3,
+              "inj_flip_count": 3,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V21"
+            },
+            {
+              "cln_pass": true,
+              "declared_keys": 0,
+              "inj_flip_count": 0,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V22"
+            },
+            {
+              "cln_pass": true,
+              "declared_keys": 0,
+              "inj_flip_count": 0,
+              "inj_pass": true,
+              "note": "CLN=声明键集合的确定性（非「谓词必须为真」）；INJ=单键取反必翻转",
+              "variant": "V22"
+            }
+          ],
+          "pairs": 23
+        },
+        "counts": {
+          "axis_total": 22,
+          "grid_mismatch_count": 0,
+          "row_sum": 22
+        },
+        "det": {
+          "probe_bytes_equal": true,
+          "static_equal": true
+        }
+      },
+      "expect": "TRUE_CLAIM",
+      "id": "V22",
+      "rule": "canary",
+      "verdict": "TRUE_CLAIM"
+    }
+  ],
+  "variants_total": 22
+}

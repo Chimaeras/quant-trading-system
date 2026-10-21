@@ -1,0 +1,139 @@
+{
+  "experiment_id": "R003_cost_breakeven",
+  "paper_id": "NMV2016",
+  "prereg": "research/paper_loop/rounds/R003_prereg.md",
+  "run_time": "2026-09-15T15:11:33",
+  "primary": {
+    "N": 20,
+    "h": 3
+  },
+  "grid_N": [
+    1,
+    5,
+    20
+  ],
+  "horizons": [
+    2,
+    3
+  ],
+  "segments": {
+    "IS": [
+      "2024-01-02",
+      "2025-12-31"
+    ],
+    "IS_A": [
+      "2024-01-02",
+      "2024-12-31"
+    ],
+    "IS_B": [
+      "2025-01-01",
+      "2025-12-31"
+    ],
+    "OOS": [
+      "2026-01-01",
+      "2026-09-07"
+    ]
+  },
+  "frozen_cost": {
+    "commission": 0.0003,
+    "sell_tax": 0.0005,
+    "slippage": 0.0002,
+    "round_trip_bp": 11.999999999999998,
+    "buy_share": 0.4166666666666667,
+    "sell_share": 0.5833333333333334
+  },
+  "cost_models": [
+    {
+      "id": "M0_zero",
+      "kind": "uniform",
+      "bp": 0.0,
+      "desc": "零成本（工具校验：净必须等于毛）"
+    },
+    {
+      "id": "M1_frozen_12bp",
+      "kind": "uniform",
+      "bp": 12.0,
+      "desc": "冻结口径 12bp（工具校验：必须逐位复现 R001）"
+    },
+    {
+      "id": "M2_tick1",
+      "kind": "tick",
+      "mult": 1.0,
+      "desc": "一跳下界（模型自由；符号为真实成本下界）"
+    },
+    {
+      "id": "M3_tick2",
+      "kind": "tick",
+      "mult": 2.0,
+      "desc": "2× 一跳（**显式假设**：价差 ≤2 跳；不是定理）"
+    },
+    {
+      "id": "M4_frozen_x2_24bp",
+      "kind": "uniform",
+      "bp": 24.0,
+      "desc": "2× 冻结（H2 低端，等权惩罚 2×）"
+    },
+    {
+      "id": "M5_frozen_x3_36bp",
+      "kind": "uniform",
+      "bp": 36.0,
+      "desc": "3× 冻结（H2 高端，等权惩罚 3×）"
+    },
+    {
+      "id": "M6_frozen_c19p6bp",
+      "kind": "uniform",
+      "bp": 9.6,
+      "desc": "冻结 −20%（敏感性）"
+    },
+    {
+      "id": "M7_frozen_c214p4bp",
+      "kind": "uniform",
+      "bp": 14.4,
+      "desc": "冻结 +20%（敏感性）"
+    },
+    {
+      "id": "M8_mono_6bp",
+      "kind": "uniform",
+      "bp": 6.0,
+      "desc": "K2 单调性检查点（prereg §4 明列 c_rt=6bp）"
+    }
+  ],
+  "monotonic_bp": [
+    0.0,
+    6.0,
+    9.6,
+    12.0,
+    14.4,
+    24.0,
+    36.0
+  ],
+  "breakeven_search": {
+    "hi_bp": 30000.0,
+    "iters": 80
+  },
+  "min_names_per_date": 30,
+  "random_seed": 20260914,
+  "max_variants": 40,
+  "data_source": "quant_db.market_data (qfq)",
+  "variant_table_prereg": {
+    "cost_models": 7,
+    "main_grid": 28,
+    "breakeven": 4,
+    "cross_section": 1,
+    "canaries": 2,
+    "total": 35
+  },
+  "variant_table_realised": {
+    "grid_cells": 32,
+    "k2_monotonicity_point": 1,
+    "canaries": 2,
+    "breakeven_solves": 4,
+    "cross_section_runs": 1,
+    "parity_cells_reused_from_grid": 2,
+    "total_distinct_evaluations": 40,
+    "max_variants": 40,
+    "internal_solver_steps": 320,
+    "prereg_table_total": 35,
+    "note": "为主张未超预注册上限：(a) 预注册表中「成本模型 M0–M6」7 个 + 单调性所需的 6bp 检查点（prereg §4 K2 明列）⟹ 网格 8 模型；(b) K2 的逐位复现不新增评估，直接复用 (N=20,h∈{2,3},IS/OOS) 的 M1 网格单元；(c) 为守住 40 的上限，N∈{1,5} 的网格单元本轮不评估（R003 结论不使用）。二分法内部迭代为单一预注册量的数值求解，不构成变体。阈值在运行前由 R003_prereg.md 固定，未因结果收紧或放宽"
+  }
+}
